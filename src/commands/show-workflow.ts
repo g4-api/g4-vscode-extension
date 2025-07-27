@@ -179,6 +179,29 @@ export class ShowWorkflowCommand extends CommandBase {
                 throw new Error(`Failed to fetch ${url}`);
             }
 
+            /**
+             * Detects and patches the main HTML entry point for the embedded workflow editor.
+             * Replaces the default CSS filename with a VS Code–specific stylesheet, then writes
+             * the modified HTML to disk.
+             */
+            if (resource === 'index.html') {
+                // Read the fetched HTML content as a UTF-8 string
+                let htmlText = await res.text();
+
+                // Swap out the blueprint CSS filename for the VS Code–optimized version
+                htmlText = htmlText.replace(
+                    /designer-blueprint-parameters\.css/g,
+                    'designer-blueprint-parameters-vscode.css'
+                );
+
+                // Persist the patched HTML back to disk at the target filePath
+                await fs.writeFile(filePath, htmlText, 'utf8');
+
+                // Skip any further processing of this resource since it's now handled
+                continue;
+            }
+
+
             // If this is the global.js script, patch API endpoints within its text
             if (path.basename(resource) === 'global.js') {
                 let jsText = await res.text();
@@ -205,7 +228,6 @@ export class ShowWorkflowCommand extends CommandBase {
                 );
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
-
                 // Otherwise, treat it as a binary or static asset
             } else {
                 // Read the response as raw bytes and write to disk
