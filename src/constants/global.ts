@@ -1,0 +1,70 @@
+export class Global {
+    /**
+     * The base URL for the G4 Hub API.
+     * This is used to construct API endpoints for communication with the G4 Hub.
+     */
+    public static BASE_HUB_URL: string = 'http://localhost:9944';
+
+    /** The base manifest for the G4 Hub API. */
+    public static BASE_MANIFEST: any = {
+        "clientLogConfiguration": {
+            "agentLogConfiguration": {
+                "enabled": true,
+                "interval": 1000
+            },
+            "logLevel": "information",
+            "sourceOptions": {
+                "filter": "include",
+                "sources": []
+            }
+        },
+        "g4Server": {
+            "schema": "http",
+            "host": "localhost",
+            "port": "9944"
+        },
+        "authentication": {
+            "password": null,
+            "token": "3xezq5Yc33laNOPNP8yCsK33vQcQZ87E/zyLNNscYNeqvKTHAm9C3wAEDQV7X9\u002BfuuHPhafDNXbSFgsbKmCncCKm7DRE5A6JtFSd90DNujujbQ3vLG4/4uSVCR76Z6VguIDSvRZ/pJTHCzBc9NNI/eb5fLHcjXyYrilm9NC7VTD/HOlgGC5CL\u002BoFhHoR8s10YuI9QpRioZbyDHysFumpAAv3/PG/p/QBKNoQpjtsUgMytrnqr3m1bgyXITG0u5AUR2VpZLCXQO6MxU7kwLwvdNGXUDfajBVT29KyjXUEWN9dK0R38XmgZFQ7orkKfN2z0x2SMfC5mvTDM6as\u002B/kYWFAvpqOZDhZ95sgQWp/zGig=",
+            "username": null
+        },
+        "driverParameters": {
+            "driver": "ChromeDriver",
+            "driverBinaries": "http://localhost:4444/wd/hub"
+        },
+        "settings": {
+            "automationSettings": {
+                "loadTimeout": 60000,
+                "maxParallel": 1,
+                "returnFlatResponse": true,
+                "returnStructuredResponse": true,
+                "searchTimeout": 15000
+            },
+            "environmentsSettings": {
+                "defaultEnvironment": "SystemParameters",
+                "environmentVariables": null,
+                "returnEnvironment": false
+            },
+            "exceptionsSettings": {
+                "returnExceptions": true
+            },
+            "queueManagerSettings": {
+                "properties": null,
+                "type": null
+            },
+            "performancePointsSettings": {
+                "returnPerformancePoints": true
+            },
+            "pluginsSettings": {
+                "externalRepositories": null,
+                "forceRuleReference": true
+            },
+            "screenshotsSettings": {
+                "convertToBase64": false,
+                "onExceptionOnly": false,
+                "outputFolder": "C:\\Users\\s_roe\\OneDrive\\Desktop\\New folder\\g4-api\\src\\TestResults\\Deploy_s_roe 20250530T114855_8028\\Out\\Outputs\\Images",
+                "returnScreenshots": false
+            }
+        }
+    }
+}
