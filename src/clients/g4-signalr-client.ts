@@ -102,9 +102,6 @@ export class NotificationService {
 
             // Log the disconnection as an error
             this._logger.error(msg);
-
-            // Display an error message to the user in VS Code
-            vscode.window.showErrorMessage(msg);
         });
     }
 
@@ -121,12 +118,12 @@ export class NotificationService {
             await this._connection.start();
 
             // Notify the user that we successfully connected
-            vscode.window.showInformationMessage(
+            this._logger.information(
                 `Connected to G4 notifications hub at ${this.baseUrl}`
             );
         } catch (err: any) {
-            // Display an error message with details if connection fails
-            vscode.window.showErrorMessage(
+            // Log the error details for debugging purposes
+            this._logger.error(
                 `Failed to connect to G4 notifications hub at ${this.baseUrl}: ${err?.message || err}`
             );
 
@@ -153,11 +150,6 @@ export class NotificationService {
         } catch (err: any) {
             // Log the error details for debugging purposes
             this._logger.error(
-                `Error disconnecting from G4 notifications hub: ${err?.message || err}`
-            );
-
-            // Show an error message to the user indicating cleanup failure
-            vscode.window.showErrorMessage(
                 `Error disconnecting from G4 notifications hub: ${err?.message || err}`
             );
         }

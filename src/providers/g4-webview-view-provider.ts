@@ -40,8 +40,8 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
         // Listen for messages sent from the webview's frontend
         webviewView.webview.onDidReceiveMessage(
             async (message) => {
-                // Handle the 'showWorkflow' command by invoking the VS Code command
-                if (message.command === 'showWorkflow') {
+                // Handle the 'Show-Workflow' command by invoking the VS Code command
+                if (message.command === 'Show-Workflow') {
                     await vscode.commands.executeCommand('Show-Workflow');
                 }
                 // Add more message handlers here as needed
@@ -156,7 +156,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
             <script>
                 const vscode = acquireVsCodeApi();
                 document.getElementById('showWorkflowBtn').addEventListener('click', () =>
-                    vscode.postMessage({ command: 'showWorkflow' })
+                    vscode.postMessage({ command: 'Show-Workflow' })
                 );
             </script>
       </body>

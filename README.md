@@ -1,5 +1,8 @@
 # g4-engine-client README
 
+Unblock-File "E:\Binaries\VSCode-win32-x64-1.102.1\resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1"
+
+
 This is the README for your extension "g4-engine-client". After writing up a brief description, we recommend including the following sections.
 
 ## Features
