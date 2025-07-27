@@ -6,6 +6,7 @@ import { NotificationService } from './clients/g4-signalr-client';
 import { SendAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
+import { Global } from './constants/global';
 
 const connections = new Map<string, NotificationService>();
 
@@ -42,66 +43,63 @@ const registerProviders = (options: {
     new G4WebviewViewProvider(options.context).register();
 }
 
+/**
+ * Set up listeners to auto-register SignalR NotificationService instances
+ * whenever a new MdJson notebook becomes active.
+ *
+ * @param options.context - VS Code extension context for subscriptions.
+ * @param options.baseUri - Base URL for connecting to the G4 SignalR hub.
+ * @param options.connections - Map of notebook URIs to NotificationService clients.
+ */
 const registerNotebookEvents = (options: {
-    context: vscode.ExtensionContext,
-    baseUri: string,
-    connections: Map<string, NotificationService>
-}) => {
-    const openNotebookDocument = vscode.workspace.onDidOpenNotebookDocument(notebook => {
-        console.log('changeActiveNotebookEditor');
-    });
-
-    // Listen for changes to the active notebook editor and
-    // auto-register NotificationService for new MdJson notebooks.
+    context: vscode.ExtensionContext;
+    baseUri: string;
+    connections: Map<string, NotificationService>;
+}): void => {
+    // Listen for changes to the active notebook editor
     const changeActiveNotebookEditor = vscode.window.onDidChangeActiveNotebookEditor(
         /**
-         * Callback invoked whenever the active notebook editor changes.
-         * Registers a SignalR NotificationService for MdJson notebooks
-         * that haven’t been seen before.
+         * Called when the user switches to a different notebook editor.
+         * If the notebook is an MdJson (.mdjson) file and no existing
+         * NotificationService is registered, create one.
          *
-         * @param editor - The new active notebook editor (or undefined).
+         * @param editor - The newly focused notebook editor, or undefined.
          */
         (editor) => {
-            // Extract the NotebookDocument, if available
+            // Get the currently active NotebookDocument, if any
             const notebook = editor?.notebook;
 
-            // Check if this is our custom MdJson notebook type
-            const isMdJsonNotebook = notebook?.notebookType === MdJsonNotebookProvider.NOTEBOOK_TYPE;
-            // Verify the file extension ends with '.mdjson'
-            const isPath = notebook?.uri.path.endsWith('.mdjson');
+            // Only handle our custom MdJson notebook type
+            const isMdJson = notebook?.notebookType === MdJsonNotebookProvider.NOTEBOOK_TYPE;
+            // Ensure the file extension matches .mdjson
+            const hasMdJsonExtension = notebook?.uri.path.endsWith('.mdjson');
 
-            // Only proceed when both type and extension match
-            if (!(isMdJsonNotebook && isPath)) {
+            // Exit early if this is not an MdJson notebook
+            if (!(isMdJson && hasMdJsonExtension)) {
                 return;
             }
 
-            // Use the notebook file path as a unique key
+            // Use the notebook file path as a unique key in the connections map
             const key = notebook.uri.path.toString();
 
-            // If we already have a connection for this notebook, do nothing
-            if (connections.has(key)) {
+            // If we've already created a service for this notebook, do nothing
+            if (options.connections.has(key)) {
                 return;
             }
 
-            // Create and store a new NotificationService for this notebook
-            connections.set(
-                key,
-                new NotificationService(options.context, options.baseUri)
+            // Create and register a new NotificationService for this notebook
+            const service = new NotificationService(
+                options.baseUri,
+                options.context,
+                Global.logger
             );
+            options.connections.set(key, service);
         }
     );
 
-    const changeVisibleNotebookEditors = vscode.window.onDidChangeVisibleNotebookEditors(editors => {
-        // Compare with previously tracked editors
-        console.log("changeVisibleNotebookEditors");
-    });
-
-    options.context.subscriptions.push(
-        openNotebookDocument,
-        changeActiveNotebookEditor,
-        changeVisibleNotebookEditors
-    );
-}
+    // Ensure the event listener is disposed when the extension deactivates
+    options.context.subscriptions.push(changeActiveNotebookEditor);
+};
 
 /**
  * Continuously attempts to connect to the G4 SignalR hub until successful.
@@ -123,7 +121,7 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
         vscode.window.setStatusBarMessage('$(sync~spin) Waiting for G4 Engine Connection...');
 
         // Create a new SignalR client pointing at the G4 hub
-        const client = new NotificationService(context, baseUri);
+        const client = new NotificationService(baseUri, context, Global.logger);
         try {
             // Attempt to start the SignalR connection
             await client.start();
@@ -135,13 +133,13 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
             }
 
             // On successful connect, update status bar and exit loop
-            vscode.window.setStatusBarMessage('$(check) Connected to G4 Engine SignalR hub.');
+            vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub.');
 
             // Return the base URI on successful connection
             return baseUri;
         } catch (error) {
             // On failure, show failure icon, then retry after delay
-            vscode.window.setStatusBarMessage('$(error) Failed to connect');
+            vscode.window.setStatusBarMessage('G4 Engine SignalR Connection Failed. Retrying...');
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue;
         }
