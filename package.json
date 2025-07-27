@@ -35,7 +35,7 @@
             {
                 "language": "g4log",
                 "scopeName": "source.g4.log",
-                "path": "./g4-log-tm-language.json"
+                "path": "./languages/g4-log-tm-language.json"
             }
         ],
         "languages": [
@@ -106,7 +106,8 @@
         "webpack-cli": "^6.0.1"
     },
     "files": [
-        "resources"
+        "resources",
+        "languages"
     ],
     "dependencies": {
         "@microsoft/signalr": "^8.0.7",
