@@ -201,7 +201,6 @@ export class ShowWorkflowCommand extends CommandBase {
                 continue;
             }
 
-
             // If this is the global.js script, patch API endpoints within its text
             if (path.basename(resource) === 'global.js') {
                 let jsText = await res.text();
