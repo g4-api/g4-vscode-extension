@@ -18,7 +18,7 @@ export class G4Client {
      * @param baseUrl - The base URL of the G4 server (e.g., "https://api.example.com").
      * @param version - API version to target (default: 4).
      */
-    constructor(baseUrl: string, version: number = 4) {
+    constructor(baseUrl: string, private readonly _version: number = 4) {
         // Initialize HttpClient with the provided base server URL
         this.httpClient = new HttpClient(baseUrl);
     }

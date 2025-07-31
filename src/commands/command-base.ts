@@ -65,10 +65,9 @@ export abstract class CommandBase {
      * Entry point to register this command with VS Code's command registry.
      * Delegates to the subclass-specific onRegister implementation.
      *
-     * @param args - Optional parameters provided during registration (unused by default).
      * @returns A promise that resolves when the command registration is complete.
      */
-    public register(args?: any): Promise<any> {
+    public register(): Promise<any> {
         return this.onRegister();
     }
 
