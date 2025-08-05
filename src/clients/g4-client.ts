@@ -1,6 +1,5 @@
-import { ResourceModel } from "../models/register-data-model";
+import { Global } from "../constants/global";
 import { HttpClient, HttpCommand } from "./http-client";
-import { IncomingMessage, request, RequestOptions } from 'http';
 
 /**
  * Client for interacting with the G4 server API.
@@ -24,20 +23,40 @@ export class G4Client {
         this.httpClient = new HttpClient(baseUrl);
     }
 
+    /**
+     * Sends a PUT request to create or update an environment on the server.
+     *
+     * @param name        - The unique name of the environment to update.
+     * @param encode      - Whether the server should encode the response (true/false).
+     * @param environment - The environment payload object to send in the request body.
+     * 
+     * @returns A Promise that resolves when the update completes (errors are logged).
+     */
     public async updateEnvironment(name: string, encode: boolean, environment: any): Promise<void> {
+        // Construct a new HTTP command for the environment update endpoint
         const command = new HttpCommand();
+
+        // Build the request URL path with version, environment name, and encode flag
         command.command = `api/v${this._version}/g4/environments/${name}?encode=${encode ? 'true' : 'false'}`;
+
+        // Attach the environment object as the request body
         command.body = environment;
+
+        // Use the HTTP PUT method for update semantics
         command.method = 'PUT';
+
+        // Ensure server interprets the body as JSON
         command.addHeader('Content-Type', 'application/json');
+
+        // Set a timeout of 5 seconds for the request
         command.timeout = 5000;
-        
-        (async () => {
-            try {
-                await this.httpClient.sendAsync(command);
-            } catch (err: any) {
-                console.error('Error:', err.message);
-            }
-        })();
+
+        try {
+            // Execute the HTTP request asynchronously
+            await this.httpClient.sendAsync(command);
+        } catch (err: any) {
+            // Log any errors encountered during the request
+            Global.logger.error(err.message);
+        }
     }
 }
