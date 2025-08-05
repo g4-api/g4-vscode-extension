@@ -34,6 +34,11 @@
                 "command": "Update-Environment",
                 "category": "G4",
                 "title": "Update or Create Environment Variables"
+            },
+            {
+                "command": "extension.openDropDemo",
+                "category": "G4",
+                "title": "Open Drop Demo"
             }
         ],
         "grammars": [

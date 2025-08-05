@@ -66,6 +66,35 @@ export class ShowWorkflowCommand extends CommandBase {
      * loading remote resources, patching them locally, and wiring up log forwarding.
      */
     protected async onInvokeCommand(): Promise<any> {
+        const readFile = async (uri: string) => {
+            try {
+                // Parse the incoming URI (this will decode %3A → “:”, etc.)
+                const fileUri = vscode.Uri.parse(uri);
+
+                // Read the raw bytes from disk
+                const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+
+                // Convert to UTF-8 text
+                const text = Buffer.from(fileBytes).toString('utf8');
+
+                // Derive a friendly fileName if you want
+                const fileName = path.basename(fileUri.fsPath);
+
+                // Send the file text back into the webview
+                panel.webview.postMessage({
+                    command: 'import',
+                    fileName,
+                    content: text
+                });
+            } catch (err: Error | any) {
+                this._logger.error(`Failed to read ${uri}: ${err}`);
+                panel.webview.postMessage({
+                    command: 'import',
+                    error: `Could not read file: ${err.message}`
+                });
+            }
+        };
+
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
@@ -74,6 +103,9 @@ export class ShowWorkflowCommand extends CommandBase {
 
         // Path to the main HTML entry point of the web application
         const indexPath = path.join(storageDir, 'index.html');
+
+        const folders = vscode.workspace.workspaceFolders;
+        const botsFolders = folders?.map(i => vscode.Uri.joinPath(i.uri, "bots")) || [];
 
         // Create a new VS Code WebviewPanel to host the embedded app
         const panel = vscode.window.createWebviewPanel(
@@ -85,22 +117,32 @@ export class ShowWorkflowCommand extends CommandBase {
                 retainContextWhenHidden: true,    // keep state even when the panel is hidden
                 localResourceRoots: [             // restrict which local folders the webview can load
                     vscode.Uri.file(storageDir),
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'images'))
+                    vscode.Uri.file(path.join(this.context.extensionPath, 'images')),
+                    ...botsFolders
                 ]
             }
         );
 
         // Inject a small script that forwards console logs and errors from the webview to the extension
-        const shim = ShowWorkflowCommand.getShim();
+        const headerShim = ShowWorkflowCommand.getHeaderShim();
+        const bodyShim = ShowWorkflowCommand.getBodyShim();
 
         // Load the raw HTML, rewrite resource references, and inject the shim
         let html = await fs.readFile(indexPath, 'utf8');
         html = ShowWorkflowCommand.setHtml(panel, storageDir, html);
-        html = html.replace(/<\/head>/i, shim + '</head>');
+        html = html.replace(/<\/head>/i, headerShim + '</head>');
+        html = html.replace(/<\/body>/i, bodyShim + '</body>');
 
         // Listen for messages posted from the webview’s shim and log them at the appropriate level
-        panel.webview.onDidReceiveMessage(msg => {
-            this._logger.information(msg.text);
+        panel.webview.onDidReceiveMessage(async message => {
+            // If the message is an import request, read the file and send its content
+            if (message.command === 'import') {
+                readFile(message.uri);
+                return;
+            }
+
+            // Log the message text at the appropriate level
+            this._logger.information(message.text);
         });
 
         // Finally, assign the processed HTML to the webview to render the app
@@ -113,12 +155,13 @@ export class ShowWorkflowCommand extends CommandBase {
      *
      * @returns A string containing a <script> element for shimmed console logging.
      */
-    private static getShim(): string {
+    private static getHeaderShim(): string {
         return `
         <script>
         (function() {
             // Acquire VS Code API for sending messages back to the extension
-            const vs = acquireVsCodeApi();
+            const vscode = acquireVsCodeApi();
+            window.vscodeApi = vscode;
 
             // Wrap standard console methods to also post messages to the extension
             ['log', 'warn', 'error', 'info', 'debug'].forEach(level => {
@@ -131,16 +174,57 @@ export class ShowWorkflowCommand extends CommandBase {
                         .map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg))
                         .join(' ');
                     // Send the log level and message text to the extension
-                    vs.postMessage({ level, text });
+                    vscode.postMessage({ level, text });
                 };
             });
 
             // Listen for uncaught errors in the window and forward them
             window.addEventListener('error', e => {
                 const message = e.message + ' at ' + e.filename + ':' + e.lineno;
-                vs.postMessage({ level: 'error', text: message });
+                vscode.postMessage({ level: 'error', text: message });
             });
         })();
+        </script>`;
+    }
+
+    /**
+     * Returns the HTML `<script>` block to inject into the WebView.
+     * This script wires up drag‐and‐drop file import and messaging
+     * between the WebView and the VS Code extension host.
+     *
+     * @returns {string} The HTML/JS shim as a string.
+     */
+    private static getBodyShim(): string {
+        // Use a template string to return the entire <script> block
+        return `
+        <script>
+            // Acquire the VS Code API for sending messages back to the extension
+            const vscode = window.vscodeApi;
+
+            // Get the drop area element by its ID in the DOM
+            const dropArea = document.getElementById('designer');
+
+            // Attach a handler for files dropped onto the drop area
+            dropArea.addEventListener('drop', e => {
+                // Prevent the browser from opening the file by default
+                e.preventDefault();
+
+                // VS Code only supplies a URI, so grab it from dataTransfer
+                const fileUri = e.dataTransfer.getData('text/uri-list');
+                if (fileUri) {
+                    // Notify the extension to import the file at this URI
+                    vscode.postMessage({
+                        command: 'import',
+                        uri: fileUri
+                    });
+                }
+            });
+
+            // Listen for messages coming back from the extension
+            window.addEventListener('message', event => {
+                // Log the incoming data for debugging purposes
+                console.log('Received message from extension:', event.data);
+            });
         </script>`;
     }
 

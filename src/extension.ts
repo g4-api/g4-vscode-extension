@@ -14,6 +14,38 @@ const connections = new Map<string, NotificationService>();
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
+    // // Register the "Open File Viewer" command
+    // const cmd = vscode.commands.registerCommand('extension.openDropDemo', () => {
+    //     const panel = vscode.window.createWebviewPanel(
+    //         'fileViewer',              // internal viewType
+    //         'File Viewer',             // title
+    //         vscode.ViewColumn.One,     // show in first column
+    //         { enableScripts: true }    // allow JS in the webview
+    //     );
+
+    //     // Set HTML content
+    //     panel.webview.html = getWebviewContent();
+
+    //     // Listen for messages from the webview
+    //     panel.webview.onDidReceiveMessage(async message => {
+    //         if (message.command === 'readFile') {
+    //             try {
+    //                 const uri = vscode.Uri.parse(message.uri as string);
+    //                 const bytes = await vscode.workspace.fs.readFile(uri);
+    //                 const text = new TextDecoder('utf-8').decode(bytes);
+    //                 // Send file content back to webview
+    //                 panel.webview.postMessage({ command: 'fileContent', content: text });
+    //             } catch (err: any) {
+    //                 panel.webview.postMessage({
+    //                     command: 'fileContent',
+    //                     content: `Error reading file: ${err.message}`
+    //                 });
+    //             }
+    //         }
+    //     });
+    // });
+
+    // context.subscriptions.push(cmd);
     const baseUri = await InitializeConnection(context);
     const options = { context, baseUri, connections };
 
@@ -150,3 +182,58 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
         }
     }
 };
+
+
+// Returns the HTML for our webview
+function getWebviewContent(): string {
+    return `<!DOCTYPE html>
+<html lang="en">
+<body style="margin:0;padding:0;overflow:hidden;">
+  <div id="dropArea"
+       style="width:100%;height:100vh;
+              display:flex;align-items:center;
+              justify-content:center;
+              border: 2px dashed #888;
+              box-sizing:border-box;">
+    <span>Drag & drop a file here</span>
+  </div>
+  <div id="content" style="padding:10px;white-space:pre-wrap;"></div>
+
+  <script>
+    // VS Code API for messaging
+    const vscode = acquireVsCodeApi();
+    const dropArea = document.getElementById('dropArea');
+    const contentEl = document.getElementById('content');
+
+    // Highlight on drag over
+    dropArea.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropArea.style.borderColor = '#06c';
+    });
+    dropArea.addEventListener('dragleave', e => {
+      dropArea.style.borderColor = '#888';
+    });
+
+    // Handle drop
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault();
+      dropArea.style.borderColor = '#888';
+
+      // VS Code only gives us a URI
+      const fileUri = e.dataTransfer.getData('text/uri-list');
+      if (fileUri) {
+        vscode.postMessage({ command: 'readFile', uri: fileUri });
+      }
+    });
+
+    // Receive file content from extension
+    window.addEventListener('message', event => {
+      console.log('Received message:', event.data);
+      const msg = event.data;
+      if (msg.command === 'fileContent') {
+        contentEl.innerHTML = msg.content;
+      }
+    });
+  </script>
+</html>`;
+}
