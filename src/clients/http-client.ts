@@ -1,6 +1,4 @@
 /*
- * CHANGE LOG - keep only last 5 threads
- * 
  * RESOURCES
  * https://make.wordpress.org/core/handbook/best-practices/inline-documentation-standards/javascript/
  * https://nodejs.dev/learn/making-http-requests-with-nodejs
@@ -42,78 +40,55 @@ export class HttpClient {
      * @returns A Promise that resolves with the response data.
      */
     public async sendAsync(httpCommand: HttpCommand): Promise<any> {
-        return new Promise((resolve) => {
-            // Extract logger, URL, and request options
-            const logger = this._logger;
-            const url = `${this._baseUrl}${httpCommand.command}`;
-            const options = HttpClient.getOptions(this._baseUrl, httpCommand);
-
-            // Create the client request
-            const clientRequest = request(options, (response) => {
-                let data = '';
-
-                // Handle incoming data
-                response.on('data', (incomingData) => data += incomingData);
-
-                // Handle errors during the response
-                response.on('error', (error) => HttpClient.onError(logger, error, resolve));
-
-                // Handle the end of the response
-                response.on('end', () => HttpClient.onEnd(logger, response, data, resolve));
-            });
-
-            // Handle timeout events
-            clientRequest.on('timeout', () => HttpClient.onTimeout(logger, url, options.timeout, resolve));
-
-            // Handle errors during the request
-            clientRequest.on('error', (error: any) => HttpClient.onError(logger, error, resolve));
-
-            // Write request body if applicable
+        return new Promise((resolve, _) => {
+            // Check if a body payload is provided
             const isBody = httpCommand.body !== null && httpCommand.body !== undefined;
+
+            // Determine if the payload should be sent as JSON
             const isJson = 'Content-Type' in httpCommand.headers && httpCommand.headers['Content-Type'] === 'application/json';
 
-            if (isBody && isJson) {
-                // If the request body is provided and is in JSON format, write it as a JSON string
-                clientRequest.write(JSON.stringify(httpCommand.body));
-            }
-            else if (isBody && !isJson) {
-                // If the request body is provided and is not in JSON format, write it as a string
-                clientRequest.write(httpCommand.body.toString());
-            }
+            // Serialize body as JSON if needed, otherwise convert to string
+            const body = isBody && isJson
+                ? JSON.stringify(httpCommand.body)
+                : httpCommand.body.toString();
 
-            // End the request
-            clientRequest.end();
+            // Use provided timeout or default to 5000ms
+            const timeout = httpCommand.timeout || 5000;
+
+            // Construct the request URL relative to the base URL
+            const url = new URL(httpCommand.command, this._baseUrl);
+
+            // Prepare HTTP request options
+            const options = {
+                method: httpCommand.method,
+                headers: httpCommand.headers,
+                timeout: timeout,
+            };
+
+            // Create and send the HTTP request
+            const httpRequest = request(url, options, (response) => {
+                let data = '';
+
+                // Accumulate incoming data chunks
+                response.on('data', (chunk) => (data += chunk));
+
+                // When complete, delegate to the onEnd handler
+                response.on('end', () => HttpClient.onEnd(this._logger, response, data, resolve));
+            });
+
+            // Handle request timeout by aborting and calling the timeout handler
+            httpRequest.on('timeout', () => {
+                httpRequest.destroy();
+                HttpClient.onTimeout(this._logger, url.toString(), timeout, resolve);
+            });
+
+            // Handle network or protocol errors
+            httpRequest.on('error', (error: any) => HttpClient.onError(this._logger, error, resolve));
+
+            // Write body (if any) and finalize the request
+            httpRequest.write(body);
+            httpRequest.end();
         });
-    }
-
-    // Gets the request options based on the provided base URL and HttpCommand.
-    private static getOptions(baseUrl: string, httpCommand: HttpCommand): RequestOptions {
-        // Parse the base URL to extract host and port information
-        const url = new URL(baseUrl);
-        const uriSegments = url.host.split(':');
-        const host = uriSegments[0];
-        const port = uriSegments.length === 2 ? Number.parseInt(uriSegments[1].toString()) : -1;
-
-        // Create the RequestOptions object with essential properties
-        const options: RequestOptions = {
-            hostname: host,
-            path: httpCommand.command,
-            method: httpCommand.method,
-            timeout: httpCommand.timeout
-        };
-
-        // Add port information if available
-        if (port !== -1) {
-            options['port'] = port;
-        }
-
-        // Add custom headers if provided in the HttpCommand
-        if (httpCommand.headers) {
-            options.headers = httpCommand.headers;
-        }
-
-        // Return the constructed RequestOptions object
-        return options;
     }
 
     // Handles the 'end' event of an HTTP response.

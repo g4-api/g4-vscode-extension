@@ -1,5 +1,6 @@
 import { ResourceModel } from "../models/register-data-model";
 import { HttpClient, HttpCommand } from "./http-client";
+import { IncomingMessage, request, RequestOptions } from 'http';
 
 /**
  * Client for interacting with the G4 server API.
@@ -21,5 +22,22 @@ export class G4Client {
     constructor(baseUrl: string, private readonly _version: number = 4) {
         // Initialize HttpClient with the provided base server URL
         this.httpClient = new HttpClient(baseUrl);
+    }
+
+    public async updateEnvironment(name: string, encode: boolean, environment: any): Promise<void> {
+        const command = new HttpCommand();
+        command.command = `api/v${this._version}/g4/environments/${name}?encode=${encode ? 'true' : 'false'}`;
+        command.body = environment;
+        command.method = 'PUT';
+        command.addHeader('Content-Type', 'application/json');
+        command.timeout = 5000;
+        
+        (async () => {
+            try {
+                await this.httpClient.sendAsync(command);
+            } catch (err: any) {
+                console.error('Error:', err.message);
+            }
+        })();
     }
 }

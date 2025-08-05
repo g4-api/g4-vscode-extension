@@ -1,3 +1,4 @@
+import { G4Client } from '../clients/g4-client';
 import { ExtensionLogger } from '../logging/extensions-logger';
 import { Logger } from '../logging/logger';
 import { Channels } from './channels';
@@ -70,6 +71,15 @@ export class Global {
                 "returnScreenshots": false
             }
         }
+    };
+
+    /**
+     * Returns a singleton instance of the G4Client configured with the base hub URL.
+     * This allows other parts of the extension to access the G4 API without needing to
+     * create a new client instance each time.
+     */
+    public static get g4Client(): G4Client {
+        return new G4Client(Global.BASE_HUB_URL);
     }
 
     /**

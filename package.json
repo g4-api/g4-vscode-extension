@@ -21,14 +21,19 @@
                 "title": "Creates a New Rhino Project"
             },
             {
+                "command": "Show-Workflow",
+                "category": "G4",
+                "title": "Open G4 Engine Embedded Application"
+            },
+            {
                 "command": "Start-Automation",
                 "category": "G4",
                 "title": "Start Automation Workflow on G4 Engine"
             },
             {
-                "command": "Show-Workflow",
+                "command": "Update-Environment",
                 "category": "G4",
-                "title": "Open G4 Engine Embedded Application"
+                "title": "Update or Create Environment Variables"
             }
         ],
         "grammars": [

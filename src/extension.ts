@@ -7,6 +7,7 @@ import { SendAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
+import { UpdateEnvironmentCommand } from './commands/update-environment';
 
 const connections = new Map<string, NotificationService>();
 
@@ -30,9 +31,10 @@ const registerCommands = (options: {
     connections: Map<string, NotificationService>
 }) => {
     new NewProjectCommand(options.context).register();
-    new ShowWorkflowCommand(options.context, options.baseUri).register();
     new SendAutomationCommand(options.context, options.connections).register();
-}
+    new ShowWorkflowCommand(options.context, options.baseUri).register();
+    new UpdateEnvironmentCommand(options.context, options.baseUri).register();
+};
 
 const registerProviders = (options: {
     context: vscode.ExtensionContext,
@@ -41,7 +43,7 @@ const registerProviders = (options: {
 }) => {
     new MdJsonNotebookProvider(options.context, options.baseUri).register();
     new G4WebviewViewProvider(options.context).register();
-}
+};
 
 /**
  * Set up listeners to auto-register SignalR NotificationService instances
@@ -108,7 +110,7 @@ const registerNotebookEvents = (options: {
 const InitializeConnection = async (context: vscode.ExtensionContext): Promise<string> => {
     // Retrieve the configured G4 endpoint URL; returns null/empty if not set
     const baseUri = Utilities.getG4Endpoint();
-    const canConnect = baseUri != null && baseUri !== '';
+    const canConnect = baseUri !== null && baseUri !== '';
 
     // If no valid endpoint, abort immediately
     if (!canConnect) {
@@ -134,6 +136,9 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
 
             // On successful connect, update status bar and exit loop
             vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub.');
+
+            // Set global base URI for the G4 Hub API
+            Global.BASE_HUB_URL = baseUri;
 
             // Return the base URI on successful connection
             return baseUri;

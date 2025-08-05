@@ -307,7 +307,7 @@ export class Utilities {
      * @returns The fully-qualified path to the requested folder,
      *          with any leading backslash removed for Windows-style URIs.
      */
-    public static getSystemFolderPath(folder: 'configurations' | 'environments' | 'models' | 'templates' | 'resources' | 'tests'): string {
+    public static getSystemFolderPath(folder: 'bots' | 'configurations' | 'environments' | 'models' | 'templates' | 'resources' | 'tests'): string {
         // Attempt to get the first workspace folder’s file system path
         let workspace = vscode.workspace.workspaceFolders
             ?.map(f => f.uri.path)[0];
