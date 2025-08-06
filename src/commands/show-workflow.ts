@@ -66,27 +66,44 @@ export class ShowWorkflowCommand extends CommandBase {
      * loading remote resources, patching them locally, and wiring up log forwarding.
      */
     protected async onInvokeCommand(): Promise<any> {
+        // Helper to read a file or notebook given its URI string, then post its content
         const readFile = async (uri: string) => {
             try {
-                // Parse the incoming URI (this will decode %3A → “:”, etc.)
+                // Decode and parse the incoming URI (handles percent-encoded characters)
                 const fileUri = vscode.Uri.parse(uri);
 
-                // Read the raw bytes from disk
+                // Read raw bytes from the workspace file system
                 const fileBytes = await vscode.workspace.fs.readFile(fileUri);
 
-                // Convert to UTF-8 text
-                const text = Buffer.from(fileBytes).toString('utf8');
+                // Detect if this is a notebook file by extension
+                const isNotebook = fileUri.path.endsWith('.mdjson');
+                let text = '{}';
 
-                // Derive a friendly fileName if you want
+                if (isNotebook) {
+                    // Open the notebook document and extract the first JSON cell
+                    const notebook = await vscode.workspace.openNotebookDocument(fileUri);
+                    if (notebook.cellCount > 0) {
+                        const jsonCell = notebook
+                            .getCells()
+                            .find(cell => cell.kind === vscode.NotebookCellKind.Code && cell.document.languageId === 'json');
+                        text = jsonCell?.document.getText() || '{}';
+                    }
+                } else {
+                    // Convert raw bytes to UTF-8 text for non-notebook files
+                    text = Buffer.from(fileBytes).toString('utf8');
+                }
+
+                // Derive a simple filename for display in the webview
                 const fileName = path.basename(fileUri.fsPath);
 
-                // Send the file text back into the webview
+                // Send the file name and content back to the webview for import
                 panel.webview.postMessage({
                     command: 'import',
                     fileName,
                     content: text
                 });
             } catch (err: Error | any) {
+                // Log the failure and notify the webview of the error
                 this._logger.error(`Failed to read ${uri}: ${err}`);
                 panel.webview.postMessage({
                     command: 'import',
@@ -222,8 +239,19 @@ export class ShowWorkflowCommand extends CommandBase {
 
             // Listen for messages coming back from the extension
             window.addEventListener('message', event => {
-                // Log the incoming data for debugging purposes
-                console.log('Received message from extension:', event.data);
+                // Set the definition in the workspace
+                // This assumes you have a function setDefinition to handle the incoming data
+                const definition = JSON.parse(event.data?.content || '{}');
+
+                // Set observer for the workspace element=
+                const workspaceElement = document.querySelector('.sqd-workspace');
+                const workspaceObserver = new Observer(workspaceElement);
+                
+                // Set the definition in the workspace based on the received message
+                setDefinition(definition);
+
+                // Reset the view to set the portview
+                resetView(workspaceObserver);
             });
         </script>`;
     }

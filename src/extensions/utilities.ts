@@ -37,6 +37,54 @@ export class Utilities {
     }
 
     /**
+     * Deserialize the raw file bytes into VS Code notebook cells.
+     * 
+     * @param content The raw text of file content.
+     * 
+     * @returns A NotebookData object containing two cells: markdown and JSON.
+     */
+    deserializeNotebook(content: string, splitToken: string): vscode.NotebookData {
+        try {
+            // Find the index of the split token to separate sections
+            const i = content.indexOf(splitToken);
+
+            // If token found, split into markdown and JSON parts, else treat entire text as markdown
+            const mdPart = i >= 0
+                ? content.substring(0, i)
+                : content;
+
+            const jsPart = i >= 0
+                ? content.substring(i + splitToken.length)
+                : '';
+
+            // Create notebook cells: first markdown, then JSON code
+            const cells: vscode.NotebookCellData[] = [
+                {
+                    kind: vscode.NotebookCellKind.Markup,
+                    languageId: 'markdown',
+                    value: mdPart
+                },
+                {
+                    kind: vscode.NotebookCellKind.Code,
+                    languageId: 'json',
+                    value: jsPart
+                }
+            ];
+
+            // Return the NotebookData object with the cells
+            // Note: Cells are always returned in the order they were added
+            //       so the first cell is markdown and the second is JSON.
+            return new vscode.NotebookData(cells);
+            // On error, return an empty notebook to prevent VS Code error popups
+        } catch (e) {
+            console.error(e);
+            return {
+                cells: []
+            };
+        }
+    }
+
+    /**
      * Recursively retrieves all file paths under the specified directory.
      *
      * @param directory - The root directory path to start searching from.

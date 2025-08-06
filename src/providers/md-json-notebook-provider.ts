@@ -16,7 +16,7 @@ export class MdJsonNotebookProvider implements vscode.NotebookSerializer {
      * Token that delimits the Markdown and JSON sections in the file.
      * Uses a line-based separator to ensure clean splits: '\n---\n'.
      */
-    private readonly _splitToken = '\n---\n';
+    public static readonly SPLIT_TOKEN: string = '\n---\n';
 
     /**
      * The type identifier for this notebook provider.
@@ -107,7 +107,7 @@ export class MdJsonNotebookProvider implements vscode.NotebookSerializer {
             const text = new TextDecoder().decode(content);
 
             // Find the index of the split token to separate sections
-            const i = text.indexOf(this._splitToken);
+            const i = text.indexOf(MdJsonNotebookProvider.SPLIT_TOKEN);
 
             // If token found, split into markdown and JSON parts, else treat entire text as markdown
             const mdPart = i >= 0
@@ -115,7 +115,7 @@ export class MdJsonNotebookProvider implements vscode.NotebookSerializer {
                 : text;
 
             const jsPart = i >= 0
-                ? text.substring(i + this._splitToken.length)
+                ? text.substring(i + MdJsonNotebookProvider.SPLIT_TOKEN.length)
                 : '';
 
             // Create notebook cells: first markdown, then JSON code
@@ -159,7 +159,7 @@ export class MdJsonNotebookProvider implements vscode.NotebookSerializer {
             const js = data.cells[1]?.value ?? '';
 
             // Concatenate with the split token to reconstruct the file
-            const text = `${md}${this._splitToken}${js}`;
+            const text = `${md}${MdJsonNotebookProvider.SPLIT_TOKEN}${js}`;
 
             // Encode the final text into a Uint8Array for storage
             return new TextEncoder().encode(text);
