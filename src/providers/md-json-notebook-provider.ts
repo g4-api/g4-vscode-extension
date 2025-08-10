@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { Logger } from '../logging/logger';
 import { ExtensionLogger } from '../logging/extensions-logger';
 import { Channels } from '../constants/channels';
-import { NotificationService } from '../clients/g4-signalr-client';
 
 /**
  * Notebook serializer that reads and writes a single file combining Markdown and JSON.
