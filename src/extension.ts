@@ -8,6 +8,7 @@ import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
 import { UpdateEnvironmentCommand } from './commands/update-environment';
+import { UpdateTemplateCommand } from './commands/update-template';
 
 const connections = new Map<string, NotificationService>();
 
@@ -34,6 +35,7 @@ const registerCommands = (options: {
     new SendAutomationCommand(options.context, options.connections).register();
     new ShowWorkflowCommand(options.context, options.baseUri).register();
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
+    new UpdateTemplateCommand(options.context, options.baseUri).register();
 };
 
 const registerProviders = (options: {

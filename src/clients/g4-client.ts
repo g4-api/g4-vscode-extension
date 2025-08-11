@@ -59,4 +59,41 @@ export class G4Client {
             Global.logger.error(err.message);
         }
     }
+
+        /**
+     * Sends a PUT request to create or update an environment on the server.
+     *
+     * @param name        - The unique name of the environment to update.
+     * @param encode      - Whether the server should encode the response (true/false).
+     * @param environment - The environment payload object to send in the request body.
+     * 
+     * @returns A Promise that resolves when the update completes (errors are logged).
+     */
+    public async updateTemplate(template: any): Promise<void> {
+        // Construct a new HTTP command for the template update endpoint
+        const command = new HttpCommand();
+
+        // Build the request URL path with version, template name, and encode flag
+        command.command = `api/v${this._version}/g4/templates`;
+
+        // Attach the template object as the request body
+        command.body = template;
+
+        // Use the HTTP PUT method for update semantics
+        command.method = 'PUT';
+
+        // Ensure server interprets the body as JSON
+        command.addHeader('Content-Type', 'application/json');
+
+        // Set a timeout of 5 seconds for the request
+        command.timeout = 5000;
+
+        try {
+            // Execute the HTTP request asynchronously
+            await this.httpClient.sendAsync(command);
+        } catch (err: any) {
+            // Log any errors encountered during the request
+            Global.logger.error(err.message);
+        }
+    }
 }

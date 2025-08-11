@@ -36,9 +36,9 @@
                 "title": "Update or Create Environment Variables"
             },
             {
-                "command": "extension.openDropDemo",
+                "command": "Update-Template",
                 "category": "G4",
-                "title": "Open Drop Demo"
+                "title": "Update or Create Template Definitions"
             }
         ],
         "grammars": [
