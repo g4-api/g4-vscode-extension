@@ -24,6 +24,44 @@ export class G4Client {
     }
 
     /**
+     * Synchronizes tools with the remote server by sending an HTTP GET request
+     * to the tool synchronization endpoint. The request uses a 5-second timeout.
+     * Any errors encountered during the request are logged.
+     *
+     * @remarks
+     * This method constructs an HTTP command targeting the environment update endpoint
+     * and executes it asynchronously using the configured HTTP client.
+     *
+     * @returns {Promise<void>} A promise that resolves when the synchronization completes.
+     *
+     * @throws Will log an error if the HTTP request fails.
+     *
+     * @example
+     * await client.syncTools();
+     */
+    public async syncTools(): Promise<void> {
+        // Construct a new HTTP command for the environment update endpoint
+        const command = new HttpCommand();
+
+        // Build the request URL path for tool synchronization
+        command.command = `api/v${this._version}/g4/copilot/mcp/sync`;
+
+        // Use the HTTP GET method for synchronization
+        command.method = 'GET';
+
+        // Set a timeout of 5 seconds for the request
+        command.timeout = 5000;
+
+        try {
+            // Execute the HTTP request asynchronously
+            await this.httpClient.sendAsync(command);
+        } catch (err: any) {
+            // Log any errors encountered during the request
+            Global.logger.error(err.message);
+        }
+    }
+
+    /**
      * Sends a PUT request to create or update an environment on the server.
      *
      * @param name        - The unique name of the environment to update.
@@ -60,7 +98,7 @@ export class G4Client {
         }
     }
 
-        /**
+    /**
      * Sends a PUT request to create or update an environment on the server.
      *
      * @param name        - The unique name of the environment to update.

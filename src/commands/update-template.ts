@@ -108,9 +108,15 @@ export class UpdateTemplateCommand extends CommandBase {
             // Send the update request to the backend client for this template
             await this._client.updateTemplate(JSON.parse(template));
 
+            // Synchronize tools after updating the template
+            await this._client.syncTools();
+
             // Notify success for this template
             vscode.window.setStatusBarMessage(`Template '${name}' updated successfully.`);
             this._logger.information(`Template '${name}' updated successfully.`);
+
+            // Restart the extension host to apply changes
+            await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
         }
     }
 

@@ -6,6 +6,10 @@
     "engines": {
         "vscode": "^1.102.0"
     },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/g4-api/g4-vscode-extension.git"
+    },
     "categories": [
         "Other"
     ],
@@ -117,7 +121,9 @@
     },
     "files": [
         "resources",
-        "languages"
+        "languages",
+        "dist",
+        "node_modules/**"
     ],
     "dependencies": {
         "@microsoft/signalr": "^8.0.7",
