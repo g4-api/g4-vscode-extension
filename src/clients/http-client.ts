@@ -3,7 +3,7 @@
  * https://make.wordpress.org/core/handbook/best-practices/inline-documentation-standards/javascript/
  * https://nodejs.dev/learn/making-http-requests-with-nodejs
  */
-import { IncomingMessage, request, RequestOptions } from 'http';
+import { IncomingMessage, request } from 'http';
 import { Channels } from "../constants/channels";
 import { Utilities } from '../extensions/utilities';
 import { ExtensionLogger } from '../logging/extensions-logger';
@@ -50,7 +50,7 @@ export class HttpClient {
             // Serialize body as JSON if needed, otherwise convert to string
             const body = isBody && isJson
                 ? JSON.stringify(httpCommand.body)
-                : httpCommand.body.toString();
+                : httpCommand.body?.toString();
 
             // Use provided timeout or default to 5000ms
             const timeout = httpCommand.timeout || 5000;
@@ -67,13 +67,14 @@ export class HttpClient {
 
             // Create and send the HTTP request
             const httpRequest = request(url, options, (response) => {
+                // Accumulate incoming data chunks
                 let data = '';
 
-                // Accumulate incoming data chunks
+                // When response has data, accumulate it
                 response.on('data', (chunk) => (data += chunk));
 
                 // When complete, delegate to the onEnd handler
-                response.on('end', () => HttpClient.onEnd(this._logger, response, data, resolve));
+                response.on('end', () => HttpClient.onEnd(this._logger, response, 'data', resolve));
             });
 
             // Handle request timeout by aborting and calling the timeout handler
@@ -85,8 +86,12 @@ export class HttpClient {
             // Handle network or protocol errors
             httpRequest.on('error', (error: any) => HttpClient.onError(this._logger, error, resolve));
 
-            // Write body (if any) and finalize the request
-            httpRequest.write(body);
+            // Only write if there is an actual body
+            if (body !== undefined && body !== null && body !== '') {
+                httpRequest.write(typeof body === 'string' || Buffer.isBuffer(body) ? body : String(body));
+            }
+
+            // Finalize the request
             httpRequest.end();
         });
     }
@@ -196,7 +201,7 @@ export class HttpCommand {
      * @param value The value of the header.
      * @returns The current instance of HttpCommand for method chaining.
      */
-    public addHeader(name: string, value: any): HttpCommand {
+    public addHeader(name: string, value: any): this {
         // Set the specified header name and value in the headers object
         this.headers[name] = value;
 
@@ -209,7 +214,7 @@ export class HttpCommand {
      * 
      * @returns The current instance of HttpCommand for method chaining.
      */
-    public clearHeaders(): HttpCommand {
+    public clearHeaders(): this {
         // Set the headers property to an empty object to clear all headers
         this.headers = {};
 
@@ -222,7 +227,7 @@ export class HttpCommand {
      * 
      * @returns The current instance of HttpCommand for method chaining.
      */
-    public addDefaultHeaders(): HttpCommand {
+    public addDefaultHeaders(): this {
         // Set the default Content-Type header for JSON
         this.headers["Content-Type"] = "application/json";
 

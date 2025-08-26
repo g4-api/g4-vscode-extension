@@ -1,5 +1,6 @@
 import { Global } from "../constants/global";
 import { HttpClient, HttpCommand } from "./http-client";
+import { request } from "node:http";
 
 /**
  * Client for interacting with the G4 server API.
@@ -40,6 +41,14 @@ export class G4Client {
      * await client.syncTools();
      */
     public async syncTools(): Promise<void> {
+        const req = request(
+            { hostname: 'localhost', port: 9944, path: '/api/v4/g4/copilot/mcp/sync', method: 'GET' },
+            res => res.resume()
+        );
+        req.on('error', () => { /* swallow errors */ });
+        req.end(); // actually send
+
+
         // Construct a new HTTP command for the environment update endpoint
         const command = new HttpCommand();
 
