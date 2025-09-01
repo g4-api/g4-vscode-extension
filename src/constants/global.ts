@@ -4,14 +4,11 @@ import { Logger } from '../logging/logger';
 import { Channels } from './channels';
 
 export class Global {
-    /**
-     * The base URL for the G4 Hub API.
-     * This is used to construct API endpoints for communication with the G4 Hub.
-     */
-    public static BASE_HUB_URL: string = 'http://localhost:9944';
+    // The base URL for the G4 Hub API.
+    private static _baseHubUrl: string;
 
     /** The base manifest for the G4 Hub API. */
-    public static BASE_MANIFEST: any = {
+    public static readonly BASE_MANIFEST: any = {
         "clientLogConfiguration": {
             "agentLogConfiguration": {
                 "enabled": true,
@@ -74,12 +71,33 @@ export class Global {
     };
 
     /**
+     * Gets the base URL for the G4 Hub API.
+     * Used to construct API endpoints for communication with the G4 Hub.
+     */
+    public static get baseHubUrl(): string {
+        return this._baseHubUrl;
+    }
+
+    /**
+     * Sets the base URL for the G4 Hub API.
+     * If the provided value is falsy, it defaults to "http://localhost:9944".
+     *
+     * @param value - The new base URL to use for the G4 Hub API.
+     */
+    public static set baseHubUrl(value: string) {
+        if (!value) {
+            value = 'http://localhost:9944';
+        }
+        this._baseHubUrl = value;
+    }
+
+    /**
      * Returns a singleton instance of the G4Client configured with the base hub URL.
      * This allows other parts of the extension to access the G4 API without needing to
      * create a new client instance each time.
      */
     public static get g4Client(): G4Client {
-        return new G4Client(Global.BASE_HUB_URL);
+        return new G4Client(this.baseHubUrl);
     }
 
     /**

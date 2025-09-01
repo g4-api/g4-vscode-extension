@@ -74,7 +74,7 @@ export class HttpClient {
                 response.on('data', (chunk) => (data += chunk));
 
                 // When complete, delegate to the onEnd handler
-                response.on('end', () => HttpClient.onEnd(this._logger, response, 'data', resolve));
+                response.on('end', () => HttpClient.onEnd(this._logger, response, data, resolve));
             });
 
             // Handle request timeout by aborting and calling the timeout handler

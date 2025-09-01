@@ -9,6 +9,7 @@ import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
 import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
+import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 
 const connections = new Map<string, NotificationService>();
 
@@ -24,7 +25,9 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() { }
+export function deactivate(){
+    // Clean up any resources or connections
+}
 
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
@@ -45,6 +48,7 @@ const registerProviders = (options: {
 }) => {
     new MdJsonNotebookProvider(options.context, options.baseUri).register();
     new G4WebviewViewProvider(options.context).register();
+    new DocumentsTreeProvider(options.context).register();
 };
 
 /**
@@ -140,12 +144,12 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
             vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub.');
 
             // Set global base URI for the G4 Hub API
-            Global.BASE_HUB_URL = baseUri;
+            Global.baseHubUrl = baseUri;
 
             // Return the base URI on successful connection
             return baseUri;
-        } catch (error) {
-            // On failure, show failure icon, then retry after delay
+        } catch (error: any) { // NOSONAR
+            // On failure, log the error, show failure icon, then retry after delay
             vscode.window.setStatusBarMessage('G4 Engine SignalR Connection Failed. Retrying...');
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue;

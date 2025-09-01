@@ -43,7 +43,7 @@ export class Utilities {
      * 
      * @returns A NotebookData object containing two cells: markdown and JSON.
      */
-    deserializeNotebook(content: string, splitToken: string): vscode.NotebookData {
+    public static deserializeNotebook(content: string, splitToken: string): vscode.NotebookData {
         try {
             // Find the index of the split token to separate sections
             const i = content.indexOf(splitToken);
@@ -161,7 +161,8 @@ export class Utilities {
                 } else {
                     // If it's a file, attempt to match its base name against each target name
                     for (const name of arrayOfNames) {
-                        const matches = filePath.match(patternToExtractName);
+                        const matches = patternToExtractName.exec(filePath);
+                        
                         // If regex finds a base name and it matches one in our list, record the path
                         if (matches !== null && matches[0] === name) {
                             list.push(filePath);
@@ -339,7 +340,7 @@ export class Utilities {
      * @returns The `ServerConfiguration` defined under the `G4Server` key,
      *          or `undefined` if no configuration is found.
      */
-    public static getG4Server(): any | undefined {
+    public static getG4Server(): any {
         // Delegate to resolveG4Server which reads and parses the manifest
         // without falling back to the default base manifest.
         return this.resolveG4Server();
@@ -361,7 +362,7 @@ export class Utilities {
             ?.map(f => f.uri.path)[0];
 
         // Normalize undefined to an empty string to avoid path.join errors
-        workspace = workspace === undefined ? '' : workspace;
+        workspace = workspace ?? '';
 
         // Construct the target folder path inside the workspace
         const systemFolderPath = path.join(workspace, folder);
@@ -387,7 +388,7 @@ export class Utilities {
             ?.map(f => f.uri.path)[0];
 
         // Normalize undefined to empty string to avoid errors in path operations
-        workspace = workspace === undefined ? '' : workspace;
+        workspace = workspace ?? '';
 
         // Construct the target folder path by navigating up one level from workspace
         // and into the specified utility folder (e.g., "../build")
@@ -567,7 +568,7 @@ export class Utilities {
      * @returns The `ServerConfiguration` defined under the `G4Server` key in the manifest,
      *          or `undefined` if no manifest or configuration is present.
      */
-    private static resolveG4Server(): any | undefined {
+    private static resolveG4Server(): any {
         // Load the workspace manifest without falling back to the base manifest
         const projectManifest = this.resolveProjectManifest(false);
 
@@ -589,7 +590,7 @@ export class Utilities {
             ?.map(folder => folder.uri.path)[0];
 
         // Normalize undefined to empty string for safe string operations
-        workspace = workspace === undefined ? '' : workspace;
+        workspace = workspace ?? '';
 
         // Determine manifest location:
         // - If the workspace path already ends with 'src', expect manifest.json there
@@ -610,8 +611,8 @@ export class Utilities {
             // Parse JSON and return the resulting object
             return JSON.parse(data);
         } catch (error: any) {
-            // Swallow any errors (file not found, parse error, etc.)
-            // Consider logging error.message here if troubleshooting is needed
+            // Log the error message for troubleshooting
+            console.error('Error reading/parsing manifest:', error?.message ?? error);
         }
 
         // If reading/parsing failed:
@@ -659,9 +660,8 @@ export class Utilities {
             // Synchronously read the file as UTF‑8 text and return its contents
             return fs.readFileSync(filePath, 'utf8');
         } catch (error: any) {
-            // If any error occurs (e.g., file not found, permission denied), swallow it
-            // and fall through to return an empty string
-            // Consider logging `error.message` here if diagnostics are needed
+            // If any error occurs (e.g., file not found, permission denied), log the error message
+            console.error('Error reading resource:', error?.message ?? error);
         }
 
         // Return an empty string when the resource cannot be resolved

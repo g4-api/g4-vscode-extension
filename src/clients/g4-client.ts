@@ -1,6 +1,5 @@
 import { Global } from "../constants/global";
 import { HttpClient, HttpCommand } from "./http-client";
-import { request } from "node:http";
 
 /**
  * Client for interacting with the G4 server API.
@@ -25,6 +24,43 @@ export class G4Client {
     }
 
     /**
+     * Retrieve the G4 integration cache from the Hub API.
+     *
+     * Sends an HTTP GET request to:
+     *   `api/v{version}/g4/integration/cache`
+     * using a 5-second timeout. On success, resolves with the cache payload
+     * returned by the server. On failure, logs the error and resolves `undefined`.
+     *
+     * Notes:
+     * - This method **does not throw** on failure; it catches and logs the error.
+     * - The resolved type is `any` because the cache shape is dynamic; narrow it
+     *   at call sites if you have a known interface.
+     *
+     * @returns A promise that resolves to the cache object, or `undefined` if the request fails.
+     */
+    public async getCache(): Promise<any> {
+        // Prepare an HTTP command object for the request.
+        const command = new HttpCommand();
+
+        // API route, versioned via the instance's `_version` field.
+        command.command = `api/v${this._version}/g4/integration/cache`;
+
+        // HTTP verb to use.
+        command.method = 'GET';
+
+        // Fail the request if it exceeds 5 seconds.
+        command.timeout = 5000;
+
+        try {
+            // Dispatch the request via the shared HTTP client; return the server payload.
+            return await this.httpClient.sendAsync(command);
+        } catch (err: any) {
+            // Swallow the error after logging; caller will receive `undefined`.
+            Global.logger.error(err.message);
+        }
+    }
+
+    /**
      * Synchronizes tools with the remote server by sending an HTTP GET request
      * to the tool synchronization endpoint. The request uses a 5-second timeout.
      * Any errors encountered during the request are logged.
@@ -41,14 +77,6 @@ export class G4Client {
      * await client.syncTools();
      */
     public async syncTools(): Promise<void> {
-        const req = request(
-            { hostname: 'localhost', port: 9944, path: '/api/v4/g4/copilot/mcp/sync', method: 'GET' },
-            res => res.resume()
-        );
-        req.on('error', () => { /* swallow errors */ });
-        req.end(); // actually send
-
-
         // Construct a new HTTP command for the environment update endpoint
         const command = new HttpCommand();
 

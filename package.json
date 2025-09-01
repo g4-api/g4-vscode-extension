@@ -16,6 +16,7 @@
     "activationEvents": [
         "onStartupFinished"
     ],
+    "license": "Apache-2.0",
     "main": "./dist/extension.js",
     "contributes": {
         "commands": [
@@ -33,6 +34,11 @@
                 "command": "Start-Automation",
                 "category": "G4",
                 "title": "Start Automation Workflow on G4 Engine"
+            },
+            {
+                "command": "Update-Documents",
+                "category": "G4",
+                "title": "Fetch latest documents version & refresh documentation"
             },
             {
                 "command": "Update-Environment",
@@ -81,6 +87,18 @@
                     "id": "g4View",
                     "name": "Engine Client",
                     "icon": "resources/g4-icon.svg"
+                },
+                {
+                    "type": "tree",
+                    "id": "g4Documentations",
+                    "name": "G4 Documentations",
+                    "icon": "resources/g4-documents-icon.svg"
+                },
+                {
+                    "type": "tree",
+                    "id": "g4BotsManager",
+                    "name": "G4 Bots Manager",
+                    "icon": "resources/g4-bots-icon.svg"
                 }
             ]
         },
@@ -94,6 +112,7 @@
             ]
         }
     },
+    "readme": "README.md",
     "scripts": {
         "vscode:prepublish": "npm run package",
         "compile": "webpack",
