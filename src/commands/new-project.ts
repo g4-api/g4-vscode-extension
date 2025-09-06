@@ -247,9 +247,7 @@ export class NewProjectCommand extends CommandBase {
         let path = '';
 
         // if the user selected at least one folder/file, take the first URI’s path
-        if (userPath && userPath[0]) {
-            path = userPath[0].path;
-        }
+        path = userPath?.[0]?.path ?? '';
 
         // on Windows, remove a leading slash (e.g. "/C:/…") and convert "/" to "\"
         if (os.platform() === 'win32') {

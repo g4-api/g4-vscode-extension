@@ -21,6 +21,22 @@ type TreeItemChangeEvent = TreeItem | undefined | null | void;
  * and holds onto the extension context for lifecycle/disposables.
  */
 export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> {
+    // Custom URI scheme for our virtual Markdown documents.
+    private static readonly _documentsScheme = 'g4md';
+
+    // In-memory store of document contents keyed by `uri.toString()`.
+    private static readonly _documentsStore = new Map<string, string>();
+
+    // Emitter used to notify VS Code when a virtual document's content changes.
+    // 
+    // The provider's `onDidChange` event is wired to this emitter. When you update
+    // content for a given URI, call `this._documentsEmitter.fire(uri)` so that
+    // the preview refreshes.
+    private static readonly _documentsEmitter = new vscode.EventEmitter<vscode.Uri>();
+
+    // Disposable for the registered `TextDocumentContentProvider`.
+    private static _documentsProviderDisposable?: vscode.Disposable;
+
     // Extension context used to register disposables (commands, views, etc.).
     private readonly _context: vscode.ExtensionContext;
 
@@ -120,6 +136,9 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
      * @returns {any} No explicit return value; registration is performed via side effects.
      */
     public register(): any {
+        // Ensure the view id "g4Documentations" is associated with this provider.
+        vscode.window.registerTreeDataProvider('g4Documentations', this);
+
         // Toggle a folder-like tree item's icon and state when it expands/collapses.
         const setFolderIcon = (item: TreeItem, expanded: boolean) => {
             // Augment the runtime object with an optional expansion marker we control.
@@ -151,8 +170,17 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             showCollapseAll: true,
         };
 
-        // Ensure the view id "g4Documentations" is associated with this provider.
-        vscode.window.registerTreeDataProvider('g4Documentations', this);
+        // Create the TreeView instance so it becomes visible/available in the Explorer.
+        const tree = vscode.window.createTreeView('g4Documentations', options);
+
+        const onDidExpandElement = tree.onDidExpandElement(e => setFolderIcon(e.element, true));
+        const onDidCollapseElement = tree.onDidCollapseElement(e => setFolderIcon(e.element, false));
+        const onDidChangeSelection = tree.onDidChangeSelection(e => {
+            const selected = e.selection[0] as (TreeItem & { data?: any }) | undefined;
+            if (selected?.data?.document) {
+                DocumentsTreeProvider.openMarkdownPreview(tree, selected);
+            }
+        });
 
         // Register the refresh command once (avoid duplicate registrations across activations).
         vscode.commands.getCommands().then((commands) => {
@@ -164,14 +192,12 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             }
         });
 
-        // Create the TreeView instance so it becomes visible/available in the Explorer.
-        const tree = vscode.window.createTreeView('g4Documentations', options);
-
         // Track disposables to clean up automatically when the extension is deactivated.
         this._context.subscriptions.push(
             tree,
-            tree.onDidExpandElement(e => setFolderIcon(e.element, true)),
-            tree.onDidCollapseElement(e => setFolderIcon(e.element, false))
+            onDidExpandElement,
+            onDidCollapseElement,
+            onDidChangeSelection
         );
     }
 
@@ -232,7 +258,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             };
 
             // Visual: show as a "file" node (codicon).
-            item.iconPath = new vscode.ThemeIcon('file');
+            item.iconPath = new vscode.ThemeIcon('markdown');
 
             // Return the prepared node.
             return item;
@@ -315,5 +341,49 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             const bLabel = typeof b.label === "string" ? b.label : "";
             return aLabel.localeCompare(bLabel);
         });
+    }
+
+    // Open a Markdown preview for the selected tree item using an **in-memory** virtual document.
+    private static async openMarkdownPreview(
+        tree: vscode.TreeView<vscode.TreeItem>,
+        item: vscode.TreeItem & { data?: any }
+    ): Promise<void> {
+        // Resolve the node: prefer the explicit item, otherwise use the current tree selection.
+        const node = item ?? (tree.selection[0] as (TreeItem & { data?: any }) | undefined);
+
+        // Extract the Markdown content (expected to be a string under node.data.document).
+        const content = node?.data?.document as string | undefined;
+
+        // Nothing to preview—let the user know and bail out early.
+        if (!content) {
+            vscode.window.showWarningMessage('No markdown content on this item.');
+            return;
+        }
+
+        // Lazily register a virtual content provider for our custom scheme (register once per session).
+        // - `onDidChange` wires the emitter so we can refresh content later if needed.
+        // - `provideTextDocumentContent` pulls the current text from our in-memory store.
+        this._documentsProviderDisposable ??= vscode.workspace.registerTextDocumentContentProvider(
+            this._documentsScheme,
+            {
+                onDidChange: this._documentsEmitter.event,
+                provideTextDocumentContent: (uri) =>
+                    this._documentsStore.get(uri.toString()) ?? '# No content',
+            }
+        );
+
+        // Build a stable, human-friendly virtual URI that ends with .md so the Markdown preview recognizes it.
+        // We sanitize the label for safety and append a unique id (from node.data.key when available).
+        const rawLabel = typeof node.label === 'string' ? node.label : 'Document';
+        const safeName = rawLabel.replace(/[^\w-]+/g, '_');
+        const uniqueId = String(node?.data?.key ?? 'doc');
+        const uri = vscode.Uri.parse(`${this._documentsScheme}://${safeName}-${uniqueId}.md`);
+
+        // Store the content under the URI key, then open the side-by-side Markdown preview.
+        // (No editor tab is created; the preview reads from our provider.)
+        this._documentsStore.set(uri.toString(), content);
+
+        // Trigger the preview command with the virtual URI.
+        await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
     }
 }

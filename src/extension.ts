@@ -11,6 +11,143 @@ import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 
+
+
+
+
+import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { join } from 'path';
+import { spawn } from 'child_process';
+
+
+function safeRequire<T = any>(mod: string): T {
+    // @ts-ignore
+    const req: NodeJS.Require = typeof __non_webpack_require__ === 'function'
+        // @ts-ignore
+        ? __non_webpack_require__
+        : require;
+    return req(mod);
+}
+
+
+console.log('Electron version:', process.versions.electron);
+const { uIOhook } = safeRequire('uiohook-napi');
+
+type ElementInfo = {
+    name?: string;
+    controlType?: string;
+    automationId?: string;
+    className?: string;
+    runtimeId?: number[];
+    bounds?: { x: number; y: number; width: number; height: number };
+    processId?: number;
+};
+
+
+type RecordedEvent =
+    | {
+        type: 'click';
+        button: 'left' | 'right' | 'middle';
+        ts: number;
+        screen: { x: number; y: number };
+        element: ElementInfo | null;
+    }
+    | {
+        type: 'keydown' | 'keyup';
+        ts: number;
+        keycode: number;
+    };
+
+let running = false;
+let outFile = '';
+let probePath = vscode.Uri.file(
+        'E:\\Grabage\\net8.0-windows\\publish\\UiaPeek.exe'
+    ).fsPath;
+
+
+function buttonIdToName(btn: number): 'left' | 'right' | 'middle' {
+    return btn === 1 ? 'left' : btn === 2 ? 'right' : 'middle';
+}
+
+function append(evt: RecordedEvent) {
+    const line = JSON.stringify(evt) + '\n';
+    writeFileSync(outFile, line, { flag: 'a' });
+}
+
+
+function probeAt(x: number, y: number): Promise<ElementInfo | null> {
+    return new Promise((resolve) => {
+        const p = spawn(probePath, ["peek", "-x", String(x), "-y", String(y)], { windowsHide: false });
+
+        let buf = '';
+        p.stdout.on('data', (d) => {
+            (buf += d.toString('utf8'));
+        });
+        p.on('error', () => resolve(null));
+        p.on('close', () => {
+            try {
+                const parsed = JSON.parse(buf || '{}');
+                resolve(parsed);
+            } catch {
+                resolve(null);
+            }
+        });
+    });
+}
+
+
+async function start(context: vscode.ExtensionContext) {
+    if (running) {
+        vscode.window.showInformationMessage('Win Recorder already running.');
+        return;
+    }
+
+    // Resolve storage + output
+    const storage = context.globalStorageUri.fsPath;
+    if (!existsSync(storage)) mkdirSync(storage, { recursive: true });
+    outFile = join(storage, 'recording.jsonl');
+    if (!existsSync(outFile)) writeFileSync(outFile, '');
+
+    // Wire events
+    uIOhook.on('mousedown', async (e: any) => {
+        if (!running) return;
+        const element = await probeAt(e.x, e.y);
+        append({
+            type: 'click',
+            button: buttonIdToName(e.button),
+            ts: Date.now(),
+            screen: { x: e.x, y: e.y },
+            element
+        });
+    });
+
+    uIOhook.on('keydown', (e: any) => {
+        if (!running) return;
+        append({ type: 'keydown', ts: Date.now(), keycode: e.keycode });
+    });
+
+    uIOhook.on('keyup', (e: any) => {
+        if (!running) return;
+        append({ type: 'keyup', ts: Date.now(), keycode: e.keycode });
+    });
+
+    // Start hook
+    uIOhook.start();
+    running = true;
+
+    const link = vscode.Uri.file(outFile);
+    vscode.window.showInformationMessage('Win Recorder started. Writing JSONL to: ' + outFile, 'Open File')
+        .then(btn => { if (btn) vscode.env.openExternal(link); });
+}
+
+
+async function stop() {
+    if (!running) return;
+    running = false;
+    if (uIOhook) uIOhook.stop();
+    vscode.window.showInformationMessage('Win Recorder stopped.');
+}
+
 const connections = new Map<string, NotificationService>();
 
 // This method is called when your extension is activated
@@ -22,10 +159,13 @@ export async function activate(context: vscode.ExtensionContext) {
     registerCommands(options);
     registerNotebookEvents(options);
     registerProviders(options);
+
+    vscode.commands.registerCommand('winrec.start', () => start(context));
+    vscode.commands.registerCommand('winrec.stop', () => stop());
 }
 
 // This method is called when your extension is deactivated
-export function deactivate(){
+export function deactivate() {
     // Clean up any resources or connections
 }
 
