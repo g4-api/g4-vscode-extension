@@ -1,20 +1,19 @@
 {
   "runtimeTarget": {
-    "name": ".NETCoreApp,Version=v8.0",
+    "name": ".NETCoreApp,Version=v8.0/win-x64",
     "signature": ""
   },
   "compilationOptions": {},
   "targets": {
-    ".NETCoreApp,Version=v8.0": {
-      "UiaPeek/1.0.0": {
+    ".NETCoreApp,Version=v8.0": {},
+    ".NETCoreApp,Version=v8.0/win-x64": {
+      "UiaPeek.PathFinder/1.0.0": {
         "dependencies": {
-          "Swashbuckle.AspNetCore": "9.0.4",
-          "Swashbuckle.AspNetCore.Annotations": "9.0.4",
           "UiaPeek.Domain": "1.0.0",
-          "UiaPeek.PathFinder": "1.0.0"
+          "Interop.UIAutomationClient": "1.0.0.0"
         },
         "runtime": {
-          "UiaPeek.dll": {}
+          "UiaPeek.PathFinder.dll": {}
         }
       },
       "CommandBridge/2025.2.26.62": {
@@ -133,7 +132,6 @@
           }
         }
       },
-      "Microsoft.Extensions.ApiDescription.Server/8.0.0": {},
       "Microsoft.Extensions.Configuration/8.0.0": {
         "dependencies": {
           "Microsoft.Extensions.Configuration.Abstractions": "8.0.0",
@@ -315,68 +313,11 @@
         }
       },
       "Microsoft.Extensions.Primitives/8.0.0": {},
-      "Microsoft.OpenApi/1.6.25": {
-        "runtime": {
-          "lib/netstandard2.0/Microsoft.OpenApi.dll": {
-            "assemblyVersion": "1.6.25.0",
-            "fileVersion": "1.6.25.0"
-          }
-        }
-      },
       "Newtonsoft.Json/13.0.3": {
         "runtime": {
           "lib/net6.0/Newtonsoft.Json.dll": {
             "assemblyVersion": "13.0.0.0",
             "fileVersion": "13.0.3.27908"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore/9.0.4": {
-        "dependencies": {
-          "Microsoft.Extensions.ApiDescription.Server": "8.0.0",
-          "Swashbuckle.AspNetCore.Swagger": "9.0.4",
-          "Swashbuckle.AspNetCore.SwaggerGen": "9.0.4",
-          "Swashbuckle.AspNetCore.SwaggerUI": "9.0.4"
-        }
-      },
-      "Swashbuckle.AspNetCore.Annotations/9.0.4": {
-        "dependencies": {
-          "Swashbuckle.AspNetCore.SwaggerGen": "9.0.4"
-        },
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.Annotations.dll": {
-            "assemblyVersion": "9.0.4.0",
-            "fileVersion": "9.0.4.1727"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore.Swagger/9.0.4": {
-        "dependencies": {
-          "Microsoft.OpenApi": "1.6.25"
-        },
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.Swagger.dll": {
-            "assemblyVersion": "9.0.4.0",
-            "fileVersion": "9.0.4.1727"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore.SwaggerGen/9.0.4": {
-        "dependencies": {
-          "Swashbuckle.AspNetCore.Swagger": "9.0.4"
-        },
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.SwaggerGen.dll": {
-            "assemblyVersion": "9.0.4.0",
-            "fileVersion": "9.0.4.1727"
-          }
-        }
-      },
-      "Swashbuckle.AspNetCore.SwaggerUI/9.0.4": {
-        "runtime": {
-          "lib/net8.0/Swashbuckle.AspNetCore.SwaggerUI.dll": {
-            "assemblyVersion": "9.0.4.0",
-            "fileVersion": "9.0.4.1727"
           }
         }
       },
@@ -392,18 +333,15 @@
           }
         }
       },
-      "UiaPeek.PathFinder/1.0.0": {
-        "dependencies": {
-          "UiaPeek.Domain": "1.0.0"
-        },
+      "Interop.UIAutomationClient/1.0.0.0": {
         "runtime": {
-          "UiaPeek.PathFinder.dll": {
+          "Interop.UIAutomationClient.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
         }
       },
-      "Interop.UIAutomationClient/1.0.0.0": {
+      "Interop.UIAutomationClient.Reference/1.0.0.0": {
         "runtime": {
           "Interop.UIAutomationClient.dll": {
             "assemblyVersion": "1.0.0.0",
@@ -414,7 +352,7 @@
     }
   },
   "libraries": {
-    "UiaPeek/1.0.0": {
+    "UiaPeek.PathFinder/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -495,13 +433,6 @@
       "sha512": "sha512-cKPvkdlzIts3ZKu/BzoIc/Y71e4VFKlij4LyioPFATZMot+wB7EAm1FFbZSJez6coJmQUoIg/3yHE1MMU+zOdg==",
       "path": "litedb/5.0.17",
       "hashPath": "litedb.5.0.17.nupkg.sha512"
-    },
-    "Microsoft.Extensions.ApiDescription.Server/8.0.0": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-jDM3a95WerM8g6IcMiBXq1qRS9dqmEUpgnCk2DeMWpPkYtp1ia+CkXabOnK93JmhVlUmv8l9WMPsCSUm+WqkIA==",
-      "path": "microsoft.extensions.apidescription.server/8.0.0",
-      "hashPath": "microsoft.extensions.apidescription.server.8.0.0.nupkg.sha512"
     },
     "Microsoft.Extensions.Configuration/8.0.0": {
       "type": "package",
@@ -636,13 +567,6 @@
       "path": "microsoft.extensions.primitives/8.0.0",
       "hashPath": "microsoft.extensions.primitives.8.0.0.nupkg.sha512"
     },
-    "Microsoft.OpenApi/1.6.25": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-ZahSqNGtNV7N0JBYS/IYXPkLVexL/AZFxo6pqxv6A7Uli7Q7zfitNjkaqIcsV73Ukzxi4IlJdyDgcQiMXiH8cw==",
-      "path": "microsoft.openapi/1.6.25",
-      "hashPath": "microsoft.openapi.1.6.25.nupkg.sha512"
-    },
     "Newtonsoft.Json/13.0.3": {
       "type": "package",
       "serviceable": true,
@@ -650,52 +574,17 @@
       "path": "newtonsoft.json/13.0.3",
       "hashPath": "newtonsoft.json.13.0.3.nupkg.sha512"
     },
-    "Swashbuckle.AspNetCore/9.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-4hghaogMoS87Ivjj8s7aGuGsxrsjXZpjNvahLsN+zSLrZQcV8zQyiBweBd9AXC1sGkeNYb9/hbeS1EXrZ/hKjQ==",
-      "path": "swashbuckle.aspnetcore/9.0.4",
-      "hashPath": "swashbuckle.aspnetcore.9.0.4.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.Annotations/9.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-3A1WdbCnGiz/h5DcfkU0kPWUvuf3ubOq4G3x/eMLZ+bM0W2PTnS5n/1XS1P125qiFvzDhOyaWNO0U7+ePxeIuA==",
-      "path": "swashbuckle.aspnetcore.annotations/9.0.4",
-      "hashPath": "swashbuckle.aspnetcore.annotations.9.0.4.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.Swagger/9.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-syU8U4Eg3DfhU+BBeDUh66erwDsYOhp82InXbrOsqWP3qoOfQbBtePcTetkLNanovYHYX40alZBE6gQQFtBZkQ==",
-      "path": "swashbuckle.aspnetcore.swagger/9.0.4",
-      "hashPath": "swashbuckle.aspnetcore.swagger.9.0.4.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.SwaggerGen/9.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-GnCikaq7kagEckGGsrVnKl2icRQebyr14/7s3T/rQQO7edOIXkxtjTOJZqbazOxaTXBDCDdSInMiYbMQhFnE5Q==",
-      "path": "swashbuckle.aspnetcore.swaggergen/9.0.4",
-      "hashPath": "swashbuckle.aspnetcore.swaggergen.9.0.4.nupkg.sha512"
-    },
-    "Swashbuckle.AspNetCore.SwaggerUI/9.0.4": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-2ugT2OvZsKHqk/2rMDmuqDuFmtix0NvzlXxAfnfHROVMTovbx7Z0UsOQHZa462DBTgdBFnR2Ss6wm4fypfymdA==",
-      "path": "swashbuckle.aspnetcore.swaggerui/9.0.4",
-      "hashPath": "swashbuckle.aspnetcore.swaggerui.9.0.4.nupkg.sha512"
-    },
     "UiaPeek.Domain/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "UiaPeek.PathFinder/1.0.0": {
-      "type": "project",
+    "Interop.UIAutomationClient/1.0.0.0": {
+      "type": "reference",
       "serviceable": false,
       "sha512": ""
     },
-    "Interop.UIAutomationClient/1.0.0.0": {
+    "Interop.UIAutomationClient.Reference/1.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
