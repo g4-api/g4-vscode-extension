@@ -1,6 +1,6 @@
 /*
  * Command to forward notebook automation events via G4 NotificationService.
- * 
+ *
  * RESOURCES:
  * VS Code command API reference: https://code.visualstudio.com/api/references/commands
  */
@@ -9,54 +9,109 @@ import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { EventCaptureService } from '../clients/g4-signalr-client';
 
+/**
+ * Registers and runs the **Start-Recorder** command, creating and managing
+ * one {@link EventCaptureService} per configured endpoint.
+ *
+ * @remarks
+ * - The command ID is `Start-Recorder` (must match `contributes.commands` in package.json).
+ * - Each endpoint gets its own SignalR connection for event capture.
+ * - Connections are started on command invocation.
+ */
 export class StartRecorderCommand extends CommandBase {
-    /** Logger scoped to this command for detailed diagnostics */
+    /** Dedicated logger instance for this command. */
     private readonly _logger: Logger;
-    private readonly _eventsCapturer: EventCaptureService;
 
+    /**
+     * Connection pool keyed by endpoint base URL (e.g. `http://localhost:9955`).
+     * Each value is a live {@link EventCaptureService} instance.
+     */
+    private readonly _connections: Map<string, EventCaptureService> = new Map<string, EventCaptureService>();
+
+    /**
+     * Create a new StartRecorderCommand.
+     *
+     * @param _context VS Code extension context (lifecycle & subscriptions).
+     * @param _endpoints List of base URLs to connect to for event capture.
+     */
     constructor(
         private readonly _context: vscode.ExtensionContext,
         private readonly _endpoints: string[],
     ) {
-        // Initialize base CommandBase properties (context, logger factory, etc.)
+        // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
 
-        // Create a dedicated logger for this command
+        // Create a dedicated child logger for this command’s messages.
         this._logger = this.logger?.newLogger('G4.StartRecorder');
 
-        // Define the command identifier used in package.json and invocation
+        // Command identifier as used in package.json and when invoking via commands.executeCommand.
         this.command = 'Start-Recorder';
 
-        this._eventsCapturer = new EventCaptureService({
-            baseUrl: this._endpoints.length > 0 ? this._endpoints[0] : "http://localhost:9955",
-            context: _context,
-            logger: this._logger
-        });
+        // Instantiate one EventCaptureService per endpoint and store in the pool.
+        for (const endpoint of this._endpoints) {
+            const captureService = new EventCaptureService({
+                baseUrl: endpoint,
+                context: _context,
+                logger: this._logger
+            });
+            this._connections.set(endpoint, captureService);
+        }
     }
 
     /**
-     * Registers the 'Send-Recorder' command with VS Code's command registry.
-     * Ensures cleanup when the extension deactivates.
+     * Gets the connection pool (read-only map).
+     */
+    public get connections(): Map<string, EventCaptureService> {
+        return this._connections;
+    }
+
+    /**
+     * Register the VS Code command handler and push the disposable into context.
+     * Called by the framework during command lifecycle.
      */
     protected async onRegister(): Promise<void> {
-        // Register command callback
+        // Register the command and bind it to invokeCommand.
         const disposable = vscode.commands.registerCommand(
             this.command,
             async (args: any) => {
                 await this.invokeCommand(args);
             },
-            this
+            this // `thisArg` ensures `this` inside invokeCommand is this instance
         );
 
-        // Add to context subscriptions for automatic disposal
+        // Ensure disposal happens when the extension deactivates.
         this.context.subscriptions.push(disposable);
     }
 
     /**
-     * Invoked when the 'Send-Automation' command is executed.
-     * Validates active notebook editor and forwards content to the service.
+     * Command execution entry point. Starts all configured EventCaptureService
+     * connections (one per endpoint).
+     *
+     * @param args Optional arguments passed when invoking the command.
      */
     protected async onInvokeCommand(args?: any): Promise<void> {
-        this._eventsCapturer.start();
+        // Build an array of start promises so we can await them collectively.
+        const starts: Promise<void>[] = [];
+
+        for (const [endpoint, service] of this._connections) {
+            try {
+                this._logger.information(`Starting recorder for endpoint: ${endpoint}`);
+
+                // Start each connection and collect its Promise; let them run concurrently.
+                starts.push(service.start());
+            } catch (error: unknown) {
+                // Ensure we don’t fail the whole loop on one bad endpoint.
+                const message = error instanceof Error ? error.message : String(error);
+                this._logger.error(`Failed to start recorder for endpoint ${endpoint}: ${message}`);
+            }
+        }
+
+        // Await all connection starts; if any rejects, we log it here.
+        try {
+            await Promise.all(starts);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this._logger.error(`One or more recorders failed to start: ${message}`);
+        }
     }
 }

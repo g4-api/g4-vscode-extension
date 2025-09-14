@@ -162,7 +162,7 @@ export class Utilities {
                     // If it's a file, attempt to match its base name against each target name
                     for (const name of arrayOfNames) {
                         const matches = patternToExtractName.exec(filePath);
-                        
+
                         // If regex finds a base name and it matches one in our list, record the path
                         if (matches !== null && matches[0] === name) {
                             list.push(filePath);
@@ -430,6 +430,45 @@ export class Utilities {
 
         // Return the complete timestamp in the format "DD/MM/YY, HH:MM:SS.mmm"
         return `${base}.${ms}`;
+    }
+
+    /**
+     * Resolves and returns the list of event capture endpoints from the project manifest.
+     *
+     * @remarks
+     * This method looks into the project manifest for a `g4EventCapture` property,
+     * which is expected to be an array of endpoint configurations.
+     * Each configuration should include `schema`, `host`, and `port`.
+     *
+     * @returns {string[]} An array of endpoint URLs in the format `<schema>://<host>:<port>`.
+     * If no valid endpoints are found, an empty array is returned.
+     */
+    public static resolveEventsCaptureEndpoints(): string[] {
+        // Load the project manifest (contains metadata and configurations for this project)
+        const manifest = this.resolveProjectManifest();
+
+        // Extract the g4EventCapture array from the manifest (if it exists)
+        const eventsCaptureEndpoints: any[] = manifest?.g4EventCapture;
+
+        // If the property is missing or not an array, return an empty list
+        if (!eventsCaptureEndpoints || !Array.isArray(eventsCaptureEndpoints)) {
+            return [];
+        }
+
+        // Container for fully resolved endpoint URLs
+        const endpoints: string[] = [];
+
+        // Iterate through each item in the g4EventCapture array
+        for (const item of eventsCaptureEndpoints) {
+            // Construct a URL string using schema, host, and port
+            const endpoint = `${item.schema}://${item.host}:${item.port}`;
+
+            // Add the constructed URL to the endpoints list
+            endpoints.push(endpoint);
+        }
+
+        // Return the completed list of endpoints
+        return endpoints;
     }
 
     /**

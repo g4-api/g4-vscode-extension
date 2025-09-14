@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
 import { MdJsonNotebookProvider } from './providers/md-json-notebook-provider';
-import { NotificationService } from './clients/g4-signalr-client';
+import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
 import { SendAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
@@ -12,13 +12,20 @@ import { UpdateTemplateCommand } from './commands/update-template';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 
-const connections = new Map<string, NotificationService>();
+const hubConnections = new Map<string, NotificationService>();
+const captureConnections = new Map<string, EventCaptureService>();
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
     const baseUri = await InitializeConnection(context);
-    const options = { context, baseUri, connections };
+    const eventsCaptureEndpoints = Utilities.resolveEventsCaptureEndpoints();
+    const options = { 
+        context,
+        baseUri,
+        connections: hubConnections,
+        eventsCaptureEndpoints
+    };
 
     registerCommands(options);
     registerNotebookEvents(options);
@@ -33,14 +40,22 @@ export function deactivate() {
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
-    connections: Map<string, NotificationService>
+    connections: Map<string, NotificationService>,
+    eventsCaptureEndpoints: string[]
 }) => {
     new NewProjectCommand(options.context).register();
     new SendAutomationCommand(options.context, options.connections).register();
     new ShowWorkflowCommand(options.context, options.baseUri).register();
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
     new UpdateTemplateCommand(options.context, options.baseUri).register();
-    new StartRecorderCommand(options.context, []).register();
+
+    const startRecorderCommand = new StartRecorderCommand(options.context, options.eventsCaptureEndpoints || []);
+    const connections = startRecorderCommand.connections;
+    startRecorderCommand.register();
+
+    connections.forEach((service, endpoint) => {
+        captureConnections.set(endpoint, service);
+    });
 };
 
 const registerProviders = (options: {
