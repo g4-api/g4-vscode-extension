@@ -51,7 +51,7 @@
                 "title": "Update or Create Template Definitions"
             },
             {
-                "command": "winrec.start",
+                "command": "Start-Recorder",
                 "title": "Win Recorder: Start"
             },
             {

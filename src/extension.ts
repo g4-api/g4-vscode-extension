@@ -10,143 +10,7 @@ import { Global } from './constants/global';
 import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
-
-
-
-
-
-// import { mkdirSync, writeFileSync, existsSync } from 'fs';
-// import { join } from 'path';
-// import { spawn } from 'child_process';
-
-
-// function safeRequire<T = any>(mod: string): T {
-//     // @ts-ignore
-//     const req: NodeJS.Require = typeof __non_webpack_require__ === 'function'
-//         // @ts-ignore
-//         ? __non_webpack_require__
-//         : require;
-//     return req(mod);
-// }
-
-
-// console.log('Electron version:', process.versions.electron);
-// const { uIOhook } = safeRequire('uiohook-napi');
-
-// type ElementInfo = {
-//     name?: string;
-//     controlType?: string;
-//     automationId?: string;
-//     className?: string;
-//     runtimeId?: number[];
-//     bounds?: { x: number; y: number; width: number; height: number };
-//     processId?: number;
-// };
-
-
-// type RecordedEvent =
-//     | {
-//         type: 'click';
-//         button: 'left' | 'right' | 'middle';
-//         ts: number;
-//         screen: { x: number; y: number };
-//         element: ElementInfo | null;
-//     }
-//     | {
-//         type: 'keydown' | 'keyup';
-//         ts: number;
-//         keycode: number;
-//     };
-
-// let running = false;
-// let outFile = '';
-// let probePath = vscode.Uri.file(
-//         'E:\\Grabage\\net8.0-windows\\publish\\UiaPeek.exe'
-//     ).fsPath;
-
-
-// function buttonIdToName(btn: number): 'left' | 'right' | 'middle' {
-//     return btn === 1 ? 'left' : btn === 2 ? 'right' : 'middle';
-// }
-
-// function append(evt: RecordedEvent) {
-//     const line = JSON.stringify(evt) + '\n';
-//     writeFileSync(outFile, line, { flag: 'a' });
-// }
-
-
-// function probeAt(x: number, y: number): Promise<ElementInfo | null> {
-//     return new Promise((resolve) => {
-//         const p = spawn(probePath, ["peek", "-x", String(x), "-y", String(y)], { windowsHide: false });
-
-//         let buf = '';
-//         p.stdout.on('data', (d) => {
-//             (buf += d.toString('utf8'));
-//         });
-//         p.on('error', () => resolve(null));
-//         p.on('close', () => {
-//             try {
-//                 const parsed = JSON.parse(buf || '{}');
-//                 resolve(parsed);
-//             } catch {
-//                 resolve(null);
-//             }
-//         });
-//     });
-// }
-
-
-// async function start(context: vscode.ExtensionContext) {
-//     if (running) {
-//         vscode.window.showInformationMessage('Win Recorder already running.');
-//         return;
-//     }
-
-//     // Resolve storage + output
-//     const storage = context.globalStorageUri.fsPath;
-//     if (!existsSync(storage)) mkdirSync(storage, { recursive: true });
-//     outFile = join(storage, 'recording.jsonl');
-//     if (!existsSync(outFile)) writeFileSync(outFile, '');
-
-//     // Wire events
-//     uIOhook.on('mousedown', async (e: any) => {
-//         if (!running) return;
-//         const element = await probeAt(e.x, e.y);
-//         append({
-//             type: 'click',
-//             button: buttonIdToName(e.button),
-//             ts: Date.now(),
-//             screen: { x: e.x, y: e.y },
-//             element
-//         });
-//     });
-
-//     uIOhook.on('keydown', (e: any) => {
-//         if (!running) return;
-//         append({ type: 'keydown', ts: Date.now(), keycode: e.keycode });
-//     });
-
-//     uIOhook.on('keyup', (e: any) => {
-//         if (!running) return;
-//         append({ type: 'keyup', ts: Date.now(), keycode: e.keycode });
-//     });
-
-//     // Start hook
-//     uIOhook.start();
-//     running = true;
-
-//     const link = vscode.Uri.file(outFile);
-//     vscode.window.showInformationMessage('Win Recorder started. Writing JSONL to: ' + outFile, 'Open File')
-//         .then(btn => { if (btn) vscode.env.openExternal(link); });
-// }
-
-
-// async function stop() {
-//     if (!running) return;
-//     running = false;
-//     if (uIOhook) uIOhook.stop();
-//     vscode.window.showInformationMessage('Win Recorder stopped.');
-// }
+import { StartRecorderCommand } from './commands/start-recorder';
 
 const connections = new Map<string, NotificationService>();
 
@@ -159,9 +23,6 @@ export async function activate(context: vscode.ExtensionContext) {
     registerCommands(options);
     registerNotebookEvents(options);
     registerProviders(options);
-
-    // vscode.commands.registerCommand('winrec.start', () => start(context));
-    // vscode.commands.registerCommand('winrec.stop', () => stop());
 }
 
 // This method is called when your extension is deactivated
@@ -179,6 +40,7 @@ const registerCommands = (options: {
     new ShowWorkflowCommand(options.context, options.baseUri).register();
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
     new UpdateTemplateCommand(options.context, options.baseUri).register();
+    new StartRecorderCommand(options.context, []).register();
 };
 
 const registerProviders = (options: {
@@ -191,8 +53,7 @@ const registerProviders = (options: {
     new DocumentsTreeProvider(options.context).register();
 };
 
-/**
- * Set up listeners to auto-register SignalR NotificationService instances
+/** * Set up listeners to auto-register SignalR NotificationService instances
  * whenever a new MdJson notebook becomes active.
  *
  * @param options.context - VS Code extension context for subscriptions.
@@ -236,11 +97,11 @@ const registerNotebookEvents = (options: {
             }
 
             // Create and register a new NotificationService for this notebook
-            const service = new NotificationService(
-                options.baseUri,
-                options.context,
-                Global.logger
-            );
+            const service = new NotificationService({
+                baseUrl: options.baseUri || "http://localhost:9955",
+                context: options.context,
+                logger: Global.logger
+            });
             options.connections.set(key, service);
         }
     );
@@ -269,7 +130,12 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
         vscode.window.setStatusBarMessage('$(sync~spin) Waiting for G4 Engine Connection...');
 
         // Create a new SignalR client pointing at the G4 hub
-        const client = new NotificationService(baseUri, context, Global.logger);
+        const client = new NotificationService({
+            baseUrl: baseUri,
+            context,
+            logger: Global.logger
+        });
+
         try {
             // Attempt to start the SignalR connection
             await client.start();
