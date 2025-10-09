@@ -73,8 +73,8 @@ export class StartRecorderCommand extends CommandBase {
         // Register the command and bind it to invokeCommand.
         const disposable = vscode.commands.registerCommand(
             this.command,
-            async (args: any) => {
-                await this.invokeCommand(args);
+            async (_: any) => {
+                await this.invokeCommand();
             },
             this // `thisArg` ensures `this` inside invokeCommand is this instance
         );
@@ -89,7 +89,7 @@ export class StartRecorderCommand extends CommandBase {
      *
      * @param args Optional arguments passed when invoking the command.
      */
-    protected async onInvokeCommand(args?: any): Promise<void> {
+    protected async onInvokeCommand(): Promise<void> {
         // Build an array of start promises so we can await them collectively.
         const starts: Promise<void>[] = [];
 

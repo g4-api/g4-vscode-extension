@@ -448,7 +448,7 @@ export class Utilities {
         const manifest = this.resolveProjectManifest();
 
         // Extract the g4EventCapture array from the manifest (if it exists)
-        const eventsCaptureEndpoints: any[] = manifest?.g4EventCapture;
+        const eventsCaptureEndpoints: any[] = manifest?.g4EventCaptures;
 
         // If the property is missing or not an array, return an empty list
         if (!eventsCaptureEndpoints || !Array.isArray(eventsCaptureEndpoints)) {

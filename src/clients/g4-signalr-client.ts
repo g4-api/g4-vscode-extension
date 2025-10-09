@@ -166,7 +166,6 @@ export class EventCaptureService {
     /** Underlying SignalR connection to the G4 hub. */
     private readonly _connection: HubConnection;
 
-    /** In-memory buffer for all received recording events during the session. */
     private readonly _buffer: any[] = [];
 
     /**
@@ -188,6 +187,16 @@ export class EventCaptureService {
     }
 
     /**
+     * Exposes the internal buffer of captured events (read-only).
+     * Useful for retrieving all events since the last clear or service start.
+     * 
+     * @returns Array of all captured events in FIFO order.
+     */
+    public get buffer(): any[] {
+        return this._buffer;
+    }
+
+    /**
      * Exposes the underlying SignalR connection (read-only).
      * Useful for advanced scenarios (e.g., invoking hub methods).
      */
@@ -200,7 +209,7 @@ export class EventCaptureService {
      * Use this to reset the buffer without disposing the service.
      */
     public clearBuffer(): void {
-        this._buffer.length = 0;
+        this.buffer.length = 0;
     }
 
     /**

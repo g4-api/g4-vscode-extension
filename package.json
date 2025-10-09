@@ -55,7 +55,7 @@
                 "title": "Win Recorder: Start"
             },
             {
-                "command": "winrec.stop",
+                "command": "Stop-Recorder",
                 "title": "Win Recorder: Stop"
             }
         ],
@@ -121,6 +121,12 @@
         }
     },
     "readme": "README.md",
+    "licenses": [
+        {
+            "path": "LICENSE",
+            "type": "Apache-2.0"
+        }
+    ],
     "scripts": {
         "vscode:prepublish": "npm run package",
         "compile": "webpack",
@@ -151,7 +157,9 @@
         "resources/**",
         "languages/**",
         "dist/**",
-        "node_modules/**"
+        "node_modules/**",
+        "LICENSE",
+        "README.md"
     ],
     "dependencies": {
         "@microsoft/signalr": "^8.0.7",

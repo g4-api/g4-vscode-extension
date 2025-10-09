@@ -11,6 +11,7 @@ import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
+import { StopRecorderCommand } from './commands/stop-recorder';
 
 const hubConnections = new Map<string, NotificationService>();
 const captureConnections = new Map<string, EventCaptureService>();
@@ -51,11 +52,14 @@ const registerCommands = (options: {
 
     const startRecorderCommand = new StartRecorderCommand(options.context, options.eventsCaptureEndpoints || []);
     const connections = startRecorderCommand.connections;
+    
     startRecorderCommand.register();
 
     connections.forEach((service, endpoint) => {
         captureConnections.set(endpoint, service);
     });
+
+    new StopRecorderCommand(options.context, captureConnections).register();
 };
 
 const registerProviders = (options: {
