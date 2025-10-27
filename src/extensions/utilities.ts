@@ -1,7 +1,7 @@
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import path = require('path');
-import { LogConfiguration } from '../models/log-configuration-model';
+import { LogSettings } from '../logging/logger-base';
 import { Global } from '../constants/global';
 
 export class Utilities {
@@ -215,39 +215,34 @@ export class Utilities {
     /**
      * Retrieves the logging configuration for the RhinoServer from the project manifest.
      *
-     * If a clientLogConfiguration is defined in the manifest, it will be returned.
+     * If a clientLogSettings is defined in the manifest, it will be returned.
      * Otherwise, a sensible default configuration is provided.
      *
-     * @returns {LogConfiguration} The resolved or default log configuration.
+     * @returns {LogSettings} The resolved or default log settings.
      */
-    public static getLogConfiguration(): LogConfiguration {
+    public static getLogSettings(): LogSettings {
         // Attempt to load the project manifest
         const manifest = this.resolveProjectManifest();
 
         // Check whether a manifest object was successfully returned
         const hasManifest = !this.assertUndefinedOrNull(manifest);
 
-        // Check whether the manifest contains a clientLogConfiguration section
-        const hasClientConfig = hasManifest && !this.assertUndefinedOrNull(manifest.clientLogConfiguration);
+        // Check whether the manifest contains a clientLogSettings section
+        const hasClientConfig = hasManifest && !this.assertUndefinedOrNull(manifest.settings?.clientLogSettings);
 
-        // If clientLogConfiguration exists on the manifest, use it
+        // If clientLogSettings exists on the manifest, use it
         if (hasClientConfig) {
-            return manifest.clientLogConfiguration;
+            return manifest.settings.clientLogSettings;
         }
 
         // Otherwise, return a default log configuration
         return {
-            agentLogConfiguration: {
-                // Enable the agent's own logging by default
-                enabled: true,
-                // Emit logs every 3000 milliseconds
-                interval: 3000
-            },
             // Default to informational-level logging
             logLevel: "information",
             sourceOptions: {
                 // Only include explicitly listed sources (none by default)
                 filter: "include",
+
                 // No specific sources to include; all will be excluded
                 sources: []
             }
@@ -433,6 +428,36 @@ export class Utilities {
     }
 
     /**
+     * Generates a random alphanumeric string of the specified length.
+     *
+     * @param length - The desired length of the generated string.
+     * @returns A random string containing uppercase, lowercase, and numeric characters.
+     *
+     * @example
+     * const token = Utils.newRandomString(10);
+     * console.log(token); // Example output: "aZ8kL2mP0q"
+     */
+    public static newRandomString(length: number): string {
+        // Define the character set from which random characters will be chosen
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+        // Initialize an empty result string
+        let result = '';
+
+        // Loop 'length' times to build the string
+        for (let i = 0; i < length; i++) {
+            // Pick a random index within the 'chars' string
+            const randomIndex = Math.floor(Math.random() * chars.length);
+
+            // Append the randomly selected character to the result
+            result += chars.charAt(randomIndex);
+        }
+
+        // Return the completed random string
+        return result;
+    }
+
+    /**
      * Resolves and returns the list of event capture endpoints from the project manifest.
      *
      * @remarks
@@ -443,7 +468,7 @@ export class Utilities {
      * @returns {string[]} An array of endpoint URLs in the format `<schema>://<host>:<port>`.
      * If no valid endpoints are found, an empty array is returned.
      */
-    public static resolveEventsCaptureEndpoints(): string[] {
+    public static resolveEventsCaptureEndpoints(): { url: string, driverParameters: any }[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
 
@@ -456,15 +481,18 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: string[] = [];
+        const endpoints: { url: string, driverParameters: any }[] = [];
 
         // Iterate through each item in the g4EventCapture array
         for (const item of eventsCaptureEndpoints) {
             // Construct a URL string using schema, host, and port
-            const endpoint = `${item.schema}://${item.host}:${item.port}`;
+            const url = `${item.schema}://${item.host}:${item.port}`;
 
-            // Add the constructed URL to the endpoints list
-            endpoints.push(endpoint);
+            // Add the constructed URL and driver parameters to the endpoints list
+            endpoints.push({
+                url: url,
+                driverParameters: item.driverParameters
+            });
         }
 
         // Return the completed list of endpoints
@@ -553,7 +581,7 @@ export class Utilities {
 
             if (stats.isDirectory()) {
                 // Check if this directory is in the exclusion list
-                const isExcluded = excludeFolders.length > 0 && excludeFolders.indexOf(item.toUpperCase()) > -1;
+                const isExcluded = excludeFolders.length > 0 && excludeFolders.includes(item.toUpperCase());
 
                 // Skip this folder
                 if (isExcluded) {
@@ -564,7 +592,7 @@ export class Utilities {
             } else if (stats.isFile()) {
                 // Determine file extension and check inclusion list
                 const suffix = path.extname(item).toUpperCase();
-                const isIncluded = includeFiles.length === 0 || includeFiles.indexOf(suffix) > -1;
+                const isIncluded = includeFiles.length === 0 || includeFiles.includes(suffix);
 
                 // Skip this file
                 if (!isIncluded) {

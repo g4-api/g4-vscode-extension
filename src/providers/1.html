@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Recorder</title>
+    <style>
+        @keyframes bulbPulse {
+            0% {
+                box-shadow: 0 0 0px #3c3;
+            }
+
+            50% {
+                box-shadow: 0 0 6px #3c3;
+            }
+
+            100% {
+                box-shadow: 0 0 0px #3c3;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .bulb.on {
+                animation: none;
+            }
+        }
+
+        :root {
+            --border-radius: 2px;
+        }
+
+        body {
+            margin: 0;
+            padding: 12px;
+            background: var(--vscode-sideBar-background);
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            line-height: 1.4;
+        }
+
+        button {
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--vscode-button-hoverBackground);
+        }
+
+        .bulb {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid var(--vscode-editorGroup-border);
+            background: #c33;
+            box-shadow: 0 0 6px #c33;
+        }
+
+        .bulb.on {
+            animation: bulbPulse 1.2s ease-in-out infinite;
+            background: #3c3;
+            will-change: box-shadow;
+        }
+
+        .control-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 90px;
+        }
+
+        .controls {
+            align-items: center;
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .name {
+            font-weight: 600;
+        }
+
+        .panel {
+            border: 1px solid var(--vscode-editorGroup-border);
+            border-radius: var(--border-radius);
+            padding: 10px;
+        }
+
+        .panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .refresh {
+            background: transparent;
+            color: var(--vscode-textLink-foreground);
+            border: 1px solid var(--vscode-editorGroup-border);
+            padding: 4px 8px;
+            border-radius: var(--border-radius);
+        }
+
+        .refresh:hover {
+            background: rgba(127, 127, 127, 0.1);
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .server {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-top: 1px solid var(--vscode-editorGroup-border);
+        }
+
+        .server:first-child {
+            border-top: none;
+        }
+
+        .small {
+            font-size: 0.85rem;
+            opacity: .8;
+        }
+
+        .svg-inline {
+            fill: var(--vscode-button-foreground);
+            transform: scale(0.9);
+        }
+
+        .svg-inline-secondary {
+            fill: var(--vscode-textLink-foreground);
+            transform: scale(0.9);
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .url {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+            max-width: 240px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls">
+        <button id="btnToggle" class="control-btn" title="Start (identical behavior to VS Code debug Start)"
+            aria-label="Start" data-state="stopped">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">
+                <path
+                    d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z" />
+            </svg>
+            <span>Start</span>
+        </button>
+    </div>
+
+    <div class="panel">
+        <div class="top">
+            <h3>Servers</h3>
+            <button class="refresh control-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20"
+                    class="svg-inline-secondary">
+                    <path
+                        d="M552 256L408 256C398.3 256 389.5 250.2 385.8 241.2C382.1 232.2 384.1 221.9 391 215L437.7 168.3C362.4 109.7 253.4 115 184.2 184.2C109.2 259.2 109.2 380.7 184.2 455.7C259.2 530.7 380.7 530.7 455.7 455.7C463.9 447.5 471.2 438.8 477.6 429.6C487.7 415.1 507.7 411.6 522.2 421.7C536.7 431.8 540.2 451.8 530.1 466.3C521.6 478.5 511.9 490.1 501 501C401 601 238.9 601 139 501C39.1 401 39 239 139 139C233.3 44.7 382.7 39.4 483.3 122.8L535 71C541.9 64.1 552.2 62.1 561.2 65.8C570.2 69.5 576 78.3 576 88L576 232C576 245.3 565.3 256 552 256z" />
+                </svg>
+                <span>Refresh</span>
+            </button>
+        </div>
+
+        <div id="servers"></div>
+        <div class="small" id="footer"></div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const serversElement = document.getElementById('servers');
+        const footerElement = document.getElementById('footer');
+        const btnToggle = document.getElementById('btnToggle');
+
+        // Inline SVGs (using normal strings)
+        var PLAY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
+            '<path d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z"/>' +
+            '</svg>';
+
+        var STOP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
+            '<path d="M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z"/>' +
+            '</svg>';
+
+        function setToggleState(running) {
+            btnToggle.dataset.state = running ? 'running' : 'stopped';
+            btnToggle.title = running
+                ? 'Stop (identical behavior to VS Code debug Stop)'
+                : 'Start (identical behavior to VS Code debug Start)';
+            btnToggle.setAttribute('aria-label', running ? 'Stop' : 'Start');
+            btnToggle.innerHTML = (running ? STOP_SVG : PLAY_SVG) + '<span>' + (running ? 'Stop' : 'Start') + '</span>';
+        }
+
+        setToggleState(false);
+
+        btnToggle.addEventListener('click', function () {
+            var running = btnToggle.dataset.state === 'running';
+            if (running) {
+                vscode.postMessage({ type: 'recorder:stop' });
+                setToggleState(false);
+            } else {
+                vscode.postMessage({ type: 'recorder:start' });
+                setToggleState(true);
+            }
+        });
+
+        document.getElementById('btnRefresh').addEventListener('click', function () {
+            vscode.postMessage({ type: 'servers:refresh' });
+        });
+
+        function render(servers) {
+            serversElement.innerHTML = '';
+            for (const server of servers) {
+                var row = document.createElement('div');
+                row.className = 'server';
+
+                var left = document.createElement('div');
+                left.className = 'left';
+
+                var bulb = document.createElement('span');
+                bulb.className = 'bulb' + (server.ok ? ' on' : '');
+                left.appendChild(bulb);
+
+                var name = document.createElement('span');
+                name.className = 'name';
+                name.textContent = server.name;
+                left.appendChild(name);
+                row.appendChild(left);
+
+                var url = document.createElement('a');
+                url.className = 'url';
+                url.title = server.url;
+                url.innerHTML = server.url;
+                url.href = server.url + '/swagger';
+                url.target = '_blank';
+                row.appendChild(url);
+
+                serversElement.appendChild(row);
+            }
+
+            var time = new Date();
+            footerElement.textContent = 'Last update: ' + time.toLocaleTimeString();
+        }
+
+        window.addEventListener('message', function (event) {
+            var message = event.data;
+            if (!message) return;
+
+            switch (message.type) {
+                case 'servers:init':
+                case 'servers:update':
+                    render(message.payload || []);
+                    break;
+                case 'recorder:state':
+                    setToggleState(!!message.running);
+                    break;
+            }
+        });
+    </script>
+</body>
+
+</html>

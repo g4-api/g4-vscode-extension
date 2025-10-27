@@ -2,8 +2,8 @@
  * RESOURCES
  * https://code.visualstudio.com/api/references/commands
  */
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
@@ -65,7 +65,7 @@ export class ShowWorkflowCommand extends CommandBase {
      * Opens the embedded workflow web application in a VS Code Webview,
      * loading remote resources, patching them locally, and wiring up log forwarding.
      */
-    protected async onInvokeCommand(): Promise<any> {
+    protected async onInvokeCommand(args: any): Promise<any> {
         // Helper to read a file or notebook given its URI string, then post its content
         const readFile = async (uri: string) => {
             try {
@@ -98,16 +98,20 @@ export class ShowWorkflowCommand extends CommandBase {
 
                 // Send the file name and content back to the webview for import
                 panel.webview.postMessage({
-                    command: 'import',
-                    fileName,
-                    content: text
+                    type: 'workflow:import',
+                    payload: {
+                        fileName: fileName,
+                        content: text
+                    }
                 });
-            } catch (err: Error | any) {
+            } catch (err: any) {
                 // Log the failure and notify the webview of the error
                 this._logger.error(`Failed to read ${uri}: ${err}`);
                 panel.webview.postMessage({
-                    command: 'import',
-                    error: `Could not read file: ${err.message}`
+                    type: 'workflow:import',
+                    payload: {
+                        error: `Could not read file: ${err.message}`
+                    }
                 });
             }
         };
@@ -153,9 +157,19 @@ export class ShowWorkflowCommand extends CommandBase {
         // Listen for messages posted from the webview’s shim and log them at the appropriate level
         panel.webview.onDidReceiveMessage(async message => {
             // If the message is an import request, read the file and send its content
-            if (message.command === 'import') {
-                readFile(message.uri);
+            if (message.type === 'workflow:import') {
+                readFile(message.payload.fileUri);
                 return;
+            }
+
+            // If the webview signals it is ready, send the initial workflow if provided
+            if (message.type === 'webview:ready' && args?.workflow) {
+                panel.webview.postMessage({
+                    type: 'workflow:import',
+                    payload: {
+                        content: JSON.stringify(args.workflow)
+                    }
+                });
             }
 
             // Log the message text at the appropriate level
@@ -231,19 +245,36 @@ export class ShowWorkflowCommand extends CommandBase {
                 if (fileUri) {
                     // Notify the extension to import the file at this URI
                     vscode.postMessage({
-                        command: 'import',
-                        uri: fileUri
+                        type: 'workflow:import',
+                        payload: {
+                            fileUri: fileUri
+                        }
                     });
                 }
             });
 
+            // Notify the extension that the webview is ready to receive messages
+            window.addEventListener('DOMContentLoaded', () => {
+                Utilities.waitForElement('.sqd-root-start-stop', 5000).then(() => {
+                    vscode.postMessage({ type: 'webview:ready' });
+                });
+            });
+
             // Listen for messages coming back from the extension
             window.addEventListener('message', event => {
+                // Extract the message type from the event data
+                const type = event.data?.type;
+                
+                // Exit if the message type is not 'workflow:import'
+                if (type !== 'workflow:import') {
+                    return;
+                }
+
                 // Set the definition in the workspace
                 // This assumes you have a function setDefinition to handle the incoming data
-                const definition = JSON.parse(event.data?.content || '{}');
+                const definition = JSON.parse(event.data?.payload?.content || '{}');
 
-                // Set observer for the workspace element=
+                // Set observer for the workspace element
                 const workspaceElement = document.querySelector('.sqd-workspace');
                 const workspaceObserver = new Observer(workspaceElement);
                 
@@ -271,6 +302,7 @@ export class ShowWorkflowCommand extends CommandBase {
         // Dynamically import node-fetch for HTTP requests
         const fetch = (await import('node-fetch')).default;
 
+        // TODO: Check for error responses and handle them gracefully
         // Fetch the list of resource file paths from the API endpoint
         const listText = await (await fetch(`${baseUrl}/api/v4/g4/integration/files`)).text();
         const resources: string[] = JSON.parse(listText);
@@ -301,8 +333,8 @@ export class ShowWorkflowCommand extends CommandBase {
                 let htmlText = await res.text();
 
                 // Swap out the blueprint CSS filename for the VS Code–optimized version
-                htmlText = htmlText.replace(
-                    /designer-blueprint-parameters\.css/g,
+                htmlText = htmlText.replaceAll(
+                    'designer-blueprint-parameters.css',
                     'designer-blueprint-parameters-vscode.css'
                 );
 
@@ -359,7 +391,7 @@ export class ShowWorkflowCommand extends CommandBase {
      */
     private static setHtml(panel: vscode.WebviewPanel, storageDir: string, html: string): string {
         // Replace <link> tags that reference local CSS or other resources
-        html = html.replace(
+        html = html.replaceAll(
             /<link\s+([^>]*?)href="([^"]+)"([^>]*)>/g,
             (match, before, href, after) => {
                 // Skip external or data URIs
@@ -377,7 +409,7 @@ export class ShowWorkflowCommand extends CommandBase {
         );
 
         // Replace <script> tags that reference local JS files
-        html = html.replace(
+        html = html.replaceAll(
             /<script\s+([^>]*?)src="([^"]+)"([^>]*)>/g,
             (match, before, src, after) => {
                 // Skip external or data URIs
@@ -395,7 +427,7 @@ export class ShowWorkflowCommand extends CommandBase {
         );
 
         // Replace <img> tags that reference local image files
-        html = html.replace(
+        html = html.replaceAll(
             /<img\s+([^>]*?)src="([^"]+)"([^>]*)>/g,
             (match, before, src, after) => {
                 // Skip external or data URIs

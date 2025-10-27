@@ -205,6 +205,13 @@ export class EventCaptureService {
     }
 
     /**
+     * Exposes the service configuration options (read-only).
+     */
+    public get options(): EventCaptureOptions {
+        return this._options;
+    }
+
+    /**
      * Clears the internal buffer of captured events.
      * Use this to reset the buffer without disposing the service.
      */
@@ -304,6 +311,9 @@ interface EventCaptureOptions {
 
     /** VS Code extension context for lifecycle and storage if needed. */
     context: vscode.ExtensionContext;
+
+    /** Optional driver parameters associated with this connection. */
+    driverParameters?: any;
 
     /** Logger instance for user-facing and diagnostic logs. */
     logger: Logger;

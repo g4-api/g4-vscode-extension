@@ -22,10 +22,10 @@ export abstract class CommandBase {
     public readonly context: vscode.ExtensionContext;
 
     /** The command identifier used to register in VS Code. */
-    public command: string;
+    public command: string = '';
 
     /** Base endpoint URL for API calls (defaults to localhost). */
-    public endpoint: string;
+    public endpoint: string = 'http://localhost:9944';
 
     /** The extension's manifest data (package.json). */
     public manifest: any;
@@ -39,17 +39,17 @@ export abstract class CommandBase {
      * @param createModel - Optional model for TextMate language creation.
      */
     constructor(context: vscode.ExtensionContext, createModel?: TmLanguageCreateModel) {
-        // initialize command identifier to an empty string for derived classes to set
-        this.command = '';
-
-        // default API endpoint, can be overridden
-        this.endpoint = 'http://localhost:9944';
+        // attempt to retrieve the configured G4 endpoint from extension settings
+        const g4Endpoint = Utilities.getG4Endpoint();
 
         // logger writes to the VS Code output channel and optionally to console
         this.logger = new ExtensionLogger(Channels.extension, 'CommandBase');
 
+        // default endpoint for G4 API interactions
+        this.endpoint = g4Endpoint || this.endpoint;
+
         // HTTP client configured with endpoint from utilities
-        this.client = new G4Client(Utilities.getG4Endpoint());
+        this.client = new G4Client(g4Endpoint || this.endpoint);
 
         // retain the extension context for command registration and disposables
         this.context = context;

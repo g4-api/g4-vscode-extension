@@ -67,7 +67,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
      *   by calling `DocumentsTreeProvider.getTreeItems()`.
      *
      * Notes:
-     * - The progress UI is associated with the `"rhinoDocumentation"` view via `location.viewId`.
+     * - The progress UI is associated with the `"g4Documentations"` view via `location.viewId`.
      * - Resolving the promise with the result of `getTreeItems()` is safe even though it returns
      *   a Promise; the outer promise will adopt/await it.
      *
@@ -81,7 +81,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         }
 
         // Configure the progress indicator to appear in the target view.
-        const options = { location: { viewId: "rhinoDocumentation" } };
+        const options = { location: { viewId: "g4Documentations" } };
 
         // Build and return the root items under a progress UI.
         return vscode.window.withProgress(options, () => {
@@ -245,7 +245,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         const convertToTreeItem = (plugin: any) => {
             // Build a readable label: remove one '-' then add spaces before capitals; trim; fallback text.
             const label =
-                plugin?.manifest?.key.replace(/(-)+/g, '').replace(/([A-Z])/g, ' $1').trim() ??
+                plugin?.manifest?.key.replaceAll('-', '').replaceAll(/([A-Z])/g, ' $1').trim() ??
                 'Unknown Plugin';
 
             // Create the tree item and allow an attached `data` payload for downstream use.
@@ -321,7 +321,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         // Convert each cache key into a TreeItem root node
         const roots = Object.keys(cache).map((key) => {
             // Human-friendly label: insert spaces before capitals and trim
-            const label = key.replace(/([A-Z])/g, " $1").trim();
+            const label = key.replaceAll(/([A-Z])/g, " $1").trim();
 
             // Create a TreeItem and allow attaching arbitrary `data`
             const item = new TreeItem(label) as vscode.TreeItem & { data?: any };
@@ -375,7 +375,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         // Build a stable, human-friendly virtual URI that ends with .md so the Markdown preview recognizes it.
         // We sanitize the label for safety and append a unique id (from node.data.key when available).
         const rawLabel = typeof node.label === 'string' ? node.label : 'Document';
-        const safeName = rawLabel.replace(/[^\w-]+/g, '_');
+        const safeName = rawLabel.replaceAll(/[^\w-]+/g, '_');
         const uniqueId = String(node?.data?.key ?? 'doc');
         const uri = vscode.Uri.parse(`${this._documentsScheme}://${safeName}-${uniqueId}.md`);
 

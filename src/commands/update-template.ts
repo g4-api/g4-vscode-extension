@@ -4,13 +4,13 @@
  * RESOURCES:
  * VS Code command API reference: https://code.visualstudio.com/api/references/commands
  */
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { G4Client } from '../clients/g4-client';
 import { Utilities } from '../extensions/utilities';
-import path from 'path';
+import path from 'node:path';
 
 /**
  * Command to update one or more template definitions in the G4 Hub.

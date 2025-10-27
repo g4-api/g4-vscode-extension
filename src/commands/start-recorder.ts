@@ -32,11 +32,11 @@ export class StartRecorderCommand extends CommandBase {
      * Create a new StartRecorderCommand.
      *
      * @param _context VS Code extension context (lifecycle & subscriptions).
-     * @param _endpoints List of base URLs to connect to for event capture.
+     * @param _options List of options for event capture services.
      */
     constructor(
         private readonly _context: vscode.ExtensionContext,
-        private readonly _endpoints: string[],
+        private readonly _options: EventCaptureServiceOptions[],
     ) {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
@@ -48,13 +48,14 @@ export class StartRecorderCommand extends CommandBase {
         this.command = 'Start-Recorder';
 
         // Instantiate one EventCaptureService per endpoint and store in the pool.
-        for (const endpoint of this._endpoints) {
+        for (const option of this._options) {
             const captureService = new EventCaptureService({
-                baseUrl: endpoint,
+                baseUrl: option.url,
+                driverParameters: option.driverParameters,
                 context: _context,
                 logger: this._logger
             });
-            this._connections.set(endpoint, captureService);
+            this._connections.set(option.url, captureService);
         }
     }
 
@@ -115,3 +116,6 @@ export class StartRecorderCommand extends CommandBase {
         }
     }
 }
+
+/* Options for configuring event capture services. */
+type EventCaptureServiceOptions = { url: string, driverParameters: any }

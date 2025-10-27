@@ -4,7 +4,7 @@
  */
 import fs = require('fs');
 import os = require('os');
-import * as path from 'path';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';

@@ -40,8 +40,8 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
         // Listen for messages sent from the webview's frontend
         webviewView.webview.onDidReceiveMessage(
             async (message) => {
-                // Handle the 'Show-Workflow' command by invoking the VS Code command
-                if (message.command === 'Show-Workflow') {
+                // Handle the 'workflow:show' command by invoking the VS Code command
+                if (message.type === 'workflow:show') {
                     await vscode.commands.executeCommand('Show-Workflow');
                 }
                 // Add more message handlers here as needed
@@ -52,9 +52,6 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
     /**
      * Register this WebviewViewProvider with VS Code so that
      * it can resolve and render the custom sidebar view.
-     *
-     * @param context - The VS Code extension context, used to
-     *                  track disposables and clean them up on deactivate.
      */
     public register(): void {
         // Register the provider under our view type constant. When VS Code
@@ -156,7 +153,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
             <script>
                 const vscode = acquireVsCodeApi();
                 document.getElementById('showWorkflowBtn').addEventListener('click', () =>
-                    vscode.postMessage({ command: 'Show-Workflow' })
+                    vscode.postMessage({ type: 'workflow:show', payload: {} })
                 );
             </script>
       </body>

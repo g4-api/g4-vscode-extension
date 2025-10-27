@@ -9,17 +9,6 @@ export class Global {
 
     /** The base manifest for the G4 Hub API. */
     public static readonly BASE_MANIFEST: any = {
-        "clientLogConfiguration": {
-            "agentLogConfiguration": {
-                "enabled": true,
-                "interval": 1000
-            },
-            "logLevel": "information",
-            "sourceOptions": {
-                "filter": "include",
-                "sources": []
-            }
-        },
         "g4Server": {
             "schema": "http",
             "host": "localhost",
@@ -41,6 +30,17 @@ export class Global {
                 "returnFlatResponse": true,
                 "returnStructuredResponse": true,
                 "searchTimeout": 15000
+            },
+            "clientLogSettings": {
+                "agentLogSettings": {
+                    "enabled": true,
+                    "interval": 1000
+                },
+                "logLevel": "information",
+                "sourceOptions": {
+                    "filter": "include",
+                    "sources": []
+                }
             },
             "environmentsSettings": {
                 "defaultEnvironment": "SystemParameters",
@@ -64,7 +64,7 @@ export class Global {
             "screenshotsSettings": {
                 "convertToBase64": false,
                 "onExceptionOnly": false,
-                "outputFolder": "C:\\Users\\s_roe\\OneDrive\\Desktop\\New folder\\g4-api\\src\\TestResults\\Deploy_s_roe 20250530T114855_8028\\Out\\Outputs\\Images",
+                "outputFolder": ".",
                 "returnScreenshots": false
             }
         }

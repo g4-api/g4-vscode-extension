@@ -10,8 +10,13 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--enable-proposed-api",
+				"g4-api.g4-engine-client"
 			],
+			"env": {
+				"NODE_OPTIONS": "--trace-warnings"
+			},
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
 			],

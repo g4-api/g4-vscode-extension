@@ -3,7 +3,7 @@ import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
 import { MdJsonNotebookProvider } from './providers/md-json-notebook-provider';
 import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
-import { SendAutomationCommand } from './commands/start-automation';
+import { StartAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
@@ -12,6 +12,7 @@ import { UpdateTemplateCommand } from './commands/update-template';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
+import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
 
 const hubConnections = new Map<string, NotificationService>();
 const captureConnections = new Map<string, EventCaptureService>();
@@ -24,8 +25,9 @@ export async function activate(context: vscode.ExtensionContext) {
     const options = { 
         context,
         baseUri,
-        connections: hubConnections,
-        eventsCaptureEndpoints
+        eventsCaptureEndpoints,
+        hubConnections,
+        recorderConnections: captureConnections
     };
 
     registerCommands(options);
@@ -41,11 +43,11 @@ export function deactivate() {
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
-    connections: Map<string, NotificationService>,
-    eventsCaptureEndpoints: string[]
+    eventsCaptureEndpoints: { url: string, driverParameters: any }[],
+    hubConnections: Map<string, NotificationService>
 }) => {
     new NewProjectCommand(options.context).register();
-    new SendAutomationCommand(options.context, options.connections).register();
+    new StartAutomationCommand(options.context, options.hubConnections).register();
     new ShowWorkflowCommand(options.context, options.baseUri).register();
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
     new UpdateTemplateCommand(options.context, options.baseUri).register();
@@ -55,9 +57,9 @@ const registerCommands = (options: {
     
     startRecorderCommand.register();
 
-    connections.forEach((service, endpoint) => {
+    for (const [endpoint, service] of connections) {
         captureConnections.set(endpoint, service);
-    });
+    }
 
     new StopRecorderCommand(options.context, captureConnections).register();
 };
@@ -65,10 +67,12 @@ const registerCommands = (options: {
 const registerProviders = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
-    connections: Map<string, NotificationService>
+    hubConnections: Map<string, NotificationService>,
+    recorderConnections: Map<string, EventCaptureService>
 }) => {
     new MdJsonNotebookProvider(options.context, options.baseUri).register();
     new G4WebviewViewProvider(options.context).register();
+    new G4RecorderViewProvider(options.context, options.recorderConnections).register();
     new DocumentsTreeProvider(options.context).register();
 };
 
@@ -82,7 +86,7 @@ const registerProviders = (options: {
 const registerNotebookEvents = (options: {
     context: vscode.ExtensionContext;
     baseUri: string;
-    connections: Map<string, NotificationService>;
+    hubConnections: Map<string, NotificationService>;
 }): void => {
     // Listen for changes to the active notebook editor
     const changeActiveNotebookEditor = vscode.window.onDidChangeActiveNotebookEditor(
@@ -111,7 +115,7 @@ const registerNotebookEvents = (options: {
             const key = notebook.uri.path.toString();
 
             // If we've already created a service for this notebook, do nothing
-            if (options.connections.has(key)) {
+            if (options.hubConnections.has(key)) {
                 return;
             }
 
@@ -121,7 +125,7 @@ const registerNotebookEvents = (options: {
                 context: options.context,
                 logger: Global.logger
             });
-            options.connections.set(key, service);
+            options.hubConnections.set(key, service);
         }
     );
 

@@ -10,17 +10,17 @@ export class Channels {
      * Output channel for logging messages from the G4 Hub component.
      * This channel uses 'json' mode to enable JSON syntax highlighting.
      */
-    public static hub: vscode.OutputChannel = vscode.window.createOutputChannel(
-        'G4 Hub',   // Display name in the VS Code Output panel
-        'g4log'      // Language mode for syntax highlighting
+    public static readonly hub: vscode.OutputChannel = vscode.window.createOutputChannel(
+        'G4 Hub', // Display name in the VS Code Output panel
+        'g4log'   // Language mode for syntax highlighting
     );
 
     /**
      * Output channel for logging messages from the G4 Extension host.
      * This channel uses 'json' mode to enable JSON syntax highlighting.
      */
-    public static extension: vscode.OutputChannel = vscode.window.createOutputChannel(
-        'G4 Extension',  // Display name in the VS Code Output panel
-        'g4log'           // Language mode for syntax highlighting
+    public static readonly extension: vscode.OutputChannel = vscode.window.createOutputChannel(
+        'G4 Extension', // Display name in the VS Code Output panel
+        'g4log'         // Language mode for syntax highlighting
     );
 }

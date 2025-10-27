@@ -1,129 +1,102 @@
 import * as vscode from 'vscode';
 
+/**
+ * Represents a structured logger interface used throughout the VS Code extension.
+ * Provides methods for writing messages to both the VS Code Output Channel and the console.
+ *
+ * Each logging level (trace, debug, information, warning, error, fatal) can be enabled or disabled
+ * to control verbosity. The interface also allows dynamic creation of new loggers and runtime
+ * adjustment of log levels.
+ */
 export interface Logger {
-    /**
-     * Gets a value indicating to add error level logs and above to the extension console.
-     */
+    /** Indicates whether messages should also be written to the system console. */
     readonly addConsole: boolean;
-    
-    /**
-     * Gets the log channel.
-     */
+
+    /** Reference to the VS Code Output Channel used for writing logs. */
     readonly channel: vscode.OutputChannel;
 
-    /**
-     * Gets the log name.
-     */
+    /** The logical name of this logger (used to categorize log messages). */
     readonly logName: string;
 
-    /**
-     * Determines if messages of priority "trace" will be logged.
-     */
-    isTraceEnabled: boolean;
-
-    /**
-     * Determines if messages of priority "debug" will be logged.
-     */
+    /** Whether debug-level logging is currently enabled. */
     isDebugEnabled: boolean;
 
-    /**
-     * Determines if messages of priority "error" will be logged.
-     */
+    /** Whether error-level logging is currently enabled. */
     isErrorEnabled: boolean;
 
-    /**
-     * Determines if messages of priority "fatal" will be logged.
-     */
+    /** Whether fatal-level logging is currently enabled. */
     isFatalEnabled: boolean;
 
-    /**
-     * Determines if messages of priority "info" will be logged.
-     */
+    /** Whether information-level logging is currently enabled. */
     isInformationEnabled: boolean;
 
-    /**
-     * Determines if messages of priority "warn" will be logged.
-     */
+    /** Whether trace-level logging is currently enabled. */
+    isTraceEnabled: boolean;
+
+    /** Whether warning-level logging is currently enabled. */
     isWarningEnabled: boolean;
 
     /**
-     * Creates a new child logger with the same channel as the parent logger.
-     * 
-     * @param logName The logger name.
+     * Creates and returns a new logger instance with the given name.
+     * @param logName The name identifying the new logger.
      */
     newLogger(logName: string): Logger;
 
     /**
-     * Sets the log level.
+     * Sets the current log level for this logger.
+     * @param logLevel The new log level to apply.
+     * @returns The logger instance (for chaining).
      */
-    setLogLevel(logLevel: 'none' | 'trace' | 'debug' | 'information' | 'warning' | 'error' | 'fatal'): Logger;
-    
-    /**
-     * Gets the log level.
-     */
-    getLogLevel(): 'none' | 'trace' | 'debug' | 'information' | 'warning' | 'error' | 'fatal';
+    setLogLevel(logLevel: LogLevel): Logger;
 
     /**
-     * Logs a trace message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Returns the current log level for this logger.
      */
-    trace(message: string): void;
-    trace(message: string, event?: string): void;
-    trace(message: string, event?: string, error?: Error | undefined): void;
+    getLogLevel(): LogLevel;
 
     /**
-     * Logs a debug message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Writes a debug-level log message.
+     * Typically used for developer diagnostics or internal state tracking.
      */
     debug(message: string): void;
     debug(message: string, event?: string): void;
     debug(message: string, event?: string, error?: Error | undefined): void;
 
     /**
-     * Logs an error message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Writes an error-level log message.
+     * Used for recoverable errors or caught exceptions.
      */
     error(message: string): void;
     error(message: string, event?: string): void;
     error(message: string, event?: string, error?: Error | undefined): void;
 
     /**
-     * Logs a fatal message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Writes a fatal-level log message.
+     * Indicates a critical failure that may prevent the extension from functioning.
      */
     fatal(message: string): void;
     fatal(message: string, event?: string): void;
     fatal(message: string, event?: string, error?: Error | undefined): void;
 
     /**
-     * Logs an information message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Writes an informational log message.
+     * Used for general operational information (e.g., "Extension initialized").
      */
     information(message: string): void;
     information(message: string, event?: string): void;
     information(message: string, event?: string, error?: Error | undefined): void;
 
     /**
-     * ogs a warning message.
-     * 
-     * @param message The message to log.
-     * @param event   The log event id.
-     * @param error   The error to log.
+     * Writes a trace-level log message.
+     * Used for very detailed information, such as function entry/exit or variable dumps.
+     */
+    trace(message: string): void;
+    trace(message: string, event?: string): void;
+    trace(message: string, event?: string, error?: Error | undefined): void;
+
+    /**
+     * Writes a warning-level log message.
+     * Indicates unexpected behavior that did not stop execution.
      */
     warning(message: string): void;
     warning(message: string, event?: string): void;
@@ -131,54 +104,43 @@ export interface Logger {
 }
 
 /**
- * Predefined log levels for controlling verbosity and severity of log output.
- * Using string literal types ensures only valid levels are assigned.
+ * Defines the available severity levels for log messages.
+ *
+ * The order of verbosity (lowest → highest) is:
+ *   none < trace < debug < information < warning < error < fatal
  */
-export class LogLevel {
-    /** No logging; disables all log output. */
-    public static readonly none: 'none' = 'none';
-
-    /** Trace-level logging; very detailed, intended for diagnosing issues. */
-    public static readonly trace: 'trace' = 'trace';
-
-    /** Debug-level logging; useful for development and debugging information. */
-    public static readonly debug: 'debug' = 'debug';
-
-    /** Informational messages; general runtime events and state changes. */
-    public static readonly information: 'information' = 'information';
-
-    /** Warning messages; potential issues that do not stop execution. */
-    public static readonly warning: 'warning' = 'warning';
-
-    /** Error messages; failures that should be investigated. */
-    public static readonly error: 'error' = 'error';
-
-    /** Fatal errors; unrecoverable conditions leading to shutdown. */
-    public static readonly fatal: 'fatal' = 'fatal';
-}
+export type LogLevel =
+    | 'none'
+    | 'trace'
+    | 'debug'
+    | 'information'
+    | 'warning'
+    | 'error'
+    | 'fatal';
 
 /**
- * Structure of a single log entry emitted by the application.
+ * Represents a single log entry created by the logger.
+ * Can be serialized or transmitted for external logging or telemetry.
  */
 export type LogEntry = {
-    /** Name of the application or component generating this log. */
+    /** The name of the application or component emitting this log. */
     applicationName: string;
 
-    /** Optional JavaScript Error object when an exception occurred. */
+    /** Optional associated error object, if an exception occurred. */
     error?: Error;
 
-    /** Severity level of the log, matching one of the `LogLevel` values. */
+    /** The textual representation of the log level (e.g., 'warning'). */
     logLevel: string;
 
-    /** A short identifier for this log stream or category. */
+    /** The name of the logger that emitted this log. */
     logName: string;
 
-    /** Human-readable message describing the event or error. */
+    /** The message text or description of the logged event. */
     message: string;
 
-    /** ISO‑8601 timestamp (with milliseconds) indicating when the log was created. */
+    /** ISO-8601 timestamp (with milliseconds) indicating when the log was created. */
     timestamp: string;
-    
-    /** Optional textual reason or context for the log entry. */
+
+    /** Optional reason or context description for the log entry. */
     reason?: string;
 };

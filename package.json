@@ -1,11 +1,16 @@
 {
     "name": "g4-engine-client",
     "displayName": "g4-engine-client",
-    "description": "",
+    "description": "G4 Engine is a modern automation and RPA platform that unifies testing, data extraction, and workflow orchestration across technologies. Our tools empower developers and QA teams to build, monitor, and automate complex systems with precision and speed. We design seamless integrations, from desktop to cloud, to help teams accelerate delivery through intelligent automation.",
     "version": "0.0.1",
     "engines": {
-        "vscode": "^1.102.0"
+        "vscode": "^1.105.0"
     },
+    "enabledApiProposals": [
+        "treeViewActiveItem",
+        "extensionRuntime"
+    ],
+    "publisher": "g4-api",
     "repository": {
         "type": "git",
         "url": "https://github.com/g4-api/g4-vscode-extension.git"
@@ -49,14 +54,6 @@
                 "command": "Update-Template",
                 "category": "G4",
                 "title": "Update or Create Template Definitions"
-            },
-            {
-                "command": "Start-Recorder",
-                "title": "Win Recorder: Start"
-            },
-            {
-                "command": "Stop-Recorder",
-                "title": "Win Recorder: Stop"
             }
         ],
         "grammars": [
@@ -94,6 +91,12 @@
                     "type": "webview",
                     "id": "g4View",
                     "name": "Engine Client",
+                    "icon": "resources/g4-icon.svg"
+                },
+                {
+                    "type": "webview",
+                    "id": "g4RecorderView",
+                    "name": "G4 Recorder",
                     "icon": "resources/g4-icon.svg"
                 },
                 {
