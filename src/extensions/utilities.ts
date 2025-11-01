@@ -468,7 +468,12 @@ export class Utilities {
      * @returns {string[]} An array of endpoint URLs in the format `<schema>://<host>:<port>`.
      * If no valid endpoints are found, an empty array is returned.
      */
-    public static resolveEventsCaptureEndpoints(): { url: string, driverParameters: any }[] {
+    public static resolveEventsCaptureOptions(): {
+        baseUrl: string,
+        mode: string,
+        driverParameters: any,
+        thinkTimeSettings: any
+    }[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
 
@@ -481,17 +486,24 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: { url: string, driverParameters: any }[] = [];
+        const endpoints: { baseUrl: string, mode: string, driverParameters: any, thinkTimeSettings: any }[] = [];
 
         // Iterate through each item in the g4EventCapture array
         for (const item of eventsCaptureEndpoints) {
             // Construct a URL string using schema, host, and port
             const url = `${item.schema}://${item.host}:${item.port}`;
 
+
             // Add the constructed URL and driver parameters to the endpoints list
             endpoints.push({
-                url: url,
-                driverParameters: item.driverParameters
+                baseUrl: url,
+                driverParameters: item.driverParameters,
+                mode: item.mode || 'standard',
+                thinkTimeSettings: {
+                    enabled: item.thinkTimeSettings?.enabled ?? false,
+                    minThinkTime: item.thinkTimeSettings?.minThinkTime ?? 0,
+                    maxThinkTime: item.thinkTimeSettings?.maxThinkTime ?? 0
+                }
             });
         }
 

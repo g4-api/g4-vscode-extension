@@ -21,11 +21,11 @@ const captureConnections = new Map<string, EventCaptureService>();
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
     const baseUri = await InitializeConnection(context);
-    const eventsCaptureEndpoints = Utilities.resolveEventsCaptureEndpoints();
+    const eventsCaptureOptions = Utilities.resolveEventsCaptureOptions();
     const options = { 
         context,
         baseUri,
-        eventsCaptureEndpoints,
+        eventsCaptureOptions,
         hubConnections,
         recorderConnections: captureConnections
     };
@@ -43,7 +43,7 @@ export function deactivate() {
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
-    eventsCaptureEndpoints: { url: string, driverParameters: any }[],
+    eventsCaptureOptions: any[],
     hubConnections: Map<string, NotificationService>
 }) => {
     new NewProjectCommand(options.context).register();
@@ -52,7 +52,7 @@ const registerCommands = (options: {
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
     new UpdateTemplateCommand(options.context, options.baseUri).register();
 
-    const startRecorderCommand = new StartRecorderCommand(options.context, options.eventsCaptureEndpoints || []);
+    const startRecorderCommand = new StartRecorderCommand(options.context, options.eventsCaptureOptions || []);
     const connections = startRecorderCommand.connections;
     
     startRecorderCommand.register();

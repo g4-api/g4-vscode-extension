@@ -166,6 +166,7 @@ export class EventCaptureService {
     /** Underlying SignalR connection to the G4 hub. */
     private readonly _connection: HubConnection;
 
+    /** Internal buffer of all captured events since service start or last clear. */
     private readonly _buffer: any[] = [];
 
     /**
@@ -305,7 +306,7 @@ export class EventCaptureService {
 }
 
 /** Constructor options for the EventCaptureService. */
-interface EventCaptureOptions {
+export interface EventCaptureOptions {
     /** Base URL of the backend (e.g., http://localhost:9955). */
     baseUrl: string;
 
@@ -317,4 +318,13 @@ interface EventCaptureOptions {
 
     /** Logger instance for user-facing and diagnostic logs. */
     logger: Logger;
+
+    /** Operating mode for the event resolution (default: 'standard'). */
+    mode?: EventCaptureMode;
+
+    /** Setting to handle think time between events. */
+    thinkTimeSettings?: any;
 }
+
+/** Type alias for the event capture operating modes. */
+export type EventCaptureMode = 'standard' | 'user32' | 'coordinate';

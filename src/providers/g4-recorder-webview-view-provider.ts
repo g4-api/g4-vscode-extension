@@ -175,6 +175,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						}
 					}
 
+					@keyframes spinnerRotate {
+						from {
+							transform: rotate(0deg);
+						}
+						to {
+							transform: rotate(360deg);
+						}
+					}
+
 					@media (prefers-reduced-motion: reduce) {
 						.bulb.on {
 							animation: none;
@@ -294,6 +303,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						opacity: .8;
 					}
 
+					.spinner {
+						animation: spinnerRotate 1s linear infinite;
+					}
+
 					.svg-inline {
 						fill: var(--vscode-button-foreground);
 						transform: scale(0.9);
@@ -322,7 +335,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				</style>
 			</head>
 
-			<body>
+			<body data-g4-recorder-view="true">
 				<div class="controls">
 					<button id="btnToggle" class="control-btn" title="Start (identical behavior to VS Code debug Start)"
 						aria-label="Start" data-state="stopped">
@@ -365,12 +378,16 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					var STOP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
 						'<path d="M160 96L480 96C515.3 96 544 124.7 544 160L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 160C96 124.7 124.7 96 160 96z"/>' +
 						'</svg>';
+					
+					var SPINNER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline spinner">' +
+						'<path d="M286.7 96.1C291.7 113 282.1 130.9 265.2 135.9C185.9 159.5 128.1 233 128.1 320C128.1 426 214.1 512 320.1 512C426.1 512 512.1 426 512.1 320C512.1 233.1 454.3 159.6 375 135.9C358.1 130.9 348.4 113 353.5 96.1C358.6 79.2 376.4 69.5 393.3 74.6C498.9 106.1 576 204 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320C64 204 141.1 106.1 246.9 74.6C263.8 69.6 281.7 79.2 286.7 96.1z"/>' +
+						'</svg>';
 
 					function setToggleState(running) {
 						btnToggle.dataset.state = running ? 'running' : 'stopped';
 						btnToggle.title = running
-							? 'Stop (identical behavior to VS Code debug Stop)'
-							: 'Start (identical behavior to VS Code debug Start)';
+							? 'Stop'
+							: 'Start';
 						btnToggle.setAttribute('aria-label', running ? 'Stop' : 'Start');
 						btnToggle.innerHTML = (running ? STOP_SVG : PLAY_SVG) + '<span>' + (running ? 'Stop' : 'Start') + '</span>';
 					}
@@ -380,16 +397,22 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					btnToggle.addEventListener('click', function () {
 						var running = btnToggle.dataset.state === 'running';
 						if (running) {
-							vscode.postMessage({ type: 'recorder:stop' });
-							setToggleState(false);
+							btnToggle.setAttribute('aria-label', 'Closing recorder...');
+							btnToggle.innerHTML = SPINNER_SVG + '<span>' + 'Closing...' + '</span>';
+							setTimeout(() => {
+								vscode.postMessage({ type: 'recorder:stop' });
+								vscode.postMessage({ type: 'recorder:refresh' });
+								setToggleState(false);
+							}, 5000);
 						} else {
 							vscode.postMessage({ type: 'recorder:start' });
+							vscode.postMessage({ type: 'recorder:refresh' });
 							setToggleState(true);
 						}
 					});
 
 					document.getElementById('btnRefresh').addEventListener('click', function () {
-						vscode.postMessage({ type: 'servers:refresh' });
+						vscode.postMessage({ type: 'recorder:refresh' });
 					});
 
 					function render(servers) {

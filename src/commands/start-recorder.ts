@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
-import { EventCaptureService } from '../clients/g4-signalr-client';
+import { EventCaptureService, EventCaptureOptions } from '../clients/g4-signalr-client';
 
 /**
  * Registers and runs the **Start-Recorder** command, creating and managing
@@ -36,7 +36,7 @@ export class StartRecorderCommand extends CommandBase {
      */
     constructor(
         private readonly _context: vscode.ExtensionContext,
-        private readonly _options: EventCaptureServiceOptions[],
+        private readonly _options: EventCaptureOptions[],
     ) {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
@@ -49,13 +49,8 @@ export class StartRecorderCommand extends CommandBase {
 
         // Instantiate one EventCaptureService per endpoint and store in the pool.
         for (const option of this._options) {
-            const captureService = new EventCaptureService({
-                baseUrl: option.url,
-                driverParameters: option.driverParameters,
-                context: _context,
-                logger: this._logger
-            });
-            this._connections.set(option.url, captureService);
+            const captureService = new EventCaptureService(option);
+            this._connections.set(option.baseUrl, captureService);
         }
     }
 
@@ -117,5 +112,3 @@ export class StartRecorderCommand extends CommandBase {
     }
 }
 
-/* Options for configuring event capture services. */
-type EventCaptureServiceOptions = { url: string, driverParameters: any }
