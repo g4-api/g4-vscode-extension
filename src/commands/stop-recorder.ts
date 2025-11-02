@@ -101,10 +101,20 @@ export class StopRecorderCommand extends CommandBase {
 
             // Convert each group into a job and attach to the automation
             for (let i = 0; i < groups.length; i++) {
+                // Initialize group-specific variables
                 const group = groups[i];
                 const connection = this._connections.get(group.baseUrl || '');
                 const mode = connection?.options?.mode || 'standard';
                 const id = `recorded-actions-job-${group.machineName.toLowerCase()}`;
+
+                // Apply think time settings from the connection options if available
+                group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
+                    enabled: false,
+                    minThinkTime: 0,
+                    maxThinkTime: 0
+                };
+
+                // Build the job definition from the grouped buffer of events
                 const job = StopRecorderCommand.newJob(id, mode, group);
 
                 // Apply driver parameters for subsequent groups if available
@@ -273,6 +283,70 @@ export class StopRecorderCommand extends CommandBase {
      * Each job aggregates mouse and keyboard actions into executable rules.
      */
     private static newJob(id: string, mode: string, bufferGroup: BufferGroup): any {
+        /**
+         * Inserts "think time" delay actions between recorded rules based on the
+         * time difference between consecutive events.
+         * 
+         * Think time represents the natural pause a user takes between actions.
+         * This function detects meaningful gaps between event timestamps and
+         * injects a `WaitFlow` action to simulate that delay during replay.
+         */
+        const addThinkTime = (rules: any[], minThinkTime: number, maxThinkTime: number) => {
+            // Validate input: if not an array or less than 2 items, just return a copy (or empty array).
+            if (!Array.isArray(rules) || rules.length < 2) {
+                return Array.isArray(rules) ? rules.slice() : [];
+            }
+
+            // Output array to hold the resulting sequence with inserted delays.
+            const rulesOut: any[] = [];
+
+            // Iterate over all consecutive rule pairs.
+            for (let i = 0; i < rules.length - 1; i++) {
+                const currentRule = rules[i];
+                const nextRule = rules[i + 1];
+
+                // Always include the current rule.
+                rulesOut.push(currentRule);
+
+                // Extract timestamps from the context (convert to number to ensure numeric comparison).
+                const currentTimestamp = Number(currentRule?.context?.timestamp);
+                const nextTimestamp = Number(nextRule?.context?.timestamp);
+
+                // Skip if either timestamp is invalid.
+                if (!Number.isFinite(currentTimestamp) || !Number.isFinite(nextTimestamp)) {
+                    continue;
+                }
+
+                // Compute time gap between consecutive actions.
+                const delta = nextTimestamp - currentTimestamp;
+
+                // Only insert think time if the gap exceeds the minimum threshold.
+                if (delta > minThinkTime) {
+                    // Cap the delay to the maximum allowed think time.
+                    const duration = Math.min(delta, maxThinkTime);
+
+                    // Convert to seconds with two decimal precision.
+                    const thinkTime = Number((duration / 1000).toFixed(2));
+
+                    // Insert a synthetic "WaitFlow" rule to simulate user pause.
+                    rulesOut.push({
+                        $type: 'Action',
+                        pluginName: 'WaitFlow',
+                        argument: `{{$ --Timeout:${duration}}}`,
+                        capabilities: {
+                            displayName: `Think Time (${thinkTime} seconds)`,
+                        },
+                    });
+                }
+            }
+
+            // Push the final rule (last one in sequence) to complete the list.
+            rulesOut.push(rules.at(-1));
+
+            // Return the modified rule set with think time delays.
+            return rulesOut;
+        };
+
         // Clone the group's event list to safely consume it
         const buffer = [...bufferGroup.events];
 
@@ -319,6 +393,15 @@ export class StopRecorderCommand extends CommandBase {
             pluginName: "CloseBrowser"
         });
 
+        // Insert think time delays between actions based on recorded timestamps
+        if (bufferGroup.thinkTimeSettings?.enabled) {
+            job.rules = addThinkTime(
+                job.rules,
+                bufferGroup.thinkTimeSettings?.minThinkTime || 0,
+                bufferGroup.thinkTimeSettings?.maxThinkTime || 0
+            );
+        }
+
         // Return the constructed job definition
         return job;
     }
@@ -362,7 +445,10 @@ export class StopRecorderCommand extends CommandBase {
             $type: 'Action',
             pluginName: mode === 'standard' ? "SendKeys" : "SendUser32Keys",
             onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-            argument: '{{$ --Keys: ' + keys + '}}'
+            argument: '{{$ --Keys: ' + keys + '}}',
+            context: {
+                timestamp: event?.value?.timestamp
+            }
         };
     }
 
@@ -386,9 +472,10 @@ export class StopRecorderCommand extends CommandBase {
             $type: 'Action',
             pluginName: mouseEventMap.get(mouseEventType) || 'None',
             onElement: event?.value?.chain?.locator,
-            capabilities: {
+            context: {
                 x: event?.value?.x,
-                y: event?.value?.y
+                y: event?.value?.y,
+                timestamp: event?.value?.timestamp
             }
         };
 
@@ -462,4 +549,7 @@ type BufferGroup = {
 
     /** The ordered list of recorded event objects belonging to this group. */
     events: any[];
+
+    /** Optional think time settings applied to this group. */
+    thinkTimeSettings?: any
 };
