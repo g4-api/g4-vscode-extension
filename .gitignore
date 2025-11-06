@@ -1,3 +1,5 @@
+# Project files
+.vscode/mcp.json
 # Logs
 logs
 *.log
