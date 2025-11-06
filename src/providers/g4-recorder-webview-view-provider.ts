@@ -487,7 +487,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				break;
 			}
 
-			case 'servers:refresh': {
+			case 'recorder:refresh': {
 				// Manually trigger a server status refresh from the webview
 				this.testServers(serversStatus);
 				break;
