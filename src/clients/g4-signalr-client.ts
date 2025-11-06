@@ -19,7 +19,8 @@ export class NotificationService {
      * @param context VS Code extension context for lifecycle management and disposables.
      * @param baseUrl Base URL for the SignalR hub.
      */
-    constructor(private readonly _options: { baseUrl: string, context: vscode.ExtensionContext, logger: Logger }
+    constructor(
+        private readonly _options: { baseUrl: string, context: vscode.ExtensionContext, logger: Logger }
     ) {
         // Build the connection against your hub URL
         this._connection = new HubConnectionBuilder()

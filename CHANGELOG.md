@@ -1,9 +1,6 @@
-# Change Log
+# Changelog
 
-All notable changes to the "g4-engine-client" extension will be documented in this file.
-
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+All notable changes to the **g4-engine-client** extension are documented in this file.  
+This project adheres to the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
 ## [Unreleased]
-
-- Initial release

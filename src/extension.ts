@@ -14,15 +14,33 @@ import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
 import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
 
+// Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
+
+// Function to initialize connection to the backend hub.
 const captureConnections = new Map<string, EventCaptureService>();
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+/**
+ * Entry point for the VS Code extension.
+ * This function is called by VS Code when the extension is activated and is responsible for
+ * initializing the connection to backend services, resolving configuration, and registering
+ * all commands, events and providers that the extension exposes.
+ *
+ * @param context The extension context provided by VS Code that contains subscriptions,
+ *                global state, workspace state and other shared resources for the extension.
+ */
 export async function activate(context: vscode.ExtensionContext) {
+    // Initialize the base URI used to communicate with the backend hub or services.
+    // This typically resolves configuration, environment and connection parameters.
     const baseUri = await InitializeConnection(context);
+
+    // Resolve configuration options related to events capture, such as recording behavior
+    // and filters applied while listening to editor or UI events.
     const eventsCaptureOptions = Utilities.resolveEventsCaptureOptions();
-    const options = { 
+
+    // Compose a shared options object that is passed to all registration functions.
+    // This groups together the core dependencies needed by commands, events and providers.
+    const options = {
         context,
         baseUri,
         eventsCaptureOptions,
@@ -30,49 +48,103 @@ export async function activate(context: vscode.ExtensionContext) {
         recorderConnections: captureConnections
     };
 
+    // Register all VS Code commands exposed by the extension.
     registerCommands(options);
+
+    // Register notebook related events such as cell execution and document changes.
     registerNotebookEvents(options);
+
+    // Register language or notebook providers such as completion, hover and serializers.
     registerProviders(options);
 }
 
-// This method is called when your extension is deactivated
+/**
+ * Deactivation hook for the VS Code extension.
+ * 
+ * This function is automatically invoked by VS Code when the extension
+ * is being deactivated. It provides an opportunity to release any held
+ * resources, close open connections, or dispose of subscriptions that
+ * were registered during activation.
+ * 
+ * This helps prevent memory leaks and ensures clean shutdown when the
+ * extension is reloaded or VS Code is closed.
+ */
 export function deactivate() {
-    // Clean up any resources or connections
+    // Clean up any resources or connections here.
+    // Examples:
+    // - Dispose event subscriptions
+    // - Close hub or recorder connections
+    // - Clear timers or intervals
 }
 
+/**
+ * Registers all VS Code commands exposed by the extension.
+ */
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
     eventsCaptureOptions: any[],
     hubConnections: Map<string, NotificationService>
 }) => {
+    // Command to create a new G4 project structure.
     new NewProjectCommand(options.context).register();
+
+    // Command to trigger an automation workflow using the connected hub.
     new StartAutomationCommand(options.context, options.hubConnections).register();
+
+    // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
+
+    // Command to synchronize or refresh environment settings from the backend.
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
+
+    // Command to fetch or update templates used for new automation workflows.
     new UpdateTemplateCommand(options.context, options.baseUri).register();
 
-    const startRecorderCommand = new StartRecorderCommand(options.context, options.eventsCaptureOptions || []);
+    // Initialize the recorder command, which handles UI event recording.
+    const startRecorderCommand = new StartRecorderCommand(
+        options.context,
+        options.eventsCaptureOptions || []
+    );
+
+    // Retrieve recorder connections from the command instance.
     const connections = startRecorderCommand.connections;
-    
+
+    // Register the StartRecorderCommand with VS Code.
     startRecorderCommand.register();
 
+    // Store each recorder connection in the global captureConnections map
+    // for later use by the StopRecorderCommand.
     for (const [endpoint, service] of connections) {
         captureConnections.set(endpoint, service);
     }
 
+    // Command to stop active event recordings and finalize captured data.
     new StopRecorderCommand(options.context, captureConnections).register();
 };
 
+/**
+ * Registers all VS Code providers used by the extension.
+ */
 const registerProviders = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
     hubConnections: Map<string, NotificationService>,
     recorderConnections: Map<string, EventCaptureService>
 }) => {
+    // Register the Markdown/JSON notebook provider responsible for
+    // loading, saving, and executing custom .mdjson notebooks.
     new MdJsonNotebookProvider(options.context, options.baseUri).register();
+
+    // Register the main G4 webview provider that powers the extension’s UI panel.
     new G4WebviewViewProvider(options.context).register();
+
+    // Register the recorder view provider that displays captured UI events
+    // and communicates with the associated EventCaptureService instances.
     new G4RecorderViewProvider(options.context, options.recorderConnections).register();
+
+    // Register the documents tree provider that displays workspace or
+    // project-related documents in the Explorer sidebar.
     new DocumentsTreeProvider(options.context).register();
 };
 

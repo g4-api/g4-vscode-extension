@@ -46,28 +46,28 @@ export type RhinoRangeMap = {
  */
 export class DiagnosticModel {
     /** Type category of the diagnostic (e.g., 'positive', 'negative'). */
-    public type: string;
+    public type: string = 'positive';
 
     /** Optional code object containing target identifier and value. */
     public code?: Code;
 
     /** Detailed description of the diagnostic rule. */
-    public description: string;
+    public description: string = '';
 
     /** Regular expression used to match patterns in the document. */
-    public expression: RegExp;
+    public expression: RegExp = new RegExp(/.*/);
 
     /** Unique identifier for this diagnostic rule. */
-    public id: string;
+    public id: string = '';
 
     /** Whether the regex should be applied across multiple lines. */
-    public multiline: boolean;
+    public multiline: boolean = true;
 
     /** Optional named sections or contexts for grouping diagnostics. */
     public sections?: string[];
 
     /** Severity level (Error, Warning, Information, Hint). */
-    public severity: vscode.DiagnosticSeverity;
+    public severity: vscode.DiagnosticSeverity = vscode.DiagnosticSeverity.Hint;
 
     /** Optional source string to attribute the diagnostic. */
     public source?: string;
@@ -76,29 +76,7 @@ export class DiagnosticModel {
     public tags?: vscode.DiagnosticTag;
 
     /** Entities that this diagnostic applies to (e.g., Plugin, Test, Model). */
-    public entities: ("Plugin" | "Test" | "Model")[];
-
-    /**
-     * Initializes a new DiagnosticModel with default settings.
-     */
-    constructor() {
-        // Default category for diagnostics
-        this.type = 'positive';
-        this.description = '';
-
-        // Match all text by default
-        this.expression = new RegExp(/.*/);
-        this.id = '';
-
-        // Allow multi-line matching
-        this.multiline = true;
-
-        // Default severity hint
-        this.severity = vscode.DiagnosticSeverity.Hint;
-
-        // Initialize empty entity list
-        this.entities = [];
-    }
+    public entities: ("Plugin" | "Test" | "Model")[] = [];
 }
 
 /**

@@ -3,7 +3,7 @@
  * https://make.wordpress.org/core/handbook/best-practices/inline-documentation-standards/javascript/
  * https://nodejs.dev/learn/making-http-requests-with-nodejs
  */
-import { IncomingMessage, request } from 'http';
+import { IncomingMessage, request } from 'node:http';
 import { Channels } from "../constants/channels";
 import { Utilities } from '../extensions/utilities';
 import { ExtensionLogger } from '../logging/extensions-logger';
@@ -154,45 +154,32 @@ export class HttpCommand {
     /**
      * The endpoint command for the HTTP request.
      */
-    public command: string;
+    public command: string = '/';
 
     /**
      * The request body for the HTTP request.
      */
-    public body: any;
+    public body: any = null;
 
     /**
      * The headers for the HTTP request.
      */
-    public headers: any;
+    public headers: any = {};
 
     /**
      * The HTTP method for the request (e.g., 'GET', 'POST').
      */
-    public method: string;
+    public method: string = 'GET';
 
     /**
      * The URI schema for the HTTP request (e.g., 'http', 'https').
      */
-    public schema: string;
+    public schema: string = 'http';
 
     /**
      * The timeout threshold for the HTTP request in milliseconds.
      */
-    public timeout: number;
-
-    /**
-     * Creates a new instance of the HttpCommand class with default values.
-     */
-    constructor() {
-        // Default values for the HttpCommand properties
-        this.command = '/';
-        this.body = null;
-        this.headers = {};
-        this.method = 'GET';
-        this.schema = 'http';
-        this.timeout = 180000;
-    }
+    public timeout: number = 180000;
 
     /**
      * Adds a header to the HTTP request.
