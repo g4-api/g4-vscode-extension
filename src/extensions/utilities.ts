@@ -458,7 +458,7 @@ export class Utilities {
     }
 
     /**
-     * Resolves and returns the list of event capture endpoints from the project manifest.
+     * Resolves and returns the list of event capture endpoints (recorders) from the project manifest.
      *
      * @remarks
      * This method looks into the project manifest for a `g4EventCapture` property,
@@ -477,19 +477,19 @@ export class Utilities {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
 
-        // Extract the g4EventCapture array from the manifest (if it exists)
-        const eventsCaptureEndpoints: any[] = manifest?.g4EventCaptures;
+        // Extract the recorders array from the manifest (if it exists)
+        const recordersEndpoints: any[] = manifest?.settings?.recorderSettings?.recorders;
 
         // If the property is missing or not an array, return an empty list
-        if (!eventsCaptureEndpoints || !Array.isArray(eventsCaptureEndpoints)) {
+        if (!recordersEndpoints || !Array.isArray(recordersEndpoints)) {
             return [];
         }
 
         // Container for fully resolved endpoint URLs
         const endpoints: { baseUrl: string, mode: string, driverParameters: any, thinkTimeSettings: any }[] = [];
 
-        // Iterate through each item in the g4EventCapture array
-        for (const item of eventsCaptureEndpoints) {
+        // Iterate through each item in the recorders array
+        for (const item of recordersEndpoints) {
             // Construct a URL string using schema, host, and port
             const url = `${item.schema}://${item.host}:${item.port}`;
 

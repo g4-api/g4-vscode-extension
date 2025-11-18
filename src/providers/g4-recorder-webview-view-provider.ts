@@ -16,6 +16,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	/** Unique view type ID registered in package.json (`contributes.views`). */
 	public static readonly VIEW_TYPE = 'g4RecorderView';
 
+	/** Cached reference to the extension manifest (package.json contents). */
+	private static readonly _manifest: any = Utilities.getManifest();
+
 	/** 
 	 * The active webview instance — assigned once the view is resolved.
 	 * Used to send messages and updates to the front-end (via `postMessage`).
@@ -111,14 +114,24 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			async (message) => this.resolveMessage(this._serversStatus, message)
 		);
 
+		// Extract recorder settings from the manifest to determine if the recorder is enabled
+		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		const enabled = settings?.enabled ?? true;
+
+		// Prepare the initial server status payload to send to the webview
+		const servers = this._serversStatus.map(service => ({
+			name: service.name,
+			url: service.url,
+			ok: service.ok
+		}));
+
 		// Send an initial message to the webview to populate server data
 		this._view?.webview.postMessage({
 			type: 'servers:init',
-			payload: this._serversStatus.map(service => ({
-				name: service.name,
-				url: service.url,
-				ok: service.ok
-			}))
+			payload: {
+				enabled: enabled,
+				servers: servers
+			}
 		});
 
 		// Start a periodic heartbeat mechanism to monitor activity or maintain state
@@ -415,26 +428,46 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						vscode.postMessage({ type: 'recorder:refresh' });
 					});
 
-					function render(servers) {
+					function render(serversData) {
+						console.log('Rendering servers data:', serversData);
+						const servers = serversData.servers || [];
 						serversElement.innerHTML = '';
+						
+						if(!serversData.enabled) {
+							document.querySelector("#btnToggle")?.remove();
+							document.querySelector("div.top")?.remove();
+							document.querySelector("#btnRefresh")?.remove();
+							
+							const disabledMsg = document.createElement('div');
+							disabledMsg.className = 'small';
+							disabledMsg.textContent = 'Recorder is disabled in settings. In order to enable it, ' +
+								'please update the extension settings under "Recorder Settings" and set "enabled" to true.';
+							serversElement.appendChild(disabledMsg);
+							
+							return;
+						}
+
+						// TODO: Show "no servers" message if list is empty
+						// TODO: Show message if recorder is disabled
+						
 						for (const server of servers) {
-							var row = document.createElement('div');
+							const row = document.createElement('div');
 							row.className = 'server';
 
-							var left = document.createElement('div');
+							const left = document.createElement('div');
 							left.className = 'left';
 
-							var bulb = document.createElement('span');
+							const bulb = document.createElement('span');
 							bulb.className = 'bulb' + (server.ok ? ' on' : '');
 							left.appendChild(bulb);
 
-							var name = document.createElement('span');
+							const name = document.createElement('span');
 							name.className = 'name';
 							name.textContent = server.name;
 							left.appendChild(name);
 							row.appendChild(left);
 
-							var url = document.createElement('a');
+							const url = document.createElement('a');
 							url.className = 'url';
 							url.title = server.url;
 							url.innerHTML = server.url;
@@ -445,18 +478,20 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							serversElement.appendChild(row);
 						}
 
-						var time = new Date();
+						const time = new Date();
 						footerElement.textContent = 'Last update: ' + time.toLocaleTimeString();
 					}
 
 					window.addEventListener('message', function (event) {
-						var message = event.data;
-						if (!message) return;
+						const message = event.data;
+						if (!message) {
+							return;
+						}
 
 						switch (message.type) {
 							case 'servers:init':
 							case 'servers:update':
-								render(message.payload || []);
+								render(message.payload || { servers: [] });
 								break;
 							case 'recorder:state':
 								setToggleState(!!message.running);
@@ -572,14 +607,24 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			updates.push({ ...status });
 		}
 
+		// Extract recorder settings from the manifest to determine if the recorder is enabled
+		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		const enabled = settings?.enabled ?? true;
+
+		// Map the updated statuses to a simplified format for the webview
+		const servers = updates.map(service => ({
+			name: service.name,
+			url: service.url,
+			ok: service.ok
+		}));
+
 		// Broadcast the updated server statuses back to the webview
 		this._view?.webview.postMessage({
 			type: 'servers:update',
-			payload: updates.map(service => ({
-				name: service.name,
-				url: service.url,
-				ok: service.ok
-			}))
+			payload: {
+				enabled: enabled,
+				servers: servers
+			}
 		});
 	}
 }
