@@ -447,8 +447,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							return;
 						}
 
-						// TODO: Show "no servers" message if list is empty
-						// TODO: Show message if recorder is disabled
+						if(servers.length === 0) {
+
+							const noServersMsg = document.createElement('div');
+							noServersMsg.className = 'small';
+							noServersMsg.textContent = 'No recorder servers configured or connected.';
+							serversElement.appendChild(noServersMsg);
+
+							return;
+						}
 						
 						for (const server of servers) {
 							const row = document.createElement('div');
