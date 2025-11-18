@@ -10,7 +10,6 @@ import { Logger } from '../logging/logger';
 import { EventCaptureService } from '../clients/g4-signalr-client';
 import { ShowWorkflowCommand } from './show-workflow';
 
-
 export class StopRecorderCommand extends CommandBase {
     // Mapping of keyboard event keys to supported identifiers.
     // This map is used to determine which special keys should be
