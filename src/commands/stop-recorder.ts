@@ -12,15 +12,46 @@ import { ShowWorkflowCommand } from './show-workflow';
 
 
 export class StopRecorderCommand extends CommandBase {
+    // Mapping of keyboard event keys to supported identifiers.
+    // This map is used to determine which special keys should be
+    // emitted as dedicated actions during recording playback.
     private static readonly _includeKeyboardEventMap: Map<string, string> = new Map<string, string>([
         ['backspace', 'Backspace'],
+        ['caps lock', 'Caps Lock'],
+        ['delete', 'Delete'],
+        ['down', 'Down'],
+        ['end', 'End'],
         ['enter', 'Enter'],
         ['esc', 'Esc'],
-        ['tab', 'Tab']
+        ['f1', 'F1'],
+        ['f2', 'F2'],
+        ['f3', 'F3'],
+        ['f4', 'F4'],
+        ['f5', 'F5'],
+        ['f6', 'F6'],
+        ['f7', 'F7'],
+        ['f8', 'F8'],
+        ['f9', 'F9'],
+        ['f10', 'F10'],
+        ['f11', 'F11'],
+        ['f12', 'F12'],
+        ['home', 'Home'],
+        ['insert', 'Insert'],
+        ['left', 'Left'],
+        ['num del', 'Num Del'],
+        ['num lock', 'Num Lock'],
+        ['page down', 'Page Down'],
+        ['page up', 'Page Up'],
+        ['pause', 'Pause'],
+        ['prnt scrn', 'Prnt Scrn'],
+        ['right', 'Right'],
+        ['scroll lock', 'Scroll Lock'],
+        ['tab', 'Tab'],
+        ['up', 'Up']
     ]);
 
+    // Dedicated logger for this command instance.
     private readonly _logger: Logger;
-
 
     /**
      * Create a new StopRecorderCommand.
@@ -537,6 +568,12 @@ export class StopRecorderCommand extends CommandBase {
 
                 // Return the combined result set.
                 return [keysRule, ...rules];
+            }
+
+            // For unrecognized keys longer than one character, skip adding them to the buffer.
+            // This prevents invalid entries from polluting the key sequence.
+            if (key.length > 1) {
+                continue;
             }
 
             // The key is not resolved as a special key, so add it to the sequence buffer.
