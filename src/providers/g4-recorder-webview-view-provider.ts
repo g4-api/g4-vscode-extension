@@ -429,7 +429,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					});
 
 					function render(serversData) {
-						console.log('Rendering servers data:', serversData);
 						const servers = serversData.servers || [];
 						serversElement.innerHTML = '';
 						
