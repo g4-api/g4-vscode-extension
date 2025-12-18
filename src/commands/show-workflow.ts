@@ -318,7 +318,8 @@ export class ShowWorkflowCommand extends CommandBase {
 
             // Perform the HTTP GET request for the resource
             const res = await fetch(url);
-            if (!res.ok) {
+            const isCompressed = resource.endsWith('.gz') || resource.endsWith('.br');
+            if (!res.ok && !isCompressed) {
                 // Throw an error to abort if the fetch fails
                 throw new Error(`Failed to fetch ${url}`);
             }
