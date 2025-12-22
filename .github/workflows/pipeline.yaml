@@ -110,7 +110,7 @@ jobs:
   new-release:
     name: New GitHub Release Version ${{ needs.new-version.outputs.buildVersion }}
     runs-on: ubuntu-latest
-    if: ${{ needs.new-package.result == 'success' && needs.new-package.outputs.validVersion == 'True' }}
+    if: ${{ needs.new-package.result == 'success' && needs.new-version.outputs.validVersion == 'True' }}
     needs:
       - new-package
       - new-version
