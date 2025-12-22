@@ -1,5 +1,12 @@
 # G4 Engine – Visual Sequential Workflow for VS Code
 
+[![Build, Pack & Release G4™ VSCode Extension](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml)
+
+![Marketplace](https://img.shields.io/visual-studio-marketplace/v/g4-api.g4-engine-client)
+![Installs](https://img.shields.io/visual-studio-marketplace/i/g4-api.g4-engine-client)
+![Rating](https://img.shields.io/visual-studio-marketplace/r/g4-api.g4-engine-client)
+![License](https://img.shields.io/github/license/g4-api/g4-vscode-extension)
+
 ## Table of Contents
 
 1. [Overview](#overview)
