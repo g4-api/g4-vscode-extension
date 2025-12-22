@@ -1,0 +1,140 @@
+name: Build, Pack & Release G4™ VSCode Extension
+
+# Define permissions for the workflow
+permissions:
+  contents: write
+  checks: write
+  pull-requests: write
+  statuses: write
+
+# Trigger the workflow on push to the main branch
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+  workflow_dispatch:
+
+# Set environment variables
+env:
+  artifactStagingDirectory: ${{ github.workspace }}/artifact_staging
+  artifactType: 'Production'
+
+jobs:
+  new-version:
+    name: New Version
+    runs-on: ubuntu-latest
+    outputs:
+      buildVersion: ${{ steps.parse-version.outputs.version }}
+      validVersion: ${{ steps.validate-version.outputs.valid }}
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    # TODO: Change the day part to unique build number or commit hash
+    - name: Parse Build Version for GitHub Tag
+      id: parse-version
+      shell: pwsh
+      run: echo "version=$(Get-Date -UFormat '%Y.%m.%d')" >> $env:GITHUB_OUTPUT
+
+    - name: Validate Version ${{ steps.parse-version.outputs.version }}
+      id: validate-version
+      shell: pwsh
+      run: |
+        $version = "${{ steps.parse-version.outputs.version }}"
+        echo "valid=$($version -match '^\d+(\.\d+){3}$')" >> $env:GITHUB_OUTPUT
+
+  new-package:
+    name: New Package
+    runs-on: ubuntu-latest
+    needs:
+      - new-version
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Use Node.js (latest)
+      uses: actions/setup-node@v4
+      with:
+        node-version: latest
+        cache: npm
+
+    - name: Restore Dependencies
+      shell: pwsh
+      run: npm install
+
+    - name: Install VSCE
+      shell: pwsh
+      run: npm install -g vsce --force
+
+    - name: Set Package Version to ${{ needs.new-version.outputs.buildVersion }}
+      shell: pwsh
+      run: |
+        $path = "package.json"
+        $newVersion = "${{ needs.new-version.outputs.buildVersion }}"
+
+        # Load JSON
+        $json = Get-Content $path -Raw | ConvertFrom-Json
+
+        # Set version
+        $json.version = $newVersion
+
+        # Save back to file
+        $json | ConvertTo-Json -Depth 100 | Set-Content $path -Encoding UTF8
+
+    - name: New Extension Package
+      shell: pwsh
+      run: vsce package
+
+    - name: Publish Package to VSCode Marketplace
+      shell: pwsh
+      run: vsce publish -p ${{ secrets.VSCODE_MARKETPLACE_KEY }} --allow-proposed-apis treeViewActiveItem extensionRuntime
+
+    - name: Copy Final VSIX Package to Artifacts Directory
+      shell: pwsh
+      run: |
+        New-Item  -Path "${{ env.artifactStagingDirectory }}" -ItemType Directory -Force
+        Copy-Item `
+            -Path "*.vsix" `
+            -Destination "${{ env.artifactStagingDirectory }}/" `
+            -Force
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: g4-vscode-extension
+        path: ${{ env.artifactStagingDirectory }}/*.vsix
+
+  new-release:
+    name: New GitHub Release Version ${{ needs.new-version.outputs.buildVersion }}
+    runs-on: ubuntu-latest
+    if: ${{ needs.new-package.result == 'success' && needs.new-package.outputs.validVersion == 'True' }}
+    needs:
+      - new-package
+      - new-version
+
+    env:
+      buildVersion: ${{ needs.new-version.outputs.buildVersion }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Build Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: g4-vscode-extension
+
+    - name: Create GitHub Release & Tag v${{ env.buildVersion }}
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./*.vsix
+        tag_name: v${{ env.buildVersion }}
+        name: ${{ env.artifactType }} v${{ env.buildVersion }}
+        generate_release_notes: true
+
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
