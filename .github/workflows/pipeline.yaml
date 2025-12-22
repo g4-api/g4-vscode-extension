@@ -43,7 +43,7 @@ jobs:
       shell: pwsh
       run: |
         $version = "${{ steps.parse-version.outputs.version }}"
-        echo "valid=$($version -match '^\d+(\.\d+){3}$')" >> $env:GITHUB_OUTPUT
+        echo "valid=$($version -match '^\d+(\.\d+){2}$')" >> $env:GITHUB_OUTPUT
 
   new-package:
     name: New Package
