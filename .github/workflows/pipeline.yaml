@@ -67,7 +67,7 @@ jobs:
 
     - name: Install VSCE
       shell: pwsh
-      run: npm install -g vsce --force
+      run: npm install -g @vscode/vsce@latest --force
 
     - name: Set Package Version to ${{ needs.new-version.outputs.buildVersion }}
       shell: pwsh
