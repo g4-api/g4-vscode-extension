@@ -30,7 +30,7 @@ export class HttpClient {
         this._baseUrl = baseUrl;
 
         // Initialize the logger with the appropriate channel and context
-        this._logger = new ExtensionLogger(Channels.extension, 'HttpClient');
+        this._logger = new ExtensionLogger(Channels.extension, 'HttpClient', Utilities.getLogSettings());
     }
 
     /**

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Logger } from '../logging/logger';
 import { ExtensionLogger } from '../logging/extensions-logger';
 import { Channels } from '../constants/channels';
+import { Utilities } from '../extensions/utilities';
 
 /**
  * Notebook serializer that reads and writes a single file combining Markdown and JSON.
@@ -35,7 +36,7 @@ export class MdJsonNotebookProvider implements vscode.NotebookSerializer {
         private readonly _baseUrl: string
     ) {
         // Create a dedicated logger for this command
-        this._logger = new ExtensionLogger(Channels.extension, 'Notebook').newLogger('Notebook');
+        this._logger = new ExtensionLogger(Channels.extension, 'Notebook', Utilities.getLogSettings()).newLogger('Notebook');
     }
 
     /**

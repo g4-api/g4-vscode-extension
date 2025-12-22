@@ -39,15 +39,6 @@ export abstract class LoggerBase implements Logger {
     private readonly _logLevel: LogLevel = 'none';
 
     /**
-     * Constructs a new logger instance using default settings.
-     *
-     * @protected
-     * @param {vscode.OutputChannel} channel - The VS Code output channel used for logging messages.
-     * @param {string} logName - Logical name of the logger, typically used as a category or prefix.
-     */
-    protected constructor(channel: vscode.OutputChannel, logName: string);
-
-    /**
      * Constructs a new logger instance with custom configuration.
      *
      * @protected
@@ -729,6 +720,11 @@ export abstract class LoggerBase implements Logger {
         event?: string,
         error?: Error
     ): void {
+        // If the message is empty or consists only of whitespace, skip logging.
+        if(!message || message.trim() === '') {
+            return;
+        }
+
         // Retrieve the logical application and logger names for this output source.
         const applicationName = this.channel.name;
         const logName = this.logName;

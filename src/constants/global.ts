@@ -1,4 +1,5 @@
 import { G4Client } from '../clients/g4-client';
+import { Utilities } from '../extensions/utilities';
 import { ExtensionLogger } from '../logging/extensions-logger';
 import { Logger } from '../logging/logger';
 import { Channels } from './channels';
@@ -105,6 +106,6 @@ export class Global {
      * This is used to log messages to the VS Code Output panel.
      */
     public static get logger(): Logger {
-        return new ExtensionLogger(Channels.extension, 'ExtensionLogger');
+        return new ExtensionLogger(Channels.extension, 'ExtensionLogger', Utilities.getLogSettings());
     }
 }

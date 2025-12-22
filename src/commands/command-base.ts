@@ -43,7 +43,7 @@ export abstract class CommandBase {
         const g4Endpoint = Utilities.getG4Endpoint();
 
         // logger writes to the VS Code output channel and optionally to console
-        this.logger = new ExtensionLogger(Channels.extension, 'CommandBase');
+        this.logger = new ExtensionLogger(Channels.extension, 'CommandBase', Utilities.getLogSettings());
 
         // default endpoint for G4 API interactions
         this.endpoint = g4Endpoint || this.endpoint;
