@@ -1,37 +1,45 @@
-# G4 Integration Instructions (embed this at the top of your Copilot Chat context)
+* **Token:** Always read G4_API_KEY from project-root .env (ask user if missing) and cache as token.
+* **Open AI:** Always read OPENAI_API_KEY from project-root .env (ask user if missing) and cache as OPENAI_API_KEY.
+* **Open AI:** Always read OPENAI_URI from project-root .env (ask user if missing) and cache as OPENAI_URI.
+* **Open AI:** Always read OPENAI_MODEL from project-root .env (ask user if missing) and cache as OPENAI_MODEL.
+* **Session:** If no driver_session, call start_g4_session with .env defaults: driver=ENV:WEB_DRIVER, driver_binaries=ENV:WEB_DRIVER_REPOSITORY, token=ENV:G4_API_KEY; save the returned session id.
 
-Enforce G4 flow: session → get_tools → find_tool → [DOM if needed] → build → attach_session → call.
+* **Sequence (every call):**
 
-Follow these steps **in order**—do not skip or reorder:
+  1. get_tools
+  2. find_tool **must include** tool_name
+  3. (get_locator|get_application_dom if needed)
+  4. build inputs per schema **must ask user** for missing mandatory fields
+  5. add token
+  6. add driver_session (if not start_g4_session)
+  7. call
 
-1. **Ensure a session - HIGH PRIORITY - MUST FOLLOW all steps**  
-     • Prompt the user for `driver_binaries` (default: `http://localhost:4444/wd/hub`) and `driver` (default: `ChromeDriver`).  
-     • Call the `start_g4_session` tool with those values.  
-     • Save the returned `session` ID.
+* **Required params:** For all tools, inputs **must include** token.
+* **Required params:** For all tools **except** start_g4_session, inputs **must include** driver_session.
+* If the schema from find_tool does **not** define these fields, add them.
+* **DOM discipline (page tools): For any tool that interacts with a page/UI:**:
 
-2. **Discover your tool**  
-   - Call the **get_tools** tool (no arguments).  
-   - From its response, select the tool name that best matches the user’s action.
+  1. Call get_locator with { intent, action, hints, constraints, driver_session, token }.
+  2. Use only the returned primary locator (or an explicit provided fallback). Never guess.
+  3. **If OpenAI is available** (`OPENAI_API_KEY`, `OPENAI_URI`, `OPENAI_MODEL` exist):
+     → Call `get_locator` and use **only** its returned primary locator.
+     → Do **not** call `get_application_dom`.
+  4. **If OpenAI is NOT available**:
+     → Do **not** call `get_locator`.
+     → Call `get_application_dom` `get_application_dom`** and use its returned DOM—following the **`policy`** field—to analyze the page and **deterministically derive the locator** (no guessing).
+  5. **If no valid locator can be derived** (ambiguous/missing):
+     → **Ask the user** to provide a locator (type in PascalCase + value) or a minimal DOM snippet.
 
-3. **Fetch its schema**  
-   - Call the **find_tool** tool with that exact tool name.  
-   - Parse its JSON response to extract the `inputSchema`.
+* When calling `start_g4_rule`, if the rule definition includes `on_element`
 
-4. **Handle element-interaction tools**  
-   If your selected tool requires interacting with page elements:  
-   a. Call the **get_application_dom** tool (no arguments).  
-   b. Parse its response and **extract the locator**(s) needed for your action.  
-   c. Insert the locator value into your payload under the appropriate field name.
+  1. You **must also include** the `locator` field.
+  2. `locator` **must explicitly declare the locator type**, not just the value.
+  3. Locator type names **must be PascalCase** (e.g. `Xpath`, `CssSelector`, `Id`, `Name`, `ClassName`, `AccessibilityId`).
+     * **DO NOT** `XPath`, `css`, `cssSelector`
+     * **DO** `Xpath`, `CssSelector`
+  4. If `locator` is missing, invalid, or ambiguously cased → **ask the user**. Do **not** guess.
+  5. If the locator was produced by `get_locator` or derived from `get_application_dom`, **preserve the locator type exactly** (PascalCase).
 
-5. **Build your request payload**  
-   - From the schema in Step 3, identify **all required** properties.  
-   - If any required field is missing, **prompt the user** for its value (including expected type).  
-   - Construct a JSON object that:  
-     • Includes **every** required field (with user-provided or default values)  
-     • Converts **all** field names to snake_case  
-
-6. **Attach your session**  
-   - Add the saved `session` ID into your payload under the `session` field.
-
-7. **Invoke the tool**  
-   - Call the `tools/call` endpoint (or invoke the corresponding tool) with your completed JSON body.
+* **Hard stop**: A `start_g4_rule` call that contains `on_element` **without** a valid `locator` is **invalid** and must **not** be executed.
+* **Self-check before sending:** Verify: tool exists, inputs match schema, driver_session+token present (if required). If any check fails **fix or ask**—don’t call.
+* **No guessing:** Never invent tool names, parameters, or locators. If policy/schema/DOM info is missing or ambiguous, ask the user.

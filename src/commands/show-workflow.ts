@@ -362,7 +362,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
 
-                // If this is the index.js script, patch icon URL generation logic
+            // If this is the index.js script, patch icon URL generation logic
             } else if (path.basename(resource) === 'index.js') {
                 let jsText = await res.text();
                 // Replace the BASE_HUB_URL placeholder with the full base URL
@@ -372,7 +372,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 );
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
-                // Otherwise, treat it as a binary or static asset
+            // Otherwise, treat it as a binary or static asset
             } else {
                 // Read the response as raw bytes and write to disk
                 const data = await res.arrayBuffer();
