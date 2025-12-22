@@ -33,11 +33,10 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
     
-    # TODO: Change the day part to unique build number or commit hash
     - name: Parse Build Version for GitHub Tag
       id: parse-version
       shell: pwsh
-      run: echo "version=$(Get-Date -UFormat '%Y.%m.%d')" >> $env:GITHUB_OUTPUT
+      run: echo "version=$(Get-Date -UFormat '%Y.%m').${{ github.run_number }}" >> $env:GITHUB_OUTPUT
 
     - name: Validate Version ${{ steps.parse-version.outputs.version }}
       id: validate-version
