@@ -21,7 +21,7 @@ export class NewProjectCommand extends CommandBase {
     private readonly _logger: Logger;
 
     /**
-     * Initializes a new NewProjectCommand for the Rhino API.
+     * Initializes a new NewProjectCommand for the G4 API.
      *
      * @param context - The VS Code extension context used to register the command
      *                  and manage its lifecycle.

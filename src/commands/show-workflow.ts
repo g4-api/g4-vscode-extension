@@ -22,7 +22,7 @@ export class ShowWorkflowCommand extends CommandBase {
     private readonly _baseUrl: string;
 
     /**
-     * Initializes a new ShowWorkflowCommand for the Rhino API.
+     * Initializes a new ShowWorkflowCommand for the G4 API.
      *
      * @param context - The VS Code extension context used to register the command
      *                  and manage its lifecycle.
@@ -290,7 +290,7 @@ export class ShowWorkflowCommand extends CommandBase {
     /**
      * Downloads and patches integration resource files from the server to local storage.
      *
-     * @param baseUrl     The root URL of the Rhino API server (e.g., "http://localhost:9944").
+     * @param baseUrl     The root URL of the G4 API server (e.g., "http://localhost:9944").
      * @param storageDir  The local directory path where resources should be saved.
      * 
      * @throws Error if any HTTP request fails.
