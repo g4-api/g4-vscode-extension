@@ -7,7 +7,7 @@ import { TmLanguageCreateModel } from '../models/tm-create-model';
 import { Utilities } from '../extensions/utilities';
 
 /**
- * Base class for all VS Code commands interacting with the Rhino API.
+ * Base class for all VS Code commands interacting with the G4 API.
  * Provides common properties like logger, client, context, and manifest,
  * as well as helper methods for registering and invoking commands.
  */

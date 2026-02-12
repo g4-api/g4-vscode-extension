@@ -213,7 +213,7 @@ export class Utilities {
     }
 
     /**
-     * Retrieves the logging configuration for the RhinoServer from the project manifest.
+     * Retrieves the logging configuration for the G4 Server from the project manifest.
      *
      * If a clientLogSettings is defined in the manifest, it will be returned.
      * Otherwise, a sensible default configuration is provided.
