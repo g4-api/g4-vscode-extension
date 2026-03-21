@@ -41,6 +41,11 @@
                 "title": "Start Automation Workflow on G4 Engine"
             },
             {
+                "command": "Sync-Cache",
+                "category": "G4",
+                "title": "Synchronize G4 Cache with Configured Externals and MCP Servers"
+            },
+            {
                 "command": "Update-Documents",
                 "category": "G4",
                 "title": "Fetch latest documents version & refresh documentation"

@@ -13,6 +13,7 @@ import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
 import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
+import { G4Client } from './clients/g4-client';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -206,25 +207,36 @@ const registerNotebookEvents = (options: {
 };
 
 /**
- * Continuously attempts to connect to the G4 SignalR hub until successful.
- * Displays status updates in the VS Code status bar during the retry loop.
+ * Continuously attempts to connect to the G4 SignalR hub until a stable connection
+ * is established, then synchronizes external repositories and MCP servers into the cache.
  */
 const InitializeConnection = async (context: vscode.ExtensionContext): Promise<string> => {
-    // Retrieve the configured G4 endpoint URL; returns null/empty if not set
+    // Read the configured G4 endpoint from the extension settings.
     const baseUri = Utilities.getG4Endpoint();
+
+    // Determine whether a usable endpoint is available.
     const canConnect = baseUri !== null && baseUri !== '';
 
-    // If no valid endpoint, abort immediately
+    // Stop immediately when no valid G4 endpoint is configured.
     if (!canConnect) {
         return '';
     }
 
-    // Loop until a stable connection is established
+    // Create the G4 API client that will be used to synchronize cache data after connection.
+    const g4Client = new G4Client(baseUri);
+
+    // Read the configured external repositories from the current manifest.
+    const externals = Utilities.getManifest()?.settings?.pluginsSettings?.externalRepositories || [];
+
+    // Read the configured MCP servers from the current manifest.
+    const mcpServers = Utilities.getManifest()?.settings?.pluginsSettings?.servers || {};
+
+    // Keep retrying until the SignalR connection is successfully established.
     while (true) {
-        // Show a spinning icon to indicate we are attempting connection
+        // Show a progress message while attempting to connect to the G4 engine.
         vscode.window.setStatusBarMessage('$(sync~spin) Waiting for G4 Engine Connection...');
 
-        // Create a new SignalR client pointing at the G4 hub
+        // Create a fresh SignalR notification client for the current connection attempt.
         const client = new NotificationService({
             baseUrl: baseUri,
             context,
@@ -232,28 +244,49 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
         });
 
         try {
-            // Attempt to start the SignalR connection
+            // Start the SignalR connection to the G4 hub.
             await client.start();
 
-            // If the connection is not yet in 'Connected' state, retry after delay
+            // Retry when the client did not reach the connected state.
             if (client.connection.state !== 'Connected') {
                 await new Promise(resolve => setTimeout(resolve, 5000));
                 continue;
             }
 
-            // On successful connect, update status bar and exit loop
-            vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub.');
+            // Notify the user that the SignalR hub connection succeeded.
+            vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub');
 
-            // Set global base URI for the G4 Hub API
+            // Show progress while synchronizing externals and MCP servers into the G4 cache.
+            vscode.window.setStatusBarMessage('$(sync~spin) Loading G4 Engine Externals and MCPs...');
+
+            // Synchronize configured external repositories and MCP servers with the G4 engine cache.
+            await g4Client.syncCache({
+                repositories: externals,
+                servers: mcpServers
+            }).then(async () => {               
+                // Notify the user when cache synchronization completes successfully.
+                vscode.window.setStatusBarMessage('G4 Engine Externals and MCPs Loaded Successfully');
+            }).catch((error) => {
+                // Log synchronization failures without aborting the established connection flow.
+                Global.logger.error(`Error syncing cache with G4 Engine: ${error}`);
+            }).finally(() => {
+                // Set the final ready status after the synchronization attempt completes.
+                vscode.window.setStatusBarMessage('G4 Engine is Connected and Ready');
+            });
+
+            // Store the connected G4 hub base URL globally for later use.
             Global.baseHubUrl = baseUri;
 
-            // Return the base URI on successful connection
+            // Return the configured base URI after a successful connection.
             return baseUri;
         } catch (error: any) { // NOSONAR
-            // On failure, log the error, show failure icon, then retry after delay
-            vscode.window.setStatusBarMessage('G4 Engine SignalR Connection Failed. Retrying...');
+            // Show a retry message when the SignalR connection attempt fails.
+            vscode.window.setStatusBarMessage('$(sync~spin)G4 Engine SignalR Connection Failed. Retrying...');
+
+            // Wait briefly before starting the next retry attempt.
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue;
         }
     }
 };
+
