@@ -61,6 +61,41 @@ export class G4Client {
     }
 
     /**
+     * Synchronizes the plugin cache using the provided external repositories and MCP servers.
+     *
+     * @param syncOptions The synchronization payload that contains external repositories
+     * and server definitions to send to the integration endpoint.
+     * @returns A promise that resolves when the synchronization request completes.
+     */
+    public async syncCache(syncOptions: { repositories: [any], servers: any }): Promise<void> {
+        // Create the HTTP command object that will be sent to the integration API.
+        const command = new HttpCommand();
+
+        // Set the versioned API route for the cache synchronization endpoint.
+        command.command = `api/v${this._version}/g4/integration/cache/sync`;
+
+        // Send the payload as JSON.
+        command.addHeader('Content-Type', 'application/json');
+
+        // Attach the synchronization payload that contains repositories and servers.
+        command.body = syncOptions;
+
+        // Use HTTP POST to trigger cache synchronization.
+        command.method = 'POST';
+
+        // Abort the request if it takes longer than 5 seconds.
+        command.timeout = 5000;
+
+        try {
+            // Send the request using the shared HTTP client.
+            await this.httpClient.sendAsync(command);
+        } catch (err: any) {
+            // Log the failure and suppress the exception so the caller receives no result.
+            Global.logger.error(err.message);
+        }
+    }
+
+    /**
      * Synchronizes tools with the remote server by sending an HTTP GET request
      * to the tool synchronization endpoint. The request uses a 5-second timeout.
      * Any errors encountered during the request are logged.

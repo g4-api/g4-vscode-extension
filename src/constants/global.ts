@@ -17,12 +17,12 @@ export class Global {
         },
         "authentication": {
             "password": null,
-            "token": "3xezq5Yc33laNOPNP8yCsK33vQcQZ87E/zyLNNscYNeqvKTHAm9C3wAEDQV7X9\u002BfuuHPhafDNXbSFgsbKmCncCKm7DRE5A6JtFSd90DNujujbQ3vLG4/4uSVCR76Z6VguIDSvRZ/pJTHCzBc9NNI/eb5fLHcjXyYrilm9NC7VTD/HOlgGC5CL\u002BoFhHoR8s10YuI9QpRioZbyDHysFumpAAv3/PG/p/QBKNoQpjtsUgMytrnqr3m1bgyXITG0u5AUR2VpZLCXQO6MxU7kwLwvdNGXUDfajBVT29KyjXUEWN9dK0R38XmgZFQ7orkKfN2z0x2SMfC5mvTDM6as\u002B/kYWFAvpqOZDhZ95sgQWp/zGig=",
+            "token": "",
             "username": null
         },
         "driverParameters": {
-            "driver": "ChromeDriver",
-            "driverBinaries": "http://localhost:4444/wd/hub"
+            "driver": "SimulatorDriver",
+            "driverBinaries": "."
         },
         "settings": {
             "automationSettings": {
@@ -60,7 +60,8 @@ export class Global {
             },
             "pluginsSettings": {
                 "externalRepositories": null,
-                "forceRuleReference": true
+                "forceRuleReference": true,
+                "servers": null
             },
             "screenshotsSettings": {
                 "convertToBase64": false,
