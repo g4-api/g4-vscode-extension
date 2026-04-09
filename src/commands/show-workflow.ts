@@ -123,7 +123,7 @@ export class ShowWorkflowCommand extends CommandBase {
         await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir);
 
         // Path to the main HTML entry point of the web application
-        const indexPath = path.join(storageDir, 'index.html');
+        const indexPath = path.join(storageDir, 'canvas.html');
 
         const folders = vscode.workspace.workspaceFolders;
         const botsFolders = folders?.map(i => vscode.Uri.joinPath(i.uri, "bots")) || [];
@@ -329,13 +329,13 @@ export class ShowWorkflowCommand extends CommandBase {
              * Replaces the default CSS filename with a VS Code–specific stylesheet, then writes
              * the modified HTML to disk.
              */
-            if (resource === 'index.html') {
+            if (resource === 'canvas.html') {
                 // Read the fetched HTML content as a UTF-8 string
                 let htmlText = await res.text();
 
                 // Swap out the blueprint CSS filename for the VS Code–optimized version
                 htmlText = htmlText.replaceAll(
-                    'designer-blueprint-parameters.css',
+                    'designer-blueprint-parameters-g4.css',
                     'designer-blueprint-parameters-vscode.css'
                 );
 
@@ -362,8 +362,8 @@ export class ShowWorkflowCommand extends CommandBase {
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
 
-            // If this is the index.js script, patch icon URL generation logic
-            } else if (path.basename(resource) === 'index.js') {
+            // If this is the canvas.js script, patch icon URL generation logic
+            } else if (path.basename(resource) === 'canvas.js') {
                 let jsText = await res.text();
                 // Replace the BASE_HUB_URL placeholder with the full base URL
                 jsText = jsText.replace(
