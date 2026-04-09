@@ -116,7 +116,7 @@ export class G4Client {
         const command = new HttpCommand();
 
         // Build the request URL path for tool synchronization
-        command.command = `api/v${this._version}/g4/copilot/mcp/sync`;
+        command.command = `api/v${this._version}/g4/mcp/sync`;
 
         // Use the HTTP GET method for synchronization
         command.method = 'GET';

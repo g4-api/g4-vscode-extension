@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { G4Client } from '../clients/g4-client';
+import { Utilities } from '../extensions/utilities';
 
 export class SyncCacheCommand extends CommandBase {
     /** Logger scoped to this command for command-specific diagnostics. */
@@ -58,11 +59,30 @@ export class SyncCacheCommand extends CommandBase {
      *
      * @returns A promise that resolves when the synchronization and restart flow completes.
      */
-    protected async onInvokeCommand(): Promise<void> {
+    protected async onInvokeCommand(args: any): Promise<void> {
+        // Read the configured external repositories from the current manifest.
+        const externals = Utilities.getManifest()?.settings?.pluginsSettings?.externalRepositories || [];
+
+        // Read the configured MCP servers from the current manifest.
+        const mcpServers = Utilities.getManifest()?.settings?.pluginsSettings?.servers || {};
+
+        // Synchronize configured external repositories and MCP servers with the G4 engine cache.
+        await this._client.syncCache({
+            repositories: externals,
+            servers: mcpServers
+        }).catch((error) => {
+            // Log synchronization failures without aborting the established connection flow.
+            this._logger.error(`Error syncing cache with G4 Engine: ${error}`);
+        });
+
         // Synchronize tools with the G4 engine.
         await this._client.syncTools().then(async () => {
+            const restart = args?.restart ?? true;
+            
             // Restart the extension host so the refreshed tools are reloaded.
-            await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+            if (restart) {
+                await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+            }
         });
     }
 }

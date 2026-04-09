@@ -13,7 +13,7 @@ import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
 import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
-import { G4Client } from './clients/g4-client';
+import { SyncCacheCommand } from './commands/sync-cache';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -31,9 +31,8 @@ const captureConnections = new Map<string, EventCaptureService>();
  *                global state, workspace state and other shared resources for the extension.
  */
 export async function activate(context: vscode.ExtensionContext) {
-    // Initialize the base URI used to communicate with the backend hub or services.
-    // This typically resolves configuration, environment and connection parameters.
-    const baseUri = await InitializeConnection(context);
+    // Read the configured G4 endpoint from the extension settings.
+    const baseUri = Utilities.getG4Endpoint();
 
     // Resolve configuration options related to events capture, such as recording behavior
     // and filters applied while listening to editor or UI events.
@@ -57,6 +56,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register language or notebook providers such as completion, hover and serializers.
     registerProviders(options);
+
+    // Initialize the base URI used to communicate with the backend hub or services.
+    // This typically resolves configuration, environment and connection parameters.
+    await InitializeConnection(baseUri, context);
 }
 
 /**
@@ -95,6 +98,9 @@ const registerCommands = (options: {
 
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
+
+    // Command to synchronize external repositories and MCP servers with the G4 cache.
+    new SyncCacheCommand(options.context, options.baseUri).register();
 
     // Command to synchronize or refresh environment settings from the backend.
     new UpdateEnvironmentCommand(options.context, options.baseUri).register();
@@ -210,10 +216,7 @@ const registerNotebookEvents = (options: {
  * Continuously attempts to connect to the G4 SignalR hub until a stable connection
  * is established, then synchronizes external repositories and MCP servers into the cache.
  */
-const InitializeConnection = async (context: vscode.ExtensionContext): Promise<string> => {
-    // Read the configured G4 endpoint from the extension settings.
-    const baseUri = Utilities.getG4Endpoint();
-
+const InitializeConnection = async (baseUri: string, context: vscode.ExtensionContext): Promise<string> => {
     // Determine whether a usable endpoint is available.
     const canConnect = baseUri !== null && baseUri !== '';
 
@@ -221,15 +224,6 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
     if (!canConnect) {
         return '';
     }
-
-    // Create the G4 API client that will be used to synchronize cache data after connection.
-    const g4Client = new G4Client(baseUri);
-
-    // Read the configured external repositories from the current manifest.
-    const externals = Utilities.getManifest()?.settings?.pluginsSettings?.externalRepositories || [];
-
-    // Read the configured MCP servers from the current manifest.
-    const mcpServers = Utilities.getManifest()?.settings?.pluginsSettings?.servers || {};
 
     // Keep retrying until the SignalR connection is successfully established.
     while (true) {
@@ -259,20 +253,11 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
             // Show progress while synchronizing externals and MCP servers into the G4 cache.
             vscode.window.setStatusBarMessage('$(sync~spin) Loading G4 Engine Externals and MCPs...');
 
-            // Synchronize configured external repositories and MCP servers with the G4 engine cache.
-            await g4Client.syncCache({
-                repositories: externals,
-                servers: mcpServers
-            }).then(async () => {               
-                // Notify the user when cache synchronization completes successfully.
-                vscode.window.setStatusBarMessage('G4 Engine Externals and MCPs Loaded Successfully');
-            }).catch((error) => {
-                // Log synchronization failures without aborting the established connection flow.
-                Global.logger.error(`Error syncing cache with G4 Engine: ${error}`);
-            }).finally(() => {
-                // Set the final ready status after the synchronization attempt completes.
-                vscode.window.setStatusBarMessage('G4 Engine is Connected and Ready');
-            });
+            // Perform an additional synchronization of tools to ensure the latest tool definitions are available.
+            const command = new SyncCacheCommand(context, baseUri);
+            await command.invokeCommand({ restart: false });
+
+            vscode.window.setStatusBarMessage('G4 Engine is Connected and Ready');
 
             // Store the connected G4 hub base URL globally for later use.
             Global.baseHubUrl = baseUri;
@@ -289,4 +274,3 @@ const InitializeConnection = async (context: vscode.ExtensionContext): Promise<s
         }
     }
 };
-
