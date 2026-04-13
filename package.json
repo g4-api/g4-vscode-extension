@@ -28,7 +28,7 @@
             {
                 "command": "New-Project",
                 "category": "G4",
-                "title": "Creates a New G4 Project"
+                "title": "Create a New G4 Project"
             },
             {
                 "command": "Show-Workflow",
