@@ -123,7 +123,7 @@ export class ShowWorkflowCommand extends CommandBase {
         await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir);
 
         // Path to the main HTML entry point of the web application
-        const indexPath = path.join(storageDir, 'canvas.html');
+        const indexPath = path.join(storageDir, 'views', 'canvas.html');
 
         const folders = vscode.workspace.workspaceFolders;
         const botsFolders = folders?.map(i => vscode.Uri.joinPath(i.uri, "bots")) || [];
@@ -302,10 +302,24 @@ export class ShowWorkflowCommand extends CommandBase {
         // Dynamically import node-fetch for HTTP requests
         const fetch = (await import('node-fetch')).default;
 
-        // TODO: Check for error responses and handle them gracefully
         // Fetch the list of resource file paths from the API endpoint
-        const listText = await (await fetch(`${baseUrl}/api/v4/g4/integration/files`)).text();
-        const resources: string[] = JSON.parse(listText);
+        const listResponse = await fetch(`${baseUrl}/api/v4/g4/integration/files`);
+
+        // Abort early if the server returns a non-2xx status
+        if (!listResponse.ok) {
+            throw new Error(`Failed to fetch resource list: ${listResponse.status} ${listResponse.statusText}`);
+        }
+
+        // Read the response body as plain text before parsing
+        const listText = await listResponse.text();
+        let resources: string[];
+        try {
+            // Parse the JSON array of resource paths returned by the server
+            resources = JSON.parse(listText);
+        } catch {
+            // Surface a clear error if the body is not valid JSON
+            throw new Error(`Invalid resource list response from ${baseUrl}/api/v4/g4/integration/files`);
+        }
 
         // Iterate through each resource path returned by the server
         for (const resource of resources) {
