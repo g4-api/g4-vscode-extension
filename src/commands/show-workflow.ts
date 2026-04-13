@@ -343,7 +343,7 @@ export class ShowWorkflowCommand extends CommandBase {
              * Replaces the default CSS filename with a VS Code–specific stylesheet, then writes
              * the modified HTML to disk.
              */
-            if (resource === 'canvas.html') {
+            if (resource === 'views/canvas.html') {
                 // Read the fetched HTML content as a UTF-8 string
                 let htmlText = await res.text();
 
@@ -415,7 +415,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 }
 
                 // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, href));
+                const absPath = vscode.Uri.file(path.join(storageDir, 'views', href));
                 const webviewUri = panel.webview.asWebviewUri(absPath);
 
                 // Return the tag with the updated href pointing to the Webview URI
@@ -433,7 +433,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 }
 
                 // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, src));
+                const absPath = vscode.Uri.file(path.join(storageDir, 'views', src));
                 const webviewUri = panel.webview.asWebviewUri(absPath);
 
                 // Return the tag with the updated src pointing to the Webview URI
@@ -451,7 +451,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 }
 
                 // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, src));
+                const absPath = vscode.Uri.file(path.join(storageDir, 'views', src));
                 const webviewUri = panel.webview.asWebviewUri(absPath);
 
                 // Return the tag with the updated src pointing to the Webview URI
