@@ -117,8 +117,7 @@ export class StopRecorderCommand extends CommandBase {
         // Clear all buffers and close all service connections
         for (const service of this._connections.values()) {
             try {
-                service.clearBuffer();
-                service.disconnect();
+                await service.disconnect();
             }
             catch {
                 // Ignore errors during disconnect

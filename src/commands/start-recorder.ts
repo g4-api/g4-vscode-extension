@@ -93,6 +93,9 @@ export class StartRecorderCommand extends CommandBase {
             try {
                 this._logger.information(`Starting recorder for endpoint: ${endpoint}`);
 
+                // Clear any existing events before starting.
+                service.clearBuffer();
+
                 // Start each connection and collect its Promise; let them run concurrently.
                 starts.push(service.start());
             } catch (error: unknown) {
