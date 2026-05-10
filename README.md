@@ -266,9 +266,39 @@ Controls execution limits, parallelism, and response formats.
 Supports local or distributed recording.
 
 ```json
-"recorderSettings": {
-  "enabled": false,
-  "recorders": [ ... ]
+{
+    "recorderSettings": {
+        "enabled": true,
+        "recorders": [
+            {
+                "mode": "user32",
+                "schema": "http",
+                "host": "localhost",
+                "port": "9955",
+                "driverParameters": {
+                    "capabilities": {
+                        "alwaysMatch": {
+                            "browserName": "Uia",
+                            "uia:options": {
+                                "label": "machine-a"
+                            }
+                        }
+                    },
+                    "driver": "UiaDriver",
+                    "driverBinaries": "http://localhost:5555/wd/hub",
+                    "firstMatch": [
+                        {}
+                    ]
+                },
+                "thinkTimeSettings": {
+                    "enabled": true,
+                    "maxThinkTime": 2000,
+                    "minThinkTime": 2000
+                }
+            },
+            ...
+        ]
+    }
 }
 ```
 
