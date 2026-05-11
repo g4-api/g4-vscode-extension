@@ -49,6 +49,12 @@ export class StartRecorderCommand extends CommandBase {
 
         // Instantiate one EventCaptureService per endpoint and store in the pool.
         for (const option of this._options) {
+            
+            if(!option.enabled) {
+                this._logger.information('Skipping disabled recorder endpoint: ' + option.baseUrl);
+                continue;
+            }
+
             const captureService = new EventCaptureService(option);
             this._connections.set(option.baseUrl, captureService);
         }

@@ -317,6 +317,9 @@ export interface EventCaptureOptions {
     /** Optional driver parameters associated with this connection. */
     driverParameters?: any;
 
+    /** Flag to enable or disable event capture (default: false). */
+    enabled?: boolean;
+
     /** Logger instance for user-facing and diagnostic logs. */
     logger: Logger;
 

@@ -486,7 +486,13 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: { baseUrl: string, mode: string, driverParameters: any, thinkTimeSettings: any }[] = [];
+        const endpoints: { 
+            baseUrl: string,
+            mode: string,
+            driverParameters: any,
+            thinkTimeSettings: any,
+            enabled: boolean
+        }[] = [];
 
         // Iterate through each item in the recorders array
         for (const item of recordersEndpoints) {
@@ -499,6 +505,7 @@ export class Utilities {
                 baseUrl: url,
                 driverParameters: item.driverParameters,
                 mode: item.mode || 'standard',
+                enabled: item.enabled ?? false,
                 thinkTimeSettings: {
                     enabled: item.thinkTimeSettings?.enabled ?? false,
                     minThinkTime: item.thinkTimeSettings?.minThinkTime ?? 0,
