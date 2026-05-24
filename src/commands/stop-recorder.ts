@@ -234,12 +234,17 @@ export class StopRecorderCommand extends CommandBase {
         // Create a simple hash-like ID from the element's geometry
         const id = `${bounds.height};${bounds.X};${bounds.Y};${bounds.width}`;
 
+        // Attempt to resolve the most specific locator available for this event
+        const fallbackLocator = event?.value?.chain?.fallbackLocator;
+        const locator = event?.value?.chain?.locator;
+        const resolvedLocator = locator || fallbackLocator;
+
         // Return a normalized event structure for downstream processing
         return {
             id,
             bounds,
             event,
-            locator: event?.value?.chain?.locator
+            locator: resolvedLocator
         };
     }
 
@@ -638,6 +643,11 @@ export class StopRecorderCommand extends CommandBase {
 
         // Extract the mouse event type (e.g., "left", "right", "middle") from the event string
         const mouseEventType = event?.value?.event?.split(' ')[0]?.toLowerCase();
+
+        // Attempt to resolve the most specific locator available for this event
+        const fallbackLocator = event?.value?.chain?.fallbackLocator;
+        const locator = event?.value?.chain?.locator;
+        const resolvedLocator = locator || fallbackLocator;
 
         // Construct the action rule based on the mouse event type and mode
         const rule: any = {
