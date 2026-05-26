@@ -78,18 +78,6 @@
                 "extensions": []
             }
         ],
-        "notebooks": [
-            {
-                "id": "G4.MdJsonNotebook",
-                "type": "G4.MdJsonNotebook",
-                "displayName": "Markdown + JSON Notebook",
-                "selector": [
-                    {
-                        "filenamePattern": "*.mdjson"
-                    }
-                ]
-            }
-        ],
         "views": {
             "g4Container": [
                 {
