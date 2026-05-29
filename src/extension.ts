@@ -13,6 +13,7 @@ import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
 import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
 import { SyncCacheCommand } from './commands/sync-cache';
+import { ShowReportCommand } from './commands/show-report';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -91,6 +92,9 @@ const registerCommands = (options: {
 
     // Command to trigger an automation workflow using the connected hub.
     new StartAutomationCommand(options.context, options.hubConnections).register();
+
+    // Command to open or visualize a specific report in the UI.
+    new ShowReportCommand(options.context, options.baseUri).register();
 
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
