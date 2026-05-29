@@ -37,6 +37,33 @@ export class Utilities {
     }
 
     /**
+     * Converts a Base64-encoded string into a UTF-8 string.
+     *
+     * This method safely handles non-Latin characters by:
+     * - Decoding the Base64 value into a binary string.
+     * - Converting each binary character into a byte.
+     * - Decoding the byte array as UTF-8 text.
+     *
+     * @param base64 - The Base64-encoded string to decode.
+     * @returns The decoded UTF-8 string.
+     */
+    public static convertFromBase64(base64: string): string {
+        // Decode the Base64 string into a binary string.
+        // Each character in this string represents one byte.
+        const binary = atob(base64);
+
+        // Convert the binary string into a byte array.
+        const bytes = Uint8Array.from(binary, char =>
+            // Use codePointAt(0) to satisfy linting rules that prefer
+            // Unicode-aware character access over charCodeAt(0).
+            char.codePointAt(0)!
+        );
+
+        // Decode the byte array as UTF-8 so non-Latin characters are restored correctly.
+        return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    /**
      * Deserialize the raw file bytes into VS Code notebook cells.
      * 
      * @param content The raw text of file content.
@@ -486,7 +513,7 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: { 
+        const endpoints: {
             baseUrl: string,
             mode: string,
             driverParameters: any,
