@@ -31,14 +31,14 @@
                 "title": "Create a New G4 Project"
             },
             {
+                "command": "Show-Report",
+                "category": "G4",
+                "title": "Open G4 Report"
+            },
+            {
                 "command": "Show-Workflow",
                 "category": "G4",
                 "title": "Open G4 Engine Embedded Application"
-            },
-            {
-                "command": "Start-Automation",
-                "category": "G4",
-                "title": "Start Automation Workflow on G4 Engine"
             },
             {
                 "command": "Sync-Cache",
