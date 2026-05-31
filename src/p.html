@@ -1,0 +1,2291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>G4™ Automation Report</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5}
+.header{position:sticky;top:0;z-index:100;background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px;display:flex;align-items:center;gap:14px}
+.header-title{font-size:16px;font-weight:700;color:#f0f6fc}
+.header-meta{font-size:11px;color:#8b949e;margin-top:1px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.main{max-width:1440px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:24px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px}
+.card-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e;margin-bottom:5px}
+.card-value{font-size:20px;font-weight:700;color:#f0f6fc;font-variant-numeric:tabular-nums}
+.section{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.section-hdr{padding:10px 16px;background:#1c2128;border-bottom:1px solid #30363d;font-weight:600;font-size:12px;color:#f0f6fc;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.section-hdr:hover{background:#21262d}
+.section-body{padding:16px}
+.session-info{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:14px}
+.si-item{display:flex;flex-direction:column;gap:2px}
+.si-label{font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em}
+.si-value{font-size:12px;color:#f0f6fc;font-family:'Consolas',monospace}
+/* tree */
+.plugin-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;transition:background .1s}
+.plugin-row:hover{background:#21262d}
+.p-toggle{width:13px;height:13px;display:flex;align-items:center;justify-content:center;color:#8b949e;font-size:9px;flex-shrink:0}
+.p-badge{font-size:9px;padding:1px 5px;border-radius:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0;white-space:nowrap}
+.badge-Action{background:#1f3a5f;color:#58a6ff}
+.badge-Assertion{background:#3d2b00;color:#e3b341}
+.badge-Operator{background:#2d1f4e;color:#b57bee}
+.p-name{font-weight:600;color:#f0f6fc;white-space:nowrap;flex-shrink:0}
+.p-arg{color:#8b949e;font-family:'Consolas',monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.p-elem{color:#6e7681;font-family:'Consolas',monospace;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.p-spacer{flex:1}
+.p-bar-wrap{width:72px;height:5px;background:#21262d;border-radius:3px;overflow:hidden;flex-shrink:0}
+.p-bar{height:100%;border-radius:3px;min-width:2px}
+.bar-Action{background:#4e9eff}
+.bar-Assertion{background:#e3b341}
+.bar-Operator{background:#b57bee}
+.p-dur{font-size:10px;color:#8b949e;white-space:nowrap;text-align:right;min-width:52px;flex-shrink:0;font-variant-numeric:tabular-nums}
+.p-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-pass{background:#3fb950}
+.dot-fail{background:#f85149}
+.dot-neutral{background:#3d4451}
+.p-children{margin-left:18px}
+.p-children.hidden{display:none}
+/* timeline */
+.tl-wrap{overflow-x:auto}
+/* assertions */
+.assert-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.assert-tbl th{text-align:left;padding:7px 12px;background:#1c2128;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:10px;border-bottom:1px solid #30363d}
+.assert-tbl td{padding:7px 12px;border-bottom:1px solid #21262d;vertical-align:top}
+.assert-tbl tr:last-child td{border-bottom:none}
+.assert-tbl tr:hover td{background:#1c2128}
+.ev-pass{color:#3fb950;font-weight:700}
+.ev-fail{color:#f85149;font-weight:700}
+.reason{color:#8b949e;font-size:11px}
+/* tags */
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:2px 7px;border-radius:9px;font-weight:600;line-height:1.6}
+.tag-pass{background:#0f2d12;color:#3fb950;border:1px solid #238636}
+.tag-fail{background:#2d0f0f;color:#f85149;border:1px solid #da3633}
+.tag-neutral{background:#1c2128;color:#8b949e;border:1px solid #30363d}
+/* chevron */
+.chev{display:inline-block;transition:transform .15s;font-style:normal}
+.chev.open{transform:rotate(90deg)}
+.mono{font-family:'Consolas',monospace}
+.no-data{color:#6e7681;font-style:italic;padding:16px;text-align:center}
+/* timing breakdown bar */
+.t-breakdown{display:flex;height:8px;border-radius:4px;overflow:hidden;gap:1px;width:100%;margin-top:4px}
+.t-seg{height:100%;min-width:1px}
+.t-seg-run{background:#4e9eff}
+.t-seg-setup{background:#3fb950}
+.t-seg-teardown{background:#e3b341}
+.t-seg-setup-d{background:#2d8c4e}
+.t-seg-teardown-d{background:#b57bee}
+.t-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.t-legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#8b949e}
+.t-legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const DATA = JSON.parse(String.raw`{
+    "7a89e765-12cc-4920-9786-42fc5503c63f": {
+        "dataProvider": [
+            {}
+        ],
+        "performancePoint": {
+            "$type": "Automation",
+            "authenticationTime": 5717,
+            "sessionTime": 41009745,
+            "end": "2026-05-27T18:42:53.162505Z",
+            "setupDelegationTime": 33,
+            "setupTime": 14,
+            "start": "2026-05-27T18:42:47.952344Z",
+            "teardownDelegationTime": 181,
+            "teardownTime": 9621,
+            "runTime": 52101615
+        },
+        "sessions": {
+            "f61b8d912a1ef8e3d443baeb42955958": {
+                "dataProvider": [
+                    {}
+                ],
+                "performancePoint": {
+                    "$type": "Automation",
+                    "authenticationTime": 5717,
+                    "driverSetupTime": 11646892,
+                    "sessionTime": 41009745,
+                    "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                    "end": "2026-05-27T18:42:53.162505Z",
+                    "setupDelegationTime": 33,
+                    "setupTime": 14,
+                    "start": "2026-05-27T18:42:47.952344Z",
+                    "teardownDelegationTime": 181,
+                    "teardownTime": 9621,
+                    "runTime": 52101615
+                },
+                "requestSize": 51138,
+                "responseData": {
+                    "exceptions": [],
+                    "performancePoints": [
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "OpenUrl",
+                                "description": "OpenUrl navigates the current browser window to a URL using the WebDriver navigate-to command. The URL is taken directly from the 'Argument' property when no element is provided, or extracted from an element's text content or a named attribute and filtered by 'RegularExpression' when 'OnElement' is specified. Unlike 'NewBrowserWindow', OpenUrl always navigates the current browsing context without opening a new window or tab.",
+                                "id": "11341836e46377",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "OpenUrl",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:49.481174Z",
+                            "setupDelegationTime": 169,
+                            "setupTime": 2334,
+                            "start": "2026-05-27T18:42:49.118106Z",
+                            "teardownDelegationTime": 152,
+                            "teardownTime": 40,
+                            "runTime": 3628156
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "SetWindowState",
+                                "description": "SetWindowState sets the browser window to 'Maximized', 'Minimized', or 'FullScreen' by calling the corresponding W3C WebDriver window command. The 'Argument' property selects the target state and is matched case-insensitively; an unrecognized or absent value is a safe no-op that returns normally without error. In RPA it normalizes window visibility and supports kiosk-mode presentation; in automation testing it enforces a consistent window state before screenshots, layout checks, or full-screen layout verification.",
+                                "id": "de39e5420564",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "SetWindowState",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:49.511549Z",
+                            "setupDelegationTime": 129,
+                            "setupTime": 1546,
+                            "start": "2026-05-27T18:42:49.484112Z",
+                            "teardownDelegationTime": 163,
+                            "teardownTime": 41,
+                            "runTime": 272671
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "SendKeys",
+                                "description": "SendKeys sends keystrokes to a target element in the UI, supporting configurable delay between characters, pre-clearing via native backspace or standard WebDriver clear, and keyboard modifier combinations. The Keys parameter supplies the text to type; when absent the Argument value is used as a fallback. In RPA it automates text entry in forms, search boxes, and text areas; in automation testing it verifies input field behavior, keyboard shortcuts, and typing-speed scenarios.",
+                                "id": "116e24315367a4",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "SendKeys",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:49.679876Z",
+                            "setupDelegationTime": 284,
+                            "setupTime": 2412,
+                            "start": "2026-05-27T18:42:49.514988Z",
+                            "teardownDelegationTime": 82,
+                            "teardownTime": 31,
+                            "runTime": 1646155
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "InvokeClick",
+                                "description": "InvokeClick clicks a target element or the current mouse position, making it the primary way to trigger click interactions in an automation workflow. It supports a conditional mode that repeats the click at a configurable polling interval until a named assertion — such as an alert appearing or an attribute reaching a value — passes or a timeout elapses. In RPA it handles form submissions, modal dismissals, alert handling, and attribute-driven navigation; in automation testing it verifies click responses, dynamic state transitions, and attribute changes driven by repeated interaction.",
+                                "id": "18e683687bf713",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "InvokeClick",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:50.800973Z",
+                            "setupDelegationTime": 174,
+                            "setupTime": 2104,
+                            "start": "2026-05-27T18:42:49.683153Z",
+                            "teardownDelegationTime": 154,
+                            "teardownTime": 28,
+                            "runTime": 11175886
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "ElementCount",
+                                "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                "id": "7d68bd82-90d3-4b1f-8215-58eb33f81842",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "ElementCount",
+                                "parentReference": {
+                                    "alias": "Assert",
+                                    "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                    "id": "3555fd0482892",
+                                    "jobReference": {
+                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                        "name": "G4™ Default Job",
+                                        "id": "207272fc8408b",
+                                        "stageReference": {
+                                            "automationReference": {
+                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                "id": "36d443d67ef48"
+                                            },
+                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                            "id": "6eb99648b893",
+                                            "name": "G4™ Default Stage"
+                                        }
+                                    },
+                                    "name": "Assert",
+                                    "type": "Action"
+                                },
+                                "type": "Assertion"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:50.859151Z",
+                            "setupDelegationTime": 143,
+                            "setupTime": 2118,
+                            "start": "2026-05-27T18:42:50.807642Z",
+                            "teardownDelegationTime": 145,
+                            "teardownTime": 48,
+                            "runTime": 512791
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "Greater",
+                                "description": "The GreaterOperator plugin compares two numeric values and returns true if the first value is strictly greater than the second.It outputs a true or false result that controls conditional branches in automation workflows and tests.This lets automation scripts make dynamic decisions based on numeric comparisons and integrate with other actions.",
+                                "id": "8d804479-30c6-43f5-b63f-f0e8ff3d9323",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "Greater",
+                                "parentReference": {
+                                    "alias": "ElementCount",
+                                    "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                    "id": "7d68bd82-90d3-4b1f-8215-58eb33f81842",
+                                    "jobReference": {
+                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                        "name": "G4™ Default Job",
+                                        "id": "207272fc8408b",
+                                        "stageReference": {
+                                            "automationReference": {
+                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                "id": "36d443d67ef48"
+                                            },
+                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                            "id": "6eb99648b893",
+                                            "name": "G4™ Default Stage"
+                                        }
+                                    },
+                                    "name": "ElementCount",
+                                    "parentReference": {
+                                        "alias": "Assert",
+                                        "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                        "id": "3555fd0482892",
+                                        "jobReference": {
+                                            "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                            "name": "G4™ Default Job",
+                                            "id": "207272fc8408b",
+                                            "stageReference": {
+                                                "automationReference": {
+                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                    "id": "36d443d67ef48"
+                                                },
+                                                "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                "id": "6eb99648b893",
+                                                "name": "G4™ Default Stage"
+                                            }
+                                        },
+                                        "name": "Assert",
+                                        "type": "Action"
+                                    },
+                                    "type": "Assertion"
+                                },
+                                "type": "Operator"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:50.863753Z",
+                            "setupDelegationTime": 128,
+                            "setupTime": 1907,
+                            "start": "2026-05-27T18:42:50.862811Z",
+                            "teardownDelegationTime": 100,
+                            "teardownTime": 35,
+                            "runTime": 7351
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "Assert",
+                                "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                "id": "3555fd0482892",
+                                "jobReference": {
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                },
+                                "name": "Assert",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:50.867749Z",
+                            "setupDelegationTime": 204,
+                            "setupTime": 2137,
+                            "start": "2026-05-27T18:42:50.804004Z",
+                            "teardownDelegationTime": 121,
+                            "teardownTime": 42,
+                            "runTime": 635080
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "OpenUrl",
+                                "description": "OpenUrl navigates the current browser window to a URL using the WebDriver navigate-to command. The URL is taken directly from the 'Argument' property when no element is provided, or extracted from an element's text content or a named attribute and filtered by 'RegularExpression' when 'OnElement' is specified. Unlike 'NewBrowserWindow', OpenUrl always navigates the current browsing context without opening a new window or tab.",
+                                "id": "1652087367e1a4c3adf1a45bee383b6f",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "OpenUrl",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:51.164626Z",
+                            "setupDelegationTime": 272,
+                            "setupTime": 2694,
+                            "start": "2026-05-27T18:42:50.872461Z",
+                            "teardownDelegationTime": 71,
+                            "teardownTime": 19,
+                            "runTime": 2918638
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "SetWindowState",
+                                "description": "SetWindowState sets the browser window to 'Maximized', 'Minimized', or 'FullScreen' by calling the corresponding W3C WebDriver window command. The 'Argument' property selects the target state and is matched case-insensitively; an unrecognized or absent value is a safe no-op that returns normally without error. In RPA it normalizes window visibility and supports kiosk-mode presentation; in automation testing it enforces a consistent window state before screenshots, layout checks, or full-screen layout verification.",
+                                "id": "16946417c56e0b12a9f0e28949f1e1f7",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "SetWindowState",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:51.170530Z",
+                            "setupDelegationTime": 289,
+                            "setupTime": 2164,
+                            "start": "2026-05-27T18:42:51.167804Z",
+                            "teardownDelegationTime": 135,
+                            "teardownTime": 74,
+                            "runTime": 24790
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "SendKeys",
+                                "description": "SendKeys sends keystrokes to a target element in the UI, supporting configurable delay between characters, pre-clearing via native backspace or standard WebDriver clear, and keyboard modifier combinations. The Keys parameter supplies the text to type; when absent the Argument value is used as a fallback. In RPA it automates text entry in forms, search boxes, and text areas; in automation testing it verifies input field behavior, keyboard shortcuts, and typing-speed scenarios.",
+                                "id": "9326a04f817d8aa83bb8ddc27d77e4b5",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "SendKeys",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:51.257424Z",
+                            "setupDelegationTime": 286,
+                            "setupTime": 2176,
+                            "start": "2026-05-27T18:42:51.174118Z",
+                            "teardownDelegationTime": 81,
+                            "teardownTime": 12,
+                            "runTime": 830579
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "InvokeClick",
+                                "description": "InvokeClick clicks a target element or the current mouse position, making it the primary way to trigger click interactions in an automation workflow. It supports a conditional mode that repeats the click at a configurable polling interval until a named assertion — such as an alert appearing or an attribute reaching a value — passes or a timeout elapses. In RPA it handles form submissions, modal dismissals, alert handling, and attribute-driven navigation; in automation testing it verifies click responses, dynamic state transitions, and attribute changes driven by repeated interaction.",
+                                "id": "d4997752e8e1d213159cbe6ad6771d0b",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "InvokeClick",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:52.819103Z",
+                            "setupDelegationTime": 174,
+                            "setupTime": 1569,
+                            "start": "2026-05-27T18:42:51.260754Z",
+                            "teardownDelegationTime": 81,
+                            "teardownTime": 9,
+                            "runTime": 15581732
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "ElementCount",
+                                "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                "id": "2bc80820-c83f-47bb-8392-70d7a4fe00ee",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "ElementCount",
+                                "parentReference": {
+                                    "alias": "Assert",
+                                    "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                    "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                    "jobReference": {
+                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                        "name": "Job",
+                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                        "stageReference": {
+                                            "automationReference": {
+                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                "id": "36d443d67ef48"
+                                            },
+                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                            "name": "Stage"
+                                        }
+                                    },
+                                    "name": "Assert",
+                                    "type": "Action"
+                                },
+                                "type": "Assertion"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:52.871800Z",
+                            "setupDelegationTime": 112,
+                            "setupTime": 1724,
+                            "start": "2026-05-27T18:42:52.826421Z",
+                            "teardownDelegationTime": 116,
+                            "teardownTime": 21,
+                            "runTime": 451938
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "Greater",
+                                "description": "The GreaterOperator plugin compares two numeric values and returns true if the first value is strictly greater than the second.It outputs a true or false result that controls conditional branches in automation workflows and tests.This lets automation scripts make dynamic decisions based on numeric comparisons and integrate with other actions.",
+                                "id": "c70838ce-b84a-4ce4-b055-c92ee145ff34",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "Greater",
+                                "parentReference": {
+                                    "alias": "ElementCount",
+                                    "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                    "id": "2bc80820-c83f-47bb-8392-70d7a4fe00ee",
+                                    "jobReference": {
+                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                        "name": "Job",
+                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                        "stageReference": {
+                                            "automationReference": {
+                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                "id": "36d443d67ef48"
+                                            },
+                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                            "name": "Stage"
+                                        }
+                                    },
+                                    "name": "ElementCount",
+                                    "parentReference": {
+                                        "alias": "Assert",
+                                        "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                        "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                        "jobReference": {
+                                            "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                            "name": "Job",
+                                            "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                            "stageReference": {
+                                                "automationReference": {
+                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                    "id": "36d443d67ef48"
+                                                },
+                                                "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                "id": "229bec1d05d3a334a987aea47e5023de",
+                                                "name": "Stage"
+                                            }
+                                        },
+                                        "name": "Assert",
+                                        "type": "Action"
+                                    },
+                                    "type": "Assertion"
+                                },
+                                "type": "Operator"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:52.875881Z",
+                            "setupDelegationTime": 194,
+                            "setupTime": 1937,
+                            "start": "2026-05-27T18:42:52.875253Z",
+                            "teardownDelegationTime": 95,
+                            "teardownTime": 13,
+                            "runTime": 4134
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "Assert",
+                                "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "Assert",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:52.879805Z",
+                            "setupDelegationTime": 198,
+                            "setupTime": 1978,
+                            "start": "2026-05-27T18:42:52.822677Z",
+                            "teardownDelegationTime": 112,
+                            "teardownTime": 15,
+                            "runTime": 569088
+                        },
+                        {
+                            "$type": "Plugin",
+                            "reference": {
+                                "alias": "CloseBrowser",
+                                "description": "CloseBrowser terminates the current browser session by closing the browser window and releasing the underlying WebDriver instance. In robotic process automation it provides a clean session teardown that frees system resources and prevents orphaned browser processes from accumulating. In automation testing it ensures each test run concludes with a proper session cleanup, supporting reliable parallel execution and consistent test isolation.",
+                                "id": "13999166321f51",
+                                "jobReference": {
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                },
+                                "name": "CloseBrowser",
+                                "type": "Action"
+                            },
+                            "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                            "end": "2026-05-27T18:42:53.158245Z",
+                            "setupDelegationTime": 203,
+                            "setupTime": 3572,
+                            "start": "2026-05-27T18:42:52.882791Z",
+                            "teardownDelegationTime": 112,
+                            "teardownTime": 15,
+                            "runTime": 2750756
+                        }
+                    ],
+                    "responseSize": 68282
+                },
+                "responseTree": {
+                    "responseSize": 90616,
+                    "stages": [
+                        {
+                            "jobs": [
+                                {
+                                    "performancePoint": {
+                                        "$type": "G4",
+                                        "driverSetupTime": 5173,
+                                        "sessionTime": 17878090,
+                                        "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                        "end": "2026-05-27T18:42:50.870699Z",
+                                        "setupDelegationTime": 1231,
+                                        "setupTime": 14558,
+                                        "start": "2026-05-27T18:42:49.117573Z",
+                                        "teardownDelegationTime": 917,
+                                        "teardownTime": 265,
+                                        "runTime": 17531258
+                                    },
+                                    "plugins": [
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "OpenUrl",
+                                                    "description": "OpenUrl navigates the current browser window to a URL using the WebDriver navigate-to command. The URL is taken directly from the 'Argument' property when no element is provided, or extracted from an element's text content or a named attribute and filtered by 'RegularExpression' when 'OnElement' is specified. Unlike 'NewBrowserWindow', OpenUrl always navigates the current browsing context without opening a new window or tab.",
+                                                    "id": "11341836e46377",
+                                                    "jobReference": {
+                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                        "name": "G4™ Default Job",
+                                                        "id": "207272fc8408b",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                            "id": "6eb99648b893",
+                                                            "name": "G4™ Default Stage"
+                                                        }
+                                                    },
+                                                    "name": "OpenUrl",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:49.481174Z",
+                                                "setupDelegationTime": 169,
+                                                "setupTime": 2334,
+                                                "start": "2026-05-27T18:42:49.118106Z",
+                                                "teardownDelegationTime": 152,
+                                                "teardownTime": 40,
+                                                "runTime": 3628156
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "https://www.bing.com",
+                                                "capabilities": {
+                                                    "displayName": "Open Url"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "",
+                                                "pluginName": "OpenUrl",
+                                                "regularExpression": ""
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "SetWindowState",
+                                                    "description": "SetWindowState sets the browser window to 'Maximized', 'Minimized', or 'FullScreen' by calling the corresponding W3C WebDriver window command. The 'Argument' property selects the target state and is matched case-insensitively; an unrecognized or absent value is a safe no-op that returns normally without error. In RPA it normalizes window visibility and supports kiosk-mode presentation; in automation testing it enforces a consistent window state before screenshots, layout checks, or full-screen layout verification.",
+                                                    "id": "de39e5420564",
+                                                    "jobReference": {
+                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                        "name": "G4™ Default Job",
+                                                        "id": "207272fc8408b",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                            "id": "6eb99648b893",
+                                                            "name": "G4™ Default Stage"
+                                                        }
+                                                    },
+                                                    "name": "SetWindowState",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:49.511549Z",
+                                                "setupDelegationTime": 129,
+                                                "setupTime": 1546,
+                                                "start": "2026-05-27T18:42:49.484112Z",
+                                                "teardownDelegationTime": 163,
+                                                "teardownTime": 41,
+                                                "runTime": 272671
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "Maximized",
+                                                "capabilities": {
+                                                    "displayName": "Set Window State"
+                                                },
+                                                "onAttribute": "",
+                                                "onElement": "",
+                                                "pluginName": "SetWindowState",
+                                                "regularExpression": "(?s).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "SendKeys",
+                                                    "description": "SendKeys sends keystrokes to a target element in the UI, supporting configurable delay between characters, pre-clearing via native backspace or standard WebDriver clear, and keyboard modifier combinations. The Keys parameter supplies the text to type; when absent the Argument value is used as a fallback. In RPA it automates text entry in forms, search boxes, and text areas; in automation testing it verifies input field behavior, keyboard shortcuts, and typing-speed scenarios.",
+                                                    "id": "116e24315367a4",
+                                                    "jobReference": {
+                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                        "name": "G4™ Default Job",
+                                                        "id": "207272fc8408b",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                            "id": "6eb99648b893",
+                                                            "name": "G4™ Default Stage"
+                                                        }
+                                                    },
+                                                    "name": "SendKeys",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:49.679876Z",
+                                                "setupDelegationTime": 284,
+                                                "setupTime": 2412,
+                                                "start": "2026-05-27T18:42:49.514988Z",
+                                                "teardownDelegationTime": 82,
+                                                "teardownTime": 31,
+                                                "runTime": 1646155
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Keys:Automation}}",
+                                                "capabilities": {
+                                                    "displayName": "Send Keys"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//textarea[@name='q']",
+                                                "pluginName": "SendKeys",
+                                                "regularExpression": "(?si).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "InvokeClick",
+                                                    "description": "InvokeClick clicks a target element or the current mouse position, making it the primary way to trigger click interactions in an automation workflow. It supports a conditional mode that repeats the click at a configurable polling interval until a named assertion — such as an alert appearing or an attribute reaching a value — passes or a timeout elapses. In RPA it handles form submissions, modal dismissals, alert handling, and attribute-driven navigation; in automation testing it verifies click responses, dynamic state transitions, and attribute changes driven by repeated interaction.",
+                                                    "id": "18e683687bf713",
+                                                    "jobReference": {
+                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                        "name": "G4™ Default Job",
+                                                        "id": "207272fc8408b",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                            "id": "6eb99648b893",
+                                                            "name": "G4™ Default Stage"
+                                                        }
+                                                    },
+                                                    "name": "InvokeClick",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:50.800973Z",
+                                                "setupDelegationTime": 174,
+                                                "setupTime": 2104,
+                                                "start": "2026-05-27T18:42:49.683153Z",
+                                                "teardownDelegationTime": 154,
+                                                "teardownTime": 28,
+                                                "runTime": 11175886
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Polling:1500}}",
+                                                "capabilities": {
+                                                    "displayName": "Invoke Click"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//ul[@role='listbox']/li",
+                                                "pluginName": "InvokeClick",
+                                                "regularExpression": "(?s).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [
+                                                {
+                                                    "entities": [
+                                                        {
+                                                            "content": {
+                                                                "Actual": false,
+                                                                "Condition": "Greater",
+                                                                "Expected": "5",
+                                                                "Operator": "Greater",
+                                                                "Evaluation": false,
+                                                                "ReasonPhrase": "The 'Greater' condition '(Greater)' didn't match. The expected value was '5', but '' was found instead. Please review and adjust accordingly."
+                                                            }
+                                                        }
+                                                    ],
+                                                    "reference": {
+                                                        "alias": "Assert",
+                                                        "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                        "id": "3555fd0482892",
+                                                        "jobReference": {
+                                                            "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                            "name": "G4™ Default Job",
+                                                            "id": "207272fc8408b",
+                                                            "stageReference": {
+                                                                "automationReference": {
+                                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                    "id": "36d443d67ef48"
+                                                                },
+                                                                "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                "id": "6eb99648b893",
+                                                                "name": "G4™ Default Stage"
+                                                            }
+                                                        },
+                                                        "name": "Assert",
+                                                        "type": "Action"
+                                                    },
+                                                    "session": {
+                                                        "id": "f61b8d912a1ef8e3d443baeb42955958",
+                                                        "machineIp": "172.29.176.1",
+                                                        "machineName": "DESKTOP-6O5GJPR"
+                                                    }
+                                                }
+                                            ],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "Assert",
+                                                    "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                    "id": "3555fd0482892",
+                                                    "jobReference": {
+                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                        "name": "G4™ Default Job",
+                                                        "id": "207272fc8408b",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                            "id": "6eb99648b893",
+                                                            "name": "G4™ Default Stage"
+                                                        }
+                                                    },
+                                                    "name": "Assert",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:50.867749Z",
+                                                "setupDelegationTime": 204,
+                                                "setupTime": 2137,
+                                                "start": "2026-05-27T18:42:50.804004Z",
+                                                "teardownDelegationTime": 121,
+                                                "teardownTime": 42,
+                                                "runTime": 635080
+                                            },
+                                            "plugins": [
+                                                {
+                                                    "exceptions": [],
+                                                    "extractions": [],
+                                                    "performancePoint": {
+                                                        "reference": {
+                                                            "alias": "ElementCount",
+                                                            "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                                            "id": "7d68bd82-90d3-4b1f-8215-58eb33f81842",
+                                                            "jobReference": {
+                                                                "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                                "name": "G4™ Default Job",
+                                                                "id": "207272fc8408b",
+                                                                "stageReference": {
+                                                                    "automationReference": {
+                                                                        "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                        "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                        "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                        "id": "36d443d67ef48"
+                                                                    },
+                                                                    "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                    "id": "6eb99648b893",
+                                                                    "name": "G4™ Default Stage"
+                                                                }
+                                                            },
+                                                            "name": "ElementCount",
+                                                            "parentReference": {
+                                                                "alias": "Assert",
+                                                                "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                                "id": "3555fd0482892",
+                                                                "jobReference": {
+                                                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                                    "name": "G4™ Default Job",
+                                                                    "id": "207272fc8408b",
+                                                                    "stageReference": {
+                                                                        "automationReference": {
+                                                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                            "id": "36d443d67ef48"
+                                                                        },
+                                                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                        "id": "6eb99648b893",
+                                                                        "name": "G4™ Default Stage"
+                                                                    }
+                                                                },
+                                                                "name": "Assert",
+                                                                "type": "Action"
+                                                            },
+                                                            "type": "Assertion"
+                                                        },
+                                                        "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                        "end": "2026-05-27T18:42:50.859151Z",
+                                                        "setupDelegationTime": 143,
+                                                        "setupTime": 2118,
+                                                        "start": "2026-05-27T18:42:50.807642Z",
+                                                        "teardownDelegationTime": 145,
+                                                        "teardownTime": 48,
+                                                        "runTime": 512791
+                                                    },
+                                                    "plugins": [
+                                                        {
+                                                            "exceptions": [],
+                                                            "extractions": [],
+                                                            "performancePoint": {
+                                                                "reference": {
+                                                                    "alias": "Greater",
+                                                                    "description": "The GreaterOperator plugin compares two numeric values and returns true if the first value is strictly greater than the second.It outputs a true or false result that controls conditional branches in automation workflows and tests.This lets automation scripts make dynamic decisions based on numeric comparisons and integrate with other actions.",
+                                                                    "id": "8d804479-30c6-43f5-b63f-f0e8ff3d9323",
+                                                                    "jobReference": {
+                                                                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                                        "name": "G4™ Default Job",
+                                                                        "id": "207272fc8408b",
+                                                                        "stageReference": {
+                                                                            "automationReference": {
+                                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                "id": "36d443d67ef48"
+                                                                            },
+                                                                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                            "id": "6eb99648b893",
+                                                                            "name": "G4™ Default Stage"
+                                                                        }
+                                                                    },
+                                                                    "name": "Greater",
+                                                                    "parentReference": {
+                                                                        "alias": "ElementCount",
+                                                                        "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                                                        "id": "7d68bd82-90d3-4b1f-8215-58eb33f81842",
+                                                                        "jobReference": {
+                                                                            "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                                            "name": "G4™ Default Job",
+                                                                            "id": "207272fc8408b",
+                                                                            "stageReference": {
+                                                                                "automationReference": {
+                                                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                    "id": "36d443d67ef48"
+                                                                                },
+                                                                                "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                                "id": "6eb99648b893",
+                                                                                "name": "G4™ Default Stage"
+                                                                            }
+                                                                        },
+                                                                        "name": "ElementCount",
+                                                                        "parentReference": {
+                                                                            "alias": "Assert",
+                                                                            "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                                            "id": "3555fd0482892",
+                                                                            "jobReference": {
+                                                                                "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                                                                "name": "G4™ Default Job",
+                                                                                "id": "207272fc8408b",
+                                                                                "stageReference": {
+                                                                                    "automationReference": {
+                                                                                        "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                        "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                        "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                        "id": "36d443d67ef48"
+                                                                                    },
+                                                                                    "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                                                                    "id": "6eb99648b893",
+                                                                                    "name": "G4™ Default Stage"
+                                                                                }
+                                                                            },
+                                                                            "name": "Assert",
+                                                                            "type": "Action"
+                                                                        },
+                                                                        "type": "Assertion"
+                                                                    },
+                                                                    "type": "Operator"
+                                                                },
+                                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                                "end": "2026-05-27T18:42:50.863753Z",
+                                                                "setupDelegationTime": 128,
+                                                                "setupTime": 1907,
+                                                                "start": "2026-05-27T18:42:50.862811Z",
+                                                                "teardownDelegationTime": 100,
+                                                                "teardownTime": 35,
+                                                                "runTime": 7351
+                                                            },
+                                                            "rule": {
+                                                                "$type": "Action",
+                                                                "argument": "{{$ --LeftHand: --RightHand:5}}",
+                                                                "capabilities": {},
+                                                                "onAttribute": "",
+                                                                "onElement": "",
+                                                                "pluginName": "Greater",
+                                                                "regularExpression": "(?s).*"
+                                                            }
+                                                        }
+                                                    ],
+                                                    "rule": {
+                                                        "$type": "Action",
+                                                        "argument": "{{$ --Expected:5 --Operator:Greater}}",
+                                                        "capabilities": {},
+                                                        "locator": "Xpath",
+                                                        "onAttribute": "",
+                                                        "onElement": "//a",
+                                                        "pluginName": "ElementCount",
+                                                        "regularExpression": ""
+                                                    }
+                                                }
+                                            ],
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Condition:ElementCount --Expected:5 --Operator:Greater}}",
+                                                "capabilities": {
+                                                    "displayName": "Assert"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//a",
+                                                "pluginName": "Assert",
+                                                "regularExpression": ""
+                                            }
+                                        }
+                                    ],
+                                    "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                                    "name": "G4™ Default Job",
+                                    "id": "207272fc8408b",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                                        "id": "6eb99648b893",
+                                        "name": "G4™ Default Stage"
+                                    }
+                                }
+                            ],
+                            "performancePoint": {
+                                "$type": "G4",
+                                "driverSetupTime": 5191,
+                                "sessionTime": 17531258,
+                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                "end": "2026-05-27T18:42:50.870716Z",
+                                "setupDelegationTime": 1231,
+                                "setupTime": 14558,
+                                "start": "2026-05-27T18:42:49.117044Z",
+                                "teardownDelegationTime": 917,
+                                "teardownTime": 265,
+                                "runTime": 17536717
+                            },
+                            "automationReference": {
+                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                "id": "36d443d67ef48"
+                            },
+                            "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                            "id": "6eb99648b893",
+                            "name": "G4™ Default Stage"
+                        },
+                        {
+                            "jobs": [
+                                {
+                                    "performancePoint": {
+                                        "$type": "G4",
+                                        "driverSetupTime": 8307,
+                                        "sessionTime": 23131655,
+                                        "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                        "end": "2026-05-27T18:42:53.161523Z",
+                                        "setupDelegationTime": 1728,
+                                        "setupTime": 17814,
+                                        "start": "2026-05-27T18:42:50.871604Z",
+                                        "teardownDelegationTime": 803,
+                                        "teardownTime": 178,
+                                        "runTime": 22899187
+                                    },
+                                    "plugins": [
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "OpenUrl",
+                                                    "description": "OpenUrl navigates the current browser window to a URL using the WebDriver navigate-to command. The URL is taken directly from the 'Argument' property when no element is provided, or extracted from an element's text content or a named attribute and filtered by 'RegularExpression' when 'OnElement' is specified. Unlike 'NewBrowserWindow', OpenUrl always navigates the current browsing context without opening a new window or tab.",
+                                                    "id": "1652087367e1a4c3adf1a45bee383b6f",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "OpenUrl",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:51.164626Z",
+                                                "setupDelegationTime": 272,
+                                                "setupTime": 2694,
+                                                "start": "2026-05-27T18:42:50.872461Z",
+                                                "teardownDelegationTime": 71,
+                                                "teardownTime": 19,
+                                                "runTime": 2918638
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "https://www.bing.com",
+                                                "capabilities": {
+                                                    "displayName": "Open Url"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "",
+                                                "pluginName": "OpenUrl",
+                                                "regularExpression": ""
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "SetWindowState",
+                                                    "description": "SetWindowState sets the browser window to 'Maximized', 'Minimized', or 'FullScreen' by calling the corresponding W3C WebDriver window command. The 'Argument' property selects the target state and is matched case-insensitively; an unrecognized or absent value is a safe no-op that returns normally without error. In RPA it normalizes window visibility and supports kiosk-mode presentation; in automation testing it enforces a consistent window state before screenshots, layout checks, or full-screen layout verification.",
+                                                    "id": "16946417c56e0b12a9f0e28949f1e1f7",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "SetWindowState",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:51.170530Z",
+                                                "setupDelegationTime": 289,
+                                                "setupTime": 2164,
+                                                "start": "2026-05-27T18:42:51.167804Z",
+                                                "teardownDelegationTime": 135,
+                                                "teardownTime": 74,
+                                                "runTime": 24790
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "Maximized",
+                                                "capabilities": {
+                                                    "displayName": "Set Window State"
+                                                },
+                                                "onAttribute": "",
+                                                "onElement": "",
+                                                "pluginName": "SetWindowState",
+                                                "regularExpression": "(?s).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "SendKeys",
+                                                    "description": "SendKeys sends keystrokes to a target element in the UI, supporting configurable delay between characters, pre-clearing via native backspace or standard WebDriver clear, and keyboard modifier combinations. The Keys parameter supplies the text to type; when absent the Argument value is used as a fallback. In RPA it automates text entry in forms, search boxes, and text areas; in automation testing it verifies input field behavior, keyboard shortcuts, and typing-speed scenarios.",
+                                                    "id": "9326a04f817d8aa83bb8ddc27d77e4b5",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "SendKeys",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:51.257424Z",
+                                                "setupDelegationTime": 286,
+                                                "setupTime": 2176,
+                                                "start": "2026-05-27T18:42:51.174118Z",
+                                                "teardownDelegationTime": 81,
+                                                "teardownTime": 12,
+                                                "runTime": 830579
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Keys:Automation}}",
+                                                "capabilities": {
+                                                    "displayName": "Send Keys"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//textarea[@name='q']",
+                                                "pluginName": "SendKeys",
+                                                "regularExpression": "(?si).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "InvokeClick",
+                                                    "description": "InvokeClick clicks a target element or the current mouse position, making it the primary way to trigger click interactions in an automation workflow. It supports a conditional mode that repeats the click at a configurable polling interval until a named assertion — such as an alert appearing or an attribute reaching a value — passes or a timeout elapses. In RPA it handles form submissions, modal dismissals, alert handling, and attribute-driven navigation; in automation testing it verifies click responses, dynamic state transitions, and attribute changes driven by repeated interaction.",
+                                                    "id": "d4997752e8e1d213159cbe6ad6771d0b",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "InvokeClick",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:52.819103Z",
+                                                "setupDelegationTime": 174,
+                                                "setupTime": 1569,
+                                                "start": "2026-05-27T18:42:51.260754Z",
+                                                "teardownDelegationTime": 81,
+                                                "teardownTime": 9,
+                                                "runTime": 15581732
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Polling:1500}}",
+                                                "capabilities": {
+                                                    "displayName": "Invoke Click"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//ul[@role='listbox']/li",
+                                                "pluginName": "InvokeClick",
+                                                "regularExpression": "(?s).*"
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [
+                                                {
+                                                    "entities": [
+                                                        {
+                                                            "content": {
+                                                                "Actual": false,
+                                                                "Condition": "Greater",
+                                                                "Expected": "5",
+                                                                "Operator": "Greater",
+                                                                "Evaluation": false,
+                                                                "ReasonPhrase": "The 'Greater' condition '(Greater)' didn't match. The expected value was '5', but '' was found instead. Please review and adjust accordingly."
+                                                            }
+                                                        }
+                                                    ],
+                                                    "reference": {
+                                                        "alias": "Assert",
+                                                        "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                        "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                                        "jobReference": {
+                                                            "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                            "name": "Job",
+                                                            "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                            "stageReference": {
+                                                                "automationReference": {
+                                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                    "id": "36d443d67ef48"
+                                                                },
+                                                                "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                "name": "Stage"
+                                                            }
+                                                        },
+                                                        "name": "Assert",
+                                                        "type": "Action"
+                                                    },
+                                                    "session": {
+                                                        "id": "f61b8d912a1ef8e3d443baeb42955958",
+                                                        "machineIp": "172.29.176.1",
+                                                        "machineName": "DESKTOP-6O5GJPR"
+                                                    }
+                                                }
+                                            ],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "Assert",
+                                                    "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                    "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "Assert",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:52.879805Z",
+                                                "setupDelegationTime": 198,
+                                                "setupTime": 1978,
+                                                "start": "2026-05-27T18:42:52.822677Z",
+                                                "teardownDelegationTime": 112,
+                                                "teardownTime": 15,
+                                                "runTime": 569088
+                                            },
+                                            "plugins": [
+                                                {
+                                                    "exceptions": [],
+                                                    "extractions": [],
+                                                    "performancePoint": {
+                                                        "reference": {
+                                                            "alias": "ElementCount",
+                                                            "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                                            "id": "2bc80820-c83f-47bb-8392-70d7a4fe00ee",
+                                                            "jobReference": {
+                                                                "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                                "name": "Job",
+                                                                "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                                "stageReference": {
+                                                                    "automationReference": {
+                                                                        "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                        "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                        "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                        "id": "36d443d67ef48"
+                                                                    },
+                                                                    "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                    "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                    "name": "Stage"
+                                                                }
+                                                            },
+                                                            "name": "ElementCount",
+                                                            "parentReference": {
+                                                                "alias": "Assert",
+                                                                "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                                "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                                                "jobReference": {
+                                                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                                    "name": "Job",
+                                                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                                    "stageReference": {
+                                                                        "automationReference": {
+                                                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                            "id": "36d443d67ef48"
+                                                                        },
+                                                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                        "name": "Stage"
+                                                                    }
+                                                                },
+                                                                "name": "Assert",
+                                                                "type": "Action"
+                                                            },
+                                                            "type": "Assertion"
+                                                        },
+                                                        "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                        "end": "2026-05-27T18:42:52.871800Z",
+                                                        "setupDelegationTime": 112,
+                                                        "setupTime": 1724,
+                                                        "start": "2026-05-27T18:42:52.826421Z",
+                                                        "teardownDelegationTime": 116,
+                                                        "teardownTime": 21,
+                                                        "runTime": 451938
+                                                    },
+                                                    "plugins": [
+                                                        {
+                                                            "exceptions": [],
+                                                            "extractions": [],
+                                                            "performancePoint": {
+                                                                "reference": {
+                                                                    "alias": "Greater",
+                                                                    "description": "The GreaterOperator plugin compares two numeric values and returns true if the first value is strictly greater than the second.It outputs a true or false result that controls conditional branches in automation workflows and tests.This lets automation scripts make dynamic decisions based on numeric comparisons and integrate with other actions.",
+                                                                    "id": "c70838ce-b84a-4ce4-b055-c92ee145ff34",
+                                                                    "jobReference": {
+                                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                                        "name": "Job",
+                                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                                        "stageReference": {
+                                                                            "automationReference": {
+                                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                "id": "36d443d67ef48"
+                                                                            },
+                                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                            "name": "Stage"
+                                                                        }
+                                                                    },
+                                                                    "name": "Greater",
+                                                                    "parentReference": {
+                                                                        "alias": "ElementCount",
+                                                                        "description": "The 'ElementCount' plugin validates the number of elements matching a specified locator, supporting a range of operators for flexible assertion.It is commonly used in RPA to verify the presence of multiple elements, dynamic content, and form field counts, and in automation testing to ensure UI consistency, correct pagination, and proper dynamic content loading.",
+                                                                        "id": "2bc80820-c83f-47bb-8392-70d7a4fe00ee",
+                                                                        "jobReference": {
+                                                                            "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                                            "name": "Job",
+                                                                            "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                                            "stageReference": {
+                                                                                "automationReference": {
+                                                                                    "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                    "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                    "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                    "id": "36d443d67ef48"
+                                                                                },
+                                                                                "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                                "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                                "name": "Stage"
+                                                                            }
+                                                                        },
+                                                                        "name": "ElementCount",
+                                                                        "parentReference": {
+                                                                            "alias": "Assert",
+                                                                            "description": "Validates conditions during automation runs by comparing actual values against expected values. Supports text, numerical, element visibility, and attribute checks with multiple comparison operators. Reports mismatches in the response and logs failures for debugging.",
+                                                                            "id": "eb6b8d26761362b22298a2ad3c9e75ff",
+                                                                            "jobReference": {
+                                                                                "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                                                "name": "Job",
+                                                                                "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                                                "stageReference": {
+                                                                                    "automationReference": {
+                                                                                        "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                                        "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                                        "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                                        "id": "36d443d67ef48"
+                                                                                    },
+                                                                                    "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                                                    "id": "229bec1d05d3a334a987aea47e5023de",
+                                                                                    "name": "Stage"
+                                                                                }
+                                                                            },
+                                                                            "name": "Assert",
+                                                                            "type": "Action"
+                                                                        },
+                                                                        "type": "Assertion"
+                                                                    },
+                                                                    "type": "Operator"
+                                                                },
+                                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                                "end": "2026-05-27T18:42:52.875881Z",
+                                                                "setupDelegationTime": 194,
+                                                                "setupTime": 1937,
+                                                                "start": "2026-05-27T18:42:52.875253Z",
+                                                                "teardownDelegationTime": 95,
+                                                                "teardownTime": 13,
+                                                                "runTime": 4134
+                                                            },
+                                                            "rule": {
+                                                                "$type": "Action",
+                                                                "argument": "{{$ --LeftHand: --RightHand:5}}",
+                                                                "capabilities": {},
+                                                                "onAttribute": "",
+                                                                "onElement": "",
+                                                                "pluginName": "Greater",
+                                                                "regularExpression": "(?s).*"
+                                                            }
+                                                        }
+                                                    ],
+                                                    "rule": {
+                                                        "$type": "Action",
+                                                        "argument": "{{$ --Expected:5 --Operator:Greater}}",
+                                                        "capabilities": {},
+                                                        "locator": "Xpath",
+                                                        "onAttribute": "",
+                                                        "onElement": "//a",
+                                                        "pluginName": "ElementCount",
+                                                        "regularExpression": ""
+                                                    }
+                                                }
+                                            ],
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "{{$ --Condition:ElementCount --Expected:5 --Operator:Greater}}",
+                                                "capabilities": {
+                                                    "displayName": "Assert"
+                                                },
+                                                "locator": "Xpath",
+                                                "onAttribute": "",
+                                                "onElement": "//a",
+                                                "pluginName": "Assert",
+                                                "regularExpression": ""
+                                            }
+                                        },
+                                        {
+                                            "exceptions": [],
+                                            "extractions": [],
+                                            "performancePoint": {
+                                                "reference": {
+                                                    "alias": "CloseBrowser",
+                                                    "description": "CloseBrowser terminates the current browser session by closing the browser window and releasing the underlying WebDriver instance. In robotic process automation it provides a clean session teardown that frees system resources and prevents orphaned browser processes from accumulating. In automation testing it ensures each test run concludes with a proper session cleanup, supporting reliable parallel execution and consistent test isolation.",
+                                                    "id": "13999166321f51",
+                                                    "jobReference": {
+                                                        "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                                        "name": "Job",
+                                                        "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                                        "stageReference": {
+                                                            "automationReference": {
+                                                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                                                "id": "36d443d67ef48"
+                                                            },
+                                                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                                            "id": "229bec1d05d3a334a987aea47e5023de",
+                                                            "name": "Stage"
+                                                        }
+                                                    },
+                                                    "name": "CloseBrowser",
+                                                    "type": "Action"
+                                                },
+                                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                                "end": "2026-05-27T18:42:53.158245Z",
+                                                "setupDelegationTime": 203,
+                                                "setupTime": 3572,
+                                                "start": "2026-05-27T18:42:52.882791Z",
+                                                "teardownDelegationTime": 112,
+                                                "teardownTime": 15,
+                                                "runTime": 2750756
+                                            },
+                                            "rule": {
+                                                "$type": "Action",
+                                                "argument": "",
+                                                "capabilities": {
+                                                    "displayName": "Close Browser"
+                                                },
+                                                "onAttribute": "",
+                                                "onElement": "",
+                                                "pluginName": "CloseBrowser",
+                                                "regularExpression": "(?s).*"
+                                            }
+                                        }
+                                    ],
+                                    "description": "\n        A container that holds actions, organizing and executing them as part of a job within a stage.\n        Job containers manage specific tasks, handle dependencies between actions, coordinate execution,\n        and ensure efficient resource utilization and error handling within the automation sequence.\n        By encapsulating related actions, job containers facilitate modularity, scalability, and maintainability,\n        allowing complex automation workflows to be broken down into manageable and reusable components.",
+                                    "name": "Job",
+                                    "id": "a05af1f7b97c298be26f3a1f61763ed7",
+                                    "stageReference": {
+                                        "automationReference": {
+                                            "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                            "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                            "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                            "id": "36d443d67ef48"
+                                        },
+                                        "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                                        "id": "229bec1d05d3a334a987aea47e5023de",
+                                        "name": "Stage"
+                                    }
+                                }
+                            ],
+                            "performancePoint": {
+                                "$type": "G4",
+                                "driverSetupTime": 8656,
+                                "sessionTime": 22899187,
+                                "driverSession": "f61b8d912a1ef8e3d443baeb42955958",
+                                "end": "2026-05-27T18:42:53.161542Z",
+                                "setupDelegationTime": 1728,
+                                "setupTime": 17814,
+                                "start": "2026-05-27T18:42:50.870732Z",
+                                "teardownDelegationTime": 803,
+                                "teardownTime": 178,
+                                "runTime": 22908101
+                            },
+                            "automationReference": {
+                                "description": "Default Automation Pipeline in the G4™ automation engine.",
+                                "name": "2026-05-27T18:42:47.908695Z: Untitled Automation",
+                                "groupId": "7a89e765-12cc-4920-9786-42fc5503c63f",
+                                "id": "36d443d67ef48"
+                            },
+                            "description": "\n        A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.\n        Stages organize tasks into logical groups, enabling efficient execution, resource allocation, monitoring, and error handling within the automation sequence.",
+                            "id": "229bec1d05d3a334a987aea47e5023de",
+                            "name": "Stage"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}`);
+
+// ── helpers ────────────────────────────────────────────────────────────────
+
+function tickMs(t) { return t / 10000; }
+
+function fmtDur(ticks) {
+  if (ticks == null) return '—';
+  const m = tickMs(ticks);
+  if (m >= 1000) return (m / 1000).toFixed(2) + ' s';
+  if (m >= 1)    return m.toFixed(0) + ' ms';
+  return '< 1 ms';
+}
+
+function fmtBytes(b) {
+  if (b == null) return '—';
+  return b >= 1024 ? (b / 1024).toFixed(1) + ' KB' : b + ' B';
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function trunc(s, n) {
+  s = String(s ?? '');
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function pluginStatus(plugin) {
+  for (const ext of (plugin.extractions || [])) {
+    for (const ent of (ext.entities || [])) {
+      const ev = ent.content?.Evaluation;
+      if (ev === false) return 'fail';
+      if (ev === true)  return 'pass';
+    }
+  }
+  if ((plugin.exceptions || []).length > 0) return 'fail';
+  return 'neutral';
+}
+
+function refType(plugin) {
+  return plugin.performancePoint?.reference?.type || 'Action';
+}
+
+function collectAll(plugins, out = []) {
+  for (const p of (plugins || [])) {
+    out.push(p);
+    collectAll(p.plugins, out);
+  }
+  return out;
+}
+
+function collectAssertions(plugins, out = []) {
+  for (const p of (plugins || [])) {
+    for (const ext of (p.extractions || [])) {
+      for (const ent of (ext.entities || [])) {
+        out.push({
+          pluginName: p.performancePoint?.reference?.name || p.rule?.pluginName || '?',
+          pluginType: refType(p),
+          content: ent.content || {},
+          session: ext.session
+        });
+      }
+    }
+    collectAssertions(p.plugins, out);
+  }
+  return out;
+}
+
+function findMachineInfo(stages) {
+  for (const stage of (stages || [])) {
+    for (const job of (stage.jobs || [])) {
+      for (const p of collectAll(job.plugins)) {
+        for (const ext of (p.extractions || [])) {
+          if (ext.session?.machineName) return ext.session;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// ── stat cards ─────────────────────────────────────────────────────────────
+
+function renderCards(pp, session) {
+  const totalRunMs = tickMs(pp.runTime);
+  const items = [
+    { label: 'Total Run', value: fmtDur(pp.runTime) },
+    { label: 'Session', value: fmtDur(pp.sessionTime) },
+    { label: 'Auth', value: fmtDur(pp.authenticationTime) },
+    { label: 'Driver Setup', value: fmtDur(pp.driverSetupTime) },
+    { label: 'Setup', value: fmtDur(pp.setupTime) },
+    { label: 'Teardown', value: fmtDur(pp.teardownTime) },
+    { label: 'Request', value: fmtBytes(session.requestSize) },
+    { label: 'Response', value: fmtBytes(session.responseData?.responseSize) },
+  ];
+
+  const bars = [
+    { cls: 't-seg-setup-d',   pct: pct(pp.driverSetupTime, pp.runTime),   label: 'Driver Setup' },
+    { cls: 't-seg-setup',     pct: pct(pp.authenticationTime, pp.runTime), label: 'Auth' },
+    { cls: 't-seg-run',       pct: pct(pp.sessionTime, pp.runTime),        label: 'Session' },
+    { cls: 't-seg-teardown',  pct: pct(pp.setupTime, pp.runTime),          label: 'Setup' },
+    { cls: 't-seg-teardown-d',pct: pct(pp.teardownTime, pp.runTime),       label: 'Teardown' },
+  ];
+
+  function pct(a, b) { return b > 0 ? Math.max(1, (a / b) * 100) : 0; }
+
+  return `
+  <div class="cards">
+    ${items.map(c => `<div class="card"><div class="card-label">${esc(c.label)}</div><div class="card-value">${esc(c.value)}</div></div>`).join('')}
+  </div>
+  <div style="margin-top:14px;background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px;">
+    <div class="card-label" style="margin-bottom:8px">Time Breakdown</div>
+    <div class="t-breakdown">
+      ${bars.map(b => `<div class="t-seg ${esc(b.cls)}" style="flex:${b.pct.toFixed(1)}" title="${esc(b.label)}: ${fmtDur(pp[b.label])}"></div>`).join('')}
+    </div>
+    <div class="t-legend">
+      ${bars.map(b => `<div class="t-legend-item"><div class="t-legend-dot ${esc(b.cls)}"></div>${esc(b.label)}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── plugin tree ─────────────────────────────────────────────────────────────
+
+let _pid = 0;
+
+function renderPlugin(plugin, depth, jobRunTime) {
+  const id = 'p' + (_pid++);
+  const ref  = plugin.performancePoint?.reference || {};
+  const pp   = plugin.performancePoint || {};
+  const rule = plugin.rule || {};
+  const type = ref.type || 'Action';
+  const name = ref.name || rule.pluginName || '?';
+  const display = rule.capabilities?.displayName || name;
+  const arg   = rule.argument || '';
+  const elem  = rule.onElement || '';
+  const rt    = pp.runTime || 0;
+  const barPct = jobRunTime > 0 ? Math.min(100, (tickMs(rt) / tickMs(jobRunTime)) * 100) : 0;
+  const status = pluginStatus(plugin);
+  const hasKids = (plugin.plugins || []).length > 0;
+
+  const kidsHtml = hasKids
+    ? `<div class="p-children hidden" id="ck-${id}">${(plugin.plugins || []).map(c => renderPlugin(c, depth + 1, rt || jobRunTime)).join('')}</div>`
+    : '';
+
+  const descTitle = ref.description ? esc(trunc(ref.description, 200)) : '';
+
+  return `<div>
+    <div class="plugin-row" style="padding-left:${6 + depth * 20}px" onclick="togPlugin('${id}')" title="${descTitle}">
+      <div class="p-toggle">${hasKids ? `<i class="chev" id="ci-${id}">&#9658;</i>` : '<span style="opacity:0;font-size:9px">&#9658;</span>'}</div>
+      <span class="p-badge badge-${esc(type)}">${esc(type)}</span>
+      <span class="p-name">${esc(display)}</span>
+      ${arg  ? `<span class="p-arg">${esc(trunc(arg, 55))}</span>` : ''}
+      ${elem ? `<span class="p-elem">&#x2022; ${esc(trunc(elem, 40))}</span>` : ''}
+      <span class="p-spacer"></span>
+      <div class="p-bar-wrap"><div class="p-bar bar-${esc(type)}" style="width:${barPct.toFixed(1)}%"></div></div>
+      <span class="p-dur">${fmtDur(rt)}</span>
+      <div class="p-dot dot-${status}" title="${status}"></div>
+    </div>
+    ${kidsHtml}
+  </div>`;
+}
+
+function renderTree(stages) {
+  if (!stages?.length) return '<div class="no-data">No stages.</div>';
+  return stages.map(stage => {
+    const jobs = stage.jobs || [];
+    return `<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;font-weight:700;color:#f0f6fc;font-size:13px;cursor:pointer;border-radius:6px"
+           onclick="togEl('st-${esc(stage.id)}','si-${esc(stage.id)}')">
+        <i class="chev open" id="si-${esc(stage.id)}">&#9658;</i>
+        <svg width="14" height="14" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="3" fill="#1f3a5f" stroke="#58a6ff" stroke-width="1.5"/><path d="M4 8h8M8 4v8" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        ${esc(stage.name)}
+        <span style="color:#8b949e;font-weight:400;font-size:11px">${jobs.length} job${jobs.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div id="st-${esc(stage.id)}">
+        ${jobs.map(job => {
+          const plugins = job.plugins || [];
+          const jobRt = job.performancePoint?.runTime || 0;
+          return `<div style="margin-left:18px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;color:#c9d1d9;font-size:12px;font-weight:600;cursor:pointer;border-radius:6px"
+                 onclick="togEl('jb-${esc(job.id)}','ji-${esc(job.id)}')">
+              <i class="chev open" id="ji-${esc(job.id)}">&#9658;</i>
+              <svg width="12" height="12" viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2" fill="#1f3a5f" stroke="#58a6ff" stroke-width="1.5"/><path d="M5 8h6" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round"/></svg>
+              ${esc(job.name)}
+              <span style="color:#8b949e;font-weight:400;font-size:11px">${plugins.length} plugin${plugins.length !== 1 ? 's' : ''} &bull; ${fmtDur(jobRt)}</span>
+            </div>
+            <div id="jb-${esc(job.id)}">
+              ${plugins.map(p => renderPlugin(p, 0, jobRt)).join('')}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── timeline ────────────────────────────────────────────────────────────────
+
+function renderTimeline(stages, sessionStart, sessionEnd) {
+  const t0 = new Date(sessionStart).getTime();
+  const t1 = new Date(sessionEnd).getTime();
+  const span = Math.max(t1 - t0, 1);
+
+  const ROW = 24, LW = 155, CW = 740, AH = 20, PAD = 6;
+  const TYPE_CLR = { Action: '#4e9eff', Assertion: '#e3b341', Operator: '#b57bee' };
+
+  function flatPlugins(plugins, depth, out) {
+    for (const p of (plugins || [])) {
+      const ref  = p.performancePoint?.reference || {};
+      const name = ref.name || p.rule?.pluginName || '?';
+      const type = ref.type || 'Action';
+      const s = new Date(p.performancePoint?.start || sessionStart).getTime();
+      const e = new Date(p.performancePoint?.end   || sessionEnd).getTime();
+      out.push({ name, type, depth, s, e });
+      flatPlugins(p.plugins, depth + 1, out);
+    }
+  }
+
+  const rows = [];
+  for (const stage of (stages || []))
+    for (const job of (stage.jobs || []))
+      flatPlugins(job.plugins, 0, rows);
+
+  const svgH = ROW * rows.length + AH + PAD * 2;
+  const TICKS = 6;
+
+  const axisTicks = Array.from({ length: TICKS + 1 }, (_, i) => {
+    const x = LW + (i / TICKS) * CW;
+    const ms = (i / TICKS) * span;
+    const lbl = ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : Math.round(ms) + 'ms';
+    return `<line x1="${x}" y1="${PAD}" x2="${x}" y2="${PAD + ROW * rows.length}" stroke="#21262d" stroke-width="1"/>
+      <text x="${x}" y="${PAD + ROW * rows.length + 14}" text-anchor="middle" fill="#6e7681" font-size="10" font-family="Segoe UI,sans-serif">${lbl}</text>`;
+  }).join('');
+
+  const rowsSvg = rows.map((r, i) => {
+    const y = PAD + i * ROW;
+    const xS = LW + ((r.s - t0) / span) * CW;
+    const w  = Math.max(3, ((r.e - r.s) / span) * CW);
+    const clr = TYPE_CLR[r.type] || '#4e9eff';
+    const lx  = LW - 4 - r.depth * 14;
+    const bg  = i % 2 === 0 ? '#0d1117' : '#111827';
+    return `<rect x="0" y="${y}" width="${LW + CW}" height="${ROW}" fill="${bg}"/>
+      <text x="${lx}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="#c9d1d9" font-size="11" font-family="Segoe UI,sans-serif">${esc(trunc(r.name, 18))}</text>
+      <rect x="${xS.toFixed(1)}" y="${y + 5}" width="${w.toFixed(1)}" height="${ROW - 10}" rx="3" fill="${clr}" opacity=".85">
+        <title>${esc(r.name)}: ${fmtDur(null)} (${fmtTime(new Date(r.s).toISOString())} – ${fmtTime(new Date(r.e).toISOString())})</title>
+      </rect>`;
+  }).join('');
+
+  return `<div class="tl-wrap">
+    <svg width="${LW + CW + PAD}" height="${svgH}" style="display:block" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${LW + CW + PAD}" height="${svgH}" fill="#0d1117"/>
+      ${axisTicks}
+      ${rowsSvg}
+    </svg>
+    <div style="display:flex;gap:16px;margin-top:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#8b949e"><div style="width:10px;height:10px;border-radius:2px;background:#4e9eff"></div>Action</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#8b949e"><div style="width:10px;height:10px;border-radius:2px;background:#e3b341"></div>Assertion</div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#8b949e"><div style="width:10px;height:10px;border-radius:2px;background:#b57bee"></div>Operator</div>
+    </div>
+  </div>`;
+}
+
+// ── assertions table ────────────────────────────────────────────────────────
+
+function renderAssertions(assertions) {
+  if (!assertions.length) return '<div class="no-data">No assertion data found.</div>';
+  const rows = assertions.map(a => {
+    const c = a.content;
+    const ev = c.Evaluation;
+    const evClass = ev === true ? 'ev-pass' : ev === false ? 'ev-fail' : '';
+    const evText  = ev === true ? '&#10003; Pass' : ev === false ? '&#10007; Fail' : '—';
+    return `<tr>
+      <td><span class="p-badge badge-${esc(a.pluginType)}">${esc(a.pluginType)}</span> <strong>${esc(a.pluginName)}</strong></td>
+      <td class="mono">${esc(c.Condition || '—')}</td>
+      <td class="mono">${esc(c.Operator  || '—')}</td>
+      <td class="mono">${esc(c.Expected  ?? '—')}</td>
+      <td class="mono">${esc(String(c.Actual ?? '—'))}</td>
+      <td class="${evClass}">${evText}</td>
+      <td class="reason">${esc(c.ReasonPhrase || '—')}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="assert-tbl">
+    <thead><tr>
+      <th>Plugin</th><th>Condition</th><th>Operator</th>
+      <th>Expected</th><th>Actual</th><th>Result</th><th>Reason Phrase</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── header ──────────────────────────────────────────────────────────────────
+
+function renderHeader(automationRef, pp) {
+  const name = automationRef.name || 'Untitled Automation';
+  return `<div class="header">
+    <svg width="28" height="28" viewBox="0 0 28 28">
+      <rect width="28" height="28" rx="6" fill="#1f3a5f"/>
+      <path d="M7 14h14M14 7l7 7-7 7" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <div class="header-title">G4&#x2122; Automation Report</div>
+      <div class="header-meta">${esc(name)} &bull; ${esc(fmtDateTime(pp.start))}</div>
+    </div>
+    <div class="header-right">
+      <span class="tag tag-neutral mono" style="font-size:11px">${esc(pp.driverSession || '—')}</span>
+    </div>
+  </div>`;
+}
+
+// ── main ────────────────────────────────────────────────────────────────────
+
+function renderApp() {
+  const pp       = DATA.performancePoint || {};
+  const sessions = DATA.sessions || {};
+  const sids     = Object.keys(sessions);
+
+  let automationRef = {};
+  if (sids.length) {
+    const first  = sessions[sids[0]];
+    const stages = first.responseTree?.stages || [];
+    if (stages.length) automationRef = stages[0].automationReference || {};
+  }
+
+  const sessionHtml = sids.map((sid, idx) => {
+    const session  = sessions[sid];
+    const spp      = session.performancePoint || {};
+    const stages   = session.responseTree?.stages || [];
+    const allJobs  = stages.flatMap(s => s.jobs || []);
+    const allPlugs = allJobs.flatMap(j => collectAll(j.plugins));
+    const asserts  = allJobs.flatMap(j => collectAssertions(j.plugins));
+    const fails    = asserts.filter(a => a.content?.Evaluation === false).length;
+    const passes   = asserts.filter(a => a.content?.Evaluation === true).length;
+    const machine  = findMachineInfo(stages);
+
+    const overallTag = fails > 0
+      ? `<span class="tag tag-fail">&#10007; ${fails} Failed</span>`
+      : passes > 0
+        ? `<span class="tag tag-pass">&#10003; All Passed</span>`
+        : `<span class="tag tag-neutral">No Assertions</span>`;
+
+    return `<div>
+      <!-- session title bar -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#1f3a5f" stroke="#58a6ff" stroke-width="1.2"/><text x="8" y="12" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif" fill="#58a6ff" font-weight="700">${idx + 1}</text></svg>
+        <span style="font-weight:700;font-size:14px;color:#f0f6fc">Session</span>
+        <span class="mono" style="color:#8b949e;font-size:12px">${esc(sid)}</span>
+        <span style="margin-left:auto">${overallTag}</span>
+      </div>
+
+      <!-- session info strip -->
+      <div class="session-info" style="margin-bottom:16px">
+        ${machine ? `
+        <div class="si-item"><div class="si-label">Machine</div><div class="si-value">${esc(machine.machineName)}</div></div>
+        <div class="si-item"><div class="si-label">IP</div><div class="si-value">${esc(machine.machineIp)}</div></div>
+        ` : ''}
+        <div class="si-item"><div class="si-label">Start</div><div class="si-value">${esc(fmtTime(spp.start))}</div></div>
+        <div class="si-item"><div class="si-label">End</div><div class="si-value">${esc(fmtTime(spp.end))}</div></div>
+        <div class="si-item"><div class="si-label">Plugins Run</div><div class="si-value">${allPlugs.length}</div></div>
+        <div class="si-item"><div class="si-label">Stages</div><div class="si-value">${stages.length}</div></div>
+        <div class="si-item"><div class="si-label">Jobs</div><div class="si-value">${allJobs.length}</div></div>
+      </div>
+
+      <!-- stat cards -->
+      ${renderCards(spp, session)}
+
+      <!-- plugin tree -->
+      <div class="section" style="margin-top:20px">
+        <div class="section-hdr" onclick="togEl('tr-${sid}','ti-${sid}')">
+          <i class="chev open" id="ti-${sid}">&#9658;</i>
+          Plugin Tree
+          <span style="color:#8b949e;font-weight:400;font-size:11px">${stages.length} stage${stages.length !== 1 ? 's' : ''} &bull; ${allPlugs.length} total plugins</span>
+        </div>
+        <div class="section-body" id="tr-${sid}">${renderTree(stages)}</div>
+      </div>
+
+      <!-- timeline -->
+      <div class="section" style="margin-top:14px">
+        <div class="section-hdr" onclick="togEl('tl-${sid}','tli-${sid}')">
+          <i class="chev open" id="tli-${sid}">&#9658;</i>
+          Execution Timeline
+        </div>
+        <div class="section-body" id="tl-${sid}">${renderTimeline(stages, spp.start, spp.end)}</div>
+      </div>
+
+      <!-- assertions -->
+      <div class="section" style="margin-top:14px">
+        <div class="section-hdr" onclick="togEl('as-${sid}','ai-${sid}')">
+          <i class="chev open" id="ai-${sid}">&#9658;</i>
+          Assertions
+          ${fails  > 0 ? `<span class="tag tag-fail" style="margin-left:4px">${fails} Fail</span>` : ''}
+          ${passes > 0 ? `<span class="tag tag-pass" style="margin-left:4px">${passes} Pass</span>` : ''}
+        </div>
+        <div id="as-${sid}">${renderAssertions(asserts)}</div>
+      </div>
+    </div>`;
+  }).join('<div style="border-top:1px solid #30363d;margin:28px 0"></div>');
+
+  document.getElementById('app').innerHTML =
+    renderHeader(automationRef, pp) +
+    `<div class="main">${sessionHtml}</div>`;
+}
+
+// ── toggle helpers ──────────────────────────────────────────────────────────
+
+function togEl(id, iconId) {
+  const el = document.getElementById(id);
+  const ic = document.getElementById(iconId);
+  if (!el) return;
+  const hide = el.style.display !== 'none';
+  el.style.display = hide ? 'none' : '';
+  if (ic) { hide ? ic.classList.remove('open') : ic.classList.add('open'); }
+}
+
+function togPlugin(id) {
+  const ch = document.getElementById('ck-' + id);
+  const ic = document.getElementById('ci-' + id);
+  if (!ch) return;
+  const collapsed = ch.classList.contains('hidden');
+  ch.classList.toggle('hidden', !collapsed);
+  if (ic) { collapsed ? ic.classList.add('open') : ic.classList.remove('open'); }
+}
+
+renderApp();
+</script>
+</body>
+</html>

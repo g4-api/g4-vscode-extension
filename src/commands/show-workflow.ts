@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
+import { Utilities } from '../extensions/utilities';
 
 /**
  * Command to create a new project structure in VS Code.
@@ -20,6 +21,9 @@ export class ShowWorkflowCommand extends CommandBase {
     // Base URL for the G4 API, can be overridden in the constructor
     // This allows flexibility in testing or using different environments
     private readonly _baseUrl: string;
+
+    // Static manifest for this command, loaded once and shared across instances
+    private static readonly _manifest = Utilities.getManifest();
 
     /**
      * Initializes a new ShowWorkflowCommand for the G4 API.
@@ -446,8 +450,14 @@ export class ShowWorkflowCommand extends CommandBase {
                 content: message.payload
             };
 
+            // Check if the extension is configured to auto-open
+            // the report view when a workflow result is received.
+            const isAutoView = ShowWorkflowCommand._manifest?.settings?.clientReportSettings?.autoView;
+
             // Open the report view using the registered VS Code command.
-            await vscode.commands.executeCommand('Show-Report', report);
+            if(isAutoView) {
+                await vscode.commands.executeCommand('Show-Report', report);
+            }
 
             // Stop processing this message because the workflow result was handled.
             return;
