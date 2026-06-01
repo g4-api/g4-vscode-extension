@@ -22,9 +22,6 @@ export class ShowWorkflowCommand extends CommandBase {
     // This allows flexibility in testing or using different environments
     private readonly _baseUrl: string;
 
-    // Static manifest for this command, loaded once and shared across instances
-    private static readonly _manifest = Utilities.getManifest();
-
     /**
      * Initializes a new ShowWorkflowCommand for the G4 API.
      *
@@ -415,6 +412,70 @@ export class ShowWorkflowCommand extends CommandBase {
             }
         };
 
+        const newId = (): string => {
+            // Get the current local date and time for the report file name.
+            const now = new Date();
+
+            // Pads a number with leading zeros.
+            const pad = (value: number, length: number = 2): string => {
+                return value.toString().padStart(length, '0');
+            };
+
+            // Build the report file name using:
+            // yyyy-MM-dd-hhmmssfff.g4rpt
+            return `${now.getFullYear()}-` +
+                `${pad(now.getMonth() + 1)}-` +
+                `${pad(now.getDate())}-` +
+                `${pad(now.getHours())}` +
+                `${pad(now.getMinutes())}` +
+                `${pad(now.getSeconds())}` +
+                `${pad(now.getMilliseconds(), 3)}.g4rpt`;
+        };
+
+        // Saves a workflow automation result as a timestamped G4 report file
+        // under the current workspace reports folder.
+        //
+        // Report file name format:
+        // yyyy-MM-dd-hhmmssfff.g4rpt
+        const newReport = async (id: string, automationResultBase64: any): Promise<{ id: string }> => {
+            try {
+                // Resolve the first workspace folder path.
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+                // A workspace folder is required because the report is saved to disk.
+                if (!workspaceFolder) {
+                    vscode.window.showErrorMessage(
+                        'No workspace folder is open. Please open a folder before saving workflow reports.'
+                    );
+                    return { id: id };
+                }
+
+                // Build the reports folder path:
+                // <current-workspace>/reports
+                const reportsFolder = path.join(workspaceFolder, 'reports');
+
+                // Build the full report file path.
+                const reportFilePath = path.join(reportsFolder, id);
+
+                // Create <current-workspace>/reports if it does not exist.
+                await fs.mkdir(reportsFolder, { recursive: true });
+
+                // Save the report payload as UTF-8 text.
+                await fs.writeFile(
+                    reportFilePath,
+                    automationResultBase64,
+                    'utf8'
+                );
+            } catch (err: any) {
+                vscode.window.showErrorMessage(
+                    'Failed to save report: ' + err.message
+                );
+            }
+            return {
+                'id': id
+            };
+        };
+
         // If the webview requests a workflow import, read the selected file
         // and send its content back to the webview.
         if (message.type === 'workflow:import') {
@@ -442,20 +503,31 @@ export class ShowWorkflowCommand extends CommandBase {
         if (message.type === 'workflow:result') {
             // Build the report input passed to the report command.
             const report = {
+                // The final workflow/report content produced by the webview.
+                content: message.payload,
+
+                // A simple report ID based on the current timestamp.
+                id: newId(),
+
                 // No file path is used here because the report content comes directly
                 // from the webview message payload.
-                path: null,
-
-                // The final workflow/report content produced by the webview.
-                content: message.payload
+                path: null
             };
+
+            // Check if the extension is configured to save reports to disk.
+            const isSaveReports = Utilities.getManifest()?.settings?.clientReportSettings?.saveReports;
+
+            // If saving reports is enabled, save the workflow result as a new report file.
+            if (isSaveReports) {
+                await newReport(report.id, message.payload);
+            }
 
             // Check if the extension is configured to auto-open
             // the report view when a workflow result is received.
-            const isAutoView = ShowWorkflowCommand._manifest?.settings?.clientReportSettings?.autoView;
+            const isAutoView = Utilities.getManifest()?.settings?.clientReportSettings?.autoView;
 
             // Open the report view using the registered VS Code command.
-            if(isAutoView) {
+            if (isAutoView) {
                 await vscode.commands.executeCommand('Show-Report', report);
             }
 
