@@ -608,6 +608,12 @@
     </textarea>
 
     <script id="src-constants">
+        // Creates a small circular LED/status icon.
+        const LED = (fill) => `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
+            <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
+        </svg>`;
+
         const SVG_CHEVRON = `
         <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
             <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
@@ -1261,12 +1267,6 @@
          * @returns {string} HTML markup for the error summary section.
          */
         function writeErrorSummary(asserts, exceptions, sid) {
-            // Creates a small circular LED/status icon.
-            const LED = (fill) => `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
-                <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
-            </svg>`;
-
             // Render all failed assertion rows.
             const assertRows = asserts.map(assert => {
                 // Assertion content contains the evaluation details.
@@ -2146,143 +2146,303 @@
         }
     </script>
 
-    <script id="src-main">
+    <script id="src-app">
+        (() => {
+            // Renders the request configuration view.
+            //
+            // Behavior:
+            // - Reads driver and browser information from the resolved request schema.
+            // - Writes the request header into the `g4-header` container.
+            // - Writes the request body into the `app` container.
+            // - Uses `writeRequestView()` to render the request stages, jobs, and rules.
+            const resolveRequest = (schema) => {
+                // Resolve the request root object.
+                const root = schema.root || {};
 
-    </script>
-
-    <script>
-
-
-        function renderApp() {
-            const schema = resolveSchema(DATA);
-            const root = schema.root;
-            const pp = root.performancePoint || {};
-            const sessions = root.sessions || {};
-            const sids = Object.keys(sessions);
-
-            if (schema.type === 'request') {
+                // Resolve the configured driver.
+                // Falls back to an em dash when the driver is missing.
                 const driver = root.driverParameters?.driver || '—';
-                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '—';
-                document.getElementById('g4-header').innerHTML =
-                    `<div class="header">
-                        <div>
-                            <div class="header-title">G4&#x2122; Request Configuration</div>
-                            <div class="header-meta">${clearString(driver)} &bull; ${clearString(browser)}</div>
-                        </div>
-                        <div class="header-right"><span class="tag tag-neutral">Request</span></div>
-                    </div>`;
-                document.getElementById('app').innerHTML = `<div class="main">${writeRequestView(root)}</div>`;
-                return;
-            }
 
-            if (!sids.length) {
-                document.getElementById('g4-header').innerHTML =
-                    `<div class="header">
-                        <div>
-                            <div class="header-title">G4&#x2122; Automation Report</div>
-                            <div class="header-meta">${clearString('No session data found')}</div>
-                        </div>
-                    </div>`;
+                // Resolve the configured browser name from WebDriver capabilities.
+                // Falls back to an em dash when the browser is missing.
+                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '—';
+
+                // Render the request configuration header.
+                document.getElementById('g4-header').innerHTML = `
+                <div class="header">
+                    <div>
+                        <div class="header-title">G4&#x2122; Request Configuration</div>
+                        <div class="header-meta">${clearString(driver)} &bull; ${clearString(browser)}</div>
+                    </div>
+                    <div class="header-right">
+                        <span class="tag tag-neutral">Request</span>
+                    </div>
+                </div>`;
+
+                // Render the request view into the main app container.
                 document.getElementById('app').innerHTML =
-                    `<div class="main"><div class="error-body">
+                    `<div class="main">${writeRequestView(root)}</div>`;
+            };
+
+            /**
+             * Renders the fallback view when the report data cannot be recognized.
+             *
+             * Behavior:
+             * - Shows the standard automation report header.
+             * - Displays a "No session data found" message in the header metadata.
+             * - Replaces the main app content with an error message.
+             * - Explains the expected G4 response shape.
+             */
+            const resolveNoData = () => {
+                // Render the fallback report header.
+                document.getElementById('g4-header').innerHTML = `
+                <div class="header">
+                    <div>
+                        <div class="header-title">G4&#x2122; Automation Report</div>
+                        <div class="header-meta">${clearString('No session data found')}</div>
+                    </div>
+                </div>`;
+
+                // Render the fallback body for unrecognized report formats.
+                document.getElementById('app').innerHTML = `
+                <div class="main">
+                    <div class="error-body">
                         <div class="error-title">Unrecognized format</div>
                         <div class="error-desc">Expected a G4 response with <code class="code-tag">sessions</code> and <code class="code-tag">responseTree</code> keys.</div>
-                    </div></div>`;
+                    </div>
+                </div>`;
+            };
+
+            // Resolve the input data shape so the renderer knows whether this is
+            // a G4 request, a G4 response, or an unknown payload.
+            const schema = resolveSchema(DATA);
+
+            // Use the resolved root object.
+            // For response data, this is the object that contains the sessions dictionary.
+            // For request data, this is the request configuration object.
+            const root = schema.root;
+
+            // Resolve the root-level performance point.
+            // This usually contains overall execution timing information for the report.
+            const performancePoint = root.performancePoint || {};
+
+            // Resolve the sessions dictionary.
+            // Each key represents a session id and each value contains that session result.
+            const sessions = root.sessions || {};
+
+            // Extract all available session ids from the sessions dictionary.
+            const sids = Object.keys(sessions);
+
+            // If this payload is a request configuration, render the request view
+            // and stop because request data does not contain execution sessions.
+            if (schema.type === 'request') {
+                resolveRequest(schema);
                 return;
             }
 
-            let automationRef = {};
-            if (sids.length) {
-                const first = sessions[sids[0]];
-                const stages = first.responseTree?.stages || [];
-                if (stages.length) automationRef = stages[0].automationReference || {};
+            // If there are no sessions, render the fallback/no-data view
+            // and stop because there is no execution data to display.
+            if (!sids.length) {
+                resolveNoData();
+                return;
             }
 
-            const sessionHtml = sids.map((sid, idx) => {
-                const session = sessions[sid];
+            // Holds automation metadata used by the report header.
+            // It is resolved from the first available session/stage below.
+            let automationReference = {};
+
+            // Resolve automation metadata from the first session when possible.
+            if (sids.length) {
+                // Get the first session result from the sessions dictionary.
+                const first = sessions[sids[0]];
+
+                // Resolve the response stages from the first session response tree.
+                const stages = first.responseTree?.stages || [];
+
+                // The automation reference is stored on the first stage.
+                if (stages.length) {
+                    automationReference = stages[0].automationReference || {};
+                }
+            }
+
+            /**
+             * Renders all execution sessions into HTML.
+             *
+             * Behavior:
+             * - Iterates over all session ids from the response `sessions` dictionary.
+             * - Resolves session performance data, stages, jobs, plugins, assertions, and exceptions.
+             * - Renders machine information only when it exists.
+             * - Renders session summary cards, error summary, plugin tree, timeline, and assertions.
+             * - Separates sessions with a visual divider.
+             *
+             * Notes:
+             * - `sessions` is expected to be a dictionary/map where each key is a session id.
+             * - `findMachineInformation()` may return null, so machine fields must be rendered conditionally.
+             */
+            const sessionHtml = sids.map((sid) => {
+                // Resolve the current session from the sessions dictionary.
+                const session = sessions[sid] || {};
+
+                // Resolve the session-level performance point.
                 const spp = session.performancePoint || {};
+
+                // Resolve all stages from the session response tree.
                 const stages = session.responseTree?.stages || [];
-                const allJobs = stages.flatMap(s => s.jobs || []);
-                const allPlugs = allJobs.flatMap(j => groupPlugins(j.plugins));
-                const asserts = allJobs.flatMap(j => groupAssertions(j.plugins));
-                const fails = asserts.filter(a => a.content?.Evaluation === false).length;
-                const passes = asserts.filter(a => a.content?.Evaluation === true).length;
-                const failedAsserts = asserts.filter(a => a.content?.Evaluation === false);
-                const allExceptions = allPlugs.flatMap(p => p.exceptions || []);
+
+                // Flatten all jobs from all stages.
+                const allJobs = stages.flatMap(stage => stage.jobs || []);
+
+                // Flatten all plugins/actions from all jobs, including nested plugins.
+                const allPlugs = allJobs.flatMap(job => groupPlugins(job.plugins));
+
+                // Collect all assertion/extraction entities from all jobs.
+                const asserts = allJobs.flatMap(job => groupAssertions(job.plugins));
+
+                // Count failed assertions.
+                const fails = asserts
+                    .filter(assertion => assertion.content?.Evaluation === false)
+                    .length;
+
+                // Count passed assertions.
+                const passes = asserts
+                    .filter(assertion => assertion.content?.Evaluation === true)
+                    .length;
+
+                // Keep only failed assertions for the error summary section.
+                const failedAsserts = asserts
+                    .filter(assertion => assertion.content?.Evaluation === false);
+
+                // Collect all exceptions from all plugins/actions.
+                const allExceptions = allPlugs.flatMap(plugin => plugin.exceptions || []);
+
+                // Resolve machine/session information when available.
                 const machine = findMachineInformation(stages);
 
-                const LED = (fill) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10"><path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/></svg>`;
-                return `<div>
-      <!-- session title bar -->
-      <div class="session-title-bar">
-        <span class="session-label">Session</span>
-        <span class="mono session-id">${clearString(sid)}</span>
-      </div>
+                // Escape the session id once because it is reused in ids, handlers, and visible text.
+                const safeSid = clearString(sid);
 
-      <!-- session info strip -->
-      <div class="session-info">
-        ${machine ? `
-        <div class="si-item"><div class="si-label">Machine</div><div class="si-value">${clearString(machine.machineName)}</div></div>
-        <div class="si-item"><div class="si-label">IP</div><div class="si-value">${clearString(machine.machineIp)}</div></div>
-        ` : ''}
-        <div class="si-item"><div class="si-label">Start</div><div class="si-value">${clearString(formatTime(spp.start))}</div></div>
-        <div class="si-item"><div class="si-label">End</div><div class="si-value">${clearString(formatTime(spp.end))}</div></div>
-        <div class="si-item"><div class="si-label">Plugins Run</div><div class="si-value">${allPlugs.length}</div></div>
-        <div class="si-item"><div class="si-label">Stages</div><div class="si-value">${stages.length}</div></div>
-        <div class="si-item"><div class="si-label">Jobs</div><div class="si-value">${allJobs.length}</div></div>
-      </div>
+                // Build plural suffixes for labels.
+                const stageSuffix = stages.length > 1 || stages.length === 0 ? 's' : '';
+                const jobSuffix = allJobs.length > 1 || allJobs.length === 0 ? 's' : '';
+                const failSuffix = fails > 1 || fails === 0 ? 's' : '';
+                const passSuffix = passes > 1 || passes === 0 ? 'es' : '';
 
-      <!-- stat cards -->
-      ${writeCards(spp, stages)}
+                // Render machine details only when machine information exists.
+                // This prevents errors when findMachineInformation(stages) returns null.
+                const machineHtml = machine
+                    ? `
+                        <div class="si-item">
+                            <div class="si-label">Machine</div>
+                            <div class="si-value">${clearString(machine.machineName || '—')}</div>
+                        </div>
+                        <div class="si-item">
+                            <div class="si-label">IP</div>
+                            <div class="si-value">${clearString(machine.machineIp || '—')}</div>
+                        </div>`
+                    : '';
 
-      <!-- error summary -->
-      ${(failedAsserts.length + allExceptions.length) > 0 ? writeErrorSummary(failedAsserts, allExceptions, sid) : ''}
+                // Render the full session block.
+                return `
+                <div>
+                    <!-- Session title bar -->
+                    <div class="session-title-bar">
+                        <span class="session-label">Session</span>
+                        <span class="mono session-id">${safeSid}</span>
+                    </div>
 
-      <!-- plugin tree -->
-      <div class="section section-mt-lg">
-        <div class="section-hdr" onclick="toggleElement('tr-${sid}','ti-${sid}')">
-          <i class="chev open" id="ti-${sid}">${SVG_CHEVRON}</i>
-          Plugin Tree
-          <span class="meta-text">${stages.length} stage${stages.length !== 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length !== 1 ? 's' : ''} &bull; ${allPlugs.length} total plugins</span>
-          <input class="tree-filter" type="text" placeholder="Filter…"
-                 oninput="filterTree('${sid}', this.value)"
-                 onclick="event.stopPropagation()">
-        </div>
-        <div class="section-body" id="tr-${sid}">${writeTree(stages)}</div>
-      </div>
+                    <!-- Session info strip -->
+                    <div class="session-info">
+                        ${machineHtml}
 
-      <!-- timeline -->
-      <div class="section section-mt">
-        <div class="section-hdr" onclick="toggleElement('tl-${sid}','tli-${sid}')">
-          <i class="chev open" id="tli-${sid}">${SVG_CHEVRON}</i>
-          Execution Timeline
-        </div>
-        <div class="section-body" id="tl-${sid}">${writeTimeline(stages, spp.start, spp.end)}</div>
-      </div>
+                        <div class="si-item">
+                            <div class="si-label">Start</div>
+                            <div class="si-value">${clearString(formatTime(spp.start))}</div>
+                        </div>
+                        <div class="si-item">
+                            <div class="si-label">End</div>
+                            <div class="si-value">${clearString(formatTime(spp.end))}</div>
+                        </div>
+                        <div class="si-item">
+                            <div class="si-label">Plugins Run</div>
+                            <div class="si-value">${allPlugs.length}</div>
+                        </div>
+                        <div class="si-item">
+                            <div class="si-label">Stages</div>
+                            <div class="si-value">${stages.length}</div>
+                        </div>
+                        <div class="si-item">
+                            <div class="si-label">Jobs</div>
+                            <div class="si-value">${allJobs.length}</div>
+                        </div>
+                    </div>
 
-      <!-- assertions -->
-      <div class="section section-mt">
-        <div class="section-hdr" onclick="toggleElement('as-${sid}','ai-${sid}')">
-          <i class="chev open" id="ai-${sid}">${SVG_CHEVRON}</i>
-          Assertions
-          ${fails > 0 ? `<span class="assert-count">${LED('#ef4444')}${fails} Fail</span>` : ''}
-          ${passes > 0 ? `<span class="assert-count">${LED('#22c55e')}${passes} Pass</span>` : ''}
-        </div>
-        <div id="as-${sid}">${writeAssertions(asserts)}</div>
-      </div>
-    </div>`;
+                    <!-- Stat cards -->
+                    ${writeCards(spp, stages)}
+
+                    <!-- Error summary -->
+                    ${(failedAsserts.length + allExceptions.length) > 0
+                        ? writeErrorSummary(failedAsserts, allExceptions, sid)
+                        : ''}
+
+                    <!-- Plugin tree -->
+                    <div class="section section-mt-lg">
+                        <div class="section-hdr" onclick="toggleElement('tr-${safeSid}','ti-${safeSid}')">
+                            <i class="chev open" id="ti-${safeSid}">${SVG_CHEVRON}</i>
+                            Plugin Tree
+                            <span class="meta-text">${stages.length} stage${stageSuffix} &bull; ${allJobs.length} job${jobSuffix} &bull; ${allPlugs.length} total plugins</span>
+
+                            <input 
+                                class="tree-filter"
+                                type="text"
+                                placeholder="Filter…"
+                                oninput="filterTree('${safeSid}', this.value)"
+                                onclick="event.stopPropagation()" />
+                        </div>
+
+                        <div class="section-body" id="tr-${safeSid}">
+                            ${writeTree(stages)}
+                        </div>
+                    </div>
+
+                    <!-- Execution timeline -->
+                    <div class="section section-mt">
+                        <div class="section-hdr" onclick="toggleElement('tl-${safeSid}','tli-${safeSid}')">
+                            <i class="chev open" id="tli-${safeSid}">${SVG_CHEVRON}</i>
+                            Execution Timeline
+                        </div>
+                        <div class="section-body" id="tl-${safeSid}">
+                            ${writeTimeline(stages, spp.start, spp.end)}
+                        </div>
+                    </div>
+
+                    <!-- Assertions -->
+                    <div class="section section-mt">
+                        <div class="section-hdr" onclick="toggleElement('as-${safeSid}','ai-${safeSid}')">
+                            <i class="chev open" id="ai-${safeSid}">${SVG_CHEVRON}</i>
+                            Assertions
+                            ${fails > 0 ? `<span class="assert-count">${LED('#ef4444')}${fails} Fail${failSuffix}</span>` : ''}
+                            ${passes > 0 ? `<span class="assert-count">${LED('#22c55e')}${passes} Pass${passSuffix}</span>` : ''}
+                        </div>
+                        <div id="as-${safeSid}">
+                            ${writeAssertions(asserts)}
+                        </div>
+                    </div>
+                </div>`;
             }).join('<div class="session-divider"></div>');
 
-            document.getElementById('g4-header').innerHTML = renderHeader(automationRef, pp);
-            document.getElementById('app').innerHTML = `<div class="main">${sessionHtml}</div>`;
-        }
+            // Render the report header into the header container.
+            // The header includes automation metadata such as the automation name
+            // and the root performance start time.
+            document.getElementById('g4-header').innerHTML =
+                renderHeader(automationReference, performancePoint);
 
-
-
-        renderApp();
+            // Render all session report sections into the main application container.
+            // `sessionHtml` already contains the full HTML for each session, including
+            // summary cards, plugin tree, timeline, assertions, and error summary.
+            document.getElementById('app').innerHTML =
+                `<div class="main">${sessionHtml}</div>`;
+        })();
     </script>
-
-
 </body>
 
 </html>
