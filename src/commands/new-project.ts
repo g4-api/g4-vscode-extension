@@ -174,7 +174,7 @@ export class NewProjectCommand extends CommandBase {
                 content: Utilities.getResource('g4-manifest-configuration-guide.md'),
 
                 // Keep the original markdown file name when writing it to the project.
-                fileName: 'g4-manifest-configuration-guide.md',
+                fileName: 'G4 Manifest Configuration Guide.md',
 
                 // Place all generated documentation files under the project "docs" folder.
                 folderPath: path.join(this.getPath(userPath), 'docs')
