@@ -235,6 +235,12 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             }
         }
 
+        // Append docs items (from <workspace>/../docs) after the plugin-type roots.
+        const docsItems = await this.getDocumentationItems();
+        if (docsItems.length > 0) {
+            tree.push(...docsItems);
+        }
+
         // Return the fully hydrated roots.
         return tree;
     }
@@ -340,6 +346,116 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             const aLabel = typeof a.label === "string" ? a.label : "";
             const bLabel = typeof b.label === "string" ? b.label : "";
             return aLabel.localeCompare(bLabel);
+        });
+    }
+
+    // Build the top-level docs items from <workspace>/../docs.
+    // Items are returned as-is to be appended directly to the tree root (no wrapper node).
+    // Returns an empty array if no workspace is open or the docs folder doesn't exist.
+    private static async getDocumentationItems(): Promise<TreeItem[]> {
+        // Get the currently opened VS Code workspace folders.
+        // Documentation can only be resolved when at least one workspace folder is open.
+        const folders = vscode.workspace.workspaceFolders;
+
+        // If there is no active workspace, there is no reliable base path
+        // for resolving the sibling "docs" folder.
+        if (!folders || folders.length === 0) {
+            return [];
+        }
+
+        // Resolve the expected documentation folder location.
+        // The docs folder is expected to be a sibling of the first workspace folder:
+        // <first-workspace-folder>/../docs
+        const docsUri = vscode.Uri.joinPath(folders[0].uri, '..', 'docs');
+
+        // Check whether the docs folder exists.
+        // If it does not exist, fail silently and contribute no items to the tree.
+        try {
+            await vscode.workspace.fs.stat(docsUri);
+        } catch {
+            return [];
+        }
+
+        // Return the top-level items directly — each will sit at the tree root
+        // alongside the plugin-type roots, with no enclosing Documentation node.
+        return await this.buildDocsTree(docsUri);
+    }
+
+    // Recursively builds TreeItems for Markdown files under `folderUri`.
+    // Empty folders and non-Markdown files are skipped; folders sort before files, A→Z within each group.
+    private static async buildDocsTree(folderUri: vscode.Uri): Promise<TreeItem[]> {
+        const markdownExtensions = new Set(['.md', '.markdown', '.mdx']);
+
+        let entries: [string, vscode.FileType][];
+        try {
+            entries = await vscode.workspace.fs.readDirectory(folderUri);
+        } catch {
+            return [];
+        }
+
+        // Build all child nodes in parallel; nodes that should be omitted resolve to undefined.
+        const built = await Promise.all(entries.map(async ([name, type]) => {
+            const childUri = vscode.Uri.joinPath(folderUri, name);
+
+            // Recurse into subdirectories; skip those that yield no matching descendants.
+            if (type === vscode.FileType.Directory) {
+                const subChildren = await this.buildDocsTree(childUri);
+                if (subChildren.length === 0) {
+                    return undefined;
+                }
+
+                const folder = new TreeItem(name) as TreeItem & { data?: any; children?: TreeItem[] };
+                folder.iconPath = new vscode.ThemeIcon('folder');
+                folder.children = subChildren;
+                folder.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+                return folder;
+            }
+
+            // Files: only the configured Markdown extensions are included.
+            if (type === vscode.FileType.File) {
+                const lastDot = name.lastIndexOf('.');
+                const extension = lastDot >= 0 ? name.substring(lastDot).toLowerCase() : '';
+                if (!markdownExtensions.has(extension)) {
+                    return undefined;
+                }
+
+                // Read file content; skip the file (don't fail the whole tree) on read errors.
+                let content: string;
+                try {
+                    const bytes = await vscode.workspace.fs.readFile(childUri);
+                    content = new TextDecoder('utf-8').decode(bytes);
+                } catch {
+                    return undefined;
+                }
+
+                const labelWithoutExtension = lastDot > 0 ? name.substring(0, lastDot) : name;
+                const file = new TreeItem(labelWithoutExtension) as TreeItem & { data?: any };
+                file.iconPath = new vscode.ThemeIcon('markdown');
+                file.data = {
+                    // Full URI string → unique across folders even when filenames collide.
+                    key: childUri.toString(),
+                    // Raw text → triggers the existing Markdown preview on selection.
+                    document: content,
+                };
+                return file;
+            }
+
+            // Symlinks, unknown types, etc. are ignored.
+            return undefined;
+        }));
+
+        const filtered = built.filter((node): node is TreeItem => node !== undefined);
+
+        // Folders first, then files; case-insensitive A→Z within each group.
+        return filtered.sort((a, b) => {
+            const aIsFolder = (a as TreeItem & { children?: TreeItem[] }).children !== undefined;
+            const bIsFolder = (b as TreeItem & { children?: TreeItem[] }).children !== undefined;
+            if (aIsFolder !== bIsFolder) {
+                return aIsFolder ? -1 : 1;
+            }
+            const aLabel = typeof a.label === 'string' ? a.label : '';
+            const bLabel = typeof b.label === 'string' ? b.label : '';
+            return aLabel.localeCompare(bLabel, undefined, { sensitivity: 'base' });
         });
     }
 
