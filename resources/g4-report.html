@@ -607,7 +607,17 @@
         {{$ report.data }}
     </textarea>
 
-    <script id="utilities">
+    <script id="src-constants">
+        const SVG_CHEVRON = `
+        <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
+            <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
+        </svg>
+        <svg class="chev-d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
+            <path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
+        </svg>`;
+    </script>
+
+    <script id="src-utilities">
         /**
          * Escapes a value so it can be safely rendered as HTML text or inside
          * double-quoted HTML attributes.
@@ -653,6 +663,86 @@
         function convertToMilliseconds(ticks) {
             // Convert ticks to milliseconds.
             return ticks / 10000;
+        }
+
+        /**
+         * Filters the plugin tree by plugin name and keeps matching branches visible.
+         *
+         * Behavior:
+         * - Finds the tree root by stage/session id.
+         * - Normalizes the search query to lowercase.
+         * - Processes plugin nodes from leaves to parents.
+         * - Shows nodes that match the query.
+         * - Shows parent nodes when one of their descendants matches.
+         * - Expands matching branches so nested matches are visible.
+         *
+         * @param {string} sid - The stage/session id suffix used to locate the tree root.
+         * @param {string} query - The text used to filter plugin nodes.
+         */
+        function filterTree(sid, query) {
+            // Resolve the tree root for the selected stage/session.
+            const root = document.getElementById('tr-' + sid);
+
+            // If the tree root does not exist, there is nothing to filter.
+            if (!root) {
+                return;
+            }
+
+            // Normalize the search query for case-insensitive matching.
+            const q = String(query ?? '').trim().toLowerCase();
+
+            // Process leaves first, using reverse document order.
+            // This lets parent nodes check whether their descendants are still visible.
+            const nodes = Array
+                .from(root.querySelectorAll('.p-node'))
+                .reverse();
+
+            // Evaluate each plugin node against the filter query.
+            for (const node of nodes) {
+                // Check whether the current node matches the query.
+                const self = (node.dataset.name || '').includes(q);
+
+                // Check whether any descendant plugin node is currently visible.
+                const hasMatchingDescendant = Array
+                    .from(node.querySelectorAll('.p-node'))
+                    .some(d => d.style.display !== 'none');
+
+                // Show this node when:
+                // - The query is empty.
+                // - The node itself matches.
+                // - One of its descendants matches.
+                const isShow = !q || self || hasMatchingDescendant;
+
+                // Apply the visibility result.
+                node.style.display = isShow
+                    ? ''
+                    : 'none';
+
+                // When a descendant matches, expand this node so the match is visible.
+                if (q && hasMatchingDescendant) {
+                    // Resolve the direct child plugin container for this node.
+                    const nestedElements = node.querySelector(':scope > .p-children');
+
+                    // If this node has no direct nested container, continue to the next node.
+                    if (!nestedElements) {
+                        continue;
+                    }
+
+                    // Expand the nested child container.
+                    nestedElements.classList.remove('hidden');
+
+                    // Resolve the matching chevron icon from the child container id.
+                    // Example: ck-p1 -> p1 -> ci-p1
+                    const icon = document.getElementById(
+                        'ci-' + nestedElements.id.slice(3)
+                    );
+
+                    // Mark the chevron as open when available.
+                    if (icon) {
+                        icon.classList.add('open');
+                    }
+                }
+            }
         }
 
         /**
@@ -903,6 +993,64 @@
         }
 
         /**
+         * Resolves the report schema type and returns the object that should be used
+         * as the report root.
+         *
+         * Supported shapes:
+         * - Response schema: root object contains `sessions`.
+         * - Wrapped response schema: first object value contains `sessions`.
+         * - Request schema: root object contains `stages[0].jobs[0].rules`.
+         * - Unknown schema: fallback when the structure does not match known formats.
+         *
+         * @param {object|null|undefined} data - The parsed report/request data.
+         * @returns {{ type: string, root: object }} The resolved schema type and root object.
+         */
+        function resolveSchema(data) {
+            // Response schema:
+            // The object itself contains sessions, so it is already the report root.
+            if (data?.sessions) {
+                return {
+                    type: 'response',
+                    root: data
+                };
+            }
+
+            // Some responses may be wrapped under a dynamic top-level key.
+            // Example:
+            // {
+            //   "some-id": {
+            //     "sessions": [...]
+            //   }
+            // }
+            const values = Object.values(data || {});
+
+            // Wrapped response schema:
+            // Use the first object value as the report root when it contains sessions.
+            if (values.length && values[0]?.sessions) {
+                return {
+                    type: 'response',
+                    root: values[0]
+                };
+            }
+
+            // Request schema:
+            // Automation request data usually contains stages, jobs, and rules.
+            if (data?.stages?.[0]?.jobs?.[0]?.rules) {
+                return {
+                    type: 'request',
+                    root: data
+                };
+            }
+
+            // Unknown schema:
+            // Return the original data when available, otherwise use an empty object.
+            return {
+                type: 'unknown',
+                root: data || {}
+            };
+        }
+
+        /**
          * Truncates a value to a maximum number of characters.
          *
          * Behavior:
@@ -925,15 +1073,102 @@
                 : s;
         }
 
+        /**
+         * Toggles the visibility of an HTML element and updates its icon state.
+         *
+         * Behavior:
+         * - Finds the target element by id.
+         * - Finds the optional icon element by icon id.
+         * - Hides the target element when it is currently visible.
+         * - Shows the target element when it is currently hidden.
+         * - Adds or removes the `open` class on the icon to match the visible state.
+         *
+         * @param {string} id - The id of the element to show or hide.
+         * @param {string} iconId - The id of the icon element to update.
+         */
+        function toggleElement(id, iconId) {
+            // Resolve the target element that should be toggled.
+            const element = document.getElementById(id);
+
+            // Resolve the optional icon that visually represents the toggle state.
+            const icon = document.getElementById(iconId);
+
+            // If the target element does not exist, there is nothing to toggle.
+            if (!element) {
+                return;
+            }
+
+            // The element should be hidden when it is currently visible.
+            const isHide = element.style.display !== 'none';
+
+            // Toggle the element display state.
+            element.style.display = isHide
+                ? 'none'
+                : '';
+
+            // If no icon exists, only the element visibility is toggled.
+            if (!icon) {
+                return;
+            }
+
+            // Update the icon open state.
+            // When hiding the element, remove "open".
+            // When showing the element, add "open".
+            isHide
+                ? icon.classList.remove('open')
+                : icon.classList.add('open');
+        }
+
+        /**
+         * Toggles a plugin node's child plugin container and updates its chevron icon.
+         *
+         * Behavior:
+         * - Finds the child plugin container by id using the `ck-` prefix.
+         * - Finds the matching chevron icon by id using the `ci-` prefix.
+         * - Expands the child container when it is currently collapsed.
+         * - Collapses the child container when it is currently expanded.
+         * - Adds or removes the `open` class on the icon to match the expanded state.
+         *
+         * @param {string} id - The plugin node id suffix.
+         */
+        function togglePlugin(id) {
+            // Resolve the child plugin container.
+            const children = document.getElementById('ck-' + id);
+
+            // Resolve the chevron icon used to show expanded/collapsed state.
+            const icon = document.getElementById('ci-' + id);
+
+            // If the child container does not exist, there is nothing to toggle.
+            if (!children) {
+                return;
+            }
+
+            // The plugin is collapsed when the children container has the hidden class.
+            const isCollapsed = children.classList.contains('hidden');
+
+            // If it was collapsed, show it.
+            // If it was expanded, hide it.
+            children.classList.toggle('hidden', !isCollapsed);
+
+            // If no icon exists, only the children container is toggled.
+            if (!icon) {
+                return;
+            }
+
+            // Update the chevron visual state.
+            // Expanded = open class exists.
+            // Collapsed = open class removed.
+            isCollapsed
+                ? icon.classList.add('open')
+                : icon.classList.remove('open');
+        }
     </script>
 
-    <script id="g4-cards">
+    <script id="src-data">
         const DATA = JSON.parse(document.getElementById('g4-data').value);
-        const SVG_CHEV = `
-        <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
-            <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/></svg><svg class="chev-d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13"><path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
-        </svg>`;
+    </script>
 
+    <script id="src-cards">
         /**
          * Renders the top-level report summary cards.
          *
@@ -1004,336 +1239,383 @@
                 ${items.map(i => `
                     <div class="card"><div class="card-label">${clearString(i.label)}</div>
                     <div class="card-value">${clearString(i.value)}</div></div>`
-                ).join('')}
+            ).join('')}
             </div>`;
         }
+    </script>
 
-        // ── error summary ───────────────────────────────────────────────────────────
+    <script id="src-error-summary">
+        /**
+         * Renders the error summary section for failed assertions and exceptions.
+         *
+         * Behavior:
+         * - Builds failed assertion rows when assertion failures exist.
+         * - Builds exception rows when plugin exceptions exist.
+         * - Displays compact count badges in the section header.
+         * - Uses a collapsible section body controlled by `toggleElement`.
+         * - Returns the complete Error Summary HTML block.
+         *
+         * @param {Array<object>} asserts - Failed assertion items to render.
+         * @param {Array<object>} exceptions - Exception items to render.
+         * @param {string|number} sid - Unique section id suffix used for collapse/expand behavior.
+         * @returns {string} HTML markup for the error summary section.
+         */
+        function writeErrorSummary(asserts, exceptions, sid) {
+            // Creates a small circular LED/status icon.
+            const LED = (fill) => `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
+                <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
+            </svg>`;
 
-        function renderErrorSummary(failedAsserts, allExceptions, sid) {
-            const LED = (fill) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10"><path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/></svg>`;
+            // Render all failed assertion rows.
+            const assertRows = asserts.map(assert => {
+                // Assertion content contains the evaluation details.
+                const content = assert.content || {};
 
-            const assertRows = failedAsserts.map(a => {
-                const c = a.content || {};
-                return `<tr>
-      <td class="mono">${clearString(c(a.onElement || '—'))}</td>
-      <td class="mono">${clearString(c.Condition || '—')}</td>
-      <td class="mono">${clearString(c.Operator || '—')}</td>
-      <td class="mono">${clearString(c.Expected ?? '—')}</td>
-      <td class="mono">${clearString(String(c.Actual ?? '—'))}</td>
-      <td class="reason">${clearString(c.ReasonPhrase || '—')}</td>
-    </tr>`;
+                return `
+                <tr>
+                    <td class="mono">${clearString(assert.onElement || '—')}</td>
+                    <td class="mono">${clearString(content.Condition || '—')}</td>
+                    <td class="mono">${clearString(content.Operator || '—')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '—')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '—'))}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '—')}</td>
+                </tr>`;
             }).join('');
 
-            const excRows = allExceptions.map(ex => `<tr>
-      <td class="mono">${clearString(ex.pluginName || '?')}</td>
-      <td class="mono">${clearString(ex.type || '—')}</td>
-      <td>${clearString(ex.exception?.Message || '—')}</td>
-      <td class="reason">${clearString(ex.reasonPhrase || '—')}</td>
-    </tr>`).join('');
+            // Render all exception rows.
+            const exceptionRows = exceptions.map(i => `
+                <tr>
+                    <td class="mono">${clearString(i.pluginName || '?')}</td>
+                    <td class="mono">${clearString(i.type || '—')}</td>
+                    <td>${clearString(i.exception?.Message || '—')}</td>
+                    <td class="reason">${clearString(i.reasonPhrase || '—')}</td>
+                </tr>`).join('');
 
-            const assertBlock = failedAsserts.length > 0 ? `
-    <div class="es-label meta-text">Failed Assertions</div>
-    <table class="assert-tbl">
-      <thead><tr>
-        <th>Element</th><th>Condition</th><th>Operator</th><th>Expected</th><th>Actual</th><th>Reason</th>
-      </tr></thead>
-      <tbody>${assertRows}</tbody>
-    </table>` : '';
+            // Build the failed assertions table.
+            const assertBlockHtml = `
+            <div class="es-label meta-text">Failed Assertions</div>
+            <table class="assert-tbl">
+                <thead>
+                    <tr>
+                        <th>Element</th>
+                        <th>Condition</th>
+                        <th>Operator</th>
+                        <th>Expected</th>
+                        <th>Actual</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>${assertRows}</tbody>
+            </table>`;
 
-            const excBlock = allExceptions.length > 0 ? `
-    <div class="es-label meta-text${failedAsserts.length > 0 ? ' es-sep' : ''}">Exceptions</div>
-    <table class="assert-tbl">
-      <thead><tr>
-        <th>Plugin</th><th>Type</th><th>Message</th><th>Reason</th>
-      </tr></thead>
-      <tbody>${excRows}</tbody>
-    </table>` : '';
+            // Only show the assertion block when there are failed assertions.
+            const assertBlock = asserts.length > 0
+                ? assertBlockHtml
+                : '';
 
+            // Add a visual separator before the exception block when assertions exist.
+            const exceptionCssClass = asserts.length > 0
+                ? ' es-sep'
+                : '';
+
+            // Build the exceptions table.
+            const exceptionBlockHtml = `
+            <div class="es-label meta-text${exceptionCssClass}">Exceptions</div>
+            <table class="assert-tbl">
+                <thead>
+                    <tr>
+                        <th>Plugin</th>
+                        <th>Type</th>
+                        <th>Message</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>${exceptionRows}</tbody>
+            </table>`;
+
+            // Only show the exception block when there are exceptions.
+            const exceptionBlock = exceptions.length > 0
+                ? exceptionBlockHtml
+                : '';
+
+            // Build compact header count badges.
             const counts = [];
-            if (failedAsserts.length > 0) counts.push(`<span class="assert-count">${LED('#ef4444')}${failedAsserts.length} failed</span>`);
-            if (allExceptions.length > 0) counts.push(`<span class="assert-count">${LED('#ef4444')}${allExceptions.length} exception${allExceptions.length !== 1 ? 's' : ''}</span>`);
 
-            return `<div class="section section-mt-lg">
-    <div class="section-hdr" onclick="togEl('es-${sid}','esi-${sid}')">
-      <i class="chev open" id="esi-${sid}">${SVG_CHEV}</i>
-      Error Summary
-      ${counts.join('')}
-    </div>
-    <div class="section-body" id="es-${sid}">${assertBlock}${excBlock}</div>
-  </div>`;
+            // Add failed assertion count when failures exist.
+            if (asserts.length > 0) {
+                counts.push(
+                    `<span class="assert-count">${LED('#ef4444')}${asserts.length} failed</span>`
+                );
+            }
+
+            // Add exception count when exceptions exist.
+            if (exceptions.length > 0) {
+                const suffix = exceptions.length > 1
+                    ? 's'
+                    : '';
+
+                counts.push(
+                    `<span class="assert-count">${LED('#ef4444')}${exceptions.length} exception${suffix}</span>`
+                );
+            }
+
+            // Render the complete collapsible error summary section.
+            return `
+            <div class="section section-mt-lg">
+                <div class="section-hdr" onclick="toggleElement('es-${sid}','esi-${sid}')">
+                    <i class="chev open" id="esi-${sid}">${SVG_CHEVRON}</i>
+                    Error Summary
+                    ${counts.join('')}
+                </div>
+                <div class="section-body" id="es-${sid}">${assertBlock}${exceptionBlock}</div>
+            </div>`;
         }
+    </script>
 
-        // ── plugin tree ─────────────────────────────────────────────────────────────
+    <script id="src-plugin-tree">
+        // Incremental id used to generate unique plugin/process node ids.
+        // These ids are used by the report tree expand/collapse behavior.
+        let _processId = 0;
 
-        let _pid = 0;
-        let _eid = 0;
+        // Incremental id used to generate unique exception/stack-trace row ids.
+        // These ids are used by the exception stack trace expand/collapse behavior.
+        let _exceptionId = 0;
 
-        function renderExceptions(exceptions, depth) {
+        /**
+         * Renders an exceptions table for a plugin/action level.
+         *
+         * Behavior:
+         * - Creates one table row for each exception.
+         * - Shows plugin name, exception type, message, and reason.
+         * - Adds an expandable stack trace row when stack trace data exists.
+         * - Uses the current depth to visually indent the exception table.
+         *
+         * @param {Array<object>} exceptions - The exception items to render.
+         * @param {number} depth - The nesting depth used to indent the table.
+         * @returns {string} HTML markup for the exceptions table.
+         */
+        function writeExceptions(exceptions, depth) {
+            // Render all exception rows.
             const rows = exceptions.map(ex => {
+                // Resolve the stack trace text when available.
                 const stack = ex.exception?.StackTrace || '';
-                const eid = 'e' + (_eid++);
+
+                // Generate a unique id for the expandable stack trace row.
+                const eid = 'e' + (_exceptionId++);
+
+                // Render the stack trace toggle cell only when stack trace data exists.
                 const stackToggle = stack
-                    ? `<td class="exc-stack-toggle" onclick="togEl('${eid}','${eid}-ic')"><i class="chev" id="${eid}-ic">${SVG_CHEV}</i></td>`
+                    ? `<td class="exc-stack-toggle" onclick="toggleElement('${eid}','${eid}-ic')"><i class="chev" id="${eid}-ic">${SVG_CHEVRON}</i></td>`
                     : '<td>—</td>';
+
+                // Render the hidden stack trace row.
+                // It is expanded/collapsed by clicking the stack trace toggle cell.
                 const stackRow = stack
                     ? `<tr id="${eid}" style="display:none"><td colspan="5"><pre class="exc-stack">${clearString(stack)}</pre></td></tr>`
                     : '';
-                return `<tr>
-      <td class="mono">${clearString(ex.pluginName || '?')}</td>
-      <td class="mono">${clearString(ex.type || '—')}</td>
-      <td>${clearString(ex.exception?.Message || '—')}</td>
-      <td class="reason">${clearString(ex.reasonPhrase || '—')}</td>
-      ${stackToggle}
-    </tr>${stackRow}`;
+
+                // Render the main exception row and optional stack trace row.
+                return `
+                <tr>
+                    <td class="mono">${clearString(ex.pluginName || '?')}</td>
+                    <td class="mono">${clearString(ex.type || '—')}</td>
+                    <td>${clearString(ex.exception?.Message || '—')}</td>
+                    <td class="reason">${clearString(ex.reasonPhrase || '—')}</td>
+                    ${stackToggle}
+                </tr>${stackRow}`;
             }).join('');
-            return `<div style="padding-left:${6 + depth * 20 + 27}px;padding-right:8px;padding-bottom:4px">
-    <table class="assert-tbl">
-      <thead><tr><th>Plugin</th><th>Type</th><th>Message</th><th>Reason</th><th>Stack Trace</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  </div>`;
+
+            // Render the exceptions table.
+            // The left padding is increased by depth so nested plugin exceptions
+            // visually align under their owning plugin/action.
+            return `
+            <div style="padding-left:${6 + depth * 20 + 27}px;padding-right:8px;padding-bottom:4px">
+            <table class="assert-tbl">
+                <thead>
+                    <tr>
+                        <th>Plugin</th>
+                        <th>Type</th>
+                        <th>Message</th>
+                        <th>Reason</th>
+                        <th>Stack Trace</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+                </table>
+            </div>`;
         }
 
-        function renderPlugin(plugin, depth, jobRunTime, hotSet = new Set()) {
-            const id = 'p' + (_pid++);
-            const ref = plugin.performancePoint?.reference || {};
-            const pp = plugin.performancePoint || {};
+        /**
+         * Renders a plugin/action row and all of its nested child plugins.
+         *
+         * Behavior:
+         * - Resolves plugin metadata from the performance point reference and rule.
+         * - Calculates runtime percentage relative to the parent job/plugin runtime.
+         * - Marks plugins with exceptions using a warning/error LED color.
+         * - Marks hot plugins using the provided hotSet.
+         * - Renders exception details when exceptions exist.
+         * - Recursively renders nested plugins.
+         *
+         * @param {object} plugin - The plugin/action report object to render.
+         * @param {number} depth - The current nesting depth used for indentation.
+         * @param {number} jobRunTime - The parent job or plugin runtime in ticks.
+         * @param {Set<string>} hotSet - Set of plugin reference ids marked as hot/slow.
+         * @returns {string} HTML markup for the plugin row and its children.
+         */
+        function writePlugins(plugin, depth, jobRunTime, hotSet = new Set()) {
+            // Generate a unique id used for expand/collapse behavior.
+            const id = 'p' + (_processId++);
+
+            // Resolve commonly used plugin report sections.
+            const reference = plugin.performancePoint?.reference || {};
+            const performancePoint = plugin.performancePoint || {};
             const rule = plugin.rule || {};
-            const type = ref.type || 'Action';
-            const name = ref.name || rule.pluginName || '?';
+
+            // Resolve plugin identity and display metadata.
+            const type = reference.type || 'Action';
+            const name = reference.name || rule.pluginName || '?';
             const display = rule.capabilities?.displayName || name;
-            const arg = rule.argument || '';
-            const elem = rule.onElement || '';
-            const rt = pp.runTime || 0;
-            const barPct = jobRunTime > 0 ? Math.min(100, (convertToMilliseconds(rt) / convertToMilliseconds(jobRunTime)) * 100) : 0;
-            const hasKids = (plugin.plugins || []).length > 0;
-            const excs = plugin.exceptions || [];
-            const hasTimeout = excs.some(e => (e.type || '').includes('Timeout'));
-            const ledFill = excs.length === 0 ? '#22c55e'
-                : hasTimeout ? '#eab308'
-                    : '#ef4444';
-            const isHot = hotSet.has(ref.id);
 
-            const kidsHtml = hasKids
-                ? `<div class="p-children hidden" id="ck-${id}">${(plugin.plugins || []).map(c => renderPlugin(c, depth + 1, rt || jobRunTime, hotSet)).join('')}</div>`
+            // Resolve rule details shown next to the plugin name.
+            const argument = rule.argument || '';
+            const onElement = rule.onElement || '';
+
+            // Resolve runtime in ticks.
+            const runTime = performancePoint.runTime || 0;
+
+            // Calculate the runtime bar width relative to the parent runtime.
+            const barPct = jobRunTime > 0
+                ? Math.min(
+                    100,
+                    (convertToMilliseconds(runTime) / convertToMilliseconds(jobRunTime)) * 100
+                )
+                : 0;
+
+            // Determine whether this plugin has nested child plugins.
+            const isNestedPlugins = (plugin.plugins || []).length > 0;
+
+            // Resolve plugin exceptions.
+            const exceptions = plugin.exceptions || [];
+
+            // Detect timeout-related exceptions so they can use a warning color.
+            const isTimeout = exceptions.some(e =>
+                (e.type || '').includes('Timeout')
+            );
+
+            // Timeout exceptions are warning-colored; other exceptions are error-colored.
+            const timeoutColor = isTimeout
+                ? '#eab308'
+                : '#ef4444';
+
+            // Green means success, yellow means timeout, red means other exception.
+            const ledColor = exceptions.length === 0
+                ? '#22c55e'
+                : timeoutColor;
+
+            // Mark this plugin as hot when its reference id exists in the hot set.
+            const isHot = hotSet.has(reference.id);
+
+            // Render nested child plugins when available.
+            const nestedPluginsHtml = isNestedPlugins
+                ? `<div class="p-children hidden" id="ck-${id}">${(plugin.plugins || []).map(c => writePlugins(c, depth + 1, runTime || jobRunTime, hotSet)).join('')}</div>`
                 : '';
-            const excHtml = excs.length > 0 ? renderExceptions(excs, depth) : '';
 
-            const descTitle = ref.description ? clearString(setTruncates(ref.description, 200)) : '';
+            // Render exception details when this plugin contains exceptions.
+            const exceptionsHtml = exceptions.length > 0
+                ? writeExceptions(exceptions, depth)
+                : '';
 
-            return `<div class="p-node" data-name="${clearString(display.toLowerCase())}">
-    <div class="plugin-row" style="padding-left:${6 + depth * 20}px" onclick="togPlugin('${id}')" title="${descTitle}">
-      <div class="p-toggle">${hasKids ? `<i class="chev" id="ci-${id}">${SVG_CHEV}</i>` : '<span class="p-toggle-spacer"></span>'}</div>
-      <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8"><path fill="${ledFill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/></svg>
-      <span class="p-name">${clearString(display)}</span>
-      ${arg ? `<span class="p-arg">${clearString(setTruncates(arg, 55))}</span>` : ''}
-      ${elem ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(elem, 40))}</span>` : ''}
-      <span class="p-spacer"></span>
-      <div class="p-bar-wrap"><div class="p-bar bar-${clearString(type)}" style="width:${barPct.toFixed(1)}%"></div></div>
-      <span class="p-dur${isHot ? ' p-hot' : ''}">${formatDuration(rt)}</span>
-    </div>
-    ${excHtml}
-    ${kidsHtml}
-  </div>`;
+            // Use the reference description as a tooltip when available.
+            const title = reference.description
+                ? clearString(setTruncates(reference.description, 200))
+                : '';
+
+            // Render the plugin node.
+            return `
+            <div class="p-node" data-name="${clearString(display.toLowerCase())}">
+                <div class="plugin-row" style="padding-left:${6 + depth * 20}px" onclick="togglePlugin('${id}')" title="${title}">
+                    <div class="p-toggle">${isNestedPlugins ? `<i class="chev" id="ci-${id}">${SVG_CHEVRON}</i>` : '<span class="p-toggle-spacer"></span>'}</div>
+                        <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8">
+                            <path fill="${ledColor}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
+                        </svg>
+                        <span class="p-name">${clearString(display)}</span>
+                        ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                        ${onElement ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(onElement, 40))}</span>` : ''}
+                        <span class="p-spacer"></span>
+                        <div class="p-bar-wrap">
+                            <div class="p-bar bar-${clearString(type)}" style="width:${barPct.toFixed(1)}%">
+                        </div>
+                    </div>
+                    <span class="p-dur${isHot ? ' p-hot' : ''}">${formatDuration(runTime)}</span>
+                </div>
+                ${exceptionsHtml}
+                ${nestedPluginsHtml}
+            </div>`;
         }
 
-        function renderTree(stages) {
-            if (!stages?.length) return '<div class="no-data">No stages.</div>';
-            return stages.map(stage => {
-                const jobs = stage.jobs || [];
-                return `<div class="tree-stage">
-      <div class="tree-stage-hdr"
-           onclick="togEl('st-${clearString(stage.id)}','si-${clearString(stage.id)}')">
-        <i class="chev open" id="si-${clearString(stage.id)}">${SVG_CHEV}</i>
-                ${clearString(stage.name)}
-        <span class="meta-text">${jobs.length} job${jobs.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div id="st-${clearString(stage.id)}">
-        ${jobs.map(job => {
-                    const plugins = job.plugins || [];
-                    const jobRt = job.performancePoint?.runTime || 0;
-                    const hotSet = new Set(
-                        groupPlugins(plugins)
-                            .sort((a, b) => (b.performancePoint?.runTime || 0) - (a.performancePoint?.runTime || 0))
-                            .slice(0, 3)
-                            .map(p => p.performancePoint?.reference?.id)
-                            .filter(Boolean)
-                    );
-                    return `<div class="tree-job">
-            <div class="tree-job-hdr"
-                 onclick="togEl('jb-${clearString(job.id)}','ji-${clearString(job.id)}')">
-              <i class="chev open" id="ji-${clearString(job.id)}">${SVG_CHEV}</i>
-                            ${clearString(job.name)}
-              <span class="meta-text">${plugins.length} plugin${plugins.length !== 1 ? 's' : ''} &bull; ${formatDuration(jobRt)}</span>
-            </div>
-            <div id="jb-${clearString(job.id)}">
-              ${plugins.map(p => renderPlugin(p, 0, jobRt, hotSet)).join('')}
-            </div>
-          </div>`;
-                }).join('')}
-      </div>
-    </div>`;
-            }).join('');
-        }
-
-        // ── timeline ────────────────────────────────────────────────────────────────
-
-        function renderTimeline(stages, sessionStart, sessionEnd) {
-            const t0 = new Date(sessionStart).getTime();
-            const t1 = new Date(sessionEnd).getTime();
-            const span = Math.max(t1 - t0, 1);
-
-            const ROW = 24, LW = 155, CW = 680, DW = 80, PAD = 6;
-
-            function flatPlugins(plugins, depth, out) {
-                for (const p of (plugins || [])) {
-                    const ref = p.performancePoint?.reference || {};
-                    const name = ref.name || p.rule?.pluginName || '?';
-                    const type = ref.type || 'Action';
-                    const s = new Date(p.performancePoint?.start || sessionStart).getTime();
-                    const e = new Date(p.performancePoint?.end || sessionEnd).getTime();
-                    out.push({ name, type, depth, s, e });
-                    flatPlugins(p.plugins, depth + 1, out);
-                }
-            }
-
-            const rows = [];
-            for (const stage of (stages || []))
-                for (const job of (stage.jobs || []))
-                    flatPlugins(job.plugins, 0, rows);
-
-            if (!rows.length) return '<div class="no-data">No timeline data.</div>';
-
-            const svgH = ROW * rows.length + 20 + PAD * 2;
-            const TICKS = 6;
-
-            const axisTicks = Array.from({ length: TICKS + 1 }, (_, i) => {
-                const x = LW + (i / TICKS) * CW;
-                const ms = (i / TICKS) * span;
-                const lbl = ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : Math.round(ms) + 'ms';
-                return `<line x1="${x}" y1="${PAD}" x2="${x}" y2="${PAD + ROW * rows.length}" stroke="currentColor" stroke-width="1" opacity="0.15"/>
-      <text x="${x}" y="${PAD + ROW * rows.length + 14}" text-anchor="middle" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">${lbl}</text>`;
-            }).join('');
-
-            const rowsSvg = rows.map((r, i) => {
-                const y = PAD + i * ROW;
-                const xS = LW + ((r.s - t0) / span) * CW;
-                const w = Math.max(3, ((r.e - r.s) / span) * CW);
-                const dur = formatDuration((r.e - r.s) * 10000);
-                const lx = LW - 4 - r.depth * 14;
-                return `<text x="${lx}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">${clearString(setTruncates(r.name, 18))}</text>
-      <rect x="${xS.toFixed(1)}" y="${y + 5}" width="${w.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
-        <title>${clearString(r.name)}: ${dur} (${formatTime(new Date(r.s).toISOString())} – ${formatTime(new Date(r.e).toISOString())})</title>
-      </rect>
-      <text x="${LW + CW + 6}" y="${y + ROW / 2 + 4}" text-anchor="start" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">${dur}</text>`;
-            }).join('');
-
-            return `<div class="tl-wrap">
-    <svg class="svg-block" width="${LW + CW + DW + PAD}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
-      ${axisTicks}
-      ${rowsSvg}
-    </svg>
-  </div>`;
-        }
-
-        // ── assertions table ────────────────────────────────────────────────────────
-
-        function renderAssertions(assertions) {
-            if (!assertions.length) return '<div class="no-data">No assertion data found.</div>';
-            const rows = assertions.map(a => {
-                const c = a.content;
-                const ev = c.Evaluation;
-                const ledFill = ev === true ? '#22c55e' : ev === false ? '#ef4444' : 'currentColor';
-                const ledSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10"><path fill="${ledFill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/></svg>`;
-                return `<tr>
-      <td class="mono">${clearString(a.onElement || '—')}</td>
-      <td class="mono">${clearString(c.Condition || '—')}</td>
-      <td class="mono">${clearString(c.Operator || '—')}</td>
-      <td class="mono">${clearString(c.Expected ?? '—')}</td>
-      <td class="mono">${clearString(String(c.Actual ?? '—'))}</td>
-      <td class="td-center">${ledSvg}</td>
-      <td class="reason">${clearString(c.ReasonPhrase || '—')}</td>
-    </tr>`;
-            }).join('');
-            return `<table class="assert-tbl">
-    <thead><tr>
-      <th>Element</th><th>Condition</th><th>Operator</th>
-      <th>Expected</th><th>Actual</th><th>Result</th><th>Reason Phrase</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-        }
-
-        // ── header ──────────────────────────────────────────────────────────────────
-
-        function renderHeader(automationRef, pp) {
-            const name = automationRef.name || 'Untitled Automation';
-            return `<div class="header">
-    <div>
-      <div class="header-title">G4&#x2122; Automation Report</div>
-      <div class="header-meta">${clearString(name)} &bull; ${clearString(formatDateTime(pp.start))}</div>
-    </div>
-  </div>`;
-        }
-
-        // ── schema detection ─────────────────────────────────────────────────────────
-
-        function detectSchema(data) {
-            if (data?.sessions) return { type: 'response', root: data };
-            const vals = Object.values(data || {});
-            if (vals.length && vals[0]?.sessions) return { type: 'response', root: vals[0] };
-            if (data?.stages?.[0]?.jobs?.[0]?.rules) return { type: 'request', root: data };
-            return { type: 'unknown', root: data || {} };
-        }
-
-        function renderRequestRule(rule) {
-            const type = rule.$type || 'Action';
+        /**
+         * Renders a single request rule as a plugin/action row.
+         *
+         * Behavior:
+         * - Resolves the display name from rule capabilities or plugin name.
+         * - Shows the rule argument when available.
+         * - Shows the target element/locator when available.
+         * - Returns HTML markup compatible with the report plugin row layout.
+         *
+         * @param {object} rule - The request rule to render.
+         * @returns {string} HTML markup for the request rule row.
+         */
+        function writeRequestRule(rule) {
+            // Resolve the rule display name.
+            // Prefer the friendly display name, then fall back to the plugin name.
             const name = rule.capabilities?.displayName || rule.pluginName || '?';
-            const arg = rule.argument || '';
-            const elem = rule.onElement || '';
-            return `<div class="plugin-row">
-    <div class="p-toggle"><span class="p-toggle-spacer"></span></div>
-    <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8"><path fill="currentColor" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/></svg>
-    <span class="p-name">${clearString(name)}</span>
-    ${arg ? `<span class="p-arg">${clearString(setTruncates(arg, 55))}</span>` : ''}
-    ${elem ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(elem, 40))}</span>` : ''}
-    <span class="p-spacer"></span>
-  </div>`;
+
+            // Resolve the rule argument shown beside the plugin name.
+            const argument = rule.argument || '';
+
+            // Resolve the rule target element/locator.
+            const element = rule.onElement || '';
+
+            // Render the request rule as a plugin-style row.
+            return `
+            <div class="plugin-row">
+                <div class="p-toggle"><span class="p-toggle-spacer"></span></div>
+                <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8">
+                    <path fill="currentColor" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
+                </svg>
+                <span class="p-name">${clearString(name)}</span>
+                ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                ${element ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(element, 40))}</span>` : ''}
+                <span class="p-spacer"></span>
+            </div>`;
         }
 
-        function renderRequestTimeline(stages) {
-            const ROW = 24, LW = 155, CW = 740, PAD = 6;
-            const allRules = stages.flatMap(st => st.jobs || []).flatMap(j => j.rules || []);
-            const total = allRules.length;
-            if (!total) return '<div class="no-data">No actions to display.</div>';
-
-            const svgH = ROW * total + PAD * 2;
-            const segW = CW / total;
-
-            const rowsSvg = allRules.map((rule, i) => {
-                const name = rule.capabilities?.displayName || rule.pluginName || '?';
-                const y = PAD + i * ROW;
-                const xS = LW + i * segW;
-                const w = Math.max(2, segW - 1);
-                return `<text x="${LW - 4}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">${clearString(setTruncates(name, 18))}</text>
-      <rect x="${xS.toFixed(1)}" y="${y + 5}" width="${w.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
-        <title>${clearString(setTruncates(name, 18))}</title>
-      </rect>`;
-            }).join('');
-
-            return `<div class="tl-wrap">
-    <svg class="svg-block" width="${LW + CW + PAD}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">
-      ${rowsSvg}
-    </svg>
-  </div>`;
-        }
-
-        function renderRequestView(data) {
-            const s = data.settings?.automationSettings || {};
+        /**
+         * Renders the request view for automation request data.
+         *
+         * Behavior:
+         * - Builds summary cards for request-level metrics.
+         * - Flattens stages, jobs, and rules for counting.
+         * - Renders a collapsible rule tree grouped by stage and job.
+         * - Renders a simple execution timeline based on rule order.
+         *
+         * @param {object} data - The automation request data to render.
+         * @returns {string} HTML markup for the request report view.
+         */
+        function writeRequestView(data) {
+            // Resolve all stages from the request data.
             const stages = data.stages || [];
+
+            // Flatten all jobs from all stages.
             const allJobs = stages.flatMap(st => st.jobs || []);
+
+            // Flatten all rules/actions from all jobs.
             const allRules = allJobs.flatMap(j => j.rules || []);
+
+            // Build request summary cards.
+            // Runtime-related values are not available in request mode,
+            // because this view represents the automation request before execution.
             const cards = [
                 { label: 'Total Runtime', value: '—' },
                 { label: 'Avg. Action Time', value: '—' },
@@ -1342,57 +1624,537 @@
                 { label: 'Failed Assertions', value: '—' },
                 { label: 'Total Timeouts', value: '—' },
             ];
-            const stagesHtml = stages.map(stage => {
-                const jobs = stage.jobs || [];
-                const sid = stage.reference?.id || ('s' + Math.random().toString(36).slice(2));
-                const sname = stage.reference?.name || 'Stage';
-                return `<div class="tree-stage">
-      <div class="tree-stage-hdr" onclick="togEl('rs-${clearString(sid)}','ri-${clearString(sid)}')">
-        <i class="chev open" id="ri-${clearString(sid)}">${SVG_CHEV}</i>
-                ${clearString(sname)}
-        <span class="meta-text">${jobs.length} job${jobs.length !== 1 ? 's' : ''}</span>
-      </div>
-      <div id="rs-${clearString(sid)}">
-        ${jobs.map(job => {
+
+            // Renders all jobs for a given stage, including their nested rules.
+            const writeJobsHtml = (jobs) => {
+                return jobs.map(job => {
+                    // Resolve rules/actions for the current job.
                     const rules = job.rules || [];
-                    const jid = job.reference?.id || ('j' + Math.random().toString(36).slice(2));
+
+                    // Resolve a stable job id when available.
+                    // Generate a fallback id when the request does not include one.
+                    const jid = job.reference?.id ||
+                        ('j' + Math.random().toString(36).slice(2));
+
+                    // Resolve the job display name.
                     const jname = job.reference?.name || 'Job';
-                    return `<div class="tree-job">
-            <div class="tree-job-hdr" onclick="togEl('rj-${clearString(jid)}','rji-${clearString(jid)}')">
-              <i class="chev open" id="rji-${clearString(jid)}">${SVG_CHEV}</i>
-                            ${clearString(jname)}
-              <span class="meta-text">${rules.length} action${rules.length !== 1 ? 's' : ''}</span>
-            </div>
-            <div id="rj-${clearString(jid)}">${rules.map(r => renderRequestRule(r)).join('')}</div>
-          </div>`;
-                }).join('')}
-      </div>
-    </div>`;
+
+                    // Render the current job and its request rules.
+                    return `
+                        <div class="tree-job">
+                            <div class="tree-job-hdr" onclick="toggleElement('rj-${clearString(jid)}','rji-${clearString(jid)}')">
+                                <i class="chev open" id="rji-${clearString(jid)}">${SVG_CHEVRON}</i>
+                                ${clearString(jname)}
+                                <span class="meta-text">${rules.length} action${rules.length > 1 ? 's' : ''}</span>
+                            </div>
+                            <div id="rj-${clearString(jid)}">${rules.map(r => writeRequestRule(r)).join('')}</div>
+                        </div>`;
+                }).join('')
+            };
+
+            // Render all stages and their nested jobs/rules.
+            const stagesHtml = stages.map(stage => {
+                // Resolve jobs for the current stage.
+                const jobs = stage.jobs || [];
+
+                // Resolve a stable stage id when available.
+                // Generate a fallback id when the request does not include one.
+                const sid = stage.reference?.id ||
+                    ('s' + Math.random().toString(36).slice(2));
+
+                // Resolve the stage display name.
+                const sname = stage.reference?.name || 'Stage';
+
+                // Render the current stage.
+                return `
+                <div class="tree-stage">
+                    <div class="tree-stage-hdr" onclick="toggleElement('rs-${clearString(sid)}','ri-${clearString(sid)}')">
+                        <i class="chev open" id="ri-${clearString(sid)}">${SVG_CHEVRON}</i>
+                        ${clearString(sname)}
+                        <span class="meta-text">${jobs.length} job${jobs.length > 1 ? 's' : ''}</span>
+                    </div>
+                    <div id="rs-${clearString(sid)}">
+                        ${writeJobsHtml(jobs)}
+                    </div>
+                </div>`;
             }).join('');
-            return `<div class="cards cards-6 cards-req">
-    ${cards.map(c => `<div class="card"><div class="card-label">${clearString(c.label)}</div><div class="card-value">${clearString(c.value)}</div></div>`).join('')}
-  </div>
-  <div class="section">
-    <div class="section-hdr" onclick="togEl('req-tree','req-tree-chev')">
-      <i class="chev open" id="req-tree-chev">${SVG_CHEV}</i>
-      Rule Tree <span class="meta-text">${stages.length} stage${stages.length !== 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length !== 1 ? 's' : ''} &bull; ${allRules.length} action${allRules.length !== 1 ? 's' : ''}</span>
-    </div>
-    <div class="section-body" id="req-tree">${stagesHtml}</div>
-  </div>
-  <div class="section section-mt">
-    <div class="section-hdr" onclick="togEl('req-tl','req-tl-chev')">
-      <i class="chev open" id="req-tl-chev">${SVG_CHEV}</i>
-      Execution Timeline
-      <span class="meta-text">${allRules.length} action${allRules.length !== 1 ? 's' : ''}</span>
-    </div>
-    <div class="section-body" id="req-tl">${renderRequestTimeline(stages)}</div>
-  </div>`;
+
+            // Render the complete request view:
+            // - Summary cards
+            // - Rule tree
+            // - Request timeline
+            return `
+            <div class="cards cards-6 cards-req">
+                ${cards.map(c => `
+                    <div class="card">
+                        <div class="card-label">${clearString(c.label)}</div>
+                        <div class="card-value">${clearString(c.value)}</div>
+                    </div>`).join('')}
+            </div>
+            <div class="section">
+                <div class="section-hdr" onclick="toggleElement('req-tree','req-tree-chev')">
+                    <i class="chev open" id="req-tree-chev">${SVG_CHEVRON}</i>
+                    Rule Tree <span class="meta-text">${stages.length} stage${stages.length > 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length > 1 ? 's' : ''} &bull; ${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
+                </div>
+                <div class="section-body" id="req-tree">${stagesHtml}</div>
+            </div>
+            <div class="section section-mt">
+                <div class="section-hdr" onclick="toggleElement('req-tl','req-tl-chev')">
+                <i class="chev open" id="req-tl-chev">${SVG_CHEVRON}</i>
+                Execution Timeline
+                <span class="meta-text">${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
+                </div>
+                <div class="section-body" id="req-tl">${writeRequestTimeline(stages)}</div>
+            </div>`;
         }
 
-        // ── main ────────────────────────────────────────────────────────────────────
+        /**
+         * Renders the full execution tree for all report stages.
+         *
+         * Behavior:
+         * - Returns a "No stages" message when no stages exist.
+         * - Renders each stage as a collapsible section.
+         * - Renders each job inside its owning stage.
+         * - Renders each plugin/action inside its owning job.
+         * - Calculates the top slowest plugins per job and marks them as hot.
+         *
+         * @param {Array<object>|null|undefined} stages - The report stages to render.
+         * @returns {string} HTML markup for the execution tree.
+         */
+        function writeTree(stages) {
+            const writeJob = (job) => {
+                // Resolve the top-level plugins/actions for the current job.
+                const plugins = job.plugins || [];
+
+                // Build the plugin label suffix.
+                const pluginSuffix = plugins.length > 1 || plugins.length === 0
+                    ? 's'
+                    : '';
+
+                // Resolve the total runtime for the current job.
+                const jobRunTime = job.performancePoint?.runTime || 0;
+
+                // Build a set of the top 3 slowest plugin reference ids.
+                // These are later highlighted by writePlugins().
+                const hotSet = new Set(
+                    groupPlugins(plugins)
+                        .sort((a, b) =>
+                            (b.performancePoint?.runTime || 0) -
+                            (a.performancePoint?.runTime || 0)
+                        )
+                        .slice(0, 3)
+                        .map(p => p.performancePoint?.reference?.id)
+                        .filter(Boolean)
+                );
+
+                // Render the current job and all of its plugins.
+                return `
+                <div class="tree-job">
+                    <div class="tree-job-hdr" onclick="toggleElement('jb-${clearString(job.id)}','ji-${clearString(job.id)}')">
+                        <i class="chev open" id="ji-${clearString(job.id)}">${SVG_CHEVRON}</i>
+                        ${clearString(job.name)}
+                        <span class="meta-text">${plugins.length} plugin${pluginSuffix} &bull; ${formatDuration(jobRunTime)}</span>
+                    </div>
+                    <div id="jb-${clearString(job.id)}">
+                        ${plugins.map(p => writePlugins(p, 0, jobRunTime, hotSet)).join('')}
+                    </div>
+                </div>`;
+            }
+
+            const writeStage = (stage) => {
+                // Resolve the jobs for the current stage.
+                const jobs = stage.jobs || [];
+
+                // Build the job label suffix.
+                const jobSuffix = jobs.length > 1 || jobs.length === 0
+                    ? 's'
+                    : '';
+
+                // Render the current stage and all of its jobs.
+                return `
+                <div class="tree-stage">
+                    <div class="tree-stage-hdr" onclick="toggleElement('st-${clearString(stage.id)}','si-${clearString(stage.id)}')">
+                        <i class="chev open" id="si-${clearString(stage.id)}">${SVG_CHEVRON}</i>
+                        ${clearString(stage.name)}
+                        <span class="meta-text">${jobs.length} job${jobSuffix}</span>
+                    </div>
+      
+                    <div id="st-${clearString(stage.id)}">
+                        ${jobs.map(job => writeJob(job)).join('')}
+                    </div>
+                </div>`;
+            }
+
+            // If the report does not contain stages, show an empty-state message.
+            if (!stages?.length) {
+                return '<div class="no-data">No stages.</div>';
+            }
+
+            // Render all stages.
+            return stages.map(stage => writeStage(stage)).join('');
+        }
+    </script>
+
+    <script id="src-timeline">
+        /**
+         * Renders a simple request timeline for automation request rules.
+         *
+         * Behavior:
+         * - Flattens all rules from all stages and jobs.
+         * - Shows an empty-state message when no rules exist.
+         * - Renders each rule as one SVG row.
+         * - Places each rule as an equal-width segment across the timeline.
+         * - Uses the rule display name or plugin name as the row label.
+         *
+         * @param {Array<object>|null|undefined} stages - The request stages to render.
+         * @returns {string} HTML markup for the request timeline.
+         */
+        function writeRequestTimeline(stages) {
+            // SVG layout constants.
+            const ROW = 24;
+            const LW = 155;
+            const CW = 740;
+            const PAD = 6;
+
+            // Flatten all rules from all jobs in all stages.
+            const rules = (stages || [])
+                .flatMap(st => st.jobs || [])
+                .flatMap(j => j.rules || []);
+
+            // Total number of actions/rules in the request.
+            const total = rules.length;
+
+            // Show an empty-state message when no rules exist.
+            if (!total) {
+                return '<div class="no-data">No actions to display.</div>';
+            }
+
+            // Calculate the SVG height based on the number of rule rows.
+            const svgHeight = ROW * total + PAD * 2;
+
+            // Each rule gets an equal-width segment in the chart area.
+            const segmentWidth = CW / total;
+
+            // Render each rule as a label and a timeline segment.
+            const rowsSvg = rules.map((rule, i) => {
+                // Resolve the friendly rule name.
+                // Prefer displayName, then fall back to pluginName.
+                const name = rule.capabilities?.displayName || rule.pluginName || '?';
+
+                // Calculate the vertical row position.
+                const y = PAD + i * ROW;
+
+                // Calculate the horizontal segment start position.
+                const xStartPosition = LW + i * segmentWidth;
+
+                // Keep at least 2px width so every rule remains visible.
+                const width = Math.max(2, segmentWidth - 1);
+
+                // Render the rule label and its timeline segment.
+                return `
+                <text x="${LW - 4}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">
+                    ${clearString(setTruncates(name, 18))}
+                </text>
+                <rect x="${xStartPosition.toFixed(1)}" y="${y + 5}" width="${width.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
+                    <title>${clearString(setTruncates(name, 18))}</title>
+                </rect>`;
+            }).join('');
+
+            // Render the complete timeline SVG.
+            return `
+            <div class="tl-wrap">
+                <svg class="svg-block" width="${LW + CW + PAD}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
+                    ${rowsSvg}
+                </svg>
+            </div>`;
+        }
+
+        /**
+         * Renders a timeline chart for all plugins/actions in the report.
+         *
+         * Behavior:
+         * - Converts the session start/end values into millisecond timestamps.
+         * - Flattens all plugins from all stages/jobs into timeline rows.
+         * - Calculates each plugin bar position relative to the full session duration.
+         * - Renders an SVG timeline with duration axis, plugin labels, bars, and durations.
+         *
+         * @param {Array<object>|null|undefined} stages - The report stages to render.
+         * @param {string} sessionStart - The session start date/time.
+         * @param {string} sessionEnd - The session end date/time.
+         * @returns {string} HTML markup for the timeline section.
+         */
+        function writeTimeline(stages, sessionStart, sessionEnd) {
+            // Flattens a nested plugin tree into timeline items.
+            //
+            // Behavior:
+            // - Iterates over the provided plugin collection.
+            // - Resolves each plugin name and type from its performance reference or rule.
+            // - Resolves start/end timestamps using plugin timing data.
+            // - Falls back to the session start/end when plugin timing is missing.
+            // - Tracks nesting depth so child plugins can be rendered indented.
+            // - Recursively processes child plugins.
+            const groupPlugins = (plugins, depth, out) => {
+                // Iterate over the current plugin level.
+                // If plugins is null/undefined, use an empty array.
+                for (const plugin of (plugins || [])) {
+                    // Resolve plugin reference metadata when available.
+                    const reference = plugin?.performancePoint?.reference || {};
+
+                    // Resolve the display name from reference metadata first,
+                    // then fall back to the rule plugin name.
+                    const name = reference.name || plugin?.rule?.pluginName || '?';
+
+                    // Resolve the plugin type, defaulting to Action when missing.
+                    const type = reference.type || 'Action';
+
+                    // Resolve plugin start time.
+                    // If the plugin does not include a start time, fall back to sessionStart.
+                    const start = new Date(
+                        plugin?.performancePoint?.start || sessionStart
+                    ).getTime();
+
+                    // Resolve plugin end time.
+                    // If the plugin does not include an end time, fall back to sessionEnd.
+                    const end = new Date(
+                        plugin?.performancePoint?.end || sessionEnd
+                    ).getTime();
+
+                    // Add the normalized plugin timeline item to the output collection.
+                    out.push({
+                        name,
+                        type,
+                        depth,
+                        start,
+                        end
+                    });
+
+                    // Recursively collect child plugin timeline items.
+                    groupPlugins(plugin?.plugins, depth + 1, out);
+                }
+            };
+
+            // Convert the session start and end values into millisecond timestamps.
+            const startTime = new Date(sessionStart).getTime();
+            const endTime = new Date(sessionEnd).getTime();
+
+            // Calculate the full session span.
+            // Use at least 1 ms to avoid division by zero.
+            const span = Math.max(endTime - startTime, 1);
+
+            // Timeline rows created from all plugins/actions.
+            const rows = [];
+
+            // Collect all plugin timeline rows from all stages and jobs.
+            for (const stage of (stages || [])) {
+                for (const job of (stage.jobs || [])) {
+                    groupPlugins(job.plugins, 0, rows);
+                }
+            }
+
+            // Show an empty-state message when no plugin timing data exists.
+            if (!rows.length) {
+                return '<div class="no-data">No timeline data.</div>';
+            }
+
+            // Height of each plugin/action row in the timeline.
+            const ROW = 24;
+
+            // Width reserved on the left for plugin/action labels.
+            const LW = 155;
+
+            // Width of the main timeline chart area.
+            const CW = 680;
+
+            // Width reserved on the right for duration text.
+            const DW = 80;
+
+            // Outer padding around the SVG content.
+            const PAD = 6;
+
+            // Number of time segments shown on the timeline axis.
+            // TICKS + 1 grid lines are rendered.
+            const TICKS = 6;
+
+            // Calculate the full SVG height based on the row count.
+            const svgHeight = ROW * rows.length + 20 + PAD * 2;
+
+            // Render the timeline axis grid lines and labels.
+            const axisTicks = Array.from({ length: TICKS + 1 }, (_, i) => {
+                // Calculate the x position for this tick.
+                const x = LW + (i / TICKS) * CW;
+
+                // Calculate the elapsed time represented by this tick.
+                const milliseconds = (i / TICKS) * span;
+
+                // Format the tick label as seconds or milliseconds.
+                const label = milliseconds >= 1000
+                    ? (milliseconds / 1000).toFixed(1) + 's'
+                    : Math.round(milliseconds) + 'ms';
+
+                return `
+                <line x1="${x}" y1="${PAD}" x2="${x}" y2="${PAD + ROW * rows.length}" stroke="currentColor" stroke-width="1" opacity="0.15"/>
+                <text x="${x}" y="${PAD + ROW * rows.length + 14}" text-anchor="middle" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">
+                    ${label}
+                </text>`;
+            }).join('');
+
+            // Render each plugin row as a label, bar, tooltip, and duration value.
+            const rowsSvg = rows.map((r, i) => {
+                // Calculate the vertical position for the row.
+                const y = PAD + i * ROW;
+
+                // Calculate the start position of the plugin bar.
+                const xStartPosition = LW + ((r.start - startTime) / span) * CW;
+
+                // Calculate the plugin bar width.
+                // Use at least 3 px so very fast actions are still visible.
+                const barWidth = Math.max(3, ((r.end - r.start) / span) * CW);
+
+                // Convert elapsed milliseconds back to ticks for the existing duration formatter.
+                const duration = formatDuration((r.end - r.start) * 10000);
+
+                // Indent nested plugin labels based on their depth.
+                const indent = LW - 4 - r.depth * 14;
+
+                return `
+                <text x="${indent}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">
+                    ${clearString(setTruncates(r.name, 18))}
+                </text>
+                <rect x="${xStartPosition.toFixed(1)}" y="${y + 5}" width="${barWidth.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
+                    <title>${clearString(r.name)}: ${duration} (${formatTime(new Date(r.start).toISOString())} - ${formatTime(new Date(r.end).toISOString())})</title>
+                </rect>
+                <text x="${LW + CW + 6}" y="${y + ROW / 2 + 4}" text-anchor="start" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">${duration}</text>`;
+            }).join('');
+
+            // Render the complete timeline wrapper and SVG.
+            return `
+            <div class="tl-wrap">
+                <svg class="svg-block" width="${LW + CW + DW + PAD}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
+                    ${axisTicks}
+                    ${rowsSvg}
+                </svg>
+            </div>`;
+        }
+    </script>
+
+    <script id="src-assertions">
+        /**
+         * Renders the assertion results table.
+         *
+         * Behavior:
+         * - Shows an empty-state message when no assertion data exists.
+         * - Renders each assertion as a table row.
+         * - Displays assertion element, condition, operator, expected value, actual value,
+         *   result status, and reason phrase.
+         * - Uses a green LED for passed assertions.
+         * - Uses a red LED for failed assertions.
+         * - Uses the default text color when the evaluation result is missing or unknown.
+         *
+         * @param {Array<object>} assertions - The assertion items to render.
+         * @returns {string} HTML markup for the assertion table.
+         */
+        function writeAssertions(assertions) {
+            // Show an empty-state message when there are no assertions to display.
+            if (!assertions.length) {
+                return '<div class="no-data">No assertion data found.</div>';
+            }
+
+            // Render all assertion rows.
+            const rows = assertions.map(assertion => {
+                // Assertion content contains the condition, expected value,
+                // actual value, evaluation result, and reason phrase.
+                const content = assertion.content || {};
+
+                // Resolve the assertion evaluation result.
+                // Expected values are usually true, false, or undefined/null.
+                const evaluation = content.Evaluation;
+
+                // Failed assertions are shown in red.
+                // Unknown/missing evaluation uses the current text color.
+                const evaluationColor = evaluation === false
+                    ? '#ef4444'
+                    : 'currentColor';
+
+                // Passed assertions are shown in green.
+                // Failed assertions use red.
+                // Unknown/missing results use the fallback evaluation color.
+                const ledFill = evaluation === true
+                    ? '#22c55e'
+                    : evaluationColor;
+
+                // Build the assertion result LED icon.
+                const ledSvg = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
+                    <path fill="${ledFill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
+                </svg>`;
+
+                // Render one assertion result row.
+                return `
+                <tr>
+                    <td class="mono">${clearString(assertion.onElement || '—')}</td>
+                    <td class="mono">${clearString(content.Condition || '—')}</td>
+                    <td class="mono">${clearString(content.Operator || '—')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '—')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '—'))}</td>
+                    <td class="td-center">${ledSvg}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '—')}</td>
+                </tr>`;
+            }).join('');
+
+            // Render the complete assertions table.
+            return `
+            <table class="assert-tbl">
+                <thead>
+                    <tr>
+                        <th>Element</th>
+                        <th>Condition</th>
+                        <th>Operator</th>
+                        <th>Expected</th>
+                        <th>Actual</th>
+                        <th>Result</th>
+                        <th>Reason Phrase</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+    </script>
+
+    <script id="src-header">
+        /**
+         * Renders the report header section.
+         *
+         * @param {object|null|undefined} automationReference - The automation reference metadata.
+         * @param {object|null|undefined} performancePoint - The main performance point for the report.
+         * @returns {string} HTML markup for the report header.
+         */
+        function renderHeader(automationReference, performancePoint) {
+            // Resolve the automation name shown in the report header.
+            const name = automationReference?.name || 'Untitled Automation';
+
+            // Resolve the automation start time from the performance point.
+            const start = performancePoint?.start;
+
+            // Render the report header.
+            return `
+            <div class="header">
+                <div>
+                    <div class="header-title">G4&#x2122; Automation Report</div>
+                    <div class="header-meta">${clearString(name)} &bull; ${clearString(formatDateTime(start))}</div>
+                </div>
+            </div>`;
+        }
+    </script>
+
+    <script id="src-main">
+
+    </script>
+
+    <script>
+
 
         function renderApp() {
-            const schema = detectSchema(DATA);
+            const schema = resolveSchema(DATA);
             const root = schema.root;
             const pp = root.performancePoint || {};
             const sessions = root.sessions || {};
@@ -1409,7 +2171,7 @@
                         </div>
                         <div class="header-right"><span class="tag tag-neutral">Request</span></div>
                     </div>`;
-                document.getElementById('app').innerHTML = `<div class="main">${renderRequestView(root)}</div>`;
+                document.getElementById('app').innerHTML = `<div class="main">${writeRequestView(root)}</div>`;
                 return;
             }
 
@@ -1474,39 +2236,39 @@
       ${writeCards(spp, stages)}
 
       <!-- error summary -->
-      ${(failedAsserts.length + allExceptions.length) > 0 ? renderErrorSummary(failedAsserts, allExceptions, sid) : ''}
+      ${(failedAsserts.length + allExceptions.length) > 0 ? writeErrorSummary(failedAsserts, allExceptions, sid) : ''}
 
       <!-- plugin tree -->
       <div class="section section-mt-lg">
-        <div class="section-hdr" onclick="togEl('tr-${sid}','ti-${sid}')">
-          <i class="chev open" id="ti-${sid}">${SVG_CHEV}</i>
+        <div class="section-hdr" onclick="toggleElement('tr-${sid}','ti-${sid}')">
+          <i class="chev open" id="ti-${sid}">${SVG_CHEVRON}</i>
           Plugin Tree
           <span class="meta-text">${stages.length} stage${stages.length !== 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length !== 1 ? 's' : ''} &bull; ${allPlugs.length} total plugins</span>
           <input class="tree-filter" type="text" placeholder="Filter…"
                  oninput="filterTree('${sid}', this.value)"
                  onclick="event.stopPropagation()">
         </div>
-        <div class="section-body" id="tr-${sid}">${renderTree(stages)}</div>
+        <div class="section-body" id="tr-${sid}">${writeTree(stages)}</div>
       </div>
 
       <!-- timeline -->
       <div class="section section-mt">
-        <div class="section-hdr" onclick="togEl('tl-${sid}','tli-${sid}')">
-          <i class="chev open" id="tli-${sid}">${SVG_CHEV}</i>
+        <div class="section-hdr" onclick="toggleElement('tl-${sid}','tli-${sid}')">
+          <i class="chev open" id="tli-${sid}">${SVG_CHEVRON}</i>
           Execution Timeline
         </div>
-        <div class="section-body" id="tl-${sid}">${renderTimeline(stages, spp.start, spp.end)}</div>
+        <div class="section-body" id="tl-${sid}">${writeTimeline(stages, spp.start, spp.end)}</div>
       </div>
 
       <!-- assertions -->
       <div class="section section-mt">
-        <div class="section-hdr" onclick="togEl('as-${sid}','ai-${sid}')">
-          <i class="chev open" id="ai-${sid}">${SVG_CHEV}</i>
+        <div class="section-hdr" onclick="toggleElement('as-${sid}','ai-${sid}')">
+          <i class="chev open" id="ai-${sid}">${SVG_CHEVRON}</i>
           Assertions
           ${fails > 0 ? `<span class="assert-count">${LED('#ef4444')}${fails} Fail</span>` : ''}
           ${passes > 0 ? `<span class="assert-count">${LED('#22c55e')}${passes} Pass</span>` : ''}
         </div>
-        <div id="as-${sid}">${renderAssertions(asserts)}</div>
+        <div id="as-${sid}">${writeAssertions(asserts)}</div>
       </div>
     </div>`;
             }).join('<div class="session-divider"></div>');
@@ -1515,54 +2277,12 @@
             document.getElementById('app').innerHTML = `<div class="main">${sessionHtml}</div>`;
         }
 
-        // ── toggle helpers ──────────────────────────────────────────────────────────
 
-        function togEl(id, iconId) {
-            const el = document.getElementById(id);
-            const ic = document.getElementById(iconId);
-            if (!el) return;
-            const hide = el.style.display !== 'none';
-            el.style.display = hide ? 'none' : '';
-            if (ic) { hide ? ic.classList.remove('open') : ic.classList.add('open'); }
-        }
-
-        function togPlugin(id) {
-            const ch = document.getElementById('ck-' + id);
-            const ic = document.getElementById('ci-' + id);
-            if (!ch) return;
-            const collapsed = ch.classList.contains('hidden');
-            ch.classList.toggle('hidden', !collapsed);
-            if (ic) { collapsed ? ic.classList.add('open') : ic.classList.remove('open'); }
-        }
-
-        function filterTree(sid, query) {
-            const root = document.getElementById('tr-' + sid);
-            if (!root) return;
-            const q = query.trim().toLowerCase();
-
-            // Process leaves first (reverse document order) so parents see their
-            // descendants' updated display when deciding whether to stay visible.
-            const nodes = Array.from(root.querySelectorAll('.p-node')).reverse();
-            for (const n of nodes) {
-                const self = (n.dataset.name || '').includes(q);
-                const hasMatchingDescendant = Array.from(n.querySelectorAll('.p-node'))
-                    .some(d => d.style.display !== 'none');
-                const show = !q || self || hasMatchingDescendant;
-                n.style.display = show ? '' : 'none';
-
-                if (q && hasMatchingDescendant) {
-                    const kidsBox = n.querySelector(':scope > .p-children');
-                    if (kidsBox) {
-                        kidsBox.classList.remove('hidden');
-                        const ic = document.getElementById('ci-' + kidsBox.id.slice(3));
-                        if (ic) ic.classList.add('open');
-                    }
-                }
-            }
-        }
 
         renderApp();
     </script>
+
+
 </body>
 
 </html>
