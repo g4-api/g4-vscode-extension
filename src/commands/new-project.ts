@@ -80,6 +80,9 @@ export class NewProjectCommand extends CommandBase {
             // Add sample content under the project
             NewProjectCommand.newSampleBot(folderUri, this._logger);
 
+            // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
+            NewProjectCommand.newDocumentation(folderUri);
+
             // Finally, open the newly created project folder in the editor
             NewProjectCommand.openFolder(folderUri);
         });
@@ -151,6 +154,46 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
+     * Creates the default documentation files for a new G4 workspace/project.
+     *
+     * This method copies bundled documentation resources from the extension package
+     * into the user's generated project structure. Currently, it creates the `docs`
+     * folder and writes the G4 manifest configuration guide into it.
+     *
+     * @param userPath The root user/project path where the documentation folder should be created.
+     */
+    private static newDocumentation(userPath: any): void {
+        // Build the list of documentation files that should be created.
+        // Each entry defines:
+        // - content: the embedded resource content loaded from the extension
+        // - fileName: the output file name
+        // - folderPath: the target directory where the file will be written
+        const documentsContent = [
+            {
+                // Load the bundled G4 manifest configuration guide from extension resources.
+                content: Utilities.getResource('g4-manifest-configuration-guide.md'),
+
+                // Keep the original markdown file name when writing it to the project.
+                fileName: 'g4-manifest-configuration-guide.md',
+
+                // Place all generated documentation files under the project "docs" folder.
+                folderPath: path.join(this.getPath(userPath), 'docs')
+            }
+        ];
+
+        // Write each documentation file to its target folder.
+        // The writeFile helper is responsible for creating the directory if needed
+        // and then writing the file content to disk.
+        for (const document of documentsContent) {
+            this.writeFile({
+                directoryPath: document.folderPath,
+                fileName: document.fileName,
+                content: document.content
+            });
+        }
+    }
+
+    /**
      * Writes a sample bot definition file into the project’s examples directory.
      * 
      * @param userPath      The URI(s) returned from the folder picker, used to determine the project root.
@@ -174,7 +217,7 @@ export class NewProjectCommand extends CommandBase {
         // Write the sample bot file "find-something-on-bing.g4" into the examples folder
         this.writeFile({
             directoryPath: examplesPath,
-            fileName: 'find-something-on-bing.g4',
+            fileName: 'find-something-on-bing.json',
             content: contentBasic,
             logger: logger
         });

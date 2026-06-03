@@ -14,6 +14,9 @@
             {}
         ]
     },
+    "reference": {
+        "name": "Find Something on Bing"
+    },
     "settings": {
         "automationSettings": {
             "loadTimeout": 60000,
@@ -32,21 +35,20 @@
             "returnScreenshots": false
         },
         "pluginsSettings": {
-            "externalRepositories": []
+            "externalRepositories": [],
+            "servers": {}
         }
     },
     "stages": [
         {
             "reference": {
                 "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
-                "id": "112937bc37fec7",
                 "name": "G4™ Default Stage"
             },
             "jobs": [
                 {
                     "reference": {
                         "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
-                        "id": "2065fde7edb866",
                         "name": "G4™ Default Job"
                     },
                     "rules": [
