@@ -349,7 +349,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         item: vscode.TreeItem & { data?: any }
     ): Promise<void> {
         // Resolve the node: prefer the explicit item, otherwise use the current tree selection.
-        const node = item ?? (tree.selection[0] as (TreeItem & { data?: any }) | undefined);
+        const node = item ?? (tree.selection[0]);
 
         // Extract the Markdown content (expected to be a string under node.data.document).
         const content = node?.data?.document as string | undefined;
