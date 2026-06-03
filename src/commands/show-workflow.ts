@@ -114,7 +114,16 @@ export class ShowWorkflowCommand extends CommandBase {
          * - workflow:result  - Receives the workflow result from the webview.
          * - console          - Receives console output from the webview and writes it to the extension logger.
          */
-        panel.webview.onDidReceiveMessage(async message => this.ResolveMessage(panel, args, message));
+        panel.webview.onDidReceiveMessage(async message => {
+            if (message.type === 'workflow:import') {
+                const uri = vscode.Uri.parse(message?.payload?.fileUri || '');
+                panel.title = path.basename(uri.fsPath) || 'G4 Workflow';
+            }
+
+            // Delegate message handling to the resolveMessage method, passing along the panel, command arguments, and message payload
+            // This keeps the message handling logic organized and allows resolveMessage to be async if needed.
+            this.resolveMessage(panel, args, message);
+        });
 
         // Finally, assign the processed HTML to the webview to render the app
         panel.webview.html = html;
@@ -376,7 +385,7 @@ export class ShowWorkflowCommand extends CommandBase {
      * @param args    - Optional command arguments used to initialize the webview.
      * @param message - The message received from the webview.
      */
-    private async ResolveMessage(panel: vscode.WebviewPanel, args: any, message: any) {
+    private async resolveMessage(panel: vscode.WebviewPanel, args: any, message: any) {
         // Helper to read a file or notebook given its URI string, then post its content
         const readFile = async (uri: string) => {
             try {
