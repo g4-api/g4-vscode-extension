@@ -1,7 +1,7 @@
 {
     "name": "g4-engine-client",
     "displayName": "g4-engine-client",
-    "description": "G4 Engine is a modern automation and RPA platform that unifies testing, data extraction, and workflow orchestration across technologies. Our tools empower developers and QA teams to build, monitor, and automate complex systems with precision and speed. We design seamless integrations, from desktop to cloud, to help teams accelerate delivery through intelligent automation.",
+    "description": "G4 Engine is a plugin-based automation platform that lets teams orchestrate workflows across web, desktop, API, and enterprise systems with speed, control, and reliability.",
     "version": "0.0.2",
     "engines": {
         "vscode": "^1.105.0"
