@@ -186,26 +186,6 @@ The `manifest.json` file is the **central runtime configuration** for a G4 proje
 
 It controls connectivity, drivers, automation behavior, recorders, diagnostics, and artifacts.
 
-### Client Logging
-
-Controls client-side and agent logging behavior.
-
-```json
-"clientLogConfiguration": {
-  "agentLogConfiguration": {
-    "enabled": true,
-    "interval": 1000
-  },
-  "logLevel": "information",
-  "sourceOptions": {
-    "filter": "include",
-    "sources": []
-  }
-}
-```
-
----
-
 ### G4 Server Connection
 
 ```json
@@ -258,6 +238,26 @@ Defines default execution drivers and remote hubs.
 ```
 
 Controls execution limits, parallelism, and response formats.
+
+---
+
+### Client Logging
+
+Controls client-side and agent logging behavior. Part of `settings`.
+
+```json
+"clientLogConfiguration": {
+  "agentLogConfiguration": {
+    "enabled": true,
+    "interval": 1000
+  },
+  "logLevel": "information",
+  "sourceOptions": {
+    "filter": "include",
+    "sources": []
+  }
+}
+```
 
 ---
 

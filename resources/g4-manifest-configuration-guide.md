@@ -11,7 +11,7 @@ A practical, friendly walkthrough of every setting in `manifest.json` — what i
 1. [How to read this guide](#1-how-to-read-this-guide)
 2. [The shape of `manifest.json`](#2-the-shape-of-manifestjson)
 3. [Editing safely — golden rules](#3-editing-safely--golden-rules)
-4. [`clientLogConfiguration` — what G4 tells you while it runs](#4-clientlogconfiguration--what-g4-tells-you-while-it-runs)
+4. [`settings.clientLogConfiguration` — what G4 tells you while it runs](#4-settingsclientlogconfiguration--what-g4-tells-you-while-it-runs)
    - 4.1 [`agentLogConfiguration`](#41-agentlogconfiguration)
    - 4.2 [`logLevel`](#42-loglevel)
    - 4.3 [`sourceOptions`](#43-sourceoptions)
@@ -64,11 +64,10 @@ If you're new to G4, read sections 2–7 in order; the rest are reference materi
 
 | Key                       | Purpose                                                            |
 | ------------------------- | ------------------------------------------------------------------ |
-| `clientLogConfiguration`  | Logging from G4 back to whoever called it                          |
 | `g4Server`                | Address of the G4 engine                                           |
 | `authentication`          | Token that proves you're allowed to use the engine                 |
 | `driverParameters`        | The default automation driver (e.g., Chrome)                       |
-| `settings`                | A container for all the run-behavior settings                      |
+| `settings`                | A container for all run-behavior settings, including `clientLogConfiguration` (logging) |
 | `servers` *(optional)*    | MCP servers whose tools become G4 plugins                          |
 
 Everything below `settings` controls **how runs behave** and **what comes back** after a run.
@@ -85,20 +84,22 @@ Everything below `settings` controls **how runs behave** and **what comes back**
 
 ---
 
-## 4. `clientLogConfiguration` — what G4 tells you while it runs
+## 4. `settings.clientLogConfiguration` — what G4 tells you while it runs
 
-This section controls the **stream of progress messages** G4 sends back to whatever called it (your IDE, the Python wrapper, an agent, etc.).
+This section controls the **stream of progress messages** G4 sends back to whatever called it (your IDE, the Python wrapper, an agent, etc.). It lives inside `settings`.
 
 ```json
-"clientLogConfiguration": {
-    "agentLogConfiguration": {
-        "enabled": true,
-        "interval": 1000
-    },
-    "logLevel": "information",
-    "sourceOptions": {
-        "filter": "include",
-        "sources": []
+"settings": {
+    "clientLogConfiguration": {
+        "agentLogConfiguration": {
+            "enabled": true,
+            "interval": 1000
+        },
+        "logLevel": "information",
+        "sourceOptions": {
+            "filter": "include",
+            "sources": []
+        }
     }
 }
 ```
@@ -564,8 +565,8 @@ The recorder is how G4 **observes a user clicking around a desktop application**
 ### 18.1 "I want fast local development with full diagnostics"
 
 ```json
-"clientLogConfiguration": { "logLevel": "debug", "agentLogConfiguration": { "enabled": true, "interval": 500 } },
 "settings": {
+    "clientLogConfiguration": { "logLevel": "debug", "agentLogConfiguration": { "enabled": true, "interval": 500 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": true, "reportsFolder": "." },
     "exceptionsSettings": { "returnExceptions": true },
@@ -577,8 +578,8 @@ The recorder is how G4 **observes a user clicking around a desktop application**
 ### 18.2 "I want lean, headless CI runs"
 
 ```json
-"clientLogConfiguration": { "logLevel": "warning", "agentLogConfiguration": { "enabled": true, "interval": 2000 } },
 "settings": {
+    "clientLogConfiguration": { "logLevel": "warning", "agentLogConfiguration": { "enabled": true, "interval": 2000 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": false, "reportsFolder": "./ci-reports" },
     "exceptionsSettings": { "returnExceptions": true },

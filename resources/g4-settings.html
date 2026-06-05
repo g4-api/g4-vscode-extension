@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html  lang="en">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G4™ Automation Settings</title>
+    <title>G4™ Settings</title>
     <!-- layout -->
     <style>
         *,
@@ -42,11 +42,2442 @@
             align-items: center;
             gap: 14px
         }
+
+        #app {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-gutter: stable
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700
+        }
+
+        .header-meta {
+            font-size: 11px;
+            margin-top: 1px
+        }
+
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px
+        }
+
+        /* sections */
+        .section {
+            overflow: hidden
+        }
+
+        .section-hdr {
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .section-body {
+            padding: 16px
+        }
+
+        .section-desc {
+            font-size: 11px;
+            margin-bottom: 14px
+        }
+
+        .meta-text {
+            font-weight: 400;
+            font-size: 11px
+        }
+
+        /* fields */
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 16px
+        }
+
+        .field:last-child {
+            margin-bottom: 0
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+            /* Align each field's bottom edge so the inputs line up across the
+               row even when one field has an extra line of label/hint text. */
+            align-items: end
+        }
+
+        .field-row:last-child {
+            margin-bottom: 0
+        }
+
+        .field-row .field {
+            margin-bottom: 0
+        }
+
+        .field-label {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .field-hint {
+            font-size: 11px
+        }
+
+        .field-error {
+            font-size: 11px;
+            min-height: 14px
+        }
+
+        .field-suffix {
+            font-size: 11px;
+            margin-left: 6px
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            font-family: inherit;
+            font-size: 12px;
+            padding: 6px 8px;
+            width: 100%;
+            background: transparent;
+            color: inherit;
+            outline: none
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Consolas', monospace
+        }
+
+        /* The native number spinners can't be themed (they render as a light
+           Chromium control that clashes with the editor theme), so hide them.
+           Typing and the keyboard up/down arrows still adjust the value. */
+        input[type="number"] {
+            -moz-appearance: textfield
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0
+        }
+
+        /* themed number steppers */
+        .num-wrap {
+            position: relative;
+            display: flex
+        }
+
+        .num-wrap input {
+            flex: 1;
+            padding-right: 24px
+        }
+
+        .num-steppers {
+            position: absolute;
+            top: 1px;
+            right: 1px;
+            bottom: 1px;
+            width: 20px;
+            display: flex;
+            flex-direction: column
+        }
+
+        .num-step {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: none;
+            cursor: pointer
+        }
+
+        .num-step svg {
+            width: 9px;
+            height: 9px;
+            display: block
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--vscode-focusBorder)
+        }
+
+        select option {
+            background: var(--vscode-dropdown-background, var(--vscode-editor-background));
+            color: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground))
+        }
+
+        .input-wrap {
+            display: flex;
+            align-items: stretch;
+            gap: 6px
+        }
+
+        .input-wrap input {
+            flex: 1
+        }
+
+        /* toggle switch */
+        .toggle {
+            display: inline-flex;
+            align-self: flex-start;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none
+        }
+
+        .toggle input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0
+        }
+
+        .switch {
+            position: relative;
+            width: 34px;
+            height: 18px;
+            border-radius: 9px;
+            flex-shrink: 0;
+            transition: background-color .15s
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            transition: transform .15s
+        }
+
+        .toggle input:checked+.switch::after {
+            transform: translateX(16px)
+        }
+
+        .toggle-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px
+        }
+
+        .toggle-label {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .toggle-hint {
+            font-size: 11px
+        }
+
+        /* buttons */
+        .btn {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 2px
+        }
+
+        .btn-ghost {
+            background: transparent;
+            font-weight: 500
+        }
+
+        .btn-sm {
+            font-size: 11px;
+            padding: 3px 9px
+        }
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: default
+        }
+
+        /* action bar */
+        .actionbar {
+            position: sticky;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            z-index: 5
+        }
+
+        .actionbar .spacer {
+            flex: 1
+        }
+
+        .save-note {
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity .2s
+        }
+
+        .save-note.show {
+            opacity: 1
+        }
+
+        /* repeatable cards */
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px
+        }
+
+        .item-card {
+            padding: 14px
+        }
+
+        .item-card-hdr {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px
+        }
+
+        .item-card-title {
+            font-weight: 600;
+            font-size: 12px
+        }
+
+        .item-card-hdr .spacer {
+            flex: 1
+        }
+
+        .add-row {
+            margin-top: 12px
+        }
+
+        /* key/value rows (e.g. HTTP headers) */
+        .kv-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .kv-row {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .kv-row .kv-key {
+            flex: 0 0 38%
+        }
+
+        .kv-row .kv-val {
+            flex: 1
+        }
+
+        .kv-row .btn {
+            flex-shrink: 0
+        }
+
+        .required-mark {
+            font-weight: 700
+        }
+
+        .subhdr {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin: 14px 0 8px
+        }
+
+        .note {
+            font-size: 11px;
+            padding: 8px 12px;
+            margin-top: 4px
+        }
+
+        .mono {
+            font-family: 'Consolas', monospace
+        }
+
+        /* json editor */
+        .json-wrap {
+            position: relative
+        }
+
+        .json-format-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            opacity: 0;
+            transition: opacity .15s
+        }
+
+        .json-wrap:hover .json-format-btn,
+        .json-wrap:focus-within .json-format-btn {
+            opacity: 1
+        }
+
+        /* chevron */
+        .chev {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-style: normal
+        }
+
+        .chev .chev-r {
+            display: block
+        }
+
+        .chev .chev-d {
+            display: none
+        }
+
+        .chev.open .chev-r {
+            display: none
+        }
+
+        .chev.open .chev-d {
+            display: block
+        }
+
+        .read-only-tag {
+            font-size: 9px;
+            padding: 1px 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em
+        }
+    </style>
+
+    <!-- colors -->
+    <style>
+        body {
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground)
+        }
+
+        .header {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .header-meta {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .section {
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr {
+            background-color: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr:has(.chev:not(.open)) {
+            border-bottom: none
+        }
+
+        .section-desc,
+        .field-hint,
+        .field-suffix,
+        .toggle-hint,
+        .meta-text,
+        .save-note {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .field-error,
+        .required-mark {
+            color: var(--vscode-errorForeground)
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+            background-color: var(--vscode-input-background, transparent)
+        }
+
+        .num-steppers {
+            border-left: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
+        }
+
+        .num-step {
+            background-color: var(--vscode-input-background, transparent);
+            color: var(--vscode-foreground)
+        }
+
+        .num-step:first-child {
+            border-bottom: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
+        }
+
+        .num-step:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .num-step svg path {
+            fill: currentColor
+        }
+
+        .switch {
+            background-color: var(--vscode-panel-border)
+        }
+
+        .switch::after {
+            background-color: var(--vscode-editor-background)
+        }
+
+        .toggle input:checked+.switch {
+            background-color: var(--vscode-testing-iconPassed, #22c55e)
+        }
+
+        .btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground)
+        }
+
+        .btn:hover {
+            background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
+        }
+
+        .btn-ghost {
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .btn-ghost:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .json-format-btn {
+            background-color: var(--vscode-input-background, var(--vscode-editor-background))
+        }
+
+        .json-format-btn:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .actionbar {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            border-top: 1px solid var(--vscode-panel-border)
+        }
+
+        .item-card {
+            border: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background)
+        }
+
+        .note {
+            border: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .read-only-tag {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        a {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none
+        }
+
+        a:hover {
+            color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+            text-decoration: underline
+        }
     </style>
 </head>
 
 <body>
-    <h1>G4 Settings</h1>
+    <div id="g4-header"></div>
+    <div id="app"></div>
+    <div id="g4-actionbar"></div>
+
+    <script id="src-constants">
+        // Collapse/expand chevron used by every settings section header.
+        const SVG_CHEVRON = `
+        <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
+            <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
+        </svg>
+        <svg class="chev-d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
+            <path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
+        </svg>`;
+
+        // Carets used by the themed number-input steppers.
+        const SVG_CARET_UP = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M300.3 199.2C312.9 188.9 331.4 189.7 343.1 201.4L471.1 329.4C480.3 338.6 483 352.3 478 364.3C473 376.3 461.4 384 448.5 384L192.5 384C179.6 384 167.9 376.2 162.9 364.2C157.9 352.2 160.7 338.5 169.9 329.4L297.9 201.4L300.3 199.2z"/></svg>`;
+
+        const SVG_CARET_DOWN = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/></svg>`;
+    </script>
+
+    <script id="src-defaults">
+        /**
+         * Built-in starting values for the settings form.
+         *
+         * These mirror the shipped `manifest.json` exactly, including value types
+         * that matter to the engine (for example `port` is a string, and unused
+         * provider slots stay `null`). The form edits a working copy of this object
+         * and never mutates DEFAULTS, so "Reset" always returns to this baseline.
+         */
+        const DEFAULTS = {
+            "g4Server": {
+                "schema": "http",
+                "host": "localhost",
+                "port": "9944"
+            },
+            "authentication": {
+                "token": ""
+            },
+            "driverParameters": {
+                "driver": "ChromeDriver",
+                "driverBinaries": "http://localhost:4444/wd/hub"
+            },
+            "settings": {
+                "automationSettings": {
+                    "loadTimeout": 60000,
+                    "maxParallel": 1,
+                    "returnFlatResponse": true,
+                    "returnStructuredResponse": true,
+                    "searchTimeout": 15000
+                },
+                "clientLogConfiguration": {
+                    "agentLogConfiguration": {
+                        "enabled": true,
+                        "interval": 1000
+                    },
+                    "logLevel": "information",
+                    "sourceOptions": {
+                        "filter": "include",
+                        "sources": []
+                    }
+                },
+                "clientReportSettings": {
+                    "autoView": true,
+                    "reportsFolder": ".",
+                    "saveReports": true
+                },
+                "environmentsSettings": {
+                    "returnEnvironments": true
+                },
+                "recorderSettings": {
+                    "enabled": true,
+                    "recorders": [
+                        {
+                            "enabled": true,
+                            "mode": "user32",
+                            "schema": "http",
+                            "host": "localhost",
+                            "port": "9955",
+                            "driverParameters": {
+                                "capabilities": {
+                                    "alwaysMatch": {
+                                        "browserName": "Uia",
+                                        "uia:options": {
+                                            "label": "machine-a"
+                                        }
+                                    }
+                                },
+                                "driver": "UiaDriver",
+                                "driverBinaries": "http://localhost:5555/wd/hub",
+                                "firstMatch": [
+                                    {}
+                                ]
+                            },
+                            "thinkTimeSettings": {
+                                "enabled": true,
+                                "maxThinkTime": 2000,
+                                "minThinkTime": 2000
+                            }
+                        },
+                        {
+                            "enabled": false,
+                            "mode": "user32",
+                            "schema": "http",
+                            "host": "localhost",
+                            "port": "9955",
+                            "driverParameters": {
+                                "capabilities": {
+                                    "alwaysMatch": {
+                                        "browserName": "Uia",
+                                        "uia:options": {
+                                            "label": "machine-b"
+                                        }
+                                    }
+                                },
+                                "driver": "UiaDriver",
+                                "driverBinaries": "http://localhost:4444/wd/hub",
+                                "firstMatch": [
+                                    {}
+                                ]
+                            },
+                            "thinkTimeSettings": {
+                                "enabled": false,
+                                "maxThinkTime": 2000,
+                                "minThinkTime": 2000
+                            }
+                        }
+                    ]
+                },
+                "exceptionsSettings": {
+                    "returnExceptions": true
+                },
+                "queueManagerSettings": {
+                    "properties": null,
+                    "type": null
+                },
+                "performancePointsSettings": {
+                    "returnPerformancePoints": true
+                },
+                "pluginsSettings": {
+                    "externalRepositories": [],
+                    "forceRuleReference": true
+                },
+                "screenshotsSettings": {
+                    "convertToBase64": false,
+                    "onExceptionOnly": false,
+                    "outputFolder": ".",
+                    "returnScreenshots": false
+                }
+            }
+        };
+    </script>
+
+    <script id="src-utilities">
+        /**
+         * Escapes a value so it can be safely rendered as HTML text or inside
+         * double-quoted HTML attributes.
+         *
+         * @param {*} s - The value to escape.
+         * @returns {string} The escaped HTML-safe string.
+         */
+        function clearString(s) {
+            return String(s ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;');
+        }
+
+        /**
+         * Creates a deep copy of a plain JSON-compatible value.
+         *
+         * Used to clone DEFAULTS into an editable working state without ever
+         * mutating the baseline.
+         *
+         * @param {*} value - The JSON-compatible value to copy.
+         * @returns {*} A deep copy of the value.
+         */
+        function deepCopy(value) {
+            return JSON.parse(JSON.stringify(value));
+        }
+
+        /**
+         * Reads a nested value from an object using a dotted path.
+         *
+         * Path segments may themselves contain dots when wrapped in the escape
+         * marker produced by escapeKey() (used for keys like "uia:options").
+         *
+         * @param {object} root - The object to read from.
+         * @param {string} path - A dotted path (e.g. "settings.automationSettings.loadTimeout").
+         * @returns {*} The resolved value, or undefined when any segment is missing.
+         */
+        function getPath(root, path) {
+            return splitPath(path).reduce(
+                (acc, key) => (acc == null ? acc : acc[key]),
+                root
+            );
+        }
+
+        /**
+         * Writes a nested value into an object using a dotted path.
+         * Missing intermediate objects are created along the way.
+         *
+         * @param {object} root - The object to write into.
+         * @param {string} path - A dotted path to the target leaf.
+         * @param {*} value - The value to assign.
+         */
+        function setPath(root, path, value) {
+            const keys = splitPath(path);
+            const last = keys.pop();
+
+            // Walk to the parent of the target leaf, creating objects as needed.
+            const parent = keys.reduce((acc, key) => {
+                if (acc[key] == null || typeof acc[key] !== 'object') {
+                    acc[key] = {};
+                }
+                return acc[key];
+            }, root);
+
+            parent[last] = value;
+        }
+
+        // Marker used to wrap a single path segment that legitimately contains
+        // dots or colons (for example the WebDriver key "uia:options").
+        const KEY_OPEN = '{{';
+        const KEY_CLOSE = '}}';
+
+        /**
+         * Wraps a key so it survives dotted-path splitting unchanged.
+         *
+         * @param {string} key - The raw object key.
+         * @returns {string} The escaped key segment.
+         */
+        function escapeKey(key) {
+            return KEY_OPEN + key + KEY_CLOSE;
+        }
+
+        /**
+         * Splits a dotted path into segments, keeping escaped segments intact.
+         *
+         * @param {string} path - The dotted path to split.
+         * @returns {string[]} The resolved path segments.
+         */
+        function splitPath(path) {
+            const segments = [];
+            let i = 0;
+
+            while (i < path.length) {
+                // An escaped segment is copied verbatim between the markers.
+                if (path.startsWith(KEY_OPEN, i)) {
+                    const end = path.indexOf(KEY_CLOSE, i + KEY_OPEN.length);
+                    segments.push(path.slice(i + KEY_OPEN.length, end));
+                    i = end + KEY_CLOSE.length;
+
+                    // Skip the dot that follows an escaped segment, if present.
+                    if (path[i] === '.') {
+                        i++;
+                    }
+                    continue;
+                }
+
+                // A normal segment runs up to the next dot.
+                let dot = path.indexOf('.', i);
+                if (dot === -1) {
+                    dot = path.length;
+                }
+                segments.push(path.slice(i, dot));
+                i = dot + 1;
+            }
+
+            return segments;
+        }
+
+        /**
+         * Toggles the visibility of a section body and updates its chevron icon.
+         *
+         * @param {string} id - The id of the section body element to show or hide.
+         * @param {string} iconId - The id of the chevron icon to update.
+         */
+        function toggleElement(id, iconId) {
+            const element = document.getElementById(id);
+            const icon = document.getElementById(iconId);
+
+            if (!element) {
+                return;
+            }
+
+            const isHide = element.style.display !== 'none';
+            element.style.display = isHide ? 'none' : '';
+
+            if (!icon) {
+                return;
+            }
+
+            isHide
+                ? icon.classList.remove('open')
+                : icon.classList.add('open');
+        }
+    </script>
+
+    <script id="src-controls">
+        /**
+         * Renders a collapsible settings section shell.
+         *
+         * @param {object} options - Section options.
+         * @param {string} options.id - Unique id suffix for the section.
+         * @param {string} options.title - The section title.
+         * @param {string} [options.desc] - An optional one-line description.
+         * @param {string} options.body - The inner HTML for the section body.
+         * @param {boolean} [options.open=true] - Whether the section starts expanded.
+         * @returns {string} HTML markup for the section.
+         */
+        function writeSection({ id, title, desc, body, open = true }) {
+            const descHtml = desc
+                ? `<div class="section-desc">${clearString(desc)}</div>`
+                : '';
+
+            return `
+            <div class="section">
+                <div class="section-hdr" onclick="toggleElement('sec-${id}','seci-${id}')">
+                    <i class="chev ${open ? 'open' : ''}" id="seci-${id}">${SVG_CHEVRON}</i>
+                    ${clearString(title)}
+                </div>
+                <div class="section-body" id="sec-${id}" ${open ? '' : 'style="display:none"'}>
+                    ${descHtml}${body}
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Renders a single-line text/number input bound to a state path.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @param {string} [options.type='text'] - The HTML input type.
+         * @param {string} [options.suffix] - Optional unit/suffix text after the input.
+         * @param {string} [options.placeholder] - Optional placeholder text.
+         * @returns {string} HTML markup for the text field.
+         */
+        function writeText({ path, label, hint, type = 'text', suffix, placeholder, min, max, required, maxLength, validate }) {
+            const value = getPath(STATE, path);
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+            const suffixHtml = suffix ? `<span class="field-suffix">${clearString(suffix)}</span>` : '';
+            const ph = placeholder ? ` placeholder="${clearString(placeholder)}"` : '';
+            const kind = type === 'number' ? 'number' : 'text';
+            const minAttr = min != null ? ` min="${min}"` : '';
+            const maxAttr = max != null ? ` max="${max}"` : '';
+            const maxLenAttr = maxLength != null ? ` maxlength="${maxLength}"` : '';
+
+            // Pass the lower bound through so onInput can clamp the stored value.
+            const minArg = min != null ? `, ${min}` : '';
+            const slug = path.replace(/[^a-z0-9]/gi, '-');
+            const inputId = 'inp-' + slug;
+
+            // Required marker + inline validation are only wired for text fields;
+            // number fields stay valid via their min/step handling.
+            const star = required ? ' <span class="required-mark">*</span>' : '';
+            const wantsCheck = (required || validate) && kind !== 'number';
+            const errId = 'fielderr-' + slug;
+            const checkArg = wantsCheck
+                ? `; checkField('${errId}', this.value, ${!!required}, '${validate || ''}')`
+                : '';
+            const errHtml = wantsCheck
+                ? `<div class="field-error" id="${errId}">${clearString(computeFieldError(value, required, validate))}</div>`
+                : '';
+
+            const inputHtml = `<input id="${inputId}" type="${type}" value="${clearString(value ?? '')}"${ph}${minAttr}${maxAttr}${maxLenAttr}
+                    oninput="onInput('${path}', this.value, '${kind}'${minArg})${checkArg}" />`;
+
+            // Number fields get themed up/down steppers in place of the native
+            // (un-themable) spinner controls. The buttons step the value by 1,
+            // honoring the same min/max bounds as typing.
+            const control = kind === 'number'
+                ? `<div class="num-wrap">
+                    ${inputHtml}
+                    <div class="num-steppers">
+                        <button type="button" class="num-step" tabindex="-1" aria-label="Increase"
+                            onclick="stepNumber('${path}', '${inputId}', 1, ${min ?? 'null'}, ${max ?? 'null'})">${SVG_CARET_UP}</button>
+                        <button type="button" class="num-step" tabindex="-1" aria-label="Decrease"
+                            onclick="stepNumber('${path}', '${inputId}', -1, ${min ?? 'null'}, ${max ?? 'null'})">${SVG_CARET_DOWN}</button>
+                    </div>
+                </div>`
+                : inputHtml;
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}${star}${suffixHtml}</label>
+                ${hintHtml}
+                ${control}
+                ${errHtml}
+            </div>`;
+        }
+
+        /**
+         * Renders a password input with a show/hide reveal button.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @returns {string} HTML markup for the secret field.
+         */
+        function writeSecret({ path, label, hint }) {
+            const value = getPath(STATE, path);
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+            const safeId = 'secret-' + path.replace(/[^a-z0-9]/gi, '-');
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <div class="input-wrap">
+                    <input id="${safeId}" type="password" value="${clearString(value ?? '')}"
+                        oninput="onInput('${path}', this.value)" />
+                    <button type="button" class="btn btn-ghost btn-sm"
+                        onclick="toggleSecret('${safeId}', this)">Show</button>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Renders a dropdown bound to a state path.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {Array<{value:string,text:string}>} options.choices - The available options.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @returns {string} HTML markup for the select field.
+         */
+        function writeSelect({ path, label, choices, hint }) {
+            const value = getPath(STATE, path);
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            const optionsHtml = choices.map(choice => `
+                <option value="${clearString(choice.value)}" ${choice.value === value ? 'selected' : ''}>
+                    ${clearString(choice.text)}
+                </option>`).join('');
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <select onchange="onInput('${path}', this.value)">${optionsHtml}</select>
+            </div>`;
+        }
+
+        /**
+         * Renders an on/off toggle switch bound to a boolean state path.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown beside the toggle.
+         * @returns {string} HTML markup for the toggle.
+         */
+        function writeToggle({ path, label, hint }) {
+            const value = !!getPath(STATE, path);
+            const hintHtml = hint ? `<div class="toggle-hint">${clearString(hint)}</div>` : '';
+
+            return `
+            <div class="field">
+                <label class="toggle">
+                    <input type="checkbox" ${value ? 'checked' : ''}
+                        onchange="onInput('${path}', this.checked, 'bool')" />
+                    <span class="switch"></span>
+                    <span class="toggle-text">
+                        <span class="toggle-label">${clearString(label)}</span>
+                        ${hintHtml}
+                    </span>
+                </label>
+            </div>`;
+        }
+
+        /**
+         * Renders a multi-line textarea whose lines map to a string array in state.
+         *
+         * Empty lines are ignored, so an empty textarea becomes an empty array.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to (string[]).
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @returns {string} HTML markup for the list field.
+         */
+        function writeListLines({ path, label, hint }) {
+            const value = getPath(STATE, path);
+            const text = Array.isArray(value) ? value.join('\n') : '';
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <textarea oninput="onListInput('${path}', this.value)">${clearString(text)}</textarea>
+            </div>`;
+        }
+
+        /**
+         * Renders a JSON editor bound to an object/array state path.
+         *
+         * The textarea shows the value pretty-printed. On each edit the text is
+         * parsed; valid JSON is written to state, invalid JSON leaves the last
+         * good value untouched and surfaces an inline error so a half-typed
+         * object never corrupts the manifest.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @param {number} [options.rows=8] - Visible height of the editor, in text rows.
+         * @returns {string} HTML markup for the JSON field.
+         */
+        function writeJson({ path, label, hint, rows = 8 }) {
+            const value = getPath(STATE, path);
+            const text = value == null ? '' : JSON.stringify(value, null, 4);
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+            const slug = path.replace(/[^a-z0-9]/gi, '-');
+            const errId = 'jsonerr-' + slug;
+            const taId = 'json-' + slug;
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <div class="json-wrap">
+                    <textarea id="${taId}" class="mono" style="min-height:${rows * 18}px"
+                        oninput="onJsonInput('${path}', this.value, '${errId}')">${clearString(text)}</textarea>
+                    <button type="button" class="btn btn-ghost btn-sm json-format-btn"
+                        title="Check &amp; format JSON" onclick="formatJson('${taId}', '${path}', '${errId}')">Format</button>
+                </div>
+                <div class="field-error" id="${errId}"></div>
+            </div>`;
+        }
+
+        /**
+         * Renders an editor for a string→string map (e.g. HTTP headers) as a list
+         * of key/value rows with add and remove controls.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path to the map object.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @param {string} [options.keyPlaceholder='Key'] - Placeholder for key inputs.
+         * @param {string} [options.valuePlaceholder='Value'] - Placeholder for value inputs.
+         * @param {string} [options.addLabel='Add'] - Caption for the add button.
+         * @param {string} [options.emptyText='None.'] - Text shown when the map is empty.
+         * @returns {string} HTML markup for the key/value field.
+         */
+        function writeKeyValue({ path, label, hint, keyPlaceholder = 'Key', valuePlaceholder = 'Value', addLabel = 'Add', emptyText = 'None.' }) {
+            const map = getPath(STATE, path) || {};
+            const entries = Object.entries(map);
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            const rows = entries.length
+                ? entries.map(([key, val]) => `
+                    <div class="kv-row">
+                        <input type="text" class="kv-key" value="${clearString(key)}" placeholder="${clearString(keyPlaceholder)}"
+                            onchange="renameEntryKey('${path}', '${clearString(key)}', this.value)" />
+                        <input type="text" class="kv-val" value="${clearString(val)}" placeholder="${clearString(valuePlaceholder)}"
+                            oninput="setEntryValue('${path}', '${clearString(key)}', this.value)" />
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="removeEntry('${path}', '${clearString(key)}')">Remove</button>
+                    </div>`).join('')
+                : `<div class="field-hint">${clearString(emptyText)}</div>`;
+
+            return `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <div class="kv-list">${rows}</div>
+                <div class="add-row">
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="addEntry('${path}')">+ ${clearString(addLabel)}</button>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Renders an HTTP-credentials editor (None / Basic / Bearer) bound to an
+         * AuthenticationModel object at `path`.
+         *
+         * Stored shape (assumed):
+         *   none   -> null
+         *   basic  -> { type: 'basic', username, password }
+         *   bearer -> { type: 'bearer', token }
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path to the credentials object.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @returns {string} HTML markup for the credentials editor.
+         */
+        function writeCredentials({ path, label, hint }) {
+            const type = credentialsType(getPath(STATE, path));
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            const selector = `
+            <div class="field">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <select onchange="setCredentialsType('${path}', this.value)">
+                    <option value="none" ${type === 'none' ? 'selected' : ''}>None</option>
+                    <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (username &amp; password)</option>
+                    <option value="bearer" ${type === 'bearer' ? 'selected' : ''}>Bearer (token)</option>
+                </select>
+            </div>`;
+
+            let fields = '';
+            if (type === 'basic') {
+                fields = `
+                <div class="field-row">
+                    ${writeText({ path: `${path}.username`, label: 'Username' })}
+                    ${writeSecret({ path: `${path}.password`, label: 'Password' })}
+                </div>`;
+            } else if (type === 'bearer') {
+                fields = writeSecret({ path: `${path}.token`, label: 'Token' });
+            }
+
+            return selector + fields;
+        }
+    </script>
+
+    <script id="src-sections">
+        /**
+         * Builds the "Connection" section: where the G4 engine lives.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionConnection() {
+            const body = `
+            <div class="field-row">
+                ${writeSelect({
+                path: 'g4Server.schema',
+                label: 'Protocol',
+                hint: 'Use HTTPS only if your engine sits behind a secure proxy.',
+                choices: [
+                    { value: 'http', text: 'HTTP (default)' },
+                    { value: 'https', text: 'HTTPS (secure)' }
+                ]
+            })}
+                ${writeText({
+                path: 'g4Server.host',
+                label: 'Engine address',
+                hint: 'The computer running G4. "localhost" means this machine.'
+            })}
+                ${writeText({
+                path: 'g4Server.port',
+                label: 'Port',
+                hint: 'The network port G4 listens on (default 9944).'
+            })}
+            </div>`;
+
+            return writeSection({
+                id: 'connection',
+                title: 'Connection',
+                desc: 'Tell G4 where the automation engine is running.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "License" section: the token that authorizes the engine.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionLicense() {
+            const body = `
+            <p class="field-hint" style="margin-bottom:10px">
+                Need a token? Get a free, full-featured license for personal use at
+                <a href="https://github.com/g4-api/g4-services#development-license" target="_blank" rel="noopener noreferrer">g4-api/g4-services</a>.
+                It renews periodically — when it expires, just request a new one and paste it here.
+                If the personal license doesn't work,
+                <a href="https://github.com/g4-api/g4-services/issues" target="_blank" rel="noopener noreferrer">open an issue</a>
+                and we'll help you out.
+            </p>
+            <div class="add-row" style="margin-top:0;margin-bottom:4px">
+                <button type="button" class="btn btn-ghost btn-sm" id="fetch-token-btn"
+                    onclick="fetchDevelopmentLicense()">Fetch free token automatically</button>
+                <span class="field-hint" id="fetch-token-status" style="margin-left:8px"></span>
+            </div>
+            <div class="field-hint" style="margin-bottom:16px">
+                Downloads the latest free token from GitHub and fills it in below — no copy/paste needed (requires internet access).
+            </div>
+            ${writeSecret({
+                path: 'authentication.token',
+                label: 'License token',
+                hint: 'Your private key for the engine. Treat it like a password — never share or post it.'
+            })}
+            <div class="note">Tip: keep this on one line, with no spaces or line breaks. If you start seeing "unauthorized" errors, your token may have expired.</div>`;
+
+            return writeSection({
+                id: 'license',
+                title: 'License',
+                desc: 'The token that proves you are allowed to use the engine.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Default Browser" section: the default automation driver.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionDriver() {
+            const body = `
+            <div class="field-row">
+                ${writeSelect({
+                path: 'driverParameters.driver',
+                label: 'Default browser / driver',
+                hint: 'Used when a workflow does not pick its own.',
+                choices: [
+                    { value: 'ChromeDriver', text: 'Chrome' },
+                    { value: 'EdgeDriver', text: 'Edge' },
+                    { value: 'FirefoxDriver', text: 'Firefox' },
+                    { value: 'UiaDriver', text: 'Windows desktop (UIA)' }
+                ]
+            })}
+                ${writeText({
+                path: 'driverParameters.driverBinaries',
+                label: 'Driver service URL or path',
+                hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
+            })}
+            </div>
+            ${writeJson({
+                path: 'driverParameters.capabilities.alwaysMatch',
+                label: 'Capabilities (alwaysMatch)',
+                hint: 'Advanced. WebDriver capabilities applied to every session — set the browser binary, launch args, etc.',
+                rows: 10
+            })}`;
+
+            return writeSection({
+                id: 'driver',
+                title: 'Default Browser',
+                desc: 'The technology G4 uses to drive the browser or app.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Run Behavior" section: timeouts and response shape.
+         *
+         * Timeouts are stored in milliseconds; helper text translates common values.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionRunBehavior() {
+            const body = `
+            <div class="field-row">
+                ${writeText({
+                path: 'settings.automationSettings.loadTimeout',
+                label: 'Page load timeout',
+                suffix: '(milliseconds)',
+                type: 'number',
+                hint: 'How long to wait for a page/screen to finish loading. 60000 = 1 minute.'
+            })}
+                ${writeText({
+                path: 'settings.automationSettings.searchTimeout',
+                label: 'Find element timeout',
+                suffix: '(milliseconds)',
+                type: 'number',
+                hint: 'How long to look for a button/field before giving up. 15000 = 15 seconds.'
+            })}
+                ${writeText({
+                path: 'settings.automationSettings.maxParallel',
+                label: 'Parallel workflows',
+                type: 'number',
+                min: 1,
+                hint: 'How many workflows run at once. Every flow is isolated in its own sandbox, so raising this is safe — and recommended for data-driven runs. 1 = one at a time (minimum).'
+            })}
+            </div>
+            ${writeToggle({
+                path: 'settings.automationSettings.returnFlatResponse',
+                label: 'Include simple results',
+                hint: 'A flat, easy-to-read view of the results.'
+            })}
+            ${writeToggle({
+                path: 'settings.automationSettings.returnStructuredResponse',
+                label: 'Include detailed results',
+                hint: 'A rich, nested view with step trees, timings, and errors.'
+            })}`;
+
+            return writeSection({
+                id: 'run',
+                title: 'Run Behavior',
+                desc: 'How workflows wait, run, and report back.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Logging" section: the live progress messages.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionLogging() {
+            const body = `
+            ${writeToggle({
+                path: 'settings.clientLogConfiguration.agentLogConfiguration.enabled',
+                label: 'Show live progress',
+                hint: 'Stream log messages while a run is in progress.'
+            })}
+            <div class="field-row">
+                ${writeText({
+                path: 'settings.clientLogConfiguration.agentLogConfiguration.interval',
+                label: 'Update frequency',
+                suffix: '(milliseconds)',
+                type: 'number',
+                hint: 'How often new log lines are pushed. Raise it on slow networks.'
+            })}
+                ${writeSelect({
+                path: 'settings.clientLogConfiguration.logLevel',
+                label: 'Detail level',
+                hint: '"Information" is a good everyday default.',
+                choices: [
+                    { value: 'error', text: 'Errors only' },
+                    { value: 'warning', text: 'Warnings' },
+                    { value: 'information', text: 'Information (default)' },
+                    { value: 'debug', text: 'Debug (noisy)' },
+                    { value: 'trace', text: 'Trace (very noisy)' }
+                ]
+            })}
+            </div>
+            <div class="field-row">
+                ${writeSelect({
+                path: 'settings.clientLogConfiguration.sourceOptions.filter',
+                label: 'Source filter mode',
+                hint: '"Include" shows only listed sources; "Exclude" hides them.',
+                choices: [
+                    { value: 'include', text: 'Only show listed sources' },
+                    { value: 'exclude', text: 'Hide listed sources' }
+                ]
+            })}
+            </div>
+            ${writeListLines({
+                path: 'settings.clientLogConfiguration.sourceOptions.sources',
+                label: 'Sources (one per line)',
+                hint: 'Leave empty for the default set. If logs go silent, switch the mode above to "Hide" with this empty.'
+            })}`;
+
+            return writeSection({
+                id: 'logging',
+                title: 'Logging',
+                desc: 'What G4 tells you while it runs.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Reports" section: the HTML run report.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionReports() {
+            const body = `
+            ${writeToggle({
+                path: 'settings.clientReportSettings.saveReports',
+                label: 'Save a report after each run',
+                hint: 'Writes an HTML report to disk.'
+            })}
+            ${writeToggle({
+                path: 'settings.clientReportSettings.autoView',
+                label: 'Open the report automatically',
+                hint: 'Turn off for headless/CI runs where nobody is watching.'
+            })}
+            ${writeText({
+                path: 'settings.clientReportSettings.reportsFolder',
+                label: 'Reports folder',
+                hint: 'A "reports" subfolder is created here. "." means a reports folder next to where G4 runs.'
+            })}`;
+
+            return writeSection({
+                id: 'reports',
+                title: 'Reports',
+                desc: 'The summary report produced after a run.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Response Data" section: optional extras in the response.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionResponseData() {
+            const body = `
+            ${writeToggle({
+                path: 'settings.environmentsSettings.returnEnvironments',
+                label: 'Include environment values',
+                hint: 'The variables/configuration used during the run. May contain secrets.'
+            })}
+            ${writeToggle({
+                path: 'settings.exceptionsSettings.returnExceptions',
+                label: 'Include error details',
+                hint: 'Error type, message, and stack trace — useful for debugging.'
+            })}
+            ${writeToggle({
+                path: 'settings.performancePointsSettings.returnPerformancePoints',
+                label: 'Include performance timings',
+                hint: 'How long named checkpoints took. Low cost; keep on to track performance.'
+            })}`;
+
+            return writeSection({
+                id: 'response',
+                title: 'Response Data',
+                desc: 'Extra information G4 can send back with each run.',
+                body
+            });
+        }
+
+        /**
+         * Builds the "Screenshots" section.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionScreenshots() {
+            const body = `
+            ${writeToggle({
+                path: 'settings.screenshotsSettings.returnScreenshots',
+                label: 'Capture screenshots',
+                hint: 'Off means no screenshots — the smallest, fastest runs.'
+            })}
+            ${writeToggle({
+                path: 'settings.screenshotsSettings.onExceptionOnly',
+                label: 'Only when something fails',
+                hint: 'Cheap forensic mode: capture a picture only on errors.'
+            })}
+            ${writeToggle({
+                path: 'settings.screenshotsSettings.convertToBase64',
+                label: 'Embed images in the response',
+                hint: 'Makes responses much larger. Off keeps images as separate files.'
+            })}
+            ${writeText({
+                path: 'settings.screenshotsSettings.outputFolder',
+                label: 'Screenshots folder',
+                hint: 'Where image files are written when not embedded.'
+            })}`;
+
+            return writeSection({
+                id: 'screenshots',
+                title: 'Screenshots',
+                desc: 'Whether and how G4 captures pictures during a run.',
+                body
+            });
+        }
+
+        /**
+         * Builds one editable external plugin repository card.
+         *
+         * @param {object} repo - The repository entry from state.
+         * @param {number} index - The repository's index in the array.
+         * @returns {string} HTML markup for the repository card.
+         */
+        function writeRepositoryCard(repo, index) {
+            const base = `settings.pluginsSettings.externalRepositories.${index}`;
+            const title = repo?.name || `Repository ${index + 1}`;
+
+            return `
+            <div class="item-card">
+                <div class="item-card-hdr">
+                    <span class="item-card-title">${clearString(title)}</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="removeRepository(${index})">Remove</button>
+                </div>
+                ${writeText({
+                    path: `${base}.name`,
+                    label: 'Name',
+                    required: true,
+                    maxLength: 155,
+                    hint: 'A unique name for this repository (up to 155 characters).'
+                })}
+                ${writeText({
+                    path: `${base}.url`,
+                    label: 'URL',
+                    required: true,
+                    validate: 'url',
+                    placeholder: 'https://…',
+                    hint: 'The repository endpoint G4 loads plugins from.'
+                })}
+                <div class="field-row">
+                    ${writeText({
+                        path: `${base}.version`,
+                        label: 'Version',
+                        type: 'number',
+                        min: 1,
+                        required: true,
+                        hint: 'Repository API version (whole number).'
+                    })}
+                    ${writeText({
+                        path: `${base}.timeout`,
+                        label: 'Timeout',
+                        suffix: '(seconds)',
+                        type: 'number',
+                        min: 0,
+                        hint: 'Request timeout. Default 300.'
+                    })}
+                </div>
+                ${writeJson({
+                    path: `${base}.capabilities`,
+                    label: 'Capabilities',
+                    hint: 'Advanced. Extra key/value capabilities sent to the repository.',
+                    rows: 6
+                })}
+                ${writeKeyValue({
+                    path: `${base}.headers`,
+                    label: 'Headers',
+                    hint: 'Optional HTTP headers sent with each request.',
+                    keyPlaceholder: 'Header',
+                    valuePlaceholder: 'Value',
+                    addLabel: 'Add header',
+                    emptyText: 'No headers.'
+                })}
+                ${writeCredentials({
+                    path: `${base}.credentials`,
+                    label: 'Credentials',
+                    hint: 'Optional authentication for the repository endpoint.'
+                })}
+            </div>`;
+        }
+
+        /**
+         * Builds the "Plugins" section.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionPlugins() {
+            const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories') || [];
+
+            const cards = repos.length
+                ? repos.map((repo, index) => writeRepositoryCard(repo, index)).join('')
+                : '<div class="note">No external repositories. G4 uses its built-in plugins only.</div>';
+
+            const body = `
+            ${writeToggle({
+                path: 'settings.pluginsSettings.forceRuleReference',
+                label: 'Rebuild rules at the start of every run',
+                hint: 'Recommended on. Keeps each run consistent with the current state.'
+            })}
+            <div class="subhdr">External Plugin Repositories</div>
+            <div class="field-hint" style="margin-bottom:10px">Load extra plugins from remote repositories at startup. Leave empty to use built-in plugins only.</div>
+            <div class="card-list">${cards}</div>
+            <div class="add-row">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addRepository()">+ Add repository</button>
+            </div>`;
+
+            return writeSection({
+                id: 'plugins',
+                title: 'Plugins',
+                desc: 'Where G4 loads its building blocks from.',
+                body
+            });
+        }
+
+        /**
+         * Builds one editable recorder ("machine") card.
+         *
+         * @param {object} recorder - The recorder entry from state.
+         * @param {number} index - The recorder's index in the recorders array.
+         * @returns {string} HTML markup for the recorder card.
+         */
+        function writeRecorderCard(recorder, index) {
+            const base = `settings.recorderSettings.recorders.${index}`;
+            const labelPath = `${base}.driverParameters.capabilities.alwaysMatch.${escapeKey('uia:options')}.label`;
+            const label = recorder?.driverParameters?.capabilities?.alwaysMatch?.['uia:options']?.label || `machine-${index + 1}`;
+
+            return `
+            <div class="item-card">
+                <div class="item-card-hdr">
+                    <span class="item-card-title">${clearString(label)}</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="removeRecorder(${index})">Remove</button>
+                </div>
+                ${writeToggle({
+                path: `${base}.enabled`,
+                label: 'Enabled',
+                hint: 'Turn this machine on or off without removing it.'
+            })}
+                <div class="field-row">
+                    ${writeText({
+                path: labelPath,
+                label: 'Friendly name',
+                hint: 'A readable name for this machine (e.g. accounting-pc).'
+            })}
+                    ${writeText({
+                path: `${base}.host`,
+                label: 'Recorder host',
+                hint: 'The machine running the recorder service.'
+            })}
+                    ${writeText({
+                path: `${base}.port`,
+                label: 'Recorder port',
+                hint: 'Default 9955.'
+            })}
+                </div>
+                <div class="field-row">
+                    ${writeText({
+                path: `${base}.driverParameters.driverBinaries`,
+                label: 'Desktop driver service URL',
+                hint: 'Where the Windows UIA driver runs.'
+            })}
+                </div>
+                <div class="subhdr">Pacing between actions</div>
+                ${writeToggle({
+                path: `${base}.thinkTimeSettings.enabled`,
+                label: 'Pause like a human between actions',
+                hint: 'Off replays as fast as possible.'
+            })}
+                <div class="field-row">
+                    ${writeText({
+                path: `${base}.thinkTimeSettings.minThinkTime`,
+                label: 'Shortest pause',
+                suffix: '(milliseconds)',
+                type: 'number',
+                hint: 'Pauses shorter than this are bumped up to it.'
+            })}
+                    ${writeText({
+                path: `${base}.thinkTimeSettings.maxThinkTime`,
+                label: 'Longest pause',
+                suffix: '(milliseconds)',
+                type: 'number',
+                hint: 'A cap. Set equal to "shortest" for a constant pause.'
+            })}
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Builds the "Desktop Recorders" section: capture desktop/UI sessions.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionRecorders() {
+            const recorders = getPath(STATE, 'settings.recorderSettings.recorders') || [];
+
+            const cards = recorders.length
+                ? recorders.map((recorder, index) => writeRecorderCard(recorder, index)).join('')
+                : '<div class="note">No recorders yet. Add one to capture a desktop machine.</div>';
+
+            const body = `
+            ${writeToggle({
+                path: 'settings.recorderSettings.enabled',
+                label: 'Enable desktop recording',
+                hint: 'Master switch for all recorders below.'
+            })}
+            <div class="card-list">${cards}</div>
+            <div class="add-row">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addRecorder()">+ Add machine</button>
+            </div>`;
+
+            return writeSection({
+                id: 'recorders',
+                title: 'Desktop Recorders',
+                desc: 'Watch a user click through a desktop app and turn it into a replayable workflow.',
+                body
+            });
+        }
+
+        /**
+         * Builds one editable MCP server card.
+         *
+         * @param {string} name - The server name (object key).
+         * @param {object} server - The server definition.
+         * @returns {string} HTML markup for the server card.
+         */
+        function writeServerCard(name, server) {
+            const args = Array.isArray(server?.args) ? server.args.join('\n') : '';
+
+            return `
+            <div class="item-card">
+                <div class="item-card-hdr">
+                    <span class="item-card-title mono">${clearString(name)}</span>
+                    <span class="spacer"></span>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="removeServer('${clearString(name)}')">Remove</button>
+                </div>
+                <div class="field">
+                    <label class="field-label">Name</label>
+                    <div class="field-hint">A short identifier for this tool server.</div>
+                    <input type="text" value="${clearString(name)}"
+                        onchange="renameServer('${clearString(name)}', this.value)" />
+                </div>
+                <div class="field-row">
+                    <div class="field">
+                        <label class="field-label">Command</label>
+                        <div class="field-hint">The program that starts the server (e.g. node, python, npx).</div>
+                        <input type="text" value="${clearString(server?.command ?? '')}"
+                            oninput="onInput('servers.${escapeKey(name)}.command', this.value)" />
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="field-label">Arguments (one per line)</label>
+                    <textarea oninput="onListInput('servers.${escapeKey(name)}.args', this.value)">${clearString(args)}</textarea>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Builds the "Advanced" section: queue manager (inactive) and MCP servers.
+         *
+         * @returns {string} HTML markup for the section.
+         */
+        function sectionAdvanced() {
+            const servers = getPath(STATE, 'servers') || {};
+            const names = Object.keys(servers);
+
+            const serverCards = names.length
+                ? names.map(name => writeServerCard(name, servers[name])).join('')
+                : '<div class="note">No MCP servers connected. Add one to expose its tools as G4 plugins.</div>';
+
+            const body = `
+            <div class="subhdr">Queue Manager <span class="read-only-tag">Not yet available</span></div>
+            <div class="note">Queue-based job intake is reserved for a future release. There is nothing to configure here yet.</div>
+
+            <div class="subhdr">MCP Tool Servers</div>
+            <div class="field-hint" style="margin-bottom:10px">Connect external MCP servers — their tools appear in the G4 plugin catalog.</div>
+            <div class="card-list">${serverCards}</div>
+            <div class="add-row">
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addServer()">+ Add MCP server</button>
+            </div>`;
+
+            return writeSection({
+                id: 'advanced',
+                title: 'Advanced',
+                desc: 'Rarely-touched options. Safe to ignore for everyday use.',
+                body,
+                open: false
+            });
+        }
+    </script>
+
+    <script id="src-app">
+        // The VS Code webview bridge. Acquired once; guarded so the page also
+        // renders correctly when opened outside the extension host.
+        const VSCODE = (typeof acquireVsCodeApi === 'function')
+            ? acquireVsCodeApi()
+            : null;
+
+        // The editable working copy of the settings. Cloned from DEFAULTS so the
+        // baseline is never mutated and "Reset" can always restore it.
+        let STATE = deepCopy(DEFAULTS);
+
+        /**
+         * Handles a single value change from a bound control.
+         *
+         * @param {string} path - The dotted state path that changed.
+         * @param {*} rawValue - The raw value from the control.
+         * @param {('text'|'number'|'bool')} [kind='text'] - How to coerce the value.
+         */
+        function onInput(path, rawValue, kind = 'text', min) {
+            let value = rawValue;
+
+            if (kind === 'number') {
+                // Keep the field usable while typing; treat empty as 0.
+                const parsed = Number(rawValue);
+                value = Number.isFinite(parsed) ? parsed : 0;
+
+                // Enforce a client-side floor so the engine never receives an
+                // out-of-range value (it rejects anything <= 0 server-side).
+                if (min != null && value < min) {
+                    value = min;
+                }
+            }
+
+            if (kind === 'bool') {
+                value = !!rawValue;
+            }
+
+            setPath(STATE, path, value);
+        }
+
+        /**
+         * Computes a validation message for a text field, or '' when it's valid.
+         *
+         * @param {*} value - The field value.
+         * @param {boolean} [required] - Whether the field must be non-empty.
+         * @param {string} [rule] - Extra rule: 'url' for a basic URL check.
+         * @returns {string} The warning to show, or '' when the value is fine.
+         */
+        function computeFieldError(value, required, rule) {
+            const text = String(value ?? '').trim();
+
+            if (required && !text) {
+                return 'Required.';
+            }
+            if (text && rule === 'url' && !/^https?:\/\/.+/i.test(text)) {
+                return 'Enter a valid URL (http:// or https://).';
+            }
+            return '';
+        }
+
+        /**
+         * Updates a field's inline warning element as the user types.
+         *
+         * @param {string} errId - Id of the error element.
+         * @param {*} value - The current field value.
+         * @param {boolean} required - Whether the field is required.
+         * @param {string} rule - Extra validation rule (see computeFieldError).
+         */
+        function checkField(errId, value, required, rule) {
+            const el = document.getElementById(errId);
+            if (el) {
+                el.textContent = computeFieldError(value, required, rule);
+            }
+        }
+
+        /**
+         * Steps a number field up or down by one, honoring its min/max bounds,
+         * then writes the result to state and the visible input.
+         *
+         * @param {string} path - The dotted state path to adjust.
+         * @param {string} inputId - Id of the bound number input.
+         * @param {number} dir - +1 to increment, -1 to decrement.
+         * @param {number|null} [min] - Lower bound, or null for none.
+         * @param {number|null} [max] - Upper bound, or null for none.
+         */
+        function stepNumber(path, inputId, dir, min, max) {
+            const current = Number(getPath(STATE, path));
+            let next = (Number.isFinite(current) ? current : 0) + dir;
+
+            if (min != null && next < min) {
+                next = min;
+            }
+            if (max != null && next > max) {
+                next = max;
+            }
+
+            setPath(STATE, path, next);
+
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = next;
+            }
+        }
+
+        /**
+         * Handles a multi-line list change, mapping non-empty lines to an array.
+         *
+         * @param {string} path - The dotted state path (string[]).
+         * @param {string} rawValue - The textarea contents.
+         */
+        function onListInput(path, rawValue) {
+            const list = String(rawValue || '')
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean);
+
+            setPath(STATE, path, list);
+        }
+
+        /**
+         * Handles a JSON editor change: parses the text and writes the resulting
+         * value to state, or reports an inline error and keeps the last good
+         * value when the text isn't valid JSON.
+         *
+         * @param {string} path - The dotted state path to write.
+         * @param {string} rawValue - The textarea contents.
+         * @param {string} [errId] - Id of the element that shows parse errors.
+         */
+        function onJsonInput(path, rawValue, errId) {
+            const errEl = errId ? document.getElementById(errId) : null;
+            const text = String(rawValue ?? '').trim();
+
+            const setError = message => {
+                if (errEl) {
+                    errEl.textContent = message;
+                }
+            };
+
+            // An empty box means "no value here" — store an empty object.
+            if (!text) {
+                setPath(STATE, path, {});
+                setError('');
+                return;
+            }
+
+            try {
+                setPath(STATE, path, JSON.parse(text));
+                setError('');
+            } catch (error) {
+                setError('Invalid JSON — fix the highlighted text; this change won’t be saved until it parses.');
+            }
+        }
+
+        /**
+         * Validates and pretty-prints the JSON in a textarea (4-space indent).
+         *
+         * On success it rewrites the textarea and stores the parsed value; on
+         * failure it leaves the text as-is and shows an inline error.
+         *
+         * @param {string} taId - Id of the JSON textarea.
+         * @param {string} path - The dotted state path the editor binds to.
+         * @param {string} [errId] - Id of the element that shows parse errors.
+         */
+        function formatJson(taId, path, errId) {
+            const textarea = document.getElementById(taId);
+            const errEl = errId ? document.getElementById(errId) : null;
+            if (!textarea) {
+                return;
+            }
+
+            const text = String(textarea.value ?? '').trim();
+            const setError = message => {
+                if (errEl) {
+                    errEl.textContent = message;
+                }
+            };
+
+            if (!text) {
+                setPath(STATE, path, {});
+                setError('');
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(text);
+                textarea.value = JSON.stringify(parsed, null, 4);
+                setPath(STATE, path, parsed);
+                setError('');
+            } catch (error) {
+                setError('Invalid JSON — fix the highlighted text before formatting.');
+            }
+        }
+
+        /**
+         * Reveals or masks a secret input and updates the toggle button label.
+         *
+         * @param {string} inputId - The id of the password input.
+         * @param {HTMLButtonElement} button - The clicked toggle button.
+         */
+        function toggleSecret(inputId, button) {
+            const input = document.getElementById(inputId);
+            if (!input) {
+                return;
+            }
+
+            const reveal = input.type === 'password';
+            input.type = reveal ? 'text' : 'password';
+            button.textContent = reveal ? 'Hide' : 'Show';
+        }
+
+        /**
+         * Adds a new desktop recorder seeded from the shipped recorder template.
+         */
+        function addRecorder() {
+            const recorders = STATE.settings.recorderSettings.recorders;
+            const template = deepCopy(DEFAULTS.settings.recorderSettings.recorders[0]);
+
+            // Give the new machine a unique friendly name and leave it disabled
+            // so adding it never changes behavior until the user opts in.
+            template.enabled = false;
+            template.driverParameters.capabilities.alwaysMatch['uia:options'].label =
+                'machine-' + (recorders.length + 1);
+
+            recorders.push(template);
+            render();
+        }
+
+        /**
+         * Removes a desktop recorder by index.
+         *
+         * @param {number} index - The recorder index to remove.
+         */
+        function removeRecorder(index) {
+            STATE.settings.recorderSettings.recorders.splice(index, 1);
+            render();
+        }
+
+        /**
+         * Adds a new, empty MCP server entry with a unique placeholder name.
+         */
+        function addServer() {
+            STATE.servers = STATE.servers || {};
+
+            // Find a unique default name so two new servers don't collide.
+            let n = Object.keys(STATE.servers).length + 1;
+            let name = 'server-' + n;
+            while (STATE.servers[name]) {
+                name = 'server-' + (++n);
+            }
+
+            STATE.servers[name] = { command: '', args: [] };
+            render();
+        }
+
+        /**
+         * Removes an MCP server by name.
+         *
+         * @param {string} name - The server key to remove.
+         */
+        function removeServer(name) {
+            if (STATE.servers) {
+                delete STATE.servers[name];
+            }
+            render();
+        }
+
+        /**
+         * Renames an MCP server while preserving its position and definition.
+         *
+         * @param {string} oldName - The current server key.
+         * @param {string} newNameRaw - The requested new key.
+         */
+        function renameServer(oldName, newNameRaw) {
+            const newName = String(newNameRaw || '').trim();
+
+            // Ignore no-op or empty renames, and refuse to overwrite an existing key.
+            if (!newName || newName === oldName || (STATE.servers && STATE.servers[newName])) {
+                render();
+                return;
+            }
+
+            // Rebuild the object so the renamed key keeps its original order.
+            const next = {};
+            for (const [key, value] of Object.entries(STATE.servers || {})) {
+                next[key === oldName ? newName : key] = value;
+            }
+            STATE.servers = next;
+            render();
+        }
+
+        /**
+         * Adds an empty entry to the string→string map at `path`, with a unique
+         * placeholder key.
+         *
+         * @param {string} path - Dotted state path to the map object.
+         */
+        function addEntry(path) {
+            const map = getPath(STATE, path) || {};
+
+            let n = Object.keys(map).length + 1;
+            let key = 'key-' + n;
+            while (key in map) {
+                key = 'key-' + (++n);
+            }
+
+            map[key] = '';
+            setPath(STATE, path, map);
+            render();
+        }
+
+        /**
+         * Removes an entry by key from the map at `path`.
+         *
+         * @param {string} path - Dotted state path to the map object.
+         * @param {string} key - The entry key to remove.
+         */
+        function removeEntry(path, key) {
+            const map = getPath(STATE, path);
+            if (map && typeof map === 'object') {
+                delete map[key];
+            }
+            render();
+        }
+
+        /**
+         * Updates the value of an existing entry in the map at `path`.
+         *
+         * @param {string} path - Dotted state path to the map object.
+         * @param {string} key - The entry key.
+         * @param {string} value - The new value.
+         */
+        function setEntryValue(path, key, value) {
+            setPath(STATE, `${path}.${escapeKey(key)}`, value);
+        }
+
+        /**
+         * Renames an entry key in the map at `path`, preserving order. Ignores
+         * empty, unchanged, or colliding names.
+         *
+         * @param {string} path - Dotted state path to the map object.
+         * @param {string} oldKey - The current entry key.
+         * @param {string} newKeyRaw - The requested new key.
+         */
+        function renameEntryKey(path, oldKey, newKeyRaw) {
+            const newKey = String(newKeyRaw || '').trim();
+            const map = getPath(STATE, path) || {};
+
+            if (!newKey || newKey === oldKey || (newKey in map)) {
+                render();
+                return;
+            }
+
+            const next = {};
+            for (const [key, value] of Object.entries(map)) {
+                next[key === oldKey ? newKey : key] = value;
+            }
+            setPath(STATE, path, next);
+            render();
+        }
+
+        /**
+         * Classifies a credentials object into a UI auth type.
+         *
+         * @param {object|null} cred - The stored credentials value.
+         * @returns {('none'|'basic'|'bearer')} The detected auth type.
+         */
+        function credentialsType(cred) {
+            if (!cred || typeof cred !== 'object') {
+                return 'none';
+            }
+            if (cred.type === 'basic' || cred.type === 'bearer') {
+                return cred.type;
+            }
+            if (cred.token != null) {
+                return 'bearer';
+            }
+            if (cred.username != null || cred.password != null) {
+                return 'basic';
+            }
+            return 'none';
+        }
+
+        /**
+         * Switches the credentials auth type at `path`, preserving any reusable
+         * fields, then re-renders so the matching inputs appear.
+         *
+         * @param {string} path - Dotted state path to the credentials object.
+         * @param {('none'|'basic'|'bearer')} type - The chosen auth type.
+         */
+        function setCredentialsType(path, type) {
+            const current = getPath(STATE, path) || {};
+
+            if (type === 'basic') {
+                setPath(STATE, path, {
+                    type: 'basic',
+                    username: current.username || '',
+                    password: current.password || ''
+                });
+            } else if (type === 'bearer') {
+                setPath(STATE, path, { type: 'bearer', token: current.token || '' });
+            } else {
+                setPath(STATE, path, null);
+            }
+
+            render();
+        }
+
+        /**
+         * Adds a new external plugin repository seeded with sensible defaults.
+         */
+        function addRepository() {
+            const existing = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
+            const repos = Array.isArray(existing) ? existing : [];
+
+            repos.push({ name: '', url: '', version: 1, timeout: 300, capabilities: {}, headers: {} });
+            setPath(STATE, 'settings.pluginsSettings.externalRepositories', repos);
+            render();
+        }
+
+        /**
+         * Removes an external plugin repository by index.
+         *
+         * @param {number} index - The repository index to remove.
+         */
+        function removeRepository(index) {
+            const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
+            if (Array.isArray(repos)) {
+                repos.splice(index, 1);
+            }
+            render();
+        }
+
+        /**
+         * Builds a clean manifest object from the current state.
+         *
+         * Behavior:
+         * - Clamps maxParallel to a valid floor (the engine rejects values <= 0).
+         * - Drops the optional `servers` block when it is empty.
+         *
+         * @returns {object} A manifest-shaped object ready to send to the host.
+         */
+        function buildManifest() {
+            const manifest = deepCopy(STATE);
+
+            // Safety net: never send a parallelism below 1, even if state drifts.
+            const parallel = Number(manifest.settings.automationSettings.maxParallel);
+            manifest.settings.automationSettings.maxParallel =
+                Number.isFinite(parallel) && parallel >= 1 ? parallel : 1;
+
+            // Keep the optional servers block out of the file when unused.
+            if (manifest.servers && Object.keys(manifest.servers).length === 0) {
+                delete manifest.servers;
+            }
+
+            // Mirror the base manifest: an empty repository list is stored as null.
+            const repos = manifest.settings?.pluginsSettings?.externalRepositories;
+            if (Array.isArray(repos) && repos.length === 0) {
+                manifest.settings.pluginsSettings.externalRepositories = null;
+            }
+
+            return manifest;
+        }
+
+        // Raw README that hosts the free development-license token. The token
+        // lives in a ```none code block right under the "Development License"
+        // heading. raw.githubusercontent.com serves permissive CORS headers,
+        // so the webview can read it directly.
+        const DEV_LICENSE_URL =
+            'https://raw.githubusercontent.com/g4-api/g4-services/main/README.md';
+
+        /**
+         * Pulls the token string out of the development-license README.
+         *
+         * Prefers the fenced ```none block that follows the "Development License"
+         * heading, and falls back to the first long base64-looking run so a minor
+         * change to the surrounding markdown doesn't break extraction.
+         *
+         * @param {string} markdown - The raw README contents.
+         * @returns {string|null} The extracted token, or null when none is found.
+         */
+        function extractDevelopmentToken(markdown) {
+            const text = String(markdown || '');
+
+            // Scope the search to the Development License section when present.
+            const headingAt = text.search(/##\s*Development License/i);
+            const region = headingAt >= 0 ? text.slice(headingAt) : text;
+
+            // Preferred: the explicit ```none ... ``` fenced block.
+            const fenced = region.match(/```none\s*\r?\n([\s\S]*?)\r?\n```/i);
+            if (fenced && fenced[1].trim()) {
+                return fenced[1].trim();
+            }
+
+            // Fallback: the first long base64-ish token in the section.
+            const loose = region.match(/[A-Za-z0-9+/]{200,}={0,2}/);
+            return loose ? loose[0] : null;
+        }
+
+        /**
+         * Fetches the free development-license token from GitHub and drops it into
+         * the token field. Requires internet access to github.com; on any failure
+         * it leaves the field untouched and points the user at the manual link.
+         */
+        async function fetchDevelopmentLicense() {
+            const button = document.getElementById('fetch-token-btn');
+            const status = document.getElementById('fetch-token-status');
+
+            const setStatus = message => {
+                if (status) {
+                    status.textContent = message;
+                }
+            };
+
+            if (button) {
+                button.disabled = true;
+            }
+            setStatus('Fetching the latest free token…');
+
+            try {
+                const response = await fetch(DEV_LICENSE_URL, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`GitHub returned ${response.status}`);
+                }
+
+                const token = extractDevelopmentToken(await response.text());
+                if (!token) {
+                    throw new Error('token not found in page');
+                }
+
+                // Update both the working state and the visible input.
+                setPath(STATE, 'authentication.token', token);
+                const input = document.getElementById('secret-authentication-token');
+                if (input) {
+                    input.value = token;
+                }
+
+                setStatus('Free token added. Click Save to apply it.');
+            } catch (error) {
+                console.warn('Could not fetch development license:', error);
+                setStatus('Couldn’t reach GitHub — grab the token manually from the link below, then paste it here.');
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * Serializes the current settings and sends them to the extension host.
+         * No-ops gracefully (with a console note) when run outside the host.
+         */
+        function save() {
+            const manifest = buildManifest();
+
+            if (VSCODE) {
+                VSCODE.postMessage({ command: 'saveSettings', manifest });
+            } else {
+                console.warn('VS Code bridge unavailable; settings were not sent.', manifest);
+            }
+
+            // Give the user immediate feedback regardless of host wiring.
+            const note = document.getElementById('save-note');
+            if (note) {
+                note.classList.add('show');
+                setTimeout(() => note.classList.remove('show'), 2000);
+            }
+        }
+
+        /**
+         * Resets all settings back to the shipped defaults and re-renders.
+         */
+        function resetDefaults() {
+            STATE = deepCopy(DEFAULTS);
+            render();
+        }
+
+        /**
+         * Renders the header and the full settings form from the current state.
+         */
+        function render() {
+            document.getElementById('g4-header').innerHTML = `
+            <div class="header">
+                <div>
+                    <div class="header-title">G4&#x2122; Settings</div>
+                    <div class="header-meta">Configure how the automation engine runs</div>
+                </div>
+            </div>`;
+
+            const sections = [
+                sectionConnection(),
+                sectionLicense(),
+                sectionDriver(),
+                sectionRunBehavior(),
+                sectionLogging(),
+                sectionReports(),
+                sectionResponseData(),
+                sectionScreenshots(),
+                sectionPlugins(),
+                sectionRecorders(),
+                sectionAdvanced()
+            ].join('');
+
+            document.getElementById('app').innerHTML = `
+            <div class="main">
+                ${sections}
+                <div style="height:8px"></div>
+            </div>`;
+
+            document.getElementById('g4-actionbar').innerHTML = `
+            <div class="actionbar">
+                <button type="button" class="btn" onclick="save()">Save</button>
+                <button type="button" class="btn btn-ghost" onclick="resetDefaults()">Reset to defaults</button>
+                <span class="spacer"></span>
+                <span class="save-note" id="save-note">Settings sent.</span>
+            </div>`;
+        }
+
+        // Initial render.
+        render();
+    </script>
 </body>
 
 </html>
