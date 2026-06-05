@@ -102,6 +102,19 @@ export class ShowSettingsCommand extends CommandBase {
 
         // Render the final HTML inside the webview.
         panel.webview.html = html;
+
+        // Handle messages posted from the settings webview.
+        panel.webview.onDidReceiveMessage(
+            async (message) => {
+                // Open external links (e.g. the Capabilities page) in the
+                // computer's default browser rather than inside VS Code.
+                if (message?.command === 'openExternal' && message.url) {
+                    await vscode.env.openExternal(vscode.Uri.parse(message.url));
+                }
+            },
+            undefined,
+            this.context.subscriptions
+        );
     }
 
     // Builds the HTML shim injected into the settings document <head>.
