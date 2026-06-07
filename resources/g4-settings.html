@@ -189,6 +189,7 @@
            Chromium control that clashes with the editor theme), so hide them.
            Typing and the keyboard up/down arrows still adjust the value. */
         input[type="number"] {
+            appearance: textfield;
             -moz-appearance: textfield
         }
 
@@ -699,6 +700,9 @@
     <div id="g4-header"></div>
     <div id="app"></div>
     <div id="g4-actionbar"></div>
+    <textarea id="g4-data" style="display:none; position:absolute; left:-9999px">
+        {{$ settings.data }}
+    </textarea>
 
     <script id="src-constants">
         // Collapse/expand chevron used by every settings section header.
@@ -860,41 +864,104 @@
          * Escapes a value so it can be safely rendered as HTML text or inside
          * double-quoted HTML attributes.
          *
+         * Behavior:
+         * - Converts null or undefined values into an empty string.
+         * - Converts all other values into strings.
+         * - Escapes HTML-sensitive characters:
+         *   - & becomes &amp;
+         *   - < becomes &lt;
+         *   - > becomes &gt;
+         *   - " becomes &quot;
+         *
          * @param {*} s - The value to escape.
          * @returns {string} The escaped HTML-safe string.
          */
         function clearString(s) {
+            // Convert null/undefined to an empty string, then normalize to string.
             return String(s ?? '')
+
+                // Escape ampersand first so we do not double-break generated entities.
                 .replaceAll('&', '&amp;')
+
+                // Escape opening angle brackets to prevent HTML tag injection.
                 .replaceAll('<', '&lt;')
+
+                // Escape closing angle brackets for safe HTML rendering.
                 .replaceAll('>', '&gt;')
+
+                // Escape double quotes so the value is safe in double-quoted attributes.
                 .replaceAll('"', '&quot;');
         }
 
         /**
          * Creates a deep copy of a plain JSON-compatible value.
          *
-         * Used to clone DEFAULTS into an editable working state without ever
-         * mutating the baseline.
+         * Behavior:
+         * - Uses structuredClone to produce an independent deep copy.
+         * - Used to clone DEFAULTS into editable state without mutating the baseline.
          *
          * @param {*} value - The JSON-compatible value to copy.
          * @returns {*} A deep copy of the value.
          */
-        function deepCopy(value) {
-            return JSON.parse(JSON.stringify(value));
+        function copyValue(value) {
+            // Produce an independent deep copy of the value.
+            return structuredClone(value);
+        }
+
+        /**
+         * Deep-merges an override object onto a base object, returning the base.
+         *
+         * Behavior:
+         * - Returns the base unchanged when the override is not a plain object.
+         * - Recurses into nested plain objects so missing keys keep their base value.
+         * - Replaces arrays and scalar values wholesale (no element-wise merge).
+         * - Mutates and returns the base, so callers pass a throwaway copy.
+         *
+         * Used to layer the injected manifest over DEFAULTS so a partial manifest
+         * still produces a fully-populated form (missing keys fall back to DEFAULTS).
+         *
+         * @param {object} base - The baseline object to merge into (mutated).
+         * @param {*} override - The values that take precedence over the base.
+         * @returns {object} The merged base object.
+         */
+        function mergeSettings(base, override) {
+            // A non-object override (array, scalar, null) cannot be merged key-by-key.
+            if (!override || typeof override !== 'object' || Array.isArray(override)) {
+                return base;
+            }
+
+            // Layer each override key onto the base, recursing into nested objects.
+            for (const [key, value] of Object.entries(override)) {
+                // Determine whether both sides are plain objects worth merging.
+                const baseValue = base[key];
+                const bothPlainObjects =
+                    value && typeof value === 'object' && !Array.isArray(value) &&
+                    baseValue && typeof baseValue === 'object' && !Array.isArray(baseValue);
+
+                // Recurse for nested objects; otherwise replace the value outright.
+                base[key] = bothPlainObjects
+                    ? mergeSettings(baseValue, value)
+                    : value;
+            }
+
+            // Return the merged base so the call can be used as an expression.
+            return base;
         }
 
         /**
          * Reads a nested value from an object using a dotted path.
          *
-         * Path segments may themselves contain dots when wrapped in the escape
-         * marker produced by escapeKey() (used for keys like "uia:options").
+         * Behavior:
+         * - Splits the path into segments, keeping escaped segments intact.
+         * - Walks the object one segment at a time.
+         * - Stops and returns undefined as soon as any segment is missing.
          *
          * @param {object} root - The object to read from.
          * @param {string} path - A dotted path (e.g. "settings.automationSettings.loadTimeout").
          * @returns {*} The resolved value, or undefined when any segment is missing.
          */
         function getPath(root, path) {
+            // Reduce the path segments down to the target value, bailing on null/undefined.
             return splitPath(path).reduce(
                 (acc, key) => (acc == null ? acc : acc[key]),
                 root
@@ -903,24 +970,31 @@
 
         /**
          * Writes a nested value into an object using a dotted path.
-         * Missing intermediate objects are created along the way.
+         *
+         * Behavior:
+         * - Splits the path into segments, keeping escaped segments intact.
+         * - Walks to the parent of the target leaf, creating objects as needed.
+         * - Assigns the value to the final segment.
          *
          * @param {object} root - The object to write into.
          * @param {string} path - A dotted path to the target leaf.
          * @param {*} value - The value to assign.
          */
         function setPath(root, path, value) {
+            // Split the path and peel off the final (leaf) segment.
             const keys = splitPath(path);
             const last = keys.pop();
 
             // Walk to the parent of the target leaf, creating objects as needed.
             const parent = keys.reduce((acc, key) => {
+                // Replace any missing/non-object link with a fresh object so the walk continues.
                 if (acc[key] == null || typeof acc[key] !== 'object') {
                     acc[key] = {};
                 }
                 return acc[key];
             }, root);
 
+            // Assign the value to the leaf segment on its parent.
             parent[last] = value;
         }
 
@@ -932,26 +1006,39 @@
         /**
          * Wraps a key so it survives dotted-path splitting unchanged.
          *
+         * Behavior:
+         * - Surrounds the raw key with the escape markers.
+         * - The resulting segment is copied verbatim by splitPath().
+         *
          * @param {string} key - The raw object key.
          * @returns {string} The escaped key segment.
          */
-        function escapeKey(key) {
+        function convertToEscapedKey(key) {
+            // Wrap the key in the open/close markers so dots inside it are preserved.
             return KEY_OPEN + key + KEY_CLOSE;
         }
 
         /**
          * Splits a dotted path into segments, keeping escaped segments intact.
          *
+         * Behavior:
+         * - Copies an escaped segment verbatim from between its markers.
+         * - Skips the dot that follows an escaped segment.
+         * - Reads a normal segment up to the next dot.
+         *
          * @param {string} path - The dotted path to split.
          * @returns {string[]} The resolved path segments.
          */
         function splitPath(path) {
+            // Accumulated path segments and the current scan position.
             const segments = [];
             let i = 0;
 
+            // Scan the whole path one segment at a time.
             while (i < path.length) {
                 // An escaped segment is copied verbatim between the markers.
                 if (path.startsWith(KEY_OPEN, i)) {
+                    // Find the closing marker and capture the wrapped segment text.
                     const end = path.indexOf(KEY_CLOSE, i + KEY_OPEN.length);
                     segments.push(path.slice(i + KEY_OPEN.length, end));
                     i = end + KEY_CLOSE.length;
@@ -972,39 +1059,393 @@
                 i = dot + 1;
             }
 
+            // Return the resolved segment list.
             return segments;
         }
 
         /**
          * Toggles the visibility of a section body and updates its chevron icon.
          *
+         * Behavior:
+         * - Finds the target element by id.
+         * - Hides the element when it is currently visible, and shows it otherwise.
+         * - Adds or removes the `open` class on the icon to match the visible state.
+         *
          * @param {string} id - The id of the section body element to show or hide.
          * @param {string} iconId - The id of the chevron icon to update.
          */
-        function toggleElement(id, iconId) {
+        function switchElement(id, iconId) {
+            // Resolve the target element that should be toggled.
             const element = document.getElementById(id);
+
+            // Resolve the optional chevron icon that reflects the toggle state.
             const icon = document.getElementById(iconId);
 
+            // If the target element does not exist, there is nothing to toggle.
             if (!element) {
                 return;
             }
 
+            // The element should be hidden when it is currently visible.
             const isHide = element.style.display !== 'none';
+
+            // Apply the new visibility state.
             element.style.display = isHide ? 'none' : '';
 
+            // If no icon exists, only the element visibility is toggled.
             if (!icon) {
                 return;
             }
 
+            // Update the chevron open state to match the element visibility.
             isHide
                 ? icon.classList.remove('open')
                 : icon.classList.add('open');
         }
     </script>
 
+    <script id="src-state">
+        // The VS Code webview bridge. Acquired once; guarded so the page also
+        // renders correctly when opened outside the extension host.
+        const VSCODE = (typeof acquireVsCodeApi === 'function')
+            ? acquireVsCodeApi()
+            : null;
+
+        // The real manifest injected by the extension host (show-settings.ts)
+        // through the #g4-data holder. Parsed defensively so the page still
+        // renders when opened standalone, where the marker is left unreplaced.
+        const INJECTED = (() => {
+            try {
+                return JSON.parse(document.getElementById('g4-data').value);
+            } catch {
+                return null;
+            }
+        })();
+
+        // The editable working copy of the settings. Starts from the injected
+        // manifest layered over DEFAULTS so a partial manifest still produces a
+        // fully-populated form; falls back to DEFAULTS alone when nothing was
+        // injected. DEFAULTS itself is never mutated, so "Reset" can restore it.
+        let STATE = (INJECTED && Object.keys(INJECTED).length)
+            ? mergeSettings(copyValue(DEFAULTS), INJECTED)
+            : copyValue(DEFAULTS);
+
+        // Driver keys fetched from the engine; null until a successful load.
+        // Used to populate every "Driver" dropdown.
+        let DRIVERS = null;
+
+        // Shown when the engine can't be reached so the form stays usable.
+        const FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
+
+        // Raw README that hosts the free development-license token. The token
+        // lives in a ```none code block right under the "Development License"
+        // heading. raw.githubusercontent.com serves permissive CORS headers,
+        // so the webview can read it directly.
+        const DEV_LICENSE_URL =
+            'https://raw.githubusercontent.com/g4-api/g4-services/main/README.md';
+    </script>
+
+    <script id="src-engine">
+        /**
+         * Builds the configured engine's Capabilities page URL from the current
+         * Connection settings, with sensible fallbacks for any blank part.
+         *
+         * Behavior:
+         * - Reads the schema/host/port from the current g4Server state.
+         * - Falls back to http/localhost/9944 for any missing part.
+         *
+         * @returns {string} The full capabilities.html URL.
+         */
+        function getCapabilitiesUrl() {
+            // Resolve the configured engine connection, defaulting each part.
+            const server = STATE.g4Server || {};
+            const schema = server.schema || 'http';
+            const host = server.host || 'localhost';
+            const port = server.port || '9944';
+
+            // Compose the Capabilities page URL.
+            return `${schema}://${host}:${port}/views/capabilities.html`;
+        }
+
+        /**
+         * Builds the engine's driver-manifests endpoint URL from the current
+         * Connection settings.
+         *
+         * Behavior:
+         * - Reads the schema/host/port from the current g4Server state.
+         * - Falls back to http/localhost/9944 for any missing part.
+         *
+         * @returns {string} The full drivers API URL.
+         */
+        function getDriversUrl() {
+            // Resolve the configured engine connection, defaulting each part.
+            const server = STATE.g4Server || {};
+            const schema = server.schema || 'http';
+            const host = server.host || 'localhost';
+            const port = server.port || '9944';
+
+            // Compose the driver-manifests API URL.
+            return `${schema}://${host}:${port}/api/v4/g4/integration/manifests/drivers`;
+        }
+
+        /**
+         * Returns the choices for a Driver dropdown.
+         *
+         * Behavior:
+         * - Uses the fetched driver keys, or the static fallback when none loaded.
+         * - Always includes the currently-saved value so it is never silently dropped.
+         * - Maps each key to an option whose value and text are both the driver key.
+         *
+         * @param {string} currentValue - The driver value currently in state.
+         * @returns {Array<{value:string,text:string}>} The dropdown choices.
+         */
+        function getDriverChoices(currentValue) {
+            // Prefer the live driver list; fall back to the static list when empty.
+            const source = Array.isArray(DRIVERS) && DRIVERS.length ? DRIVERS : FALLBACK_DRIVERS;
+            const keys = source.slice();
+
+            // Keep the saved value selectable even when it is not in the source list.
+            if (currentValue && !keys.includes(currentValue)) {
+                keys.unshift(currentValue);
+            }
+
+            // Map each driver key into a {value, text} choice.
+            return keys.map(key => ({ value: key, text: key }));
+        }
+
+        /**
+         * Fetches the driver manifests from the engine and refreshes every Driver
+         * dropdown.
+         *
+         * Behavior:
+         * - Spins the clicked button while the request is in flight.
+         * - Reads each manifest's `key` and stores them as the driver list.
+         * - Falls back to the static list on any failure.
+         * - Re-renders the driver and recorder sections so the selects update.
+         *
+         * @param {HTMLButtonElement} [button] - The clicked "refresh" button, if any.
+         */
+        async function updateDrivers(button) {
+            // Spin the clicked button while the request is in flight. No manual
+            // cleanup needed — the section re-render below rebuilds the button.
+            if (button) {
+                button.disabled = true;
+                button.classList.add('is-busy');
+            }
+
+            try {
+                // Request the driver manifests from the engine.
+                const response = await fetch(getDriversUrl(), { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                // Keep only the valid string `key` from each returned manifest.
+                const data = await response.json();
+                DRIVERS = Array.isArray(data)
+                    ? data.map(manifest => manifest && manifest.key).filter(key => typeof key === 'string' && key)
+                    : [];
+            } catch (error) {
+                // On any failure, drop back to the static fallback list.
+                console.warn('Could not fetch driver manifests:', error);
+                DRIVERS = null;
+            }
+
+            // Refresh the driver selects in place, preserving collapse/scroll.
+            updateSection('driver');
+            updateSection('recorders');
+        }
+
+        /**
+         * Builds the engine's ping endpoint URL from the current Connection
+         * settings.
+         *
+         * Behavior:
+         * - Reads the schema/host/port from the current g4Server state.
+         * - Falls back to http/localhost/9944 for any missing part.
+         *
+         * @returns {string} The full ping API URL.
+         */
+        function getPingUrl() {
+            // Resolve the configured engine connection, defaulting each part.
+            const server = STATE.g4Server || {};
+            const schema = server.schema || 'http';
+            const host = server.host || 'localhost';
+            const port = server.port || '9944';
+
+            // Compose the ping API URL.
+            return `${schema}://${host}:${port}/api/v4/g4/ping`;
+        }
+
+        /**
+         * Pings the configured engine and reports the result next to the button.
+         *
+         * Behavior:
+         * - Disables the button and spins its icon while the request is in flight.
+         * - Reports "Connected" on success and "Could not connect" on failure.
+         * - The button label stays "Test connection" throughout.
+         *
+         * @param {HTMLButtonElement} button - The clicked Test connection button.
+         */
+        async function testConnection(button) {
+            // Resolve the status element and a helper that updates its text/class.
+            const status = document.getElementById('test-conn-status');
+            const setStatus = (message, cls) => {
+                if (status) {
+                    status.className = 'field-hint' + (cls ? ' ' + cls : '');
+                    status.textContent = message;
+                }
+            };
+
+            // Disable + spin the button while the request is in flight.
+            if (button) {
+                button.disabled = true;
+                button.classList.add('is-busy');
+            }
+            setStatus('Testing…');
+
+            try {
+                // Ping the engine and treat any non-OK status as a failure.
+                const response = await fetch(getPingUrl(), { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                setStatus('Connected', 'status-ok');
+            } catch (error) {
+                // Report a friendly failure message and log the detail.
+                console.warn('Connection test failed:', error);
+                setStatus('Could not connect', 'status-err');
+            } finally {
+                // Always restore the button regardless of the outcome.
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove('is-busy');
+                }
+            }
+        }
+
+        /**
+         * Pulls the token string out of the development-license README.
+         *
+         * Behavior:
+         * - Scopes the search to the "Development License" section when present.
+         * - Prefers the explicit ```none fenced block.
+         * - Falls back to the first long base64-looking run.
+         * - Returns null when no token can be found.
+         *
+         * @param {string} markdown - The raw README contents.
+         * @returns {string|null} The extracted token, or null when none is found.
+         */
+        function readDevelopmentToken(markdown) {
+            // Normalize the input to a string.
+            const text = String(markdown || '');
+
+            // Scope the search to the Development License section when present.
+            const headingAt = text.search(/##\s*Development License/i);
+            const region = headingAt >= 0 ? text.slice(headingAt) : text;
+
+            // Preferred: the explicit ```none ... ``` fenced block.
+            const fenced = region.match(/```none\s*\r?\n([\s\S]*?)\r?\n```/i);
+            if (fenced && fenced[1].trim()) {
+                return fenced[1].trim();
+            }
+
+            // Fallback: the first long base64-ish token in the section.
+            const loose = region.match(/[A-Za-z0-9+/]{200,}={0,2}/);
+            return loose ? loose[0] : null;
+        }
+
+        /**
+         * Fetches the free development-license token from GitHub and drops it into
+         * the token field.
+         *
+         * Behavior:
+         * - Disables the button and shows progress while fetching.
+         * - Reads the token out of the fetched README and writes it to state + input.
+         * - On any failure, leaves the field untouched and points at the manual link.
+         */
+        async function getDevelopmentLicense() {
+            // Resolve the button and status element, plus a status-text helper.
+            const button = document.getElementById('fetch-token-btn');
+            const status = document.getElementById('fetch-token-status');
+
+            const setStatus = message => {
+                if (status) {
+                    status.textContent = message;
+                }
+            };
+
+            // Disable the button and show progress while the request is in flight.
+            if (button) {
+                button.disabled = true;
+            }
+            setStatus('Fetching the latest free token…');
+
+            try {
+                // Fetch the README and treat any non-OK status as a failure.
+                const response = await fetch(DEV_LICENSE_URL, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`GitHub returned ${response.status}`);
+                }
+
+                // Extract the token; a missing token is treated as a failure.
+                const token = readDevelopmentToken(await response.text());
+                if (!token) {
+                    throw new Error('token not found in page');
+                }
+
+                // Update both the working state and the visible input.
+                setPath(STATE, 'authentication.token', token);
+                const input = document.getElementById('secret-authentication-token');
+                if (input) {
+                    input.value = token;
+                }
+
+                // Tell the user the token was added and how to apply it.
+                setStatus('Free token added. Click Save to apply it.');
+            } catch (error) {
+                // Report a friendly failure message and log the detail.
+                console.warn('Could not fetch development license:', error);
+                setStatus('Couldn’t reach GitHub — grab the token manually from the link below, then paste it here.');
+            } finally {
+                // Always restore the button regardless of the outcome.
+                if (button) {
+                    button.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * Opens a URL in the computer's default browser.
+         *
+         * Behavior:
+         * - Inside the VS Code host, delegates to the extension (vscode.env.openExternal)
+         *   and returns false to cancel the in-webview navigation.
+         * - Outside the host, returns true so a normal browser follows the link.
+         *
+         * @param {string} url - The URL to open.
+         * @returns {boolean} false when handled by the host, true otherwise.
+         */
+        function openExternal(url) {
+            // When hosted, ask the extension to open the link and cancel navigation.
+            if (VSCODE) {
+                VSCODE.postMessage({ command: 'openExternal', url });
+                return false;
+            }
+
+            // Outside the host, let the browser follow the link normally.
+            return true;
+        }
+    </script>
+
     <script id="src-controls">
         /**
          * Renders a collapsible settings section shell.
+         *
+         * Behavior:
+         * - Renders an optional one-line description above the body.
+         * - Wires the header to collapse/expand the body via switchElement().
+         * - Starts expanded unless `open` is false.
          *
          * @param {object} options - Section options.
          * @param {string} options.id - Unique id suffix for the section.
@@ -1015,13 +1456,15 @@
          * @returns {string} HTML markup for the section.
          */
         function writeSection({ id, title, desc, body, open = true }) {
+            // Render the optional description line above the body.
             const descHtml = desc
                 ? `<div class="section-desc">${clearString(desc)}</div>`
                 : '';
 
+            // Render the section shell with a collapsible header and body.
             return `
             <div class="section">
-                <div class="section-hdr" onclick="toggleElement('sec-${id}','seci-${id}')">
+                <div class="section-hdr" onclick="switchElement('sec-${id}','seci-${id}')">
                     <i class="chev ${open ? 'open' : ''}" id="seci-${id}">${SVG_CHEVRON}</i>
                     ${clearString(title)}
                 </div>
@@ -1034,6 +1477,11 @@
         /**
          * Renders a single-line text/number input bound to a state path.
          *
+         * Behavior:
+         * - Reads the current value from state at `path`.
+         * - Renders number fields with themed up/down steppers in place of native spinners.
+         * - Wires required/url validation for text fields only.
+         *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to.
          * @param {string} options.label - Human-friendly field label.
@@ -1041,20 +1489,28 @@
          * @param {string} [options.type='text'] - The HTML input type.
          * @param {string} [options.suffix] - Optional unit/suffix text after the input.
          * @param {string} [options.placeholder] - Optional placeholder text.
+         * @param {number} [options.min] - Lower bound for number fields.
+         * @param {number} [options.max] - Upper bound for number fields.
+         * @param {boolean} [options.required] - Whether the text field must be non-empty.
+         * @param {number} [options.maxLength] - Max character length for text fields.
+         * @param {string} [options.validate] - Extra validation rule (e.g. 'url').
          * @returns {string} HTML markup for the text field.
          */
         function writeText({ path, label, hint, type = 'text', suffix, placeholder, min, max, required, maxLength, validate }) {
+            // Resolve the current value and the optional hint/suffix/placeholder markup.
             const value = getPath(STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const suffixHtml = suffix ? `<span class="field-suffix">${clearString(suffix)}</span>` : '';
             const ph = placeholder ? ` placeholder="${clearString(placeholder)}"` : '';
-            const kind = type === 'number' ? 'number' : 'text';
-            const minAttr = min != null ? ` min="${min}"` : '';
-            const maxAttr = max != null ? ` max="${max}"` : '';
-            const maxLenAttr = maxLength != null ? ` maxlength="${maxLength}"` : '';
 
-            // Pass the lower bound through so onInput can clamp the stored value.
-            const minArg = min != null ? `, ${min}` : '';
+            // Resolve the input kind and the optional numeric/length attributes.
+            const kind = type === 'number' ? 'number' : 'text';
+            const minAttr = min ? ` min="${min}"` : '';
+            const maxAttr = max ? ` max="${max}"` : '';
+            const maxLenAttr = maxLength ? ` maxlength="${maxLength}"` : '';
+
+            // Pass the lower bound through so setControlValue can clamp the stored value.
+            const minArg = min ? `, ${min}` : '';
             const slug = path.replace(/[^a-z0-9]/gi, '-');
             const inputId = 'inp-' + slug;
 
@@ -1064,14 +1520,15 @@
             const wantsCheck = (required || validate) && kind !== 'number';
             const errId = 'fielderr-' + slug;
             const checkArg = wantsCheck
-                ? `; checkField('${errId}', this.value, ${!!required}, '${validate || ''}')`
+                ? `; updateFieldError('${errId}', this.value, ${!!required}, '${validate || ''}')`
                 : '';
             const errHtml = wantsCheck
-                ? `<div class="field-error" id="${errId}">${clearString(computeFieldError(value, required, validate))}</div>`
+                ? `<div class="field-error" id="${errId}">${clearString(getFieldError(value, required, validate))}</div>`
                 : '';
 
+            // Build the base input element wired to setControlValue (+ optional validation).
             const inputHtml = `<input id="${inputId}" type="${type}" value="${clearString(value ?? '')}"${ph}${minAttr}${maxAttr}${maxLenAttr}
-                    oninput="onInput('${path}', this.value, '${kind}'${minArg})${checkArg}" />`;
+                    oninput="setControlValue('${path}', this.value, '${kind}'${minArg})${checkArg}" />`;
 
             // Number fields get themed up/down steppers in place of the native
             // (un-themable) spinner controls. The buttons step the value by 1,
@@ -1088,6 +1545,7 @@
                 </div>`
                 : inputHtml;
 
+            // Render the labeled field with its control and optional error line.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}${star}${suffixHtml}</label>
@@ -1100,6 +1558,10 @@
         /**
          * Renders a password input with a show/hide reveal button.
          *
+         * Behavior:
+         * - Reads the current value from state at `path`.
+         * - Wires the input to setControlValue and the button to switchSecret.
+         *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to.
          * @param {string} options.label - Human-friendly field label.
@@ -1107,25 +1569,32 @@
          * @returns {string} HTML markup for the secret field.
          */
         function writeSecret({ path, label, hint }) {
+            // Resolve the current value, optional hint markup, and a stable input id.
             const value = getPath(STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const safeId = 'secret-' + path.replace(/[^a-z0-9]/gi, '-');
 
+            // Render the masked input alongside a Show/Hide reveal button.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
                 ${hintHtml}
                 <div class="input-wrap">
                     <input id="${safeId}" type="password" value="${clearString(value ?? '')}"
-                        oninput="onInput('${path}', this.value)" />
+                        oninput="setControlValue('${path}', this.value)" />
                     <button type="button" class="btn btn-ghost btn-sm"
-                        onclick="toggleSecret('${safeId}', this)">Show</button>
+                        onclick="switchSecret('${safeId}', this)">Show</button>
                 </div>
             </div>`;
         }
 
         /**
          * Renders a dropdown bound to a state path.
+         *
+         * Behavior:
+         * - Reads the current value from state at `path`.
+         * - Marks the matching choice as selected.
+         * - Wires the select to setControlValue.
          *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to.
@@ -1135,24 +1604,31 @@
          * @returns {string} HTML markup for the select field.
          */
         function writeSelect({ path, label, choices, hint }) {
+            // Resolve the current value and optional hint markup.
             const value = getPath(STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
+            // Build the option list, marking the matching value as selected.
             const optionsHtml = choices.map(choice => `
                 <option value="${clearString(choice.value)}" ${choice.value === value ? 'selected' : ''}>
                     ${clearString(choice.text)}
                 </option>`).join('');
 
+            // Render the labeled select wired to setControlValue.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
                 ${hintHtml}
-                <select onchange="onInput('${path}', this.value)">${optionsHtml}</select>
+                <select onchange="setControlValue('${path}', this.value)">${optionsHtml}</select>
             </div>`;
         }
 
         /**
          * Renders an on/off toggle switch bound to a boolean state path.
+         *
+         * Behavior:
+         * - Reads the current value from state and coerces it to a boolean.
+         * - Wires the checkbox to setControlValue with the 'bool' kind.
          *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to.
@@ -1161,14 +1637,16 @@
          * @returns {string} HTML markup for the toggle.
          */
         function writeToggle({ path, label, hint }) {
+            // Resolve the current boolean value and optional hint markup.
             const value = !!getPath(STATE, path);
             const hintHtml = hint ? `<div class="toggle-hint">${clearString(hint)}</div>` : '';
 
+            // Render the toggle switch wired to setControlValue as a boolean.
             return `
             <div class="field">
                 <label class="toggle">
                     <input type="checkbox" ${value ? 'checked' : ''}
-                        onchange="onInput('${path}', this.checked, 'bool')" />
+                        onchange="setControlValue('${path}', this.checked, 'bool')" />
                     <span class="switch"></span>
                     <span class="toggle-text">
                         <span class="toggle-label">${clearString(label)}</span>
@@ -1181,7 +1659,9 @@
         /**
          * Renders a multi-line textarea whose lines map to a string array in state.
          *
-         * Empty lines are ignored, so an empty textarea becomes an empty array.
+         * Behavior:
+         * - Joins the current string array into one line-per-entry textarea.
+         * - Wires the textarea to setListValue (empty lines are ignored on input).
          *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to (string[]).
@@ -1190,25 +1670,28 @@
          * @returns {string} HTML markup for the list field.
          */
         function writeListLines({ path, label, hint }) {
+            // Resolve the current array as newline-joined text and optional hint markup.
             const value = getPath(STATE, path);
             const text = Array.isArray(value) ? value.join('\n') : '';
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
+            // Render the labeled textarea wired to setListValue.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
                 ${hintHtml}
-                <textarea oninput="onListInput('${path}', this.value)">${clearString(text)}</textarea>
+                <textarea oninput="setListValue('${path}', this.value)">${clearString(text)}</textarea>
             </div>`;
         }
 
         /**
          * Renders a JSON editor bound to an object/array state path.
          *
-         * The textarea shows the value pretty-printed. On each edit the text is
-         * parsed; valid JSON is written to state, invalid JSON leaves the last
-         * good value untouched and surfaces an inline error so a half-typed
-         * object never corrupts the manifest.
+         * Behavior:
+         * - Pretty-prints the current value into the textarea.
+         * - On each edit the text is parsed; valid JSON is written to state, invalid
+         *   JSON leaves the last good value untouched and surfaces an inline error.
+         * - Provides a Format button to validate and reformat the JSON.
          *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path the control binds to.
@@ -1218,20 +1701,24 @@
          * @returns {string} HTML markup for the JSON field.
          */
         function writeJson({ path, label, hint, rows = 8 }) {
+            // Resolve the current value as pretty-printed JSON text.
             const value = getPath(STATE, path);
             const text = value == null ? '' : JSON.stringify(value, null, 4);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            // Build stable ids for the error element and the textarea.
             const slug = path.replace(/[^a-z0-9]/gi, '-');
             const errId = 'jsonerr-' + slug;
             const taId = 'json-' + slug;
 
+            // Render the JSON textarea, the Format button, and the inline error line.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
                 ${hintHtml}
                 <div class="json-wrap">
                     <textarea id="${taId}" class="mono" style="min-height:${rows * 18}px"
-                        oninput="onJsonInput('${path}', this.value, '${errId}')">${clearString(text)}</textarea>
+                        oninput="setJsonValue('${path}', this.value, '${errId}')">${clearString(text)}</textarea>
                     <button type="button" class="btn btn-ghost btn-sm json-format-btn"
                         title="Check &amp; format JSON" onclick="formatJson('${taId}', '${path}', '${errId}')">Format</button>
                 </div>
@@ -1242,6 +1729,11 @@
         /**
          * Renders an editor for a string→string map (e.g. HTTP headers) as a list
          * of key/value rows with add and remove controls.
+         *
+         * Behavior:
+         * - Renders one row per existing entry, or an empty-state hint when none.
+         * - Wires key rename, value edit, and remove handlers per row.
+         * - Wires the add button to append a new entry.
          *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path to the map object.
@@ -1254,11 +1746,13 @@
          * @returns {string} HTML markup for the key/value field.
          */
         function writeKeyValue({ path, label, hint, keyPlaceholder = 'Key', valuePlaceholder = 'Value', addLabel = 'Add', emptyText = 'None.' }) {
+            // Resolve the current map, its entries, optional hint markup, and a list id.
             const map = getPath(STATE, path) || {};
             const entries = Object.entries(map);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const listId = 'kv-' + path.replace(/[^a-z0-9]/gi, '-');
 
+            // Render one row per entry, or an empty-state hint when there are none.
             const rows = entries.length
                 ? entries.map(([key, val]) => `
                     <div class="kv-row">
@@ -1270,6 +1764,7 @@
                     </div>`).join('')
                 : `<div class="field-hint">${clearString(emptyText)}</div>`;
 
+            // Render the labeled key/value list plus the add button.
             return `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
@@ -1290,6 +1785,10 @@
          *   basic  -> { type: 'basic', username, password }
          *   bearer -> { type: 'bearer', token }
          *
+         * Behavior:
+         * - Detects the current auth type and selects it in the dropdown.
+         * - Renders username/password fields for basic, a token field for bearer.
+         *
          * @param {object} options - Control options.
          * @param {string} options.path - Dotted state path to the credentials object.
          * @param {string} options.label - Human-friendly field label.
@@ -1297,9 +1796,11 @@
          * @returns {string} HTML markup for the credentials editor.
          */
         function writeCredentials({ path, label, hint }) {
-            const type = credentialsType(getPath(STATE, path));
+            // Detect the current auth type and resolve optional hint markup.
+            const type = getCredentialsType(getPath(STATE, path));
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
+            // Render the auth-type selector wired to setCredentialsType.
             const selector = `
             <div class="field">
                 <label class="field-label">${clearString(label)}</label>
@@ -1311,171 +1812,91 @@
                 </select>
             </div>`;
 
+            // Render the auth-type-specific input fields.
             let fields = '';
             if (type === 'basic') {
+                // Basic auth shows username + masked password fields.
                 fields = `
                 <div class="field-row">
                     ${writeText({ path: `${path}.username`, label: 'Username' })}
                     ${writeSecret({ path: `${path}.password`, label: 'Password' })}
                 </div>`;
             } else if (type === 'bearer') {
+                // Bearer auth shows a single masked token field.
                 fields = writeSecret({ path: `${path}.token`, label: 'Token' });
             }
 
+            // Combine the selector with the type-specific fields.
             return selector + fields;
-        }
-
-        /**
-         * Builds the configured engine's Capabilities page URL from the current
-         * Connection settings, with sensible fallbacks for any blank part.
-         *
-         * @returns {string} The full capabilities.html URL.
-         */
-        function capabilitiesUrl() {
-            const server = STATE.g4Server || {};
-            const schema = server.schema || 'http';
-            const host = server.host || 'localhost';
-            const port = server.port || '9944';
-
-            return `${schema}://${host}:${port}/views/capabilities.html`;
-        }
-
-        /**
-         * Builds the engine's driver-manifests endpoint URL from the current
-         * Connection settings.
-         *
-         * @returns {string} The full drivers API URL.
-         */
-        function driversUrl() {
-            const server = STATE.g4Server || {};
-            const schema = server.schema || 'http';
-            const host = server.host || 'localhost';
-            const port = server.port || '9944';
-
-            return `${schema}://${host}:${port}/api/v4/g4/integration/manifests/drivers`;
-        }
-
-        /**
-         * Returns the choices for a Driver dropdown: the fetched driver keys (or
-         * the static fallback when none are loaded), always including the
-         * currently-saved value so it's never silently dropped. The option value
-         * and text are both the driver key.
-         *
-         * @param {string} currentValue - The driver value currently in state.
-         * @returns {Array<{value:string,text:string}>} The dropdown choices.
-         */
-        function driverChoices(currentValue) {
-            const source = Array.isArray(DRIVERS) && DRIVERS.length ? DRIVERS : FALLBACK_DRIVERS;
-            const keys = source.slice();
-
-            if (currentValue && !keys.includes(currentValue)) {
-                keys.unshift(currentValue);
-            }
-
-            return keys.map(key => ({ value: key, text: key }));
-        }
-
-        /**
-         * Fetches the driver manifests from the engine and refreshes every Driver
-         * dropdown. Each manifest's `key` becomes a driver option (value === key).
-         * On any failure the dropdowns fall back to the static list.
-         */
-        async function refreshDrivers(button) {
-            // Spin the clicked button while the request is in flight. No manual
-            // cleanup needed — the section re-render below rebuilds the button.
-            if (button) {
-                button.disabled = true;
-                button.classList.add('is-busy');
-            }
-
-            try {
-                const response = await fetch(driversUrl(), { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                DRIVERS = Array.isArray(data)
-                    ? data.map(manifest => manifest && manifest.key).filter(key => typeof key === 'string' && key)
-                    : [];
-            } catch (error) {
-                console.warn('Could not fetch driver manifests:', error);
-                DRIVERS = null;
-            }
-
-            // Refresh the driver selects in place, preserving collapse/scroll.
-            renderSection('driver');
-            renderSection('recorders');
-        }
-
-        /**
-         * Builds the engine's ping endpoint URL from the current Connection
-         * settings.
-         *
-         * @returns {string} The full ping API URL.
-         */
-        function pingUrl() {
-            const server = STATE.g4Server || {};
-            const schema = server.schema || 'http';
-            const host = server.host || 'localhost';
-            const port = server.port || '9944';
-
-            return `${schema}://${host}:${port}/api/v4/g4/ping`;
-        }
-
-        /**
-         * Pings the configured engine and reports the result next to the button.
-         * While the request is in flight the button is disabled and its icon
-         * spins; the label stays "Test connection" throughout.
-         *
-         * @param {HTMLButtonElement} button - The clicked Test connection button.
-         */
-        async function testConnection(button) {
-            const status = document.getElementById('test-conn-status');
-            const setStatus = (message, cls) => {
-                if (status) {
-                    status.className = 'field-hint' + (cls ? ' ' + cls : '');
-                    status.textContent = message;
-                }
-            };
-
-            if (button) {
-                button.disabled = true;
-                button.classList.add('is-busy');
-            }
-            setStatus('Testing…');
-
-            try {
-                const response = await fetch(pingUrl(), { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                setStatus('Connected', 'status-ok');
-            } catch (error) {
-                console.warn('Connection test failed:', error);
-                setStatus('Could not connect', 'status-err');
-            } finally {
-                if (button) {
-                    button.disabled = false;
-                    button.classList.remove('is-busy');
-                }
-            }
         }
 
         /**
          * Renders a note linking to the engine's Capabilities page (the live G4
          * catalog). Used in the Plugins and MCP Servers sections.
          *
+         * Behavior:
+         * - Builds the Capabilities URL from the current connection settings.
+         * - Renders a hint with an external link handled by openExternal.
+         *
          * @returns {string} HTML markup for the capabilities note.
          */
         function writeCapabilitiesNote() {
-            const url = capabilitiesUrl();
+            // Resolve the live Capabilities page URL from current settings.
+            const url = getCapabilitiesUrl();
 
+            // Render the hint with an external link routed through the host bridge.
             return `<div class="field-hint" style="margin-bottom:12px">
                 Browse the full G4 catalog on the
                 <a href="${clearString(url)}" onclick="return openExternal(this.href)" target="_blank" rel="noopener noreferrer">Capabilities page</a>
                 — search plugins, read each plugin's manifest and documentation, and add external or MCP sources.
             </div>`;
+        }
+
+        /**
+         * Renders the standard manifest `driverParameters` editor: driver,
+         * driver service URL/path, and the alwaysMatch capabilities JSON. Shared
+         * by the Default Browser section and each recorder card so they edit the
+         * exact same structure.
+         *
+         * Behavior:
+         * - Builds the Driver dropdown from getDriverChoices, including the saved value.
+         * - Wires a refresh button to re-fetch the driver list from the engine.
+         * - Renders the driver service URL/path and the alwaysMatch capabilities JSON.
+         *
+         * @param {string} base - Dotted state path to the driverParameters object.
+         * @returns {string} HTML markup for the driver-parameters controls.
+         */
+        function writeDriverParameters(base) {
+            // Resolve the saved driver value and build its dropdown options.
+            const driverValue = getPath(STATE, `${base}.driver`);
+            const driverOptions = getDriverChoices(driverValue)
+                .map(choice => `<option value="${clearString(choice.value)}" ${choice.value === driverValue ? 'selected' : ''}>${clearString(choice.text)}</option>`)
+                .join('');
+
+            // Render the driver select (+ refresh button), service URL, and capabilities JSON.
+            return `
+            <div class="field-row">
+                <div class="field">
+                    <label class="field-label">Driver</label>
+                    <div class="field-hint">The technology used to drive the browser or app. Fetched from the engine.</div>
+                    <div class="input-wrap">
+                        <select onchange="setControlValue('${base}.driver', this.value)">${driverOptions}</select>
+                        <button type="button" class="btn btn-ghost btn-sm icon-btn" title="Refresh driver list"
+                            onclick="updateDrivers(this)">${SVG_REFRESH}</button>
+                    </div>
+                </div>
+                ${writeText({
+                    path: `${base}.driverBinaries`,
+                    label: 'Driver service URL or path',
+                    hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
+                })}
+            </div>
+            ${writeJson({
+                path: `${base}.capabilities.alwaysMatch`,
+                label: 'Capabilities (alwaysMatch)',
+                hint: 'Advanced. WebDriver capabilities applied to every session — set the browser binary, launch args, etc.',
+                rows: 10
+            })}`;
         }
     </script>
 
@@ -1485,7 +1906,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionConnection() {
+        function writeConnectionSection() {
+            // Build the protocol/host/port row plus the Test connection control.
             const body = `
             <div class="field-row">
                 ${writeSelect({
@@ -1514,6 +1936,7 @@
                 <span class="field-hint" id="test-conn-status"></span>
             </div>`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'connection',
                 title: 'Connection',
@@ -1527,7 +1950,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionLicense() {
+        function writeLicenseSection() {
+            // Build the license guidance, auto-fetch button, and token field.
             const body = `
             <p class="field-hint" style="margin-bottom:10px">
                 Need a token? Get a free, full-featured license for personal use at
@@ -1539,7 +1963,7 @@
             </p>
             <div class="add-row" style="margin-top:0;margin-bottom:4px">
                 <button type="button" class="btn btn-ghost btn-sm" id="fetch-token-btn"
-                    onclick="fetchDevelopmentLicense()">Fetch free token automatically</button>
+                    onclick="getDevelopmentLicense()">Fetch free token automatically</button>
                 <span class="field-hint" id="fetch-token-status" style="margin-left:8px"></span>
             </div>
             <div class="field-hint" style="margin-bottom:16px">
@@ -1552,6 +1976,7 @@
             })}
             <div class="note">Tip: keep this on one line, with no spaces or line breaks. If you start seeing "unauthorized" errors, your token may have expired.</div>`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'license',
                 title: 'License',
@@ -1561,53 +1986,15 @@
         }
 
         /**
-         * Renders the standard manifest `driverParameters` editor: driver,
-         * driver service URL/path, and the alwaysMatch capabilities JSON. Shared
-         * by the Default Browser section and each recorder card so they edit the
-         * exact same structure.
-         *
-         * @param {string} base - Dotted state path to the driverParameters object.
-         * @returns {string} HTML markup for the driver-parameters controls.
-         */
-        function writeDriverParameters(base) {
-            const driverValue = getPath(STATE, `${base}.driver`);
-            const driverOptions = driverChoices(driverValue)
-                .map(choice => `<option value="${clearString(choice.value)}" ${choice.value === driverValue ? 'selected' : ''}>${clearString(choice.text)}</option>`)
-                .join('');
-
-            return `
-            <div class="field-row">
-                <div class="field">
-                    <label class="field-label">Driver</label>
-                    <div class="field-hint">The technology used to drive the browser or app. Fetched from the engine.</div>
-                    <div class="input-wrap">
-                        <select onchange="onInput('${base}.driver', this.value)">${driverOptions}</select>
-                        <button type="button" class="btn btn-ghost btn-sm icon-btn" title="Refresh driver list"
-                            onclick="refreshDrivers(this)">${SVG_REFRESH}</button>
-                    </div>
-                </div>
-                ${writeText({
-                    path: `${base}.driverBinaries`,
-                    label: 'Driver service URL or path',
-                    hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
-                })}
-            </div>
-            ${writeJson({
-                path: `${base}.capabilities.alwaysMatch`,
-                label: 'Capabilities (alwaysMatch)',
-                hint: 'Advanced. WebDriver capabilities applied to every session — set the browser binary, launch args, etc.',
-                rows: 10
-            })}`;
-        }
-
-        /**
          * Builds the "Default Browser" section: the default automation driver.
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionDriver() {
+        function writeDriverSection() {
+            // Reuse the shared driver-parameters editor for the default driver.
             const body = writeDriverParameters('driverParameters');
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'driver',
                 title: 'Default Browser',
@@ -1623,7 +2010,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionRunBehavior() {
+        function writeRunBehaviorSection() {
+            // Build the timeout/parallelism row plus the response-shape toggles.
             const body = `
             <div class="field-row">
                 ${writeText({
@@ -1659,6 +2047,7 @@
                 hint: 'A rich, nested view with step trees, timings, and errors.'
             })}`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'run',
                 title: 'Run Behavior',
@@ -1672,7 +2061,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionLogging() {
+        function writeLoggingSection() {
+            // Build the live-progress toggle, frequency/level row, and source filter.
             const body = `
             ${writeToggle({
                 path: 'settings.clientLogConfiguration.agentLogConfiguration.enabled',
@@ -1717,6 +2107,7 @@
                 hint: 'Leave empty for the default set. If logs go silent, switch the mode above to "Hide" with this empty.'
             })}`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'logging',
                 title: 'Logging',
@@ -1730,7 +2121,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionReports() {
+        function writeReportsSection() {
+            // Build the save/auto-open toggles plus the reports folder field.
             const body = `
             ${writeToggle({
                 path: 'settings.clientReportSettings.saveReports',
@@ -1748,6 +2140,7 @@
                 hint: 'A "reports" subfolder is created here. "." means a reports folder next to where G4 runs.'
             })}`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'reports',
                 title: 'Reports',
@@ -1761,7 +2154,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionResponseData() {
+        function writeResponseDataSection() {
+            // Build the environment/exception/performance inclusion toggles.
             const body = `
             ${writeToggle({
                 path: 'settings.environmentsSettings.returnEnvironments',
@@ -1779,6 +2173,7 @@
                 hint: 'How long named checkpoints took. Low cost; keep on to track performance.'
             })}`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'response',
                 title: 'Response Data',
@@ -1792,7 +2187,8 @@
          *
          * @returns {string} HTML markup for the section.
          */
-        function sectionScreenshots() {
+        function writeScreenshotsSection() {
+            // Build the capture toggles plus the screenshots output folder field.
             const body = `
             ${writeToggle({
                 path: 'settings.screenshotsSettings.returnScreenshots',
@@ -1815,6 +2211,7 @@
                 hint: 'Where image files are written when not embedded.'
             })}`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'screenshots',
                 title: 'Screenshots',
@@ -1826,14 +2223,20 @@
         /**
          * Builds one editable external plugin repository card.
          *
+         * Behavior:
+         * - Titles the card by repository name, or a positional fallback.
+         * - Renders name/url/version/timeout fields plus capabilities, headers, and credentials.
+         *
          * @param {object} repo - The repository entry from state.
          * @param {number} index - The repository's index in the array.
          * @returns {string} HTML markup for the repository card.
          */
         function writeRepositoryCard(repo, index) {
+            // Resolve the card's state base path and display title.
             const base = `settings.pluginsSettings.externalRepositories.${index}`;
             const title = repo?.name || `Repository ${index + 1}`;
 
+            // Render the card header, the scalar fields, and the advanced editors.
             return `
             <div class="item-card">
                 <div class="item-card-hdr">
@@ -1900,15 +2303,23 @@
         /**
          * Builds the "Plugins" section.
          *
+         * Behavior:
+         * - Renders the rules-rebuild toggle and the Capabilities note.
+         * - Renders one card per external repository, or an empty-state note.
+         * - Renders an add-repository button.
+         *
          * @returns {string} HTML markup for the section.
          */
-        function sectionPlugins() {
+        function writePluginsSection() {
+            // Resolve the configured external repositories.
             const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories') || [];
 
+            // Render one repository card per entry, or an empty-state note.
             const cards = repos.length
                 ? repos.map((repo, index) => writeRepositoryCard(repo, index)).join('')
                 : '<div class="note">No external repositories. G4 uses its built-in plugins only.</div>';
 
+            // Build the rules toggle, capabilities note, repository list, and add button.
             const body = `
             ${writeToggle({
                 path: 'settings.pluginsSettings.forceRuleReference',
@@ -1923,6 +2334,7 @@
                 <button type="button" class="btn btn-ghost btn-sm" onclick="addRepository()">+ Add repository</button>
             </div>`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'plugins',
                 title: 'Plugins',
@@ -1934,15 +2346,21 @@
         /**
          * Builds one editable recorder ("machine") card.
          *
+         * Behavior:
+         * - Titles the card by the recorder's friendly UIA label, or a positional fallback.
+         * - Renders the enabled toggle, host/port, driver parameters, and think-time pacing.
+         *
          * @param {object} recorder - The recorder entry from state.
          * @param {number} index - The recorder's index in the recorders array.
          * @returns {string} HTML markup for the recorder card.
          */
         function writeRecorderCard(recorder, index) {
+            // Resolve the card's state base, the escaped label path, and the display label.
             const base = `settings.recorderSettings.recorders.${index}`;
-            const labelPath = `${base}.driverParameters.capabilities.alwaysMatch.${escapeKey('uia:options')}.label`;
+            const labelPath = `${base}.driverParameters.capabilities.alwaysMatch.${convertToEscapedKey('uia:options')}.label`;
             const label = recorder?.driverParameters?.capabilities?.alwaysMatch?.['uia:options']?.label || `machine-${index + 1}`;
 
+            // Render the card header, identity row, driver parameters, and pacing controls.
             return `
             <div class="item-card">
                 <div class="item-card-hdr">
@@ -2002,15 +2420,23 @@
         /**
          * Builds the "Desktop Recorders" section: capture desktop/UI sessions.
          *
+         * Behavior:
+         * - Renders the master enable toggle.
+         * - Renders one card per recorder, or an empty-state note.
+         * - Renders an add-machine button.
+         *
          * @returns {string} HTML markup for the section.
          */
-        function sectionRecorders() {
+        function writeRecordersSection() {
+            // Resolve the configured recorders.
             const recorders = getPath(STATE, 'settings.recorderSettings.recorders') || [];
 
+            // Render one recorder card per entry, or an empty-state note.
             const cards = recorders.length
                 ? recorders.map((recorder, index) => writeRecorderCard(recorder, index)).join('')
                 : '<div class="note">No recorders yet. Add one to capture a desktop machine.</div>';
 
+            // Build the master toggle, recorder list, and add button.
             const body = `
             ${writeToggle({
                 path: 'settings.recorderSettings.enabled',
@@ -2022,6 +2448,7 @@
                 <button type="button" class="btn btn-ghost btn-sm" onclick="addRecorder()">+ Add machine</button>
             </div>`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'recorders',
                 title: 'Desktop Recorders',
@@ -2033,12 +2460,18 @@
         /**
          * Builds one editable MCP server card.
          *
+         * Behavior:
+         * - Detects local (stdio) vs remote (http/sse) transport and shows matching fields.
+         * - Renders the variable-length env/headers editor last so it never shifts fixed fields.
+         * - Wires name rename, type change, and remove handlers.
+         *
          * @param {string} name - The server name (object key).
          * @param {object} server - The server definition.
          * @returns {string} HTML markup for the server card.
          */
         function writeMcpServerCard(name, server) {
-            const base = `settings.pluginsSettings.servers.${escapeKey(name)}`;
+            // Resolve the card's state base, the transport type, and the args text.
+            const base = `settings.pluginsSettings.servers.${convertToEscapedKey(name)}`;
             const type = server?.type || 'stdio';
             const isRemote = type === 'http' || type === 'sse';
             const args = Array.isArray(server?.args) ? server.args.join('\n') : '';
@@ -2052,11 +2485,11 @@
                     <label class="field-label">Command</label>
                     <div class="field-hint">The program that starts the server (e.g. node, python, npx).</div>
                     <input type="text" value="${clearString(server?.command ?? '')}"
-                        oninput="onInput('${base}.command', this.value)" />
+                        oninput="setControlValue('${base}.command', this.value)" />
                 </div>
                 <div class="field">
                     <label class="field-label">Arguments (one per line)</label>
-                    <textarea oninput="onListInput('${base}.args', this.value)">${clearString(args)}</textarea>
+                    <textarea oninput="setListValue('${base}.args', this.value)">${clearString(args)}</textarea>
                 </div>
                 ${writeText({
                     path: `${base}.workingDirectory`,
@@ -2064,6 +2497,7 @@
                     hint: 'Folder the server process runs in. Optional.'
                 })}`;
 
+            // Remote servers only need a URL endpoint.
             const remoteFields = `
                 ${writeText({
                     path: `${base}.url`,
@@ -2073,6 +2507,7 @@
                     hint: 'The remote MCP server endpoint.'
                 })}`;
 
+            // Remote servers edit request headers; local servers edit env variables.
             const mapEditor = isRemote
                 ? writeKeyValue({
                     path: `${base}.headers`,
@@ -2093,6 +2528,7 @@
                     emptyText: 'No environment variables.'
                 });
 
+            // Render the card header, name/type row, transport-specific fields, timeout, and map editor.
             return `
             <div class="item-card">
                 <div class="item-card-hdr">
@@ -2110,7 +2546,7 @@
                     <div class="field">
                         <label class="field-label">Type</label>
                         <div class="field-hint">How G4 connects to the server.</div>
-                        <select onchange="onServerTypeChange('${clearString(name)}', this.value)">
+                        <select onchange="setServerType('${clearString(name)}', this.value)">
                             <option value="stdio" ${type === 'stdio' ? 'selected' : ''}>Local process (stdio)</option>
                             <option value="http" ${type === 'http' ? 'selected' : ''}>Remote (HTTP)</option>
                             <option value="sse" ${type === 'sse' ? 'selected' : ''}>Remote (SSE)</option>
@@ -2133,16 +2569,24 @@
          * Builds the "MCP Servers" section: external Model Context Protocol
          * servers whose tools become G4 plugins.
          *
+         * Behavior:
+         * - Renders the Capabilities note.
+         * - Renders one card per configured server, or an empty-state note.
+         * - Renders an add-server button.
+         *
          * @returns {string} HTML markup for the section.
          */
-        function sectionMcp() {
+        function writeMcpSection() {
+            // Resolve the configured MCP servers and their names.
             const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
             const names = Object.keys(servers);
 
+            // Render one server card per name, or an empty-state note.
             const cards = names.length
                 ? names.map(name => writeMcpServerCard(name, servers[name])).join('')
                 : '<div class="note">No MCP servers connected. Add one to expose its tools as G4 plugins.</div>';
 
+            // Build the capabilities note, server list, and add button.
             const body = `
             ${writeCapabilitiesNote()}
             <div class="field-hint" style="margin-bottom:10px">Connect external MCP servers — their tools appear in the G4 plugin catalog.</div>
@@ -2151,6 +2595,7 @@
                 <button type="button" class="btn btn-ghost btn-sm" onclick="addServer()">+ Add MCP server</button>
             </div>`;
 
+            // Wrap the body in the collapsible section shell.
             return writeSection({
                 id: 'mcp',
                 title: 'MCP Servers',
@@ -2160,34 +2605,25 @@
         }
     </script>
 
-    <script id="src-app">
-        // The VS Code webview bridge. Acquired once; guarded so the page also
-        // renders correctly when opened outside the extension host.
-        const VSCODE = (typeof acquireVsCodeApi === 'function')
-            ? acquireVsCodeApi()
-            : null;
-
-        // The editable working copy of the settings. Cloned from DEFAULTS so the
-        // baseline is never mutated and "Reset" can always restore it.
-        let STATE = deepCopy(DEFAULTS);
-
-        // Driver keys fetched from the engine; null until a successful load.
-        // Used to populate every "Driver" dropdown.
-        let DRIVERS = null;
-
-        // Shown when the engine can't be reached so the form stays usable.
-        const FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
-
+    <script id="src-handlers">
         /**
          * Handles a single value change from a bound control.
+         *
+         * Behavior:
+         * - Coerces the raw value based on the control kind (text/number/bool).
+         * - Clamps number values to the supplied lower bound.
+         * - Writes the coerced value into state at `path`.
          *
          * @param {string} path - The dotted state path that changed.
          * @param {*} rawValue - The raw value from the control.
          * @param {('text'|'number'|'bool')} [kind='text'] - How to coerce the value.
+         * @param {number} [min] - Optional lower bound for number values.
          */
-        function onInput(path, rawValue, kind = 'text', min) {
+        function setControlValue(path, rawValue, kind = 'text', min) {
+            // Start from the raw value; coerce it below based on the control kind.
             let value = rawValue;
 
+            // Number fields parse to a finite number and clamp to the lower bound.
             if (kind === 'number') {
                 // Keep the field usable while typing; treat empty as 0.
                 const parsed = Number(rawValue);
@@ -2200,51 +2636,74 @@
                 }
             }
 
+            // Boolean fields coerce the value to a true/false.
             if (kind === 'bool') {
                 value = !!rawValue;
             }
 
+            // Write the coerced value into state.
             setPath(STATE, path, value);
         }
 
         /**
          * Computes a validation message for a text field, or '' when it's valid.
          *
+         * Behavior:
+         * - Treats a required field with empty text as invalid.
+         * - Treats a non-empty value failing the 'url' rule as invalid.
+         * - Returns an empty string when the value is acceptable.
+         *
          * @param {*} value - The field value.
          * @param {boolean} [required] - Whether the field must be non-empty.
          * @param {string} [rule] - Extra rule: 'url' for a basic URL check.
          * @returns {string} The warning to show, or '' when the value is fine.
          */
-        function computeFieldError(value, required, rule) {
+        function getFieldError(value, required, rule) {
+            // Normalize the value to trimmed text for the checks below.
             const text = String(value ?? '').trim();
 
+            // Required fields must not be empty.
             if (required && !text) {
                 return 'Required.';
             }
+
+            // The 'url' rule requires an http(s) URL when a value is present.
             if (text && rule === 'url' && !/^https?:\/\/.+/i.test(text)) {
                 return 'Enter a valid URL (http:// or https://).';
             }
+
+            // No problems found.
             return '';
         }
 
         /**
          * Updates a field's inline warning element as the user types.
          *
+         * Behavior:
+         * - Computes the current validation message via getFieldError.
+         * - Writes the message into the error element when it exists.
+         *
          * @param {string} errId - Id of the error element.
          * @param {*} value - The current field value.
          * @param {boolean} required - Whether the field is required.
-         * @param {string} rule - Extra validation rule (see computeFieldError).
+         * @param {string} rule - Extra validation rule (see getFieldError).
          */
-        function checkField(errId, value, required, rule) {
+        function updateFieldError(errId, value, required, rule) {
+            // Resolve the error element and update its text with the latest message.
             const el = document.getElementById(errId);
             if (el) {
-                el.textContent = computeFieldError(value, required, rule);
+                el.textContent = getFieldError(value, required, rule);
             }
         }
 
         /**
          * Steps a number field up or down by one, honoring its min/max bounds,
          * then writes the result to state and the visible input.
+         *
+         * Behavior:
+         * - Reads the current numeric value (treating non-numbers as 0).
+         * - Adds the direction and clamps to the optional min/max bounds.
+         * - Writes the result back to state and the bound input.
          *
          * @param {string} path - The dotted state path to adjust.
          * @param {string} inputId - Id of the bound number input.
@@ -2253,9 +2712,11 @@
          * @param {number|null} [max] - Upper bound, or null for none.
          */
         function stepNumber(path, inputId, dir, min, max) {
+            // Read the current value and step it by the requested direction.
             const current = Number(getPath(STATE, path));
             let next = (Number.isFinite(current) ? current : 0) + dir;
 
+            // Clamp the result to the optional lower/upper bounds.
             if (min != null && next < min) {
                 next = min;
             }
@@ -2263,8 +2724,10 @@
                 next = max;
             }
 
+            // Write the stepped value into state.
             setPath(STATE, path, next);
 
+            // Reflect the new value in the visible input.
             const input = document.getElementById(inputId);
             if (input) {
                 input.value = next;
@@ -2274,15 +2737,22 @@
         /**
          * Handles a multi-line list change, mapping non-empty lines to an array.
          *
+         * Behavior:
+         * - Splits the textarea contents into lines.
+         * - Trims each line and drops empty ones.
+         * - Writes the resulting array into state at `path`.
+         *
          * @param {string} path - The dotted state path (string[]).
          * @param {string} rawValue - The textarea contents.
          */
-        function onListInput(path, rawValue) {
+        function setListValue(path, rawValue) {
+            // Split into trimmed, non-empty lines and store them as an array.
             const list = String(rawValue || '')
                 .split('\n')
                 .map(line => line.trim())
                 .filter(Boolean);
 
+            // Write the resulting array into state.
             setPath(STATE, path, list);
         }
 
@@ -2291,11 +2761,17 @@
          * value to state, or reports an inline error and keeps the last good
          * value when the text isn't valid JSON.
          *
+         * Behavior:
+         * - Treats an empty box as "no value" by storing an empty object.
+         * - Stores the parsed value and clears the error on valid JSON.
+         * - Surfaces an inline error and keeps the last good value on invalid JSON.
+         *
          * @param {string} path - The dotted state path to write.
          * @param {string} rawValue - The textarea contents.
          * @param {string} [errId] - Id of the element that shows parse errors.
          */
-        function onJsonInput(path, rawValue, errId) {
+        function setJsonValue(path, rawValue, errId) {
+            // Resolve the error element and a helper that writes its message.
             const errEl = errId ? document.getElementById(errId) : null;
             const text = String(rawValue ?? '').trim();
 
@@ -2313,30 +2789,36 @@
             }
 
             try {
+                // Valid JSON is written to state and clears the error.
                 setPath(STATE, path, JSON.parse(text));
                 setError('');
             } catch (error) {
-                setError('Invalid JSON — fix the highlighted text; this change won’t be saved until it parses.');
+                // Invalid JSON keeps the last good value and surfaces the error.
+                setError("Invalid JSON — fix the highlighted text; this change won't be saved until it parses.");
             }
         }
 
         /**
          * Validates and pretty-prints the JSON in a textarea (4-space indent).
          *
-         * On success it rewrites the textarea and stores the parsed value; on
-         * failure it leaves the text as-is and shows an inline error.
+         * Behavior:
+         * - Treats an empty box as "no value" by storing an empty object.
+         * - On success, reformats the textarea and stores the parsed value.
+         * - On failure, leaves the text as-is and shows an inline error.
          *
          * @param {string} taId - Id of the JSON textarea.
          * @param {string} path - The dotted state path the editor binds to.
          * @param {string} [errId] - Id of the element that shows parse errors.
          */
         function formatJson(taId, path, errId) {
+            // Resolve the textarea and error element; bail when there is no textarea.
             const textarea = document.getElementById(taId);
             const errEl = errId ? document.getElementById(errId) : null;
             if (!textarea) {
                 return;
             }
 
+            // Read the trimmed text and prepare an error-writing helper.
             const text = String(textarea.value ?? '').trim();
             const setError = message => {
                 if (errEl) {
@@ -2344,6 +2826,7 @@
                 }
             };
 
+            // An empty box means "no value here" — store an empty object.
             if (!text) {
                 setPath(STATE, path, {});
                 setError('');
@@ -2351,11 +2834,13 @@
             }
 
             try {
+                // Reformat valid JSON, store it, and clear any error.
                 const parsed = JSON.parse(text);
                 textarea.value = JSON.stringify(parsed, null, 4);
                 setPath(STATE, path, parsed);
                 setError('');
             } catch (error) {
+                // Leave invalid JSON untouched and surface the error.
                 setError('Invalid JSON — fix the highlighted text before formatting.');
             }
         }
@@ -2363,15 +2848,21 @@
         /**
          * Reveals or masks a secret input and updates the toggle button label.
          *
+         * Behavior:
+         * - Flips the input type between password and text.
+         * - Updates the button caption to Show/Hide accordingly.
+         *
          * @param {string} inputId - The id of the password input.
          * @param {HTMLButtonElement} button - The clicked toggle button.
          */
-        function toggleSecret(inputId, button) {
+        function switchSecret(inputId, button) {
+            // Resolve the secret input; bail when it does not exist.
             const input = document.getElementById(inputId);
             if (!input) {
                 return;
             }
 
+            // Flip the visibility and update the button caption to match.
             const reveal = input.type === 'password';
             input.type = reveal ? 'text' : 'password';
             button.textContent = reveal ? 'Hide' : 'Show';
@@ -2379,10 +2870,16 @@
 
         /**
          * Adds a new desktop recorder seeded from the shipped recorder template.
+         *
+         * Behavior:
+         * - Clones the first shipped recorder as a template.
+         * - Gives the new machine a unique friendly name and leaves it disabled.
+         * - Re-renders the recorders section and reveals the new card.
          */
         function addRecorder() {
+            // Resolve the recorders list and clone the shipped template.
             const recorders = STATE.settings.recorderSettings.recorders;
-            const template = deepCopy(DEFAULTS.settings.recorderSettings.recorders[0]);
+            const template = copyValue(DEFAULTS.settings.recorderSettings.recorders[0]);
 
             // Give the new machine a unique friendly name and leave it disabled
             // so adding it never changes behavior until the user opts in.
@@ -2390,9 +2887,10 @@
             template.driverParameters.capabilities.alwaysMatch['uia:options'].label =
                 'machine-' + (recorders.length + 1);
 
+            // Append the recorder, re-render, and reveal the new card.
             recorders.push(template);
-            renderSection('recorders');
-            revealItem(document.querySelector('#sec-recorders .card-list')?.lastElementChild);
+            updateSection('recorders');
+            showItem(document.querySelector('#sec-recorders .card-list')?.lastElementChild);
         }
 
         /**
@@ -2401,14 +2899,21 @@
          * @param {number} index - The recorder index to remove.
          */
         function removeRecorder(index) {
+            // Drop the recorder at the index and re-render the section.
             STATE.settings.recorderSettings.recorders.splice(index, 1);
-            renderSection('recorders');
+            updateSection('recorders');
         }
 
         /**
          * Adds a new, empty MCP server entry with a unique placeholder name.
+         *
+         * Behavior:
+         * - Finds a unique default name so two new servers don't collide.
+         * - Seeds the entry as a local (stdio) server with an empty command/args.
+         * - Re-renders the MCP section and reveals the new card.
          */
         function addServer() {
+            // Resolve the current servers map.
             const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
 
             // Find a unique default name so two new servers don't collide.
@@ -2418,10 +2923,11 @@
                 name = 'server-' + (++n);
             }
 
+            // Seed a local server, store it, re-render, and reveal the new card.
             servers[name] = { type: 'stdio', command: '', args: [] };
             setPath(STATE, 'settings.pluginsSettings.servers', servers);
-            renderSection('mcp');
-            revealItem(document.querySelector('#sec-mcp .card-list')?.lastElementChild);
+            updateSection('mcp');
+            showItem(document.querySelector('#sec-mcp .card-list')?.lastElementChild);
         }
 
         /**
@@ -2430,26 +2936,32 @@
          * @param {string} name - The server key to remove.
          */
         function removeServer(name) {
+            // Delete the server entry when present and re-render the section.
             const servers = getPath(STATE, 'settings.pluginsSettings.servers');
             if (servers) {
                 delete servers[name];
             }
-            renderSection('mcp');
+            updateSection('mcp');
         }
 
         /**
          * Renames an MCP server while preserving its position and definition.
          *
+         * Behavior:
+         * - Ignores no-op or empty renames, and refuses to overwrite an existing key.
+         * - Rebuilds the object so the renamed key keeps its original order.
+         *
          * @param {string} oldName - The current server key.
          * @param {string} newNameRaw - The requested new key.
          */
         function renameServer(oldName, newNameRaw) {
+            // Normalize the requested name and resolve the servers map.
             const newName = String(newNameRaw || '').trim();
             const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
 
             // Ignore no-op or empty renames, and refuse to overwrite an existing key.
             if (!newName || newName === oldName || servers[newName]) {
-                renderSection('mcp');
+                updateSection('mcp');
                 return;
             }
 
@@ -2459,7 +2971,7 @@
                 next[key === oldName ? newName : key] = value;
             }
             setPath(STATE, 'settings.pluginsSettings.servers', next);
-            renderSection('mcp');
+            updateSection('mcp');
         }
 
         /**
@@ -2469,30 +2981,38 @@
          * @param {string} name - The server key.
          * @param {string} type - The chosen transport ('stdio' | 'http' | 'sse').
          */
-        function onServerTypeChange(name, type) {
-            setPath(STATE, `settings.pluginsSettings.servers.${escapeKey(name)}.type`, type);
-            renderSection('mcp');
+        function setServerType(name, type) {
+            // Store the new transport type and re-render the MCP section.
+            setPath(STATE, `settings.pluginsSettings.servers.${convertToEscapedKey(name)}.type`, type);
+            updateSection('mcp');
         }
 
         /**
          * Adds an empty entry to the string→string map at `path`, with a unique
          * placeholder key.
          *
+         * Behavior:
+         * - Finds a unique placeholder key so a new entry doesn't collide.
+         * - Stores the entry, re-renders the owning section, and reveals the new row.
+         *
          * @param {string} path - Dotted state path to the map object.
          */
         function addEntry(path) {
+            // Resolve the current map.
             const map = getPath(STATE, path) || {};
 
+            // Find a unique placeholder key so the new entry doesn't collide.
             let n = Object.keys(map).length + 1;
             let key = 'key-' + n;
             while (key in map) {
                 key = 'key-' + (++n);
             }
 
+            // Add the empty entry, store it, re-render, and reveal the new row.
             map[key] = '';
             setPath(STATE, path, map);
-            renderSection(sectionIdForPath(path));
-            revealItem(document.getElementById('kv-' + path.replace(/[^a-z0-9]/gi, '-'))?.lastElementChild);
+            updateSection(resolveSectionId(path));
+            showItem(document.getElementById('kv-' + path.replace(/[^a-z0-9]/gi, '-'))?.lastElementChild);
         }
 
         /**
@@ -2502,11 +3022,12 @@
          * @param {string} key - The entry key to remove.
          */
         function removeEntry(path, key) {
+            // Delete the entry when the map exists, then re-render the owning section.
             const map = getPath(STATE, path);
             if (map && typeof map === 'object') {
                 delete map[key];
             }
-            renderSection(sectionIdForPath(path));
+            updateSection(resolveSectionId(path));
         }
 
         /**
@@ -2517,7 +3038,8 @@
          * @param {string} value - The new value.
          */
         function setEntryValue(path, key, value) {
-            setPath(STATE, `${path}.${escapeKey(key)}`, value);
+            // Write the value at the escaped key path (the key may contain dots/colons).
+            setPath(STATE, `${path}.${convertToEscapedKey(key)}`, value);
         }
 
         /**
@@ -2529,41 +3051,56 @@
          * @param {string} newKeyRaw - The requested new key.
          */
         function renameEntryKey(path, oldKey, newKeyRaw) {
+            // Normalize the requested key and resolve the current map.
             const newKey = String(newKeyRaw || '').trim();
             const map = getPath(STATE, path) || {};
 
+            // Ignore empty, unchanged, or colliding renames.
             if (!newKey || newKey === oldKey || (newKey in map)) {
-                renderSection(sectionIdForPath(path));
+                updateSection(resolveSectionId(path));
                 return;
             }
 
+            // Rebuild the map so the renamed key keeps its original order.
             const next = {};
             for (const [key, value] of Object.entries(map)) {
                 next[key === oldKey ? newKey : key] = value;
             }
             setPath(STATE, path, next);
-            renderSection(sectionIdForPath(path));
+            updateSection(resolveSectionId(path));
         }
 
         /**
          * Classifies a credentials object into a UI auth type.
          *
+         * Behavior:
+         * - Treats a missing/non-object value as 'none'.
+         * - Honors an explicit basic/bearer `type`.
+         * - Infers bearer from a token, or basic from username/password.
+         *
          * @param {object|null} cred - The stored credentials value.
          * @returns {('none'|'basic'|'bearer')} The detected auth type.
          */
-        function credentialsType(cred) {
+        function getCredentialsType(cred) {
+            // A missing or non-object value means no credentials.
             if (!cred || typeof cred !== 'object') {
                 return 'none';
             }
+
+            // An explicit type wins when it is basic or bearer.
             if (cred.type === 'basic' || cred.type === 'bearer') {
                 return cred.type;
             }
+
+            // Otherwise infer the type from the present fields.
             if (cred.token != null) {
                 return 'bearer';
             }
             if (cred.username != null || cred.password != null) {
                 return 'basic';
             }
+
+            // Nothing recognizable — treat as none.
             return 'none';
         }
 
@@ -2571,12 +3108,19 @@
          * Switches the credentials auth type at `path`, preserving any reusable
          * fields, then re-renders so the matching inputs appear.
          *
+         * Behavior:
+         * - Builds a basic/bearer object that keeps any reusable fields.
+         * - Stores null for 'none'.
+         * - Re-renders the owning section.
+         *
          * @param {string} path - Dotted state path to the credentials object.
          * @param {('none'|'basic'|'bearer')} type - The chosen auth type.
          */
         function setCredentialsType(path, type) {
+            // Read the current credentials so reusable fields can be preserved.
             const current = getPath(STATE, path) || {};
 
+            // Build the new credentials object based on the chosen type.
             if (type === 'basic') {
                 setPath(STATE, path, {
                     type: 'basic',
@@ -2589,20 +3133,27 @@
                 setPath(STATE, path, null);
             }
 
-            renderSection(sectionIdForPath(path));
+            // Re-render the owning section so the matching inputs appear.
+            updateSection(resolveSectionId(path));
         }
 
         /**
          * Adds a new external plugin repository seeded with sensible defaults.
+         *
+         * Behavior:
+         * - Appends a repository with default version/timeout and empty maps.
+         * - Re-renders the plugins section and reveals the new card.
          */
         function addRepository() {
+            // Resolve the current repositories as an array.
             const existing = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
             const repos = Array.isArray(existing) ? existing : [];
 
+            // Append a default repository, store it, re-render, and reveal the new card.
             repos.push({ name: '', url: '', version: 1, timeout: 300, capabilities: {}, headers: {} });
             setPath(STATE, 'settings.pluginsSettings.externalRepositories', repos);
-            renderSection('plugins');
-            revealItem(document.querySelector('#sec-plugins .card-list')?.lastElementChild);
+            updateSection('plugins');
+            showItem(document.querySelector('#sec-plugins .card-list')?.lastElementChild);
         }
 
         /**
@@ -2611,11 +3162,12 @@
          * @param {number} index - The repository index to remove.
          */
         function removeRepository(index) {
+            // Drop the repository at the index when the list exists, then re-render.
             const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
             if (Array.isArray(repos)) {
                 repos.splice(index, 1);
             }
-            renderSection('plugins');
+            updateSection('plugins');
         }
 
         /**
@@ -2624,11 +3176,13 @@
          * Behavior:
          * - Clamps maxParallel to a valid floor (the engine rejects values <= 0).
          * - Drops the optional MCP `servers` block when it is empty.
+         * - Mirrors the base manifest by storing an empty repository list as null.
          *
          * @returns {object} A manifest-shaped object ready to send to the host.
          */
-        function buildManifest() {
-            const manifest = deepCopy(STATE);
+        function newManifest() {
+            // Start from a deep copy of the working state.
+            const manifest = copyValue(STATE);
 
             // Safety net: never send a parallelism below 1, even if state drifts.
             const parallel = Number(manifest.settings.automationSettings.maxParallel);
@@ -2647,119 +3201,120 @@
                 manifest.settings.pluginsSettings.externalRepositories = null;
             }
 
+            // Return the cleaned manifest.
             return manifest;
         }
+    </script>
 
-        // Raw README that hosts the free development-license token. The token
-        // lives in a ```none code block right under the "Development License"
-        // heading. raw.githubusercontent.com serves permissive CORS headers,
-        // so the webview can read it directly.
-        const DEV_LICENSE_URL =
-            'https://raw.githubusercontent.com/g4-api/g4-services/main/README.md';
+    <script id="src-app">
+        // Maps each section id to the function that builds its full markup, so a
+        // single section can be re-rendered in place without rebuilding the page.
+        const SECTION_BUILDERS = {
+            connection: writeConnectionSection,
+            license: writeLicenseSection,
+            driver: writeDriverSection,
+            run: writeRunBehaviorSection,
+            logging: writeLoggingSection,
+            reports: writeReportsSection,
+            response: writeResponseDataSection,
+            screenshots: writeScreenshotsSection,
+            plugins: writePluginsSection,
+            mcp: writeMcpSection,
+            recorders: writeRecordersSection
+        };
 
         /**
-         * Pulls the token string out of the development-license README.
+         * Re-renders a single section's body in place. Every other section — and
+         * this section's own collapsed/expanded state and the page scroll
+         * position — is left untouched, because only the inner content of the
+         * live body element is swapped (its display style, which encodes
+         * collapse, never changes).
          *
-         * Prefers the fenced ```none block that follows the "Development License"
-         * heading, and falls back to the first long base64-looking run so a minor
-         * change to the surrounding markdown doesn't break extraction.
+         * Behavior:
+         * - Resolves the live body element and the section builder.
+         * - Builds the section fresh off-DOM and copies just its body content.
          *
-         * @param {string} markdown - The raw README contents.
-         * @returns {string|null} The extracted token, or null when none is found.
+         * @param {string} id - The section id (e.g. 'plugins').
          */
-        function extractDevelopmentToken(markdown) {
-            const text = String(markdown || '');
-
-            // Scope the search to the Development License section when present.
-            const headingAt = text.search(/##\s*Development License/i);
-            const region = headingAt >= 0 ? text.slice(headingAt) : text;
-
-            // Preferred: the explicit ```none ... ``` fenced block.
-            const fenced = region.match(/```none\s*\r?\n([\s\S]*?)\r?\n```/i);
-            if (fenced && fenced[1].trim()) {
-                return fenced[1].trim();
+        function updateSection(id) {
+            // Resolve the live body element and the matching section builder.
+            const liveBody = document.getElementById('sec-' + id);
+            const builder = SECTION_BUILDERS[id];
+            if (!liveBody || !builder) {
+                return;
             }
 
-            // Fallback: the first long base64-ish token in the section.
-            const loose = region.match(/[A-Za-z0-9+/]{200,}={0,2}/);
-            return loose ? loose[0] : null;
+            // Build the section fresh off-DOM, then copy just its body content.
+            const scratch = document.createElement('div');
+            scratch.innerHTML = builder();
+
+            // Swap in only the inner body content, preserving collapse/scroll.
+            const freshBody = scratch.querySelector('#sec-' + id);
+            if (freshBody) {
+                liveBody.innerHTML = freshBody.innerHTML;
+            }
         }
 
         /**
-         * Opens a URL in the computer's default browser.
+         * Resolves which section owns a given state path, for path-based edits
+         * (headers, credentials) that need to know what to re-render.
          *
-         * Inside the VS Code host this delegates to the extension (which calls
-         * vscode.env.openExternal), so links open in the OS browser rather than
-         * inside VS Code — and returns false to cancel the in-webview navigation.
-         * Outside the host it returns true so a normal browser follows the link.
-         *
-         * @param {string} url - The URL to open.
-         * @returns {boolean} false when handled by the host, true otherwise.
+         * @param {string} path - A dotted state path.
+         * @returns {string|null} The owning section id, or null if unknown.
          */
-        function openExternal(url) {
-            if (VSCODE) {
-                VSCODE.postMessage({ command: 'openExternal', url });
-                return false;
+        function resolveSectionId(path) {
+            // MCP servers live under a more specific path than other plugin settings.
+            if (path.startsWith('settings.pluginsSettings.servers')) {
+                return 'mcp';
             }
-            return true;
+
+            // Remaining plugin settings belong to the plugins section.
+            if (path.startsWith('settings.pluginsSettings')) {
+                return 'plugins';
+            }
+
+            // Recorder settings belong to the recorders section.
+            if (path.startsWith('settings.recorderSettings')) {
+                return 'recorders';
+            }
+
+            // Unknown owner.
+            return null;
         }
 
         /**
-         * Fetches the free development-license token from GitHub and drops it into
-         * the token field. Requires internet access to github.com; on any failure
-         * it leaves the field untouched and points the user at the manual link.
+         * Scrolls a freshly added item into view and focuses its first editable
+         * field.
+         *
+         * @param {Element|null} el - The item element to reveal.
          */
-        async function fetchDevelopmentLicense() {
-            const button = document.getElementById('fetch-token-btn');
-            const status = document.getElementById('fetch-token-status');
-
-            const setStatus = message => {
-                if (status) {
-                    status.textContent = message;
-                }
-            };
-
-            if (button) {
-                button.disabled = true;
+        function showItem(el) {
+            // Nothing to reveal when the element is missing.
+            if (!el) {
+                return;
             }
-            setStatus('Fetching the latest free token…');
 
-            try {
-                const response = await fetch(DEV_LICENSE_URL, { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error(`GitHub returned ${response.status}`);
-                }
-
-                const token = extractDevelopmentToken(await response.text());
-                if (!token) {
-                    throw new Error('token not found in page');
-                }
-
-                // Update both the working state and the visible input.
-                setPath(STATE, 'authentication.token', token);
-                const input = document.getElementById('secret-authentication-token');
-                if (input) {
-                    input.value = token;
-                }
-
-                setStatus('Free token added. Click Save to apply it.');
-            } catch (error) {
-                console.warn('Could not fetch development license:', error);
-                setStatus('Couldn’t reach GitHub — grab the token manually from the link below, then paste it here.');
-            } finally {
-                if (button) {
-                    button.disabled = false;
-                }
+            // Scroll the item into view and focus its first editable field.
+            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            const field = el.querySelector('input[type=text], input[type=number], input[type=password], textarea, select');
+            if (field) {
+                field.focus();
             }
         }
 
         /**
          * Serializes the current settings and sends them to the extension host.
-         * No-ops gracefully (with a console note) when run outside the host.
+         *
+         * Behavior:
+         * - Builds a clean manifest from the current state.
+         * - Posts the manifest to the host, or logs a note when run outside it.
+         * - Briefly shows a "Settings sent" note regardless of host wiring.
          */
         function save() {
-            const manifest = buildManifest();
+            // Build the clean manifest to send.
+            const manifest = newManifest();
 
+            // Send it to the host, or warn when the bridge is unavailable.
             if (VSCODE) {
                 VSCODE.postMessage({ command: 'saveSettings', manifest });
             } else {
@@ -2778,93 +3333,21 @@
          * Resets all settings back to the shipped defaults and re-renders.
          */
         function resetDefaults() {
-            STATE = deepCopy(DEFAULTS);
-            render();
-        }
-
-        // Maps each section id to the function that builds its full markup, so a
-        // single section can be re-rendered in place without rebuilding the page.
-        const SECTION_BUILDERS = {
-            connection: sectionConnection,
-            license: sectionLicense,
-            driver: sectionDriver,
-            run: sectionRunBehavior,
-            logging: sectionLogging,
-            reports: sectionReports,
-            response: sectionResponseData,
-            screenshots: sectionScreenshots,
-            plugins: sectionPlugins,
-            mcp: sectionMcp,
-            recorders: sectionRecorders
-        };
-
-        /**
-         * Re-renders a single section's body in place. Every other section — and
-         * this section's own collapsed/expanded state and the page scroll
-         * position — is left untouched, because only the inner content of the
-         * live body element is swapped (its display style, which encodes
-         * collapse, never changes).
-         *
-         * @param {string} id - The section id (e.g. 'plugins').
-         */
-        function renderSection(id) {
-            const liveBody = document.getElementById('sec-' + id);
-            const builder = SECTION_BUILDERS[id];
-            if (!liveBody || !builder) {
-                return;
-            }
-
-            // Build the section fresh off-DOM, then copy just its body content.
-            const scratch = document.createElement('div');
-            scratch.innerHTML = builder();
-
-            const freshBody = scratch.querySelector('#sec-' + id);
-            if (freshBody) {
-                liveBody.innerHTML = freshBody.innerHTML;
-            }
-        }
-
-        /**
-         * Resolves which section owns a given state path, for path-based edits
-         * (headers, credentials) that need to know what to re-render.
-         *
-         * @param {string} path - A dotted state path.
-         * @returns {string|null} The owning section id, or null if unknown.
-         */
-        function sectionIdForPath(path) {
-            if (path.startsWith('settings.pluginsSettings.servers')) {
-                return 'mcp';
-            }
-            if (path.startsWith('settings.pluginsSettings')) {
-                return 'plugins';
-            }
-            if (path.startsWith('settings.recorderSettings')) {
-                return 'recorders';
-            }
-            return null;
-        }
-
-        /**
-         * Scrolls a freshly added item into view and focuses its first editable
-         * field.
-         *
-         * @param {Element|null} el - The item element to reveal.
-         */
-        function revealItem(el) {
-            if (!el) {
-                return;
-            }
-            el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            const field = el.querySelector('input[type=text], input[type=number], input[type=password], textarea, select');
-            if (field) {
-                field.focus();
-            }
+            // Restore the baseline working copy and re-render the whole form.
+            STATE = copyValue(DEFAULTS);
+            showSettings();
         }
 
         /**
          * Renders the header and the full settings form from the current state.
+         *
+         * Behavior:
+         * - Renders the page header.
+         * - Renders every section in order into the main app container.
+         * - Renders the sticky action bar with Save / Reset controls.
          */
-        function render() {
+        function showSettings() {
+            // Render the page header.
             document.getElementById('g4-header').innerHTML = `
             <div class="header">
                 <div>
@@ -2873,26 +3356,29 @@
                 </div>
             </div>`;
 
+            // Render every section in display order.
             const sections = [
-                sectionConnection(),
-                sectionLicense(),
-                sectionDriver(),
-                sectionRunBehavior(),
-                sectionLogging(),
-                sectionReports(),
-                sectionResponseData(),
-                sectionScreenshots(),
-                sectionPlugins(),
-                sectionMcp(),
-                sectionRecorders()
+                writeConnectionSection(),
+                writeLicenseSection(),
+                writeDriverSection(),
+                writeRunBehaviorSection(),
+                writeLoggingSection(),
+                writeReportsSection(),
+                writeResponseDataSection(),
+                writeScreenshotsSection(),
+                writePluginsSection(),
+                writeMcpSection(),
+                writeRecordersSection()
             ].join('');
 
+            // Render the sections into the main app container.
             document.getElementById('app').innerHTML = `
             <div class="main">
                 ${sections}
                 <div style="height:8px"></div>
             </div>`;
 
+            // Render the sticky action bar with Save / Reset controls.
             document.getElementById('g4-actionbar').innerHTML = `
             <div class="actionbar">
                 <button type="button" class="btn" onclick="save()">Save</button>
@@ -2903,10 +3389,10 @@
         }
 
         // Initial render.
-        render();
+        showSettings();
 
         // Populate the Driver dropdowns from the engine (best effort).
-        refreshDrivers();
+        updateDrivers();
     </script>
 </body>
 

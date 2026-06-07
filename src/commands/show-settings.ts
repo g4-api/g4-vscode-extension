@@ -2,13 +2,9 @@
  * RESOURCES
  * https://code.visualstudio.com/api/references/commands
  */
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
-import { Logger } from '../logging/logger';
 import { Utilities } from '../extensions/utilities';
-import { ShowReportCommand } from './show-report';
 
 /**
  * Command to create a new project structure in VS Code.
@@ -143,10 +139,21 @@ export class ShowSettingsCommand extends CommandBase {
             )
         );
 
+        // Load the current extension manifest.
+        const manifest = Utilities.getManifest();
+
+        // Serialize the manifest to a formatted JSON string for injection into the settings HTML.
+        const manifestJson = JSON.stringify(manifest, null, 4);
+
         // Load the settings HTML template from the extension resources.
         const html = Utilities.getResource('g4-settings.html');
 
-        // Inject the font URI into the HTML template and return it.
-        return html.replace('{{$ fonts.uri }}', fontUri.toString());
+        // Inject the manifest data and font URI into the HTML template and return it.
+        // The manifest is supplied through a replacer function so any literal `$`
+        // in the JSON (for example inside a token) is never treated as a special
+        // replacement token (e.g. `$&` or `$1`).
+        return html
+            .replace('{{$ settings.data }}', () => manifestJson)
+            .replace('{{$ fonts.uri }}', fontUri.toString());
     }
 }
