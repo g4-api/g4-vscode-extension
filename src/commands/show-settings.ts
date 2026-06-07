@@ -2,6 +2,8 @@
  * RESOURCES
  * https://code.visualstudio.com/api/references/commands
  */
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Utilities } from '../extensions/utilities';
@@ -106,6 +108,33 @@ export class ShowSettingsCommand extends CommandBase {
                 // computer's default browser rather than inside VS Code.
                 if (message?.command === 'openExternal' && message.url) {
                     await vscode.env.openExternal(vscode.Uri.parse(message.url));
+                }
+
+                // Handle settings save messages posted from the webview.
+                if (message?.command === 'saveSettings' && message.manifest !== undefined) {
+                    // A save needs an open workspace to resolve the manifest path.
+                    if (!vscode.workspace.workspaceFolders?.length) {
+                        vscode.window.showErrorMessage('Open a G4 project folder before saving settings.');
+                        return;
+                    }
+
+                    // Resolve the target manifest path for the current workspace.
+                    const manifestUri = Utilities.resolveManifestUri();
+
+                    try {
+                        // Serialize with the same 4-space indent used when reading/injecting it.
+                        const json = JSON.stringify(message.manifest, null, 4);
+
+                        // Ensure the parent folder (e.g. src/) exists, then overwrite the manifest.
+                        await fs.mkdir(path.dirname(manifestUri), { recursive: true });
+                        await fs.writeFile(manifestUri, json + '\n', 'utf8');
+
+                        // Confirm the save to the user.
+                        vscode.window.showInformationMessage('G4 settings saved.');
+                    } catch (error: any) {
+                        // Surface any write failure (permissions, disk, etc.).
+                        vscode.window.showErrorMessage(`Could not save G4 settings: ${error?.message ?? error}`);
+                    }
                 }
             },
             undefined,

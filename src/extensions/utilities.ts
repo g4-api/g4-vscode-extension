@@ -546,6 +546,35 @@ export class Utilities {
     }
 
     /**
+     * Resolves the expected `manifest.json` file path for the current workspace.
+     *
+     * Behavior:
+     * - Uses the first opened workspace folder.
+     * - If the workspace folder itself is `src`, the manifest is expected directly under it.
+     * - Otherwise, the manifest is expected under `<workspace>/src/manifest.json`.
+     *
+     * @returns The resolved file-system path to `manifest.json`.
+     */
+    public static resolveManifestUri(): string {
+        // Get the first workspace folder, if one is currently opened in VS Code.
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+        // Resolve the workspace file-system path.
+        // `fsPath` is preferred over `uri.path` because it handles Windows paths correctly.
+        let workspace = workspaceFolder?.uri.fsPath ?? '';
+
+        // Resolve the expected manifest location.
+        // If the workspace already points to the `src` folder, place the manifest there.
+        // Otherwise, assume the standard project structure: <workspace>/src/manifest.json.
+        const manifest = workspace.endsWith('src')
+            ? path.join(workspace, 'manifest.json')
+            : path.join(workspace, 'src', 'manifest.json');
+
+        // Return the normalized manifest file path.
+        return manifest;
+    }
+
+    /**
      * Delays execution for a specified duration.
      *
      * @param ms - The number of milliseconds to wait (default is 1000 ms).
