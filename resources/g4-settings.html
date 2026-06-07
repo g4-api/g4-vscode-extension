@@ -733,9 +733,9 @@
          * These mirror the shipped `manifest.json` exactly, including value types
          * that matter to the engine (for example `port` is a string, and unused
          * provider slots stay `null`). The form edits a working copy of this object
-         * and never mutates DEFAULTS, so "Reset" always returns to this baseline.
+         * and never mutates globalThis.DEFAULTS, so "Reset" always returns to this baseline.
          */
-        const DEFAULTS = {
+        globalThis.DEFAULTS = {
             "g4Server": {
                 "schema": "http",
                 "host": "localhost",
@@ -898,7 +898,7 @@
          *
          * Behavior:
          * - Uses structuredClone to produce an independent deep copy.
-         * - Used to clone DEFAULTS into editable state without mutating the baseline.
+         * - Used to clone globalThis.DEFAULTS into editable state without mutating the baseline.
          *
          * @param {*} value - The JSON-compatible value to copy.
          * @returns {*} A deep copy of the value.
@@ -917,8 +917,8 @@
          * - Replaces arrays and scalar values wholesale (no element-wise merge).
          * - Mutates and returns the base, so callers pass a throwaway copy.
          *
-         * Used to layer the injected manifest over DEFAULTS so a partial manifest
-         * still produces a fully-populated form (missing keys fall back to DEFAULTS).
+         * Used to layer the injected manifest over globalThis.DEFAULTS so a partial manifest
+         * still produces a fully-populated form (missing keys fall back to globalThis.DEFAULTS).
          *
          * @param {object} base - The baseline object to merge into (mutated).
          * @param {*} override - The values that take precedence over the base.
@@ -1107,14 +1107,14 @@
     <script id="src-state">
         // The VS Code webview bridge. Acquired once; guarded so the page also
         // renders correctly when opened outside the extension host.
-        const VSCODE = (typeof acquireVsCodeApi === 'function')
+        globalThis.VSCODE = (typeof acquireVsCodeApi === 'function')
             ? acquireVsCodeApi()
             : null;
 
         // The real manifest injected by the extension host (show-settings.ts)
         // through the #g4-data holder. Parsed defensively so the page still
         // renders when opened standalone, where the marker is left unreplaced.
-        const INJECTED = (() => {
+        globalThis.INJECTED = (() => {
             try {
                 return JSON.parse(document.getElementById('g4-data').value);
             } catch {
@@ -1123,25 +1123,25 @@
         })();
 
         // The editable working copy of the settings. Starts from the injected
-        // manifest layered over DEFAULTS so a partial manifest still produces a
-        // fully-populated form; falls back to DEFAULTS alone when nothing was
-        // injected. DEFAULTS itself is never mutated, so "Reset" can restore it.
-        let STATE = (INJECTED && Object.keys(INJECTED).length)
-            ? mergeSettings(copyValue(DEFAULTS), INJECTED)
-            : copyValue(DEFAULTS);
+        // manifest layered over globalThis.DEFAULTS so a partial manifest still produces a
+        // fully-populated form; falls back to globalThis.DEFAULTS alone when nothing was
+        // injected. globalThis.DEFAULTS itself is never mutated, so "Reset" can restore it.
+        globalThis.STATE = (globalThis.INJECTED && Object.keys(globalThis.INJECTED).length)
+            ? mergeSettings(copyValue(globalThis.DEFAULTS), globalThis.INJECTED)
+            : copyValue(globalThis.DEFAULTS);
 
         // Driver keys fetched from the engine; null until a successful load.
         // Used to populate every "Driver" dropdown.
-        let DRIVERS = null;
+        globalThis.DRIVERS = null;
 
         // Shown when the engine can't be reached so the form stays usable.
-        const FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
+        globalThis.FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
 
         // Raw README that hosts the free development-license token. The token
         // lives in a ```none code block right under the "Development License"
         // heading. raw.githubusercontent.com serves permissive CORS headers,
         // so the webview can read it directly.
-        const DEV_LICENSE_URL =
+        globalThis.DEV_LICENSE_URL =
             'https://raw.githubusercontent.com/g4-api/g4-services/main/README.md';
     </script>
 
@@ -1158,7 +1158,7 @@
          */
         function getCapabilitiesUrl() {
             // Resolve the configured engine connection, defaulting each part.
-            const server = STATE.g4Server || {};
+            const server = globalThis.STATE.g4Server || {};
             const schema = server.schema || 'http';
             const host = server.host || 'localhost';
             const port = server.port || '9944';
@@ -1179,7 +1179,7 @@
          */
         function getDriversUrl() {
             // Resolve the configured engine connection, defaulting each part.
-            const server = STATE.g4Server || {};
+            const server = globalThis.STATE.g4Server || {};
             const schema = server.schema || 'http';
             const host = server.host || 'localhost';
             const port = server.port || '9944';
@@ -1201,7 +1201,7 @@
          */
         function getDriverChoices(currentValue) {
             // Prefer the live driver list; fall back to the static list when empty.
-            const source = Array.isArray(DRIVERS) && DRIVERS.length ? DRIVERS : FALLBACK_DRIVERS;
+            const source = Array.isArray(globalThis.DRIVERS) && globalThis.DRIVERS.length ? globalThis.DRIVERS : globalThis.FALLBACK_DRIVERS;
             const keys = source.slice();
 
             // Keep the saved value selectable even when it is not in the source list.
@@ -1242,13 +1242,13 @@
 
                 // Keep only the valid string `key` from each returned manifest.
                 const data = await response.json();
-                DRIVERS = Array.isArray(data)
+                globalThis.DRIVERS = Array.isArray(data)
                     ? data.map(manifest => manifest && manifest.key).filter(key => typeof key === 'string' && key)
                     : [];
             } catch (error) {
                 // On any failure, drop back to the static fallback list.
                 console.warn('Could not fetch driver manifests:', error);
-                DRIVERS = null;
+                globalThis.DRIVERS = null;
             }
 
             // Refresh the driver selects in place, preserving collapse/scroll.
@@ -1268,7 +1268,7 @@
          */
         function getPingUrl() {
             // Resolve the configured engine connection, defaulting each part.
-            const server = STATE.g4Server || {};
+            const server = globalThis.STATE.g4Server || {};
             const schema = server.schema || 'http';
             const host = server.host || 'localhost';
             const port = server.port || '9944';
@@ -1383,7 +1383,7 @@
 
             try {
                 // Fetch the README and treat any non-OK status as a failure.
-                const response = await fetch(DEV_LICENSE_URL, { cache: 'no-store' });
+                const response = await fetch(globalThis.DEV_LICENSE_URL, { cache: 'no-store' });
                 if (!response.ok) {
                     throw new Error(`GitHub returned ${response.status}`);
                 }
@@ -1395,7 +1395,7 @@
                 }
 
                 // Update both the working state and the visible input.
-                setPath(STATE, 'authentication.token', token);
+                setPath(globalThis.STATE, 'authentication.token', token);
                 const input = document.getElementById('secret-authentication-token');
                 if (input) {
                     input.value = token;
@@ -1428,8 +1428,8 @@
          */
         function openExternal(url) {
             // When hosted, ask the extension to open the link and cancel navigation.
-            if (VSCODE) {
-                VSCODE.postMessage({ command: 'openExternal', url });
+            if (globalThis.VSCODE) {
+                globalThis.VSCODE.postMessage({ command: 'openExternal', url });
                 return false;
             }
 
@@ -1498,7 +1498,7 @@
          */
         function writeText({ path, label, hint, type = 'text', suffix, placeholder, min, max, required, maxLength, validate }) {
             // Resolve the current value and the optional hint/suffix/placeholder markup.
-            const value = getPath(STATE, path);
+            const value = getPath(globalThis.STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const suffixHtml = suffix ? `<span class="field-suffix">${clearString(suffix)}</span>` : '';
             const ph = placeholder ? ` placeholder="${clearString(placeholder)}"` : '';
@@ -1570,7 +1570,7 @@
          */
         function writeSecret({ path, label, hint }) {
             // Resolve the current value, optional hint markup, and a stable input id.
-            const value = getPath(STATE, path);
+            const value = getPath(globalThis.STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const safeId = 'secret-' + path.replace(/[^a-z0-9]/gi, '-');
 
@@ -1605,7 +1605,7 @@
          */
         function writeSelect({ path, label, choices, hint }) {
             // Resolve the current value and optional hint markup.
-            const value = getPath(STATE, path);
+            const value = getPath(globalThis.STATE, path);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
             // Build the option list, marking the matching value as selected.
@@ -1638,7 +1638,7 @@
          */
         function writeToggle({ path, label, hint }) {
             // Resolve the current boolean value and optional hint markup.
-            const value = !!getPath(STATE, path);
+            const value = !!getPath(globalThis.STATE, path);
             const hintHtml = hint ? `<div class="toggle-hint">${clearString(hint)}</div>` : '';
 
             // Render the toggle switch wired to setControlValue as a boolean.
@@ -1671,7 +1671,7 @@
          */
         function writeListLines({ path, label, hint }) {
             // Resolve the current array as newline-joined text and optional hint markup.
-            const value = getPath(STATE, path);
+            const value = getPath(globalThis.STATE, path);
             const text = Array.isArray(value) ? value.join('\n') : '';
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
@@ -1702,7 +1702,7 @@
          */
         function writeJson({ path, label, hint, rows = 8 }) {
             // Resolve the current value as pretty-printed JSON text.
-            const value = getPath(STATE, path);
+            const value = getPath(globalThis.STATE, path);
             const text = value == null ? '' : JSON.stringify(value, null, 4);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
@@ -1747,7 +1747,7 @@
          */
         function writeKeyValue({ path, label, hint, keyPlaceholder = 'Key', valuePlaceholder = 'Value', addLabel = 'Add', emptyText = 'None.' }) {
             // Resolve the current map, its entries, optional hint markup, and a list id.
-            const map = getPath(STATE, path) || {};
+            const map = getPath(globalThis.STATE, path) || {};
             const entries = Object.entries(map);
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
             const listId = 'kv-' + path.replace(/[^a-z0-9]/gi, '-');
@@ -1797,7 +1797,7 @@
          */
         function writeCredentials({ path, label, hint }) {
             // Detect the current auth type and resolve optional hint markup.
-            const type = getCredentialsType(getPath(STATE, path));
+            const type = getCredentialsType(getPath(globalThis.STATE, path));
             const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
 
             // Render the auth-type selector wired to setCredentialsType.
@@ -1868,7 +1868,7 @@
          */
         function writeDriverParameters(base) {
             // Resolve the saved driver value and build its dropdown options.
-            const driverValue = getPath(STATE, `${base}.driver`);
+            const driverValue = getPath(globalThis.STATE, `${base}.driver`);
             const driverOptions = getDriverChoices(driverValue)
                 .map(choice => `<option value="${clearString(choice.value)}" ${choice.value === driverValue ? 'selected' : ''}>${clearString(choice.text)}</option>`)
                 .join('');
@@ -2312,7 +2312,7 @@
          */
         function writePluginsSection() {
             // Resolve the configured external repositories.
-            const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories') || [];
+            const repos = getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories') || [];
 
             // Render one repository card per entry, or an empty-state note.
             const cards = repos.length
@@ -2429,7 +2429,7 @@
          */
         function writeRecordersSection() {
             // Resolve the configured recorders.
-            const recorders = getPath(STATE, 'settings.recorderSettings.recorders') || [];
+            const recorders = getPath(globalThis.STATE, 'settings.recorderSettings.recorders') || [];
 
             // Render one recorder card per entry, or an empty-state note.
             const cards = recorders.length
@@ -2578,7 +2578,7 @@
          */
         function writeMcpSection() {
             // Resolve the configured MCP servers and their names.
-            const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
+            const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers') || {};
             const names = Object.keys(servers);
 
             // Render one server card per name, or an empty-state note.
@@ -2642,7 +2642,7 @@
             }
 
             // Write the coerced value into state.
-            setPath(STATE, path, value);
+            setPath(globalThis.STATE, path, value);
         }
 
         /**
@@ -2713,7 +2713,7 @@
          */
         function stepNumber(path, inputId, dir, min, max) {
             // Read the current value and step it by the requested direction.
-            const current = Number(getPath(STATE, path));
+            const current = Number(getPath(globalThis.STATE, path));
             let next = (Number.isFinite(current) ? current : 0) + dir;
 
             // Clamp the result to the optional lower/upper bounds.
@@ -2725,7 +2725,7 @@
             }
 
             // Write the stepped value into state.
-            setPath(STATE, path, next);
+            setPath(globalThis.STATE, path, next);
 
             // Reflect the new value in the visible input.
             const input = document.getElementById(inputId);
@@ -2753,7 +2753,7 @@
                 .filter(Boolean);
 
             // Write the resulting array into state.
-            setPath(STATE, path, list);
+            setPath(globalThis.STATE, path, list);
         }
 
         /**
@@ -2783,14 +2783,14 @@
 
             // An empty box means "no value here" — store an empty object.
             if (!text) {
-                setPath(STATE, path, {});
+                setPath(globalThis.STATE, path, {});
                 setError('');
                 return;
             }
 
             try {
                 // Valid JSON is written to state and clears the error.
-                setPath(STATE, path, JSON.parse(text));
+                setPath(globalThis.STATE, path, JSON.parse(text));
                 setError('');
             } catch (error) {
                 // Invalid JSON keeps the last good value and surfaces the error.
@@ -2828,7 +2828,7 @@
 
             // An empty box means "no value here" — store an empty object.
             if (!text) {
-                setPath(STATE, path, {});
+                setPath(globalThis.STATE, path, {});
                 setError('');
                 return;
             }
@@ -2837,7 +2837,7 @@
                 // Reformat valid JSON, store it, and clear any error.
                 const parsed = JSON.parse(text);
                 textarea.value = JSON.stringify(parsed, null, 4);
-                setPath(STATE, path, parsed);
+                setPath(globalThis.STATE, path, parsed);
                 setError('');
             } catch (error) {
                 // Leave invalid JSON untouched and surface the error.
@@ -2878,8 +2878,8 @@
          */
         function addRecorder() {
             // Resolve the recorders list and clone the shipped template.
-            const recorders = STATE.settings.recorderSettings.recorders;
-            const template = copyValue(DEFAULTS.settings.recorderSettings.recorders[0]);
+            const recorders = globalThis.STATE.settings.recorderSettings.recorders;
+            const template = copyValue(globalThis.DEFAULTS.settings.recorderSettings.recorders[0]);
 
             // Give the new machine a unique friendly name and leave it disabled
             // so adding it never changes behavior until the user opts in.
@@ -2900,7 +2900,7 @@
          */
         function removeRecorder(index) {
             // Drop the recorder at the index and re-render the section.
-            STATE.settings.recorderSettings.recorders.splice(index, 1);
+            globalThis.STATE.settings.recorderSettings.recorders.splice(index, 1);
             updateSection('recorders');
         }
 
@@ -2914,7 +2914,7 @@
          */
         function addServer() {
             // Resolve the current servers map.
-            const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
+            const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers') || {};
 
             // Find a unique default name so two new servers don't collide.
             let n = Object.keys(servers).length + 1;
@@ -2925,7 +2925,7 @@
 
             // Seed a local server, store it, re-render, and reveal the new card.
             servers[name] = { type: 'stdio', command: '', args: [] };
-            setPath(STATE, 'settings.pluginsSettings.servers', servers);
+            setPath(globalThis.STATE, 'settings.pluginsSettings.servers', servers);
             updateSection('mcp');
             showItem(document.querySelector('#sec-mcp .card-list')?.lastElementChild);
         }
@@ -2937,7 +2937,7 @@
          */
         function removeServer(name) {
             // Delete the server entry when present and re-render the section.
-            const servers = getPath(STATE, 'settings.pluginsSettings.servers');
+            const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers');
             if (servers) {
                 delete servers[name];
             }
@@ -2957,7 +2957,7 @@
         function renameServer(oldName, newNameRaw) {
             // Normalize the requested name and resolve the servers map.
             const newName = String(newNameRaw || '').trim();
-            const servers = getPath(STATE, 'settings.pluginsSettings.servers') || {};
+            const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers') || {};
 
             // Ignore no-op or empty renames, and refuse to overwrite an existing key.
             if (!newName || newName === oldName || servers[newName]) {
@@ -2970,7 +2970,7 @@
             for (const [key, value] of Object.entries(servers)) {
                 next[key === oldName ? newName : key] = value;
             }
-            setPath(STATE, 'settings.pluginsSettings.servers', next);
+            setPath(globalThis.STATE, 'settings.pluginsSettings.servers', next);
             updateSection('mcp');
         }
 
@@ -2983,7 +2983,7 @@
          */
         function setServerType(name, type) {
             // Store the new transport type and re-render the MCP section.
-            setPath(STATE, `settings.pluginsSettings.servers.${convertToEscapedKey(name)}.type`, type);
+            setPath(globalThis.STATE, `settings.pluginsSettings.servers.${convertToEscapedKey(name)}.type`, type);
             updateSection('mcp');
         }
 
@@ -2999,7 +2999,7 @@
          */
         function addEntry(path) {
             // Resolve the current map.
-            const map = getPath(STATE, path) || {};
+            const map = getPath(globalThis.STATE, path) || {};
 
             // Find a unique placeholder key so the new entry doesn't collide.
             let n = Object.keys(map).length + 1;
@@ -3010,7 +3010,7 @@
 
             // Add the empty entry, store it, re-render, and reveal the new row.
             map[key] = '';
-            setPath(STATE, path, map);
+            setPath(globalThis.STATE, path, map);
             updateSection(resolveSectionId(path));
             showItem(document.getElementById('kv-' + path.replace(/[^a-z0-9]/gi, '-'))?.lastElementChild);
         }
@@ -3023,7 +3023,7 @@
          */
         function removeEntry(path, key) {
             // Delete the entry when the map exists, then re-render the owning section.
-            const map = getPath(STATE, path);
+            const map = getPath(globalThis.STATE, path);
             if (map && typeof map === 'object') {
                 delete map[key];
             }
@@ -3039,7 +3039,7 @@
          */
         function setEntryValue(path, key, value) {
             // Write the value at the escaped key path (the key may contain dots/colons).
-            setPath(STATE, `${path}.${convertToEscapedKey(key)}`, value);
+            setPath(globalThis.STATE, `${path}.${convertToEscapedKey(key)}`, value);
         }
 
         /**
@@ -3053,7 +3053,7 @@
         function renameEntryKey(path, oldKey, newKeyRaw) {
             // Normalize the requested key and resolve the current map.
             const newKey = String(newKeyRaw || '').trim();
-            const map = getPath(STATE, path) || {};
+            const map = getPath(globalThis.STATE, path) || {};
 
             // Ignore empty, unchanged, or colliding renames.
             if (!newKey || newKey === oldKey || (newKey in map)) {
@@ -3066,7 +3066,7 @@
             for (const [key, value] of Object.entries(map)) {
                 next[key === oldKey ? newKey : key] = value;
             }
-            setPath(STATE, path, next);
+            setPath(globalThis.STATE, path, next);
             updateSection(resolveSectionId(path));
         }
 
@@ -3118,19 +3118,19 @@
          */
         function setCredentialsType(path, type) {
             // Read the current credentials so reusable fields can be preserved.
-            const current = getPath(STATE, path) || {};
+            const current = getPath(globalThis.STATE, path) || {};
 
             // Build the new credentials object based on the chosen type.
             if (type === 'basic') {
-                setPath(STATE, path, {
+                setPath(globalThis.STATE, path, {
                     type: 'basic',
                     username: current.username || '',
                     password: current.password || ''
                 });
             } else if (type === 'bearer') {
-                setPath(STATE, path, { type: 'bearer', token: current.token || '' });
+                setPath(globalThis.STATE, path, { type: 'bearer', token: current.token || '' });
             } else {
-                setPath(STATE, path, null);
+                setPath(globalThis.STATE, path, null);
             }
 
             // Re-render the owning section so the matching inputs appear.
@@ -3146,12 +3146,12 @@
          */
         function addRepository() {
             // Resolve the current repositories as an array.
-            const existing = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
+            const existing = getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories');
             const repos = Array.isArray(existing) ? existing : [];
 
             // Append a default repository, store it, re-render, and reveal the new card.
             repos.push({ name: '', url: '', version: 1, timeout: 300, capabilities: {}, headers: {} });
-            setPath(STATE, 'settings.pluginsSettings.externalRepositories', repos);
+            setPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories', repos);
             updateSection('plugins');
             showItem(document.querySelector('#sec-plugins .card-list')?.lastElementChild);
         }
@@ -3163,7 +3163,7 @@
          */
         function removeRepository(index) {
             // Drop the repository at the index when the list exists, then re-render.
-            const repos = getPath(STATE, 'settings.pluginsSettings.externalRepositories');
+            const repos = getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories');
             if (Array.isArray(repos)) {
                 repos.splice(index, 1);
             }
@@ -3182,7 +3182,7 @@
          */
         function newManifest() {
             // Start from a deep copy of the working state.
-            const manifest = copyValue(STATE);
+            const manifest = copyValue(globalThis.STATE);
 
             // Safety net: never send a parallelism below 1, even if state drifts.
             const parallel = Number(manifest.settings.automationSettings.maxParallel);
@@ -3209,7 +3209,7 @@
     <script id="src-app">
         // Maps each section id to the function that builds its full markup, so a
         // single section can be re-rendered in place without rebuilding the page.
-        const SECTION_BUILDERS = {
+        globalThis.SECTION_BUILDERS = {
             connection: writeConnectionSection,
             license: writeLicenseSection,
             driver: writeDriverSection,
@@ -3239,7 +3239,7 @@
         function updateSection(id) {
             // Resolve the live body element and the matching section builder.
             const liveBody = document.getElementById('sec-' + id);
-            const builder = SECTION_BUILDERS[id];
+            const builder = globalThis.SECTION_BUILDERS[id];
             if (!liveBody || !builder) {
                 return;
             }
@@ -3315,8 +3315,8 @@
             const manifest = newManifest();
 
             // Send it to the host, or warn when the bridge is unavailable.
-            if (VSCODE) {
-                VSCODE.postMessage({ command: 'saveSettings', manifest });
+            if (globalThis.VSCODE) {
+                globalThis.VSCODE.postMessage({ command: 'saveSettings', manifest });
             } else {
                 console.warn('VS Code bridge unavailable; settings were not sent.', manifest);
             }
@@ -3334,7 +3334,7 @@
          */
         function resetDefaults() {
             // Restore the baseline working copy and re-render the whole form.
-            STATE = copyValue(DEFAULTS);
+            globalThis.STATE = copyValue(globalThis.DEFAULTS);
             showSettings();
         }
 
