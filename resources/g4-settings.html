@@ -1102,6 +1102,23 @@
                 ? icon.classList.remove('open')
                 : icon.classList.add('open');
         }
+
+        /**
+         * Writes a message into an inline error element when it exists.
+         *
+         * Behavior:
+         * - Does nothing when the error element is missing.
+         * - Otherwise sets the element's text to the message ('' clears it).
+         *
+         * @param {Element|null} errEl - The error element to update, if present.
+         * @param {string} message - The message to display; '' clears the error.
+         */
+        function setError(errEl, message) {
+            // Update the error text only when the element exists.
+            if (errEl) {
+                errEl.textContent = message;
+            }
+        }
     </script>
 
     <script id="src-state">
@@ -1886,10 +1903,10 @@
                     </div>
                 </div>
                 ${writeText({
-                    path: `${base}.driverBinaries`,
-                    label: 'Driver service URL or path',
-                    hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
-                })}
+                path: `${base}.driverBinaries`,
+                label: 'Driver service URL or path',
+                hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
+            })}
             </div>
             ${writeJson({
                 path: `${base}.capabilities.alwaysMatch`,
@@ -2245,58 +2262,58 @@
                     <button type="button" class="btn btn-ghost btn-sm" onclick="removeRepository(${index})">Remove</button>
                 </div>
                 ${writeText({
-                    path: `${base}.name`,
-                    label: 'Name',
-                    required: true,
-                    maxLength: 155,
-                    hint: 'A unique name for this repository (up to 155 characters).'
-                })}
+                path: `${base}.name`,
+                label: 'Name',
+                required: true,
+                maxLength: 155,
+                hint: 'A unique name for this repository (up to 155 characters).'
+            })}
                 ${writeText({
-                    path: `${base}.url`,
-                    label: 'URL',
-                    required: true,
-                    validate: 'url',
-                    placeholder: 'https://…',
-                    hint: 'The repository endpoint G4 loads plugins from.'
-                })}
+                path: `${base}.url`,
+                label: 'URL',
+                required: true,
+                validate: 'url',
+                placeholder: 'https://…',
+                hint: 'The repository endpoint G4 loads plugins from.'
+            })}
                 <div class="field-row">
                     ${writeText({
-                        path: `${base}.version`,
-                        label: 'Version',
-                        type: 'number',
-                        min: 1,
-                        required: true,
-                        hint: 'Repository API version (whole number).'
-                    })}
+                path: `${base}.version`,
+                label: 'Version',
+                type: 'number',
+                min: 1,
+                required: true,
+                hint: 'Repository API version (whole number).'
+            })}
                     ${writeText({
-                        path: `${base}.timeout`,
-                        label: 'Timeout',
-                        suffix: '(seconds)',
-                        type: 'number',
-                        min: 0,
-                        hint: 'Request timeout. Default 300.'
-                    })}
+                path: `${base}.timeout`,
+                label: 'Timeout',
+                suffix: '(seconds)',
+                type: 'number',
+                min: 0,
+                hint: 'Request timeout. Default 300.'
+            })}
                 </div>
                 ${writeJson({
-                    path: `${base}.capabilities`,
-                    label: 'Capabilities',
-                    hint: 'Advanced. Extra key/value capabilities sent to the repository.',
-                    rows: 6
-                })}
+                path: `${base}.capabilities`,
+                label: 'Capabilities',
+                hint: 'Advanced. Extra key/value capabilities sent to the repository.',
+                rows: 6
+            })}
                 ${writeKeyValue({
-                    path: `${base}.headers`,
-                    label: 'Headers',
-                    hint: 'Optional HTTP headers sent with each request.',
-                    keyPlaceholder: 'Header',
-                    valuePlaceholder: 'Value',
-                    addLabel: 'Add header',
-                    emptyText: 'No headers.'
-                })}
+                path: `${base}.headers`,
+                label: 'Headers',
+                hint: 'Optional HTTP headers sent with each request.',
+                keyPlaceholder: 'Header',
+                valuePlaceholder: 'Value',
+                addLabel: 'Add header',
+                emptyText: 'No headers.'
+            })}
                 ${writeCredentials({
-                    path: `${base}.credentials`,
-                    label: 'Credentials',
-                    hint: 'Optional authentication for the repository endpoint.'
-                })}
+                path: `${base}.credentials`,
+                label: 'Credentials',
+                hint: 'Optional authentication for the repository endpoint.'
+            })}
             </div>`;
         }
 
@@ -2492,20 +2509,20 @@
                     <textarea oninput="setListValue('${base}.args', this.value)">${clearString(args)}</textarea>
                 </div>
                 ${writeText({
-                    path: `${base}.workingDirectory`,
-                    label: 'Working directory',
-                    hint: 'Folder the server process runs in. Optional.'
-                })}`;
+                path: `${base}.workingDirectory`,
+                label: 'Working directory',
+                hint: 'Folder the server process runs in. Optional.'
+            })}`;
 
             // Remote servers only need a URL endpoint.
             const remoteFields = `
                 ${writeText({
-                    path: `${base}.url`,
-                    label: 'URL',
-                    validate: 'url',
-                    placeholder: 'https://…',
-                    hint: 'The remote MCP server endpoint.'
-                })}`;
+                path: `${base}.url`,
+                label: 'URL',
+                validate: 'url',
+                placeholder: 'https://…',
+                hint: 'The remote MCP server endpoint.'
+            })}`;
 
             // Remote servers edit request headers; local servers edit env variables.
             const mapEditor = isRemote
@@ -2555,12 +2572,12 @@
                 </div>
                 ${isRemote ? remoteFields : localFields}
                 ${writeText({
-                    path: `${base}.timeout`,
-                    label: 'Timeout',
-                    type: 'number',
-                    min: 0,
-                    hint: 'Optional connection timeout. Leave empty for the server default.'
-                })}
+                path: `${base}.timeout`,
+                label: 'Timeout',
+                type: 'number',
+                min: 0,
+                hint: 'Optional connection timeout. Leave empty for the server default.'
+            })}
                 ${mapEditor}
             </div>`;
         }
@@ -2617,9 +2634,9 @@
          * @param {string} path - The dotted state path that changed.
          * @param {*} rawValue - The raw value from the control.
          * @param {('text'|'number'|'bool')} [kind='text'] - How to coerce the value.
-         * @param {number} [min] - Optional lower bound for number values.
+         * @param {number} [min=null] - Optional lower bound for number values.
          */
-        function setControlValue(path, rawValue, kind = 'text', min) {
+        function setControlValue(path, rawValue, kind = 'text', min = null) {
             // Start from the raw value; coerce it below based on the control kind.
             let value = rawValue;
 
@@ -2771,30 +2788,31 @@
          * @param {string} [errId] - Id of the element that shows parse errors.
          */
         function setJsonValue(path, rawValue, errId) {
-            // Resolve the error element and a helper that writes its message.
+            // Resolve the error element that surfaces parse errors.
             const errEl = errId ? document.getElementById(errId) : null;
             const text = String(rawValue ?? '').trim();
-
-            const setError = message => {
-                if (errEl) {
-                    errEl.textContent = message;
-                }
-            };
 
             // An empty box means "no value here" — store an empty object.
             if (!text) {
                 setPath(globalThis.STATE, path, {});
-                setError('');
+                setError(errEl, '');
                 return;
             }
 
             try {
                 // Valid JSON is written to state and clears the error.
                 setPath(globalThis.STATE, path, JSON.parse(text));
-                setError('');
+                setError(errEl, '');
             } catch (error) {
                 // Invalid JSON keeps the last good value and surfaces the error.
-                setError("Invalid JSON — fix the highlighted text; this change won't be saved until it parses.");
+                const message = error instanceof Error
+                    ? error.message
+                    : String(error);
+
+                setError(
+                    errEl,
+                    `Invalid JSON — ${message}. Fix the highlighted text; this change won't be saved until it parses.`
+                );
             }
         }
 
@@ -2818,18 +2836,13 @@
                 return;
             }
 
-            // Read the trimmed text and prepare an error-writing helper.
+            // Read the trimmed text.
             const text = String(textarea.value ?? '').trim();
-            const setError = message => {
-                if (errEl) {
-                    errEl.textContent = message;
-                }
-            };
 
             // An empty box means "no value here" — store an empty object.
             if (!text) {
                 setPath(globalThis.STATE, path, {});
-                setError('');
+                setError(errEl, '');
                 return;
             }
 
@@ -2838,10 +2851,17 @@
                 const parsed = JSON.parse(text);
                 textarea.value = JSON.stringify(parsed, null, 4);
                 setPath(globalThis.STATE, path, parsed);
-                setError('');
+                setError(errEl, '');
             } catch (error) {
                 // Leave invalid JSON untouched and surface the error.
-                setError('Invalid JSON — fix the highlighted text before formatting.');
+                const message = error instanceof Error
+                    ? error.message
+                    : String(error);
+
+                setError(
+                    errEl,
+                    `Invalid JSON — ${message}. Fix the highlighted text before formatting.`
+                );
             }
         }
 
