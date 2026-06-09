@@ -62,13 +62,13 @@ If you're new to G4, read sections 2–7 in order; the rest are reference materi
 
 `manifest.json` is one JSON object with these top-level keys:
 
-| Key                       | Purpose                                                            |
-| ------------------------- | ------------------------------------------------------------------ |
-| `g4Server`                | Address of the G4 engine                                           |
-| `authentication`          | Token that proves you're allowed to use the engine                 |
-| `driverParameters`        | The default automation driver (e.g., Chrome)                       |
+| Key                       | Purpose                                                                                 |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `g4Server`                | Address of the G4 engine                                                                |
+| `authentication`          | Token that proves you're allowed to use the engine                                      |
+| `driverParameters`        | The default automation driver (e.g., Chrome)                                            |
 | `settings`                | A container for all run-behavior settings, including `clientLogConfiguration` (logging) |
-| `servers` *(optional)*    | MCP servers whose tools become G4 plugins                          |
+| `servers` *(optional)*    | MCP servers whose tools become G4 plugins                                               |
 
 Everything below `settings` controls **how runs behave** and **what comes back** after a run.
 
