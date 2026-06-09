@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
-import { MdJsonNotebookProvider } from './providers/md-json-notebook-provider';
 import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
 import { StartAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
@@ -14,6 +13,8 @@ import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
 import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
 import { SyncCacheCommand } from './commands/sync-cache';
+import { ShowReportCommand } from './commands/show-report';
+import { ShowSettingsCommand } from './commands/show-settings';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -50,9 +51,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register all VS Code commands exposed by the extension.
     registerCommands(options);
-
-    // Register notebook related events such as cell execution and document changes.
-    registerNotebookEvents(options);
 
     // Register language or notebook providers such as completion, hover and serializers.
     registerProviders(options);
@@ -95,6 +93,12 @@ const registerCommands = (options: {
 
     // Command to trigger an automation workflow using the connected hub.
     new StartAutomationCommand(options.context, options.hubConnections).register();
+
+    // Command to open or visualize a specific report in the UI.
+    new ShowReportCommand(options.context).register();
+
+    // Command to open or visualize the G4 settings in the UI.
+    new ShowSettingsCommand(options.context).register();
 
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
@@ -139,10 +143,6 @@ const registerProviders = (options: {
     hubConnections: Map<string, NotificationService>,
     recorderConnections: Map<string, EventCaptureService>
 }) => {
-    // Register the Markdown/JSON notebook provider responsible for
-    // loading, saving, and executing custom .mdjson notebooks.
-    new MdJsonNotebookProvider(options.context, options.baseUri).register();
-
     // Register the main G4 webview provider that powers the extension’s UI panel.
     new G4WebviewViewProvider(options.context).register();
 
@@ -153,63 +153,6 @@ const registerProviders = (options: {
     // Register the documents tree provider that displays workspace or
     // project-related documents in the Explorer sidebar.
     new DocumentsTreeProvider(options.context).register();
-};
-
-/** * Set up listeners to auto-register SignalR NotificationService instances
- * whenever a new MdJson notebook becomes active.
- *
- * @param options.context - VS Code extension context for subscriptions.
- * @param options.baseUri - Base URL for connecting to the G4 SignalR hub.
- * @param options.connections - Map of notebook URIs to NotificationService clients.
- */
-const registerNotebookEvents = (options: {
-    context: vscode.ExtensionContext;
-    baseUri: string;
-    hubConnections: Map<string, NotificationService>;
-}): void => {
-    // Listen for changes to the active notebook editor
-    const changeActiveNotebookEditor = vscode.window.onDidChangeActiveNotebookEditor(
-        /**
-         * Called when the user switches to a different notebook editor.
-         * If the notebook is an MdJson (.mdjson) file and no existing
-         * NotificationService is registered, create one.
-         *
-         * @param editor - The newly focused notebook editor, or undefined.
-         */
-        (editor) => {
-            // Get the currently active NotebookDocument, if any
-            const notebook = editor?.notebook;
-
-            // Only handle our custom MdJson notebook type
-            const isMdJson = notebook?.notebookType === MdJsonNotebookProvider.NOTEBOOK_TYPE;
-            // Ensure the file extension matches .mdjson
-            const hasMdJsonExtension = notebook?.uri.path.endsWith('.mdjson');
-
-            // Exit early if this is not an MdJson notebook
-            if (!(isMdJson && hasMdJsonExtension)) {
-                return;
-            }
-
-            // Use the notebook file path as a unique key in the connections map
-            const key = notebook.uri.path.toString();
-
-            // If we've already created a service for this notebook, do nothing
-            if (options.hubConnections.has(key)) {
-                return;
-            }
-
-            // Create and register a new NotificationService for this notebook
-            const service = new NotificationService({
-                baseUrl: options.baseUri || "http://localhost:9955",
-                context: options.context,
-                logger: Global.logger
-            });
-            options.hubConnections.set(key, service);
-        }
-    );
-
-    // Ensure the event listener is disposed when the extension deactivates
-    options.context.subscriptions.push(changeActiveNotebookEditor);
 };
 
 /**

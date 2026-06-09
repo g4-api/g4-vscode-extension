@@ -1,37 +1,53 @@
 //@ts-check
 
-'use strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const path = require('path');
+// ESM replacement for CommonJS __dirname.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-//@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 
 /** @type WebpackConfig */
 const extensionConfig = {
-    target: 'node', // VS Code extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
-    mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
+    target: 'node',
 
-    entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
+    // Keep output close to source for easier debugging.
+    mode: 'none',
+
+    // Entry point of the extension.
+    entry: './src/extension.ts',
+
     output: {
-        // the bundle is stored in the 'dist' folder (check package.json), 📖 -> https://webpack.js.org/configuration/output/
+        // package.json points to ./dist/extension.js
         path: path.resolve(__dirname, 'dist'),
         filename: 'extension.js',
-        libraryTarget: 'commonjs2'
+        libraryTarget: 'commonjs2',
+
+        // Makes source-map paths easier for VS Code to resolve.
+        devtoolModuleFilenameTemplate: '../[resource-path]',
+
+        // Cleans stale bundle/map files before each build.
+        clean: true
     },
-    externalsPresets: { 
-        node: true 
+
+    externalsPresets: {
+        node: true
     },
+
     externals: {
-        // VS Code host module
+        // VS Code host module.
         vscode: 'commonjs vscode',
-        // 🔧 Native addon — keep OUT of the bundle
+
+        // Native addon — keep OUT of the bundle.
         'uiohook-napi': 'commonjs uiohook-napi'
     },
+
     resolve: {
-        // support reading TypeScript and JavaScript files, 📖 -> https://github.com/TypeStrong/ts-loader
         extensions: ['.ts', '.js']
     },
+
     module: {
         rules: [
             {
@@ -45,9 +61,15 @@ const extensionConfig = {
             }
         ]
     },
-    devtool: 'nosources-source-map',
+
+    // Better for debugging than nosources-source-map.
+    // Your package script can still override this for production:
+    // webpack --mode production --devtool hidden-source-map
+    devtool: 'source-map',
+
     infrastructureLogging: {
-        level: "log", // enables logging required for problem matchers
-    },
+        level: 'log'
+    }
 };
-module.exports = [extensionConfig];
+
+export default [extensionConfig];

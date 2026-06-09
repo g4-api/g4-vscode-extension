@@ -3,6 +3,7 @@ import { Utilities } from '../extensions/utilities';
 import { ExtensionLogger } from '../logging/extensions-logger';
 import { Logger } from '../logging/logger';
 import { Channels } from './channels';
+import * as vscode from 'vscode';
 
 export class Global {
     // The base URL for the G4 Hub API.
@@ -74,32 +75,72 @@ export class Global {
 
     /**
      * Gets the base URL for the G4 Hub API.
+     *
+     * Behavior:
+     * - Returns the cached base hub URL when it is already set.
+     * - Resolves the URL from the extension configuration when missing.
+     * - Falls back to the local G4 Hub default URL when no configured value exists.
+     *
      * Used to construct API endpoints for communication with the G4 Hub.
+     *
+     * @returns The base URL used to communicate with the G4 Hub API.
      */
     public static get baseHubUrl(): string {
+        // Resolve and cache the base hub URL only when it was not already initialized.
+        if (!this._baseHubUrl) {
+            this._baseHubUrl = Utilities.getG4Endpoint() || 'http://localhost:9944';
+        }
+
+        // Return the cached G4 Hub base URL.
         return this._baseHubUrl;
     }
 
     /**
      * Sets the base URL for the G4 Hub API.
-     * If the provided value is falsy, it defaults to "http://localhost:9944".
+     *
+     * This allows callers to override the cached hub URL manually.
+     * The value is stored as-is and is not validated or normalized here.
      *
      * @param value - The new base URL to use for the G4 Hub API.
      */
     public static set baseHubUrl(value: string) {
-        if (!value) {
-            value = 'http://localhost:9944';
-        }
+        // Store the provided hub URL so future reads use this value.
         this._baseHubUrl = value;
     }
 
     /**
-     * Returns a singleton instance of the G4Client configured with the base hub URL.
-     * This allows other parts of the extension to access the G4 API without needing to
-     * create a new client instance each time.
+     * Creates a G4 API client using the configured G4 Hub base URL.
+     *
+     * Behavior:
+     * - Uses the resolved G4 Hub base URL.
+     * - Creates and returns a new G4Client when the URL exists.
+     * - Logs, shows a warning, and throws an error when the URL is missing.
+     *
+     * @returns A new G4Client instance configured with the G4 Hub base URL.
+     * @throws Error when the G4 Hub URL is not configured.
      */
     public static get g4Client(): G4Client {
-        return new G4Client(this.baseHubUrl);
+        // Resolve the configured G4 Hub base URL.
+        const baseHubUrl = this.baseHubUrl;
+
+        // If the hub URL exists, create a client using that URL.
+        if (baseHubUrl) {
+            return new G4Client(baseHubUrl);
+        }
+
+        // Build a clear configuration error message for logs and the VS Code UI.
+        const message = 'G4 Hub URL is not set. ' +
+            'Please configure the "g4Server" settings in ' +
+            'your manifest and reload the extension to connect to the G4 Hub API.';
+
+        // Write the warning to the extension logger.
+        this.logger.warning(message);
+
+        // Show the warning in the VS Code UI.
+        vscode.window.showWarningMessage(message);
+
+        // Stop execution because the client cannot be created safely without a URL.
+        throw new Error(message);
     }
 
     /**

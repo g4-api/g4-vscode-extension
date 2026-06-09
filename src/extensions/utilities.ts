@@ -37,6 +37,33 @@ export class Utilities {
     }
 
     /**
+     * Converts a Base64-encoded string into a UTF-8 string.
+     *
+     * This method safely handles non-Latin characters by:
+     * - Decoding the Base64 value into a binary string.
+     * - Converting each binary character into a byte.
+     * - Decoding the byte array as UTF-8 text.
+     *
+     * @param base64 - The Base64-encoded string to decode.
+     * @returns The decoded UTF-8 string.
+     */
+    public static convertFromBase64(base64: string): string {
+        // Decode the Base64 string into a binary string.
+        // Each character in this string represents one byte.
+        const binary = atob(base64);
+
+        // Convert the binary string into a byte array.
+        const bytes = Uint8Array.from(binary, char =>
+            // Use codePointAt(0) to satisfy linting rules that prefer
+            // Unicode-aware character access over charCodeAt(0).
+            char.codePointAt(0)!
+        );
+
+        // Decode the byte array as UTF-8 so non-Latin characters are restored correctly.
+        return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    /**
      * Deserialize the raw file bytes into VS Code notebook cells.
      * 
      * @param content The raw text of file content.
@@ -486,7 +513,7 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: { 
+        const endpoints: {
             baseUrl: string,
             mode: string,
             driverParameters: any,
@@ -516,6 +543,35 @@ export class Utilities {
 
         // Return the completed list of endpoints
         return endpoints;
+    }
+
+    /**
+     * Resolves the expected `manifest.json` file path for the current workspace.
+     *
+     * Behavior:
+     * - Uses the first opened workspace folder.
+     * - If the workspace folder itself is `src`, the manifest is expected directly under it.
+     * - Otherwise, the manifest is expected under `<workspace>/src/manifest.json`.
+     *
+     * @returns The resolved file-system path to `manifest.json`.
+     */
+    public static resolveManifestUri(): string {
+        // Get the first workspace folder, if one is currently opened in VS Code.
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+        // Resolve the workspace file-system path.
+        // `fsPath` is preferred over `uri.path` because it handles Windows paths correctly.
+        let workspace = workspaceFolder?.uri.fsPath ?? '';
+
+        // Resolve the expected manifest location.
+        // If the workspace already points to the `src` folder, place the manifest there.
+        // Otherwise, assume the standard project structure: <workspace>/src/manifest.json.
+        const manifest = workspace.endsWith('src')
+            ? path.join(workspace, 'manifest.json')
+            : path.join(workspace, 'src', 'manifest.json');
+
+        // Return the normalized manifest file path.
+        return manifest;
     }
 
     /**

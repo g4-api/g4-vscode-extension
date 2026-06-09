@@ -45,6 +45,9 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                     await vscode.commands.executeCommand('Show-Workflow');
                 }
                 // Add more message handlers here as needed
+                if (message.type === 'settings:show') {
+                    await vscode.commands.executeCommand('Show-Settings');
+                }
             }
         );
     }
@@ -126,6 +129,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                     display: flex;
                     justify-content: center;
                     align-items: center;
+                    margin-bottom: 1.2em;
                 }
 
                 @media (min-width: 600px) {
@@ -150,10 +154,20 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                 </button>
             </div>
 
+            <div class="btn-container">
+                <button id="showSettingsBtn" class="btn">
+                    Open Settings Editor
+                </button>
+            </div>
+
             <script>
                 const vscode = acquireVsCodeApi();
                 document.getElementById('showWorkflowBtn').addEventListener('click', () =>
                     vscode.postMessage({ type: 'workflow:show', payload: {} })
+                );
+
+                document.getElementById('showSettingsBtn').addEventListener('click', () =>
+                    vscode.postMessage({ type: 'settings:show', payload: {} })
                 );
             </script>
       </body>

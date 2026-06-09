@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
+import { Utilities } from '../extensions/utilities';
 
 /**
  * Command to create a new project structure in VS Code.
@@ -35,7 +36,7 @@ export class ShowWorkflowCommand extends CommandBase {
         super(context);
 
         // Create a child logger scoped to this command for clearer log output
-        this._logger = this.logger?.newLogger('G4.WorkflowEditor');
+        this._logger = this.logger?.newLogger('G4.ShowWorkflowCommand');
 
         // Set the base URL for API calls, defaulting to localhost if not provided
         this._baseUrl = baseUrl;
@@ -66,56 +67,6 @@ export class ShowWorkflowCommand extends CommandBase {
      * loading remote resources, patching them locally, and wiring up log forwarding.
      */
     protected async onInvokeCommand(args: any): Promise<any> {
-        // Helper to read a file or notebook given its URI string, then post its content
-        const readFile = async (uri: string) => {
-            try {
-                // Decode and parse the incoming URI (handles percent-encoded characters)
-                const fileUri = vscode.Uri.parse(uri);
-
-                // Read raw bytes from the workspace file system
-                const fileBytes = await vscode.workspace.fs.readFile(fileUri);
-
-                // Detect if this is a notebook file by extension
-                const isNotebook = fileUri.path.endsWith('.mdjson');
-                let text = '{}';
-
-                if (isNotebook) {
-                    // Open the notebook document and extract the first JSON cell
-                    const notebook = await vscode.workspace.openNotebookDocument(fileUri);
-                    if (notebook.cellCount > 0) {
-                        const jsonCell = notebook
-                            .getCells()
-                            .find(cell => cell.kind === vscode.NotebookCellKind.Code && cell.document.languageId === 'json');
-                        text = jsonCell?.document.getText() || '{}';
-                    }
-                } else {
-                    // Convert raw bytes to UTF-8 text for non-notebook files
-                    text = Buffer.from(fileBytes).toString('utf8');
-                }
-
-                // Derive a simple filename for display in the webview
-                const fileName = path.basename(fileUri.fsPath);
-
-                // Send the file name and content back to the webview for import
-                panel.webview.postMessage({
-                    type: 'workflow:import',
-                    payload: {
-                        fileName: fileName,
-                        content: text
-                    }
-                });
-            } catch (err: any) {
-                // Log the failure and notify the webview of the error
-                this._logger.error(`Failed to read ${uri}: ${err}`);
-                panel.webview.postMessage({
-                    type: 'workflow:import',
-                    payload: {
-                        error: `Could not read file: ${err.message}`
-                    }
-                });
-            }
-        };
-
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
@@ -154,26 +105,24 @@ export class ShowWorkflowCommand extends CommandBase {
         html = html.replace(/<\/head>/i, headerShim + '</head>');
         html = html.replace(/<\/body>/i, bodyShim + '</body>');
 
-        // Listen for messages posted from the webview’s shim and log them at the appropriate level
+        /**
+         * Handles messages sent from the webview to the VS Code extension host.
+         *
+         * Supported message types:
+         * - workflow:import  - Reads a workflow file selected by the webview.
+         * - webview:ready    - Sends the initial workflow to the webview when it is ready.
+         * - workflow:result  - Receives the workflow result from the webview.
+         * - console          - Receives console output from the webview and writes it to the extension logger.
+         */
         panel.webview.onDidReceiveMessage(async message => {
-            // If the message is an import request, read the file and send its content
             if (message.type === 'workflow:import') {
-                readFile(message.payload.fileUri);
-                return;
+                const uri = vscode.Uri.parse(message?.payload?.fileUri || '');
+                panel.title = path.basename(uri.fsPath) || 'G4 Workflow';
             }
 
-            // If the webview signals it is ready, send the initial workflow if provided
-            if (message.type === 'webview:ready' && args?.workflow) {
-                panel.webview.postMessage({
-                    type: 'workflow:import',
-                    payload: {
-                        content: JSON.stringify(args.workflow)
-                    }
-                });
-            }
-
-            // Log the message text at the appropriate level
-            this._logger.information(message.text);
+            // Delegate message handling to the resolveMessage method, passing along the panel, command arguments, and message payload
+            // This keeps the message handling logic organized and allows resolveMessage to be async if needed.
+            this.resolveMessage(panel, args, message);
         });
 
         // Finally, assign the processed HTML to the webview to render the app
@@ -189,30 +138,166 @@ export class ShowWorkflowCommand extends CommandBase {
     private static getHeaderShim(): string {
         return `
         <script>
-        (function() {
-            // Acquire VS Code API for sending messages back to the extension
-            const vscode = acquireVsCodeApi();
-            window.vscodeApi = vscode;
+        (function () {
+            // Acquire the VS Code API object which allows communication between the webview and the extension host.
+            window.vscodeApi = acquireVsCodeApi();
 
-            // Wrap standard console methods to also post messages to the extension
+            // A special marker used to identify console messages that contain document results.
+            const documentResultMarker = '__G4_DOCUMENT_RESULT_BASE64__:';
+
+            /**
+             * Converts a value into a string representation.
+             *
+             * Behavior:
+             * - Returns strings as-is.
+             * - Converts non-string values to JSON text.
+             * - Falls back to String(value) if JSON serialization fails.
+             *
+             * @param value - The value to convert.
+             * @returns The string representation of the provided value.
+             */
+            const convertFromJson = (value) => {
+                try {
+
+                    // If the value is already a string, no conversion is needed,
+                    // otherwise convert objects, arrays, numbers, booleans, null, etc. to JSON text.
+                    return typeof value === 'string'
+                        ? value
+                        : JSON.stringify(value);
+                } catch {
+                    // Fallback for values that cannot be serialized,
+                    // for example circular objects.
+                    return String(value);
+                }
+            };
+
+            /**
+             * Sends a console message from the webview to the VS Code extension host.
+             *
+             * The extension side should listen for messages with type 'console'
+             * and handle the provided log level and text payload.
+             *
+             * @param level - The console level, for example 'log', 'info', 'warn', or 'error'.
+             * @param text  - The console message text to send.
+             */
+            const sendConsoleMessage = (level, text) => {
+                // Post a message to the VS Code extension host.
+                window.vscodeApi.postMessage({
+                    // Message type used by the extension to identify console messages.
+                    type: 'console',
+
+                    // Console message data.
+                    payload: {
+                        level,
+                        text
+                    }
+                });
+            };
+
+            /**
+             * Detects and sends a document result payload from console text.
+             *
+             * Behavior:
+             * - Looks for the configured document result marker inside the text.
+             * - If the marker is not found, returns false so the text can be handled normally.
+             * - If the marker is found, extracts everything after the marker as a Base64 payload.
+             * - If the payload is empty, sends a warning to the extension console.
+             * - If the payload exists, posts it to the VS Code extension host.
+             *
+             * @param text - The console text to inspect.
+             * @returns True if the text contained a document result marker; otherwise false.
+             */
+            const sendDocumentResult = (text) => {
+                // Locate the document result marker inside the console text.
+                const markerIndex = text.indexOf(documentResultMarker);
+
+                // Marker was not found, so this is a regular console message.
+                if (markerIndex < 0) {
+                    return false;
+                }
+
+                // Extract the Base64 payload that appears after the marker.
+                const base64 = text
+                    .substring(markerIndex + documentResultMarker.length)
+                    .trim();
+
+                // Marker exists, but no payload was provided after it.
+                if (!base64) {
+                    sendConsoleMessage(
+                        'warn',
+                        'Document result marker was found, but payload is empty.'
+                    );
+
+                    // The message was handled as a document result, even though the payload is missing.
+                    return true;
+                }
+
+                // Send the document result payload to the VS Code extension host.
+                window.vscodeApi.postMessage({
+                    type: 'workflow:result',
+                    payload: base64
+                });
+
+                // The message was handled as a document result.
+                return true;
+            };
+
+            // Intercepts selected console methods and forwards their output to the
+            // VS Code extension host.
             ['log', 'warn', 'error', 'info', 'debug'].forEach(level => {
+                // Keep a bound reference to the original console method.
+                // Binding preserves the correct 'console' context when calling it later.
                 const original = console[level].bind(console);
+
+                // Replace the console method with a wrapper.
                 console[level] = (...args) => {
-                    // Call the original console method for in-page logging
+                    // Write to the original browser/devtools console first.
                     original(...args);
-                    // Serialize each argument to a string
+
+                    // Convert all console arguments to text and join them into one message.
                     const text = args
-                        .map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg))
+                        .map(convertFromJson)
                         .join(' ');
-                    // Send the log level and message text to the extension
-                    vscode.postMessage({ level, text });
+
+                    // If this message contains a document result marker,
+                    // handle it as a document result instead of a regular console message.
+                    if (sendDocumentResult(text)) {
+                        return;
+                    }
+
+                    // Forward normal console output to the VS Code extension host.
+                    sendConsoleMessage(level, text);
                 };
             });
 
-            // Listen for uncaught errors in the window and forward them
+            /**
+             * Captures unhandled JavaScript runtime errors from the webview window
+             * and forwards them to the VS Code extension host as console error messages.
+             *
+             * This helps surface webview errors in the extension side, instead of only
+             * showing them inside the webview developer tools.
+             */
             window.addEventListener('error', e => {
-                const message = e.message + ' at ' + e.filename + ':' + e.lineno;
-                vscode.postMessage({ level: 'error', text: message });
+                // Send the error message, source file, and line number to the extension.
+                sendConsoleMessage(
+                    'error',
+                    e.message + ' at ' + e.filename + ':' + e.lineno
+                );
+            });
+
+            /**
+             * Captures unhandled Promise rejections from the webview window
+             * and forwards them to the VS Code extension host as console error messages.
+             *
+             * This helps detect async errors that were not caught with '.catch()'
+             * or a try/catch around an awaited operation.
+             */
+            window.addEventListener('unhandledrejection', e => {
+                // Convert the rejection reason to text and send it as an error message.
+                sendConsoleMessage(
+                    'error',
+                    'Unhandled promise rejection: ' + convertFromJson(e.reason)
+                );
             });
         })();
         </script>`;
@@ -285,6 +370,205 @@ export class ShowWorkflowCommand extends CommandBase {
                 resetView(workspaceObserver);
             });
         </script>`;
+    }
+
+    /**
+     * Resolves messages sent from the webview to the extension host.
+     *
+     * Supported message types:
+     * - workflow:import - Reads a workflow file and sends its content back to the webview.
+     * - webview:ready   - Sends an initial workflow to the webview when available.
+     * - workflow:result - Opens the generated workflow report.
+     * - console         - Writes webview console messages to the extension logger.
+     *
+     * @param panel   - The VS Code webview panel that sent the message.
+     * @param args    - Optional command arguments used to initialize the webview.
+     * @param message - The message received from the webview.
+     */
+    private async resolveMessage(panel: vscode.WebviewPanel, args: any, message: any) {
+        // Helper to read a file or notebook given its URI string, then post its content
+        const readFile = async (uri: string) => {
+            try {
+                // Decode and parse the incoming URI (handles percent-encoded characters)
+                const fileUri = vscode.Uri.parse(uri);
+
+                // Read raw bytes from the workspace file system
+                const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+
+                // Convert raw bytes to UTF-8 text for non-notebook files
+                const text = Buffer.from(fileBytes).toString('utf8');
+
+                // Derive a simple filename for display in the webview
+                const fileName = path.basename(fileUri.fsPath);
+
+                // Send the file name and content back to the webview for import
+                panel.webview.postMessage({
+                    type: 'workflow:import',
+                    payload: {
+                        fileName: fileName,
+                        content: text
+                    }
+                });
+            } catch (err: any) {
+                // Log the failure and notify the webview of the error
+                this._logger.error(`Failed to read ${uri}: ${err}`);
+                panel.webview.postMessage({
+                    type: 'workflow:import',
+                    payload: {
+                        error: `Could not read file: ${err.message}`
+                    }
+                });
+            }
+        };
+
+        const newId = (): string => {
+            // Get the current local date and time for the report file name.
+            const now = new Date();
+
+            // Pads a number with leading zeros.
+            const pad = (value: number, length: number = 2): string => {
+                return value.toString().padStart(length, '0');
+            };
+
+            // Build the report file name using:
+            // yyyy-MM-dd-hhmmssfff.g4rpt
+            return `${now.getFullYear()}-` +
+                `${pad(now.getMonth() + 1)}-` +
+                `${pad(now.getDate())}-` +
+                `${pad(now.getHours())}` +
+                `${pad(now.getMinutes())}` +
+                `${pad(now.getSeconds())}` +
+                `${pad(now.getMilliseconds(), 3)}.g4rpt`;
+        };
+
+        // Saves a workflow automation result as a timestamped G4 report file
+        // under the current workspace reports folder.
+        //
+        // Report file name format:
+        // yyyy-MM-dd-hhmmssfff.g4rpt
+        const newReport = async (id: string, automationResultBase64: any): Promise<{ id: string }> => {
+            try {
+                // Resolve the first workspace folder path.
+                const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+                // A workspace folder is required because the report is saved to disk.
+                if (!workspaceFolder) {
+                    vscode.window.showErrorMessage(
+                        'No workspace folder is open. Please open a folder before saving workflow reports.'
+                    );
+                    return { id: id };
+                }
+
+                // Build the reports folder path:
+                // <current-workspace>/reports
+                const reportsFolder = path.join(workspaceFolder, 'reports');
+
+                // Build the full report file path.
+                const reportFilePath = path.join(reportsFolder, id);
+
+                // Create <current-workspace>/reports if it does not exist.
+                await fs.mkdir(reportsFolder, { recursive: true });
+
+                // Save the report payload as UTF-8 text.
+                await fs.writeFile(
+                    reportFilePath,
+                    automationResultBase64,
+                    'utf8'
+                );
+            } catch (err: any) {
+                vscode.window.showErrorMessage(
+                    'Failed to save report: ' + err.message
+                );
+            }
+            return {
+                'id': id
+            };
+        };
+
+        // If the webview requests a workflow import, read the selected file
+        // and send its content back to the webview.
+        if (message.type === 'workflow:import') {
+            readFile(message.payload.fileUri);
+
+            // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // When the webview is ready, send the initial workflow if one was provided.
+        // This is useful when opening the editor with an existing workflow.
+        if (message.type === 'webview:ready' && args?.workflow) {
+            panel.webview.postMessage({
+                type: 'workflow:import',
+                payload: {
+                    content: JSON.stringify(args.workflow)
+                }
+            });
+
+            // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // Receives the final workflow result from the webview.
+        if (message.type === 'workflow:result') {
+            // Build the report input passed to the report command.
+            const report = {
+                // The final workflow/report content produced by the webview.
+                content: message.payload,
+
+                // A simple report ID based on the current timestamp.
+                id: newId(),
+
+                // No file path is used here because the report content comes directly
+                // from the webview message payload.
+                path: null
+            };
+
+            // Check if the extension is configured to save reports to disk.
+            const isSaveReports = Utilities.getManifest()?.settings?.clientReportSettings?.saveReports;
+
+            // If saving reports is enabled, save the workflow result as a new report file.
+            if (isSaveReports) {
+                await newReport(report.id, message.payload);
+            }
+
+            // Check if the extension is configured to auto-open
+            // the report view when a workflow result is received.
+            const isAutoView = Utilities.getManifest()?.settings?.clientReportSettings?.autoView;
+
+            // Open the report view using the registered VS Code command.
+            if (isAutoView) {
+                await vscode.commands.executeCommand('Show-Report', report);
+            }
+
+            // Stop processing this message because the workflow result was handled.
+            return;
+        }
+
+        // Receives console messages forwarded from the webview.
+        // These messages are written to the extension logger using the matching level.
+        if (message.type === 'console') {
+            const level = message.payload.level;
+            const text = message.payload.text;
+
+            switch (level) {
+                case 'debug':
+                    this._logger.debug(text);
+                    break;
+
+                case 'warn':
+                    this._logger.warning(text);
+                    break;
+
+                case 'error':
+                    this._logger.error(text);
+                    break;
+
+                case 'info':
+                default:
+                    this._logger.information(text);
+                    break;
+            }
+        }
     }
 
     /**
@@ -376,7 +660,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
 
-            // If this is the canvas.js script, patch icon URL generation logic
+                // If this is the canvas.js script, patch icon URL generation logic
             } else if (path.basename(resource) === 'canvas.js') {
                 let jsText = await res.text();
                 // Replace the BASE_HUB_URL placeholder with the full base URL
@@ -386,7 +670,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 );
                 // Write the patched script to disk
                 await fs.writeFile(filePath, jsText, 'utf8');
-            // Otherwise, treat it as a binary or static asset
+                // Otherwise, treat it as a binary or static asset
             } else {
                 // Read the response as raw bytes and write to disk
                 const data = await res.arrayBuffer();

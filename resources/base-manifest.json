@@ -1,15 +1,4 @@
 {
-	"clientLogConfiguration": {
-		"agentLogConfiguration": {
-			"enabled": true,
-			"interval": 1000
-		},
-		"logLevel": "information",
-		"sourceOptions": {
-			"filter": "include",
-			"sources": []
-		}
-	},
 	"g4Server": {
 		"schema": "http",
 		"host": "localhost",
@@ -29,6 +18,17 @@
 			"returnFlatResponse": true,
 			"returnStructuredResponse": true,
 			"searchTimeout": 15000
+		},
+		"clientLogConfiguration": {
+			"agentLogConfiguration": {
+				"enabled": true,
+				"interval": 1000
+			},
+			"logLevel": "information",
+			"sourceOptions": {
+				"filter": "include",
+				"sources": []
+			}
 		},
 		"recorderSettings": {
 			"enabled": false,
