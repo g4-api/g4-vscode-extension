@@ -41,6 +41,11 @@
                 "title": "Open G4 Engine Embedded Application"
             },
             {
+                "command": "Show-Settings",
+                "category": "G4",
+                "title": "Open Settings Editor"
+            },
+            {
                 "command": "Sync-Cache",
                 "category": "G4",
                 "title": "Synchronize G4 Cache with Configured Externals and MCP Servers"

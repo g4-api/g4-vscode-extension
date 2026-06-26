@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
 import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
-import { StartAutomationCommand } from './commands/start-automation';
 import { Utilities } from './extensions/utilities';
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
@@ -90,9 +89,6 @@ const registerCommands = (options: {
 }) => {
     // Command to create a new G4 project structure.
     new NewProjectCommand(options.context).register();
-
-    // Command to trigger an automation workflow using the connected hub.
-    new StartAutomationCommand(options.context, options.hubConnections).register();
 
     // Command to open or visualize a specific report in the UI.
     new ShowReportCommand(options.context).register();
