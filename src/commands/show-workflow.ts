@@ -53,8 +53,8 @@ export class ShowWorkflowCommand extends CommandBase {
         // Register the command identifier; when the user runs it, invoke our command pipeline
         let command = vscode.commands.registerCommand(
             this.command,
-            async () => {
-                await this.invokeCommand(args);
+            async (commandArgs?: any) => {
+                await this.invokeCommand(commandArgs ?? args);
             }
         );
 
@@ -67,6 +67,20 @@ export class ShowWorkflowCommand extends CommandBase {
      * loading remote resources, patching them locally, and wiring up log forwarding.
      */
     protected async onInvokeCommand(args: any): Promise<any> {
+        const panel = vscode.window.createWebviewPanel(
+            'g4-workflow',
+            'G4 Workflow',
+            vscode.ViewColumn.One,
+            ShowWorkflowCommand.getWebviewOptions(this.context, path.join(this.context.globalStorageUri.fsPath, 'webapp'))
+        );
+
+        await this.renderWorkflowWebview(panel, args);
+    }
+
+    /**
+     * Renders the embedded workflow application into an existing webview panel.
+     */
+    public async renderWorkflowWebview(panel: vscode.WebviewPanel, args: any): Promise<void> {
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
@@ -76,24 +90,7 @@ export class ShowWorkflowCommand extends CommandBase {
         // Path to the main HTML entry point of the web application
         const indexPath = path.join(storageDir, 'views', 'canvas.html');
 
-        const folders = vscode.workspace.workspaceFolders;
-        const botsFolders = folders?.map(i => vscode.Uri.joinPath(i.uri, "bots")) || [];
-
-        // Create a new VS Code WebviewPanel to host the embedded app
-        const panel = vscode.window.createWebviewPanel(
-            'g4-workflow',           // internal view type identifier
-            'G4 Workflow',           // title shown in the editor tab
-            vscode.ViewColumn.One,   // open in the first (left) editor column
-            {
-                enableScripts: true,              // allow running scripts inside the webview
-                retainContextWhenHidden: true,    // keep state even when the panel is hidden
-                localResourceRoots: [             // restrict which local folders the webview can load
-                    vscode.Uri.file(storageDir),
-                    vscode.Uri.file(path.join(this.context.extensionPath, 'images')),
-                    ...botsFolders
-                ]
-            }
-        );
+        panel.webview.options = ShowWorkflowCommand.getWebviewOptions(this.context, storageDir);
 
         // Inject a small script that forwards console logs and errors from the webview to the extension
         const headerShim = ShowWorkflowCommand.getHeaderShim();
@@ -115,14 +112,9 @@ export class ShowWorkflowCommand extends CommandBase {
          * - console          - Receives console output from the webview and writes it to the extension logger.
          */
         panel.webview.onDidReceiveMessage(async message => {
-            if (message.type === 'workflow:import') {
-                const uri = vscode.Uri.parse(message?.payload?.fileUri || '');
-                panel.title = path.basename(uri.fsPath) || 'G4 Workflow';
-            }
-
             // Delegate message handling to the resolveMessage method, passing along the panel, command arguments, and message payload
             // This keeps the message handling logic organized and allows resolveMessage to be async if needed.
-            this.resolveMessage(panel, args, message);
+            await this.resolveMessage(panel, args, message);
         });
 
         // Finally, assign the processed HTML to the webview to render the app
@@ -386,41 +378,6 @@ export class ShowWorkflowCommand extends CommandBase {
      * @param message - The message received from the webview.
      */
     private async resolveMessage(panel: vscode.WebviewPanel, args: any, message: any) {
-        // Helper to read a file or notebook given its URI string, then post its content
-        const readFile = async (uri: string) => {
-            try {
-                // Decode and parse the incoming URI (handles percent-encoded characters)
-                const fileUri = vscode.Uri.parse(uri);
-
-                // Read raw bytes from the workspace file system
-                const fileBytes = await vscode.workspace.fs.readFile(fileUri);
-
-                // Convert raw bytes to UTF-8 text for non-notebook files
-                const text = Buffer.from(fileBytes).toString('utf8');
-
-                // Derive a simple filename for display in the webview
-                const fileName = path.basename(fileUri.fsPath);
-
-                // Send the file name and content back to the webview for import
-                panel.webview.postMessage({
-                    type: 'workflow:import',
-                    payload: {
-                        fileName: fileName,
-                        content: text
-                    }
-                });
-            } catch (err: any) {
-                // Log the failure and notify the webview of the error
-                this._logger.error(`Failed to read ${uri}: ${err}`);
-                panel.webview.postMessage({
-                    type: 'workflow:import',
-                    payload: {
-                        error: `Could not read file: ${err.message}`
-                    }
-                });
-            }
-        };
-
         const newId = (): string => {
             // Get the current local date and time for the report file name.
             const now = new Date();
@@ -488,7 +445,16 @@ export class ShowWorkflowCommand extends CommandBase {
         // If the webview requests a workflow import, read the selected file
         // and send its content back to the webview.
         if (message.type === 'workflow:import') {
-            readFile(message.payload.fileUri);
+            await this.importWorkflowFile(panel, message.payload.fileUri);
+
+            // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // When the webview is ready, import the file provided by command arguments.
+        // Bot-file clicks and drag/drop both converge on the same import path.
+        if (message.type === 'webview:ready' && args?.fileUri) {
+            await this.importWorkflowFile(panel, args.fileUri);
 
             // No further handling is needed for this message, so we can exit early.
             return;
@@ -500,6 +466,7 @@ export class ShowWorkflowCommand extends CommandBase {
             panel.webview.postMessage({
                 type: 'workflow:import',
                 payload: {
+                    fileName: 'G4 Workflow',
                     content: JSON.stringify(args.workflow)
                 }
             });
@@ -569,6 +536,62 @@ export class ShowWorkflowCommand extends CommandBase {
                     break;
             }
         }
+    }
+
+    /**
+     * Reads a workflow file and posts it into the workflow webview.
+     */
+    private async importWorkflowFile(panel: vscode.WebviewPanel, uri: string): Promise<void> {
+        try {
+            // Decode and parse the incoming URI (handles percent-encoded characters).
+            const fileUri = vscode.Uri.parse(uri);
+
+            // Read raw bytes from the workspace file system.
+            const fileBytes = await vscode.workspace.fs.readFile(fileUri);
+
+            // Convert raw bytes to UTF-8 text for non-notebook files.
+            const text = Buffer.from(fileBytes).toString('utf8');
+
+            // Derive a simple filename for display in the webview.
+            const fileName = path.basename(fileUri.fsPath);
+            panel.title = fileName || 'G4 Workflow';
+
+            // Send the file name and content back to the webview for import.
+            panel.webview.postMessage({
+                type: 'workflow:import',
+                payload: {
+                    fileName,
+                    content: text
+                }
+            });
+        } catch (err: any) {
+            // Log the failure and notify the webview of the error.
+            this._logger.error(`Failed to read ${uri}: ${err}`);
+            panel.webview.postMessage({
+                type: 'workflow:import',
+                payload: {
+                    error: `Could not read file: ${err.message}`
+                }
+            });
+        }
+    }
+
+    /**
+     * Builds webview options shared by command panels and custom editor panels.
+     */
+    public static getWebviewOptions(context: vscode.ExtensionContext, storageDir: string): vscode.WebviewOptions & vscode.WebviewPanelOptions {
+        const folders = vscode.workspace.workspaceFolders;
+        const botsFolders = folders?.map(i => vscode.Uri.joinPath(i.uri, "bots")) || [];
+
+        return {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            localResourceRoots: [
+                vscode.Uri.file(storageDir),
+                vscode.Uri.file(path.join(context.extensionPath, 'images')),
+                ...botsFolders
+            ]
+        };
     }
 
     /**

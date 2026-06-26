@@ -46,6 +46,16 @@
                 "title": "Open Settings Editor"
             },
             {
+                "command": "Open-Bot-As-Json",
+                "category": "G4",
+                "title": "Open as JSON"
+            },
+            {
+                "command": "Open-Bot-In-Workflow",
+                "category": "G4",
+                "title": "Open in Workflow Editor"
+            },
+            {
                 "command": "Sync-Cache",
                 "category": "G4",
                 "title": "Synchronize G4 Cache with Configured Externals and MCP Servers"
@@ -119,7 +129,57 @@
                     "icon": "resources/g4-icon.svg"
                 }
             ]
-        }
+        },
+        "menus": {
+            "explorer/context": [
+                {
+                    "command": "Open-Bot-As-Json",
+                    "group": "navigation",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname =~ /\\.(g4|g4bot)$/i && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Open-Bot-In-Workflow",
+                    "group": "navigation",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Show-Settings",
+                    "group": "navigation",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceFilename == manifest.json"
+                }
+            ],
+            "commandPalette": [
+                {
+                    "command": "Open-Bot-As-Json",
+                    "when": "false"
+                },
+                {
+                    "command": "Open-Bot-In-Workflow",
+                    "when": "false"
+                }
+            ]
+        },
+        "customEditors": [
+            {
+                "viewType": "g4.workflowEditor",
+                "displayName": "G4 Workflow Editor",
+                "selector": [
+                    {
+                        "filenamePattern": "**/bots/*.g4"
+                    },
+                    {
+                        "filenamePattern": "**/bots/**/*.g4"
+                    },
+                    {
+                        "filenamePattern": "**/bots/*.g4bot"
+                    },
+                    {
+                        "filenamePattern": "**/bots/**/*.g4bot"
+                    }
+                ],
+                "priority": "default"
+            }
+        ]
     },
     "readme": "README.md",
     "licenses": [

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
 import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
@@ -14,6 +15,7 @@ import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-pro
 import { SyncCacheCommand } from './commands/sync-cache';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
+import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -96,6 +98,47 @@ const registerCommands = (options: {
     // Command to open or visualize the G4 settings in the UI.
     new ShowSettingsCommand(options.context).register();
 
+    // Command to open a bot definition as a regular JSON/text document.
+    const openBotAsJson = vscode.commands.registerCommand(
+        'Open-Bot-As-Json',
+        async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+            if (!targetUri || !isBotFile(targetUri, ['.g4', '.g4bot'])) {
+                vscode.window.showWarningMessage('Select a .g4 or .g4bot file under the bots folder.');
+                return;
+            }
+
+            const document = await vscode.workspace.openTextDocument(targetUri);
+            const jsonDocument = document.languageId === 'json'
+                ? document
+                : await vscode.languages.setTextDocumentLanguage(document, 'json');
+
+            await vscode.window.showTextDocument(jsonDocument, {
+                preview: false
+            });
+        }
+    );
+    options.context.subscriptions.push(openBotAsJson);
+
+    // Command to open a JSON bot definition in the workflow editor.
+    const openBotInWorkflow = vscode.commands.registerCommand(
+        'Open-Bot-In-Workflow',
+        async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+            if (!targetUri || !isBotFile(targetUri, ['.json'])) {
+                vscode.window.showWarningMessage('Select a JSON bot file under the bots folder.');
+                return;
+            }
+
+            await vscode.commands.executeCommand('Show-Workflow', {
+                fileUri: targetUri.toString()
+            });
+        }
+    );
+    options.context.subscriptions.push(openBotInWorkflow);
+
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
 
@@ -131,6 +174,32 @@ const registerCommands = (options: {
 };
 
 /**
+ * Checks whether a URI points to a supported bot file inside a workspace bots folder.
+ */
+const isBotFile = (uri: vscode.Uri, extensions: string[]): boolean => {
+    if (uri.scheme !== 'file') {
+        return false;
+    }
+
+    const supportedExtensions = new Set(extensions);
+    if (!supportedExtensions.has(path.extname(uri.fsPath).toLowerCase())) {
+        return false;
+    }
+
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    return folders.some(folder => {
+        const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+        if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+            return false;
+        }
+
+        return relativePath
+            .split(/[\\/]+/)
+            .some(segment => segment.toLowerCase() === 'bots');
+    });
+};
+
+/**
  * Registers all VS Code providers used by the extension.
  */
 const registerProviders = (options: {
@@ -149,6 +218,9 @@ const registerProviders = (options: {
     // Register the documents tree provider that displays workspace or
     // project-related documents in the Explorer sidebar.
     new DocumentsTreeProvider(options.context).register();
+
+    // Register the custom workflow editor for G4 bot workflow files.
+    new G4WorkflowCustomEditorProvider(options.context, options.baseUri).register();
 };
 
 /**
