@@ -330,10 +330,93 @@ export class ShowWorkflowCommand extends CommandBase {
                 }
             });
 
-            // Notify the extension that the webview is ready to receive messages
+            /**
+             * Resolves once the workflow designer is genuinely ready to accept a definition.
+             *
+             * The '.sqd-root-start-stop' node only exists after the designer has been created
+             * and the global 'setDefinition' helper has been wired up, so both are used as the
+             * readiness signal. Unlike a one-shot 'waitForElement', this poller never rejects and
+             * keeps checking across the full budget, so it tolerates slow manifest/resource loads
+             * instead of silently dropping the ready signal.
+             *
+             * @param timeout  - Maximum time to wait, in milliseconds.
+             * @param interval - Delay between readiness checks, in milliseconds.
+             * @returns A promise that resolves to true when the designer is ready, otherwise false.
+             */
+            const waitForDesigner = (timeout = 30000, interval = 100) => new Promise(resolve => {
+                const startTime = Date.now();
+                const timer = setInterval(() => {
+                    // 'setDefinition' is a global-scope binding, so guard the probe defensively.
+                    let isReady = false;
+                    try {
+                        isReady = typeof setDefinition === 'function'
+                            && document.querySelector('.sqd-root-start-stop') !== null;
+                    } catch {
+                        isReady = false;
+                    }
+
+                    // Resolve when ready, or once the wait budget has been exhausted.
+                    if (isReady || (Date.now() - startTime) >= timeout) {
+                        clearInterval(timer);
+                        resolve(isReady);
+                    }
+                }, interval);
+            });
+
+            /**
+             * Applies a workflow definition to the designer and resets the viewport.
+             *
+             * Instrumented so the extension's "G4" output channel captures exactly what the
+             * webview sees: the shape of the incoming definition, whether the render helpers
+             * exist, whether 'setDefinition' throws, and how many steps end up on the canvas.
+             *
+             * @param definition - The parsed workflow definition to render.
+             */
+            const applyDefinition = (definition) => {
+                // Summarize the environment and payload before touching the designer.
+                try {
+                    const stages = definition?.stages?.length ?? 0;
+                    const jobs = (definition?.stages || []).reduce((n, s) => n + (s?.jobs?.length || 0), 0);
+                    const rules = (definition?.stages || []).reduce(
+                        (n, s) => n + (s?.jobs || []).reduce((m, j) => m + (j?.rules?.length || 0), 0), 0);
+                    console.log('[G4-DIAG] import stages=' + stages + ' jobs=' + jobs + ' rules=' + rules
+                        + ' setDefinition=' + (typeof setDefinition)
+                        + ' resetView=' + (typeof resetView)
+                        + ' Observer=' + (typeof Observer)
+                        + ' _designer=' + (typeof _designer)
+                        + ' state=' + (typeof (typeof _designer !== 'undefined' && _designer ? _designer.state : undefined)));
+                } catch (diagErr) {
+                    console.error('[G4-DIAG] pre-apply probe failed: ' + (diagErr && diagErr.stack || diagErr));
+                }
+
+                // Observe the workspace so 'resetView' can recenter once the canvas repaints.
+                const workspaceElement = document.querySelector('.sqd-workspace');
+                const workspaceObserver = new Observer(workspaceElement);
+
+                // Render the definition and reset the viewport, capturing any failure.
+                try {
+                    setDefinition(definition);
+                    resetView(workspaceObserver);
+                } catch (applyErr) {
+                    console.error('[G4-DIAG] setDefinition threw: ' + (applyErr && applyErr.stack || applyErr));
+                    return;
+                }
+
+                // Report how many steps actually landed on the canvas, now and after a repaint.
+                const count = () => document.querySelectorAll("g[class*='sqd-step-']").length;
+                console.log('[G4-DIAG] after apply steps=' + count());
+                setTimeout(() => console.log('[G4-DIAG] +500ms steps=' + count()), 500);
+            };
+
+            // Notify the extension only once the designer can actually accept a definition.
             window.addEventListener('DOMContentLoaded', () => {
-                Utilities.waitForElement('.sqd-root-start-stop', 5000).then(() => {
-                    vscode.postMessage({ type: 'webview:ready' });
+                waitForDesigner().then(isReady => {
+                    console.log('[G4-DIAG] designer ready=' + isReady);
+                    if (isReady) {
+                        vscode.postMessage({ type: 'webview:ready' });
+                    } else {
+                        console.warn('Workflow designer was not ready in time; ready signal skipped.');
+                    }
                 });
             });
 
@@ -341,25 +424,16 @@ export class ShowWorkflowCommand extends CommandBase {
             window.addEventListener('message', event => {
                 // Extract the message type from the event data
                 const type = event.data?.type;
-                
+
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
                     return;
                 }
 
-                // Set the definition in the workspace
-                // This assumes you have a function setDefinition to handle the incoming data
+                // Parse the incoming definition and render it.
+                console.log('[G4-DIAG] workflow:import message received');
                 const definition = JSON.parse(event.data?.payload?.content || '{}');
-
-                // Set observer for the workspace element
-                const workspaceElement = document.querySelector('.sqd-workspace');
-                const workspaceObserver = new Observer(workspaceElement);
-                
-                // Set the definition in the workspace based on the received message
-                setDefinition(definition);
-
-                // Reset the view to set the portview
-                resetView(workspaceObserver);
+                applyDefinition(definition);
             });
         </script>`;
     }
