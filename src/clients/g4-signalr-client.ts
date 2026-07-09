@@ -170,6 +170,9 @@ export class EventCaptureService {
     /** Internal buffer of all captured events since service start or last clear. */
     private readonly _buffer: any[] = [];
 
+    /** OS process id of the browser launched for this (chromium) recorder, if any. */
+    private _processId?: number;
+
     /**
      * Creates a new instance of the EventCaptureService.
      *
@@ -196,6 +199,25 @@ export class EventCaptureService {
      */
     public get buffer(): any[] {
         return this._buffer;
+    }
+
+    /**
+     * The operating-system process id of the browser launched for this recorder,
+     * or `undefined` when no browser has been launched (for example UIA recorders).
+     */
+    public get processId(): number | undefined {
+        return this._processId;
+    }
+
+    /**
+     * Indicates whether this recorder drives a Chromium browser (ChromeDriver) and
+     * therefore needs its browser launched/closed over the hub, versus a passive UIA
+     * recorder that only connects and captures.
+     */
+    public get isChromium(): boolean {
+        // Chromium recorders are identified by a ChromeDriver-style driver value.
+        const driver = this._options.driverParameters?.driver ?? '';
+        return /chrome/i.test(driver);
     }
 
     /**
@@ -302,6 +324,82 @@ export class EventCaptureService {
 
             // Retry connection after 5 seconds (basic backoff).
             setTimeout(() => this.start(), 5000);
+        }
+    }
+
+    /**
+     * Launches the Chromium browser associated with this recorder by invoking the hub's
+     * StartRecorder method, and stores the returned OS process id so the exact browser can
+     * be closed later. No-op for non-chromium (for example UIA) recorders, which capture
+     * passively without a browser to launch.
+     */
+    public async startBrowser(): Promise<void> {
+        // UIA (and any non-chromium) recorders capture passively; nothing to launch.
+        if (!this.isChromium) {
+            return;
+        }
+
+        // The browser can only be launched once the SignalR connection is established.
+        if (this._connection.state !== 'Connected') {
+            this._options.logger.warning(
+                `Cannot launch browser for ${this._options.baseUrl}: connection is not established.`
+            );
+            return;
+        }
+
+        try {
+            // Ask the hub to launch Chromium with the recorder extension and capture the
+            // process id, which is required to stop the exact browser instance later.
+            this._processId = await this._connection.invoke('StartRecorder', this._options.driverParameters);
+
+            this._options.logger.information(
+                `Launched recorder browser (pid ${this._processId}) at ${this._options.baseUrl}`
+            );
+        } catch (err: any) {
+            this._options.logger.error(
+                `Failed to launch recorder browser at ${this._options.baseUrl}: ${err?.message || err}`
+            );
+        }
+    }
+
+    /**
+     * Closes the Chromium browser previously launched for this recorder by invoking the
+     * hub's StopRecorder method with the stored process id. No-op for non-chromium
+     * recorders or when no browser was launched.
+     */
+    public async stopBrowser(): Promise<void> {
+        // Only chromium recorders launch a browser; nothing to stop otherwise.
+        if (!this.isChromium || this._processId === undefined) {
+            return;
+        }
+
+        try {
+            // Ask the hub to gracefully close (then force-kill if needed) the tracked browser.
+            // The hub returns false when it no longer tracks the process id (for example the
+            // recorder server was restarted after launch), which is logged so a browser that
+            // stays open points at a process-registry mismatch rather than a missing call. The
+            // invoke is raced against a timeout so a lost or delayed hub response cannot block
+            // the caller (the hub's own graceful-close grace period is only a few seconds).
+            const stopTimeoutMs = 15000;
+            const timeout = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`StopRecorder timed out after ${stopTimeoutMs}ms`)), stopTimeoutMs)
+            );
+            const isStopped = await Promise.race([
+                this._connection.invoke('StopRecorder', this._processId),
+                timeout
+            ]);
+
+            this._options.logger.information(
+                `Requested stop of recorder browser (pid ${this._processId}) at ${this._options.baseUrl}; ` +
+                `hub reported stopped=${isStopped}`
+            );
+        } catch (err: any) {
+            this._options.logger.error(
+                `Failed to stop recorder browser at ${this._options.baseUrl}: ${err?.message || err}`
+            );
+        } finally {
+            // Clear the id so a later stop does not attempt to kill an already-dead process.
+            this._processId = undefined;
         }
     }
 }

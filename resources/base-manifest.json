@@ -58,6 +58,35 @@
 						"maxThinkTime": 10000,
 						"minThinkTime": 3000
 					}
+				},
+				{
+					"mode": "standard",
+					"schema": "http",
+					"host": "localhost",
+					"port": "9956",
+					"driverParameters": {
+						"capabilities": {
+							"alwaysMatch": {
+								"browserName": "chrome",
+								"goog:chromeOptions": {
+									"binary": "C:\\g4-sandbox\\browsers\\chrome\\chrome.exe",
+									"args": [
+										"--disable-gpu"
+									]
+								}
+							}
+						},
+						"driver": "ChromeDriver",
+						"driverBinaries": "http://localhost:4444/wd/hub",
+						"firstMatch": [
+							{}
+						]
+					},
+					"thinkTimeSettings": {
+						"enabled": false,
+						"maxThinkTime": 10000,
+						"minThinkTime": 3000
+					}
 				}
 			]
 		},

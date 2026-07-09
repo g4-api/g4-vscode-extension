@@ -55,7 +55,14 @@ export class StartRecorderCommand extends CommandBase {
                 continue;
             }
 
-            const captureService = new EventCaptureService(option);
+            // Inject the context and logger, which are not provided by the manifest-derived
+            // options, so the service can log and access extension lifecycle resources without
+            // throwing on undefined members.
+            const captureService = new EventCaptureService({
+                ...option,
+                context: this._context,
+                logger: this._logger
+            });
             this._connections.set(option.baseUrl, captureService);
         }
     }
@@ -111,12 +118,20 @@ export class StartRecorderCommand extends CommandBase {
             }
         }
 
-        // Await all connection starts; if any rejects, we log it here.
-        try {
-            await Promise.all(starts);
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            this._logger.error(`One or more recorders failed to start: ${message}`);
+        // Await all connection attempts to settle before launching browsers. allSettled is used
+        // so one recorder failing to connect does not skip the launch for the others.
+        await Promise.allSettled(starts);
+
+        // Launch the browser for each chromium recorder now that connections are established
+        // (startBrowser is a no-op for passive UIA recorders). This is decoupled from the
+        // connection promises so a post-connect issue on one service cannot skip the launches.
+        for (const [endpoint, service] of this._connections) {
+            try {
+                await service.startBrowser();
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                this._logger.error(`Failed to launch browser for endpoint ${endpoint}: ${message}`);
+            }
         }
     }
 }
