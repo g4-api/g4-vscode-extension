@@ -1,0 +1,58 @@
+{
+    "aliases": [],
+    "author": {
+        "link": "",
+        "name": ""
+    },
+    "categories": [
+        "CustomTemplates"
+    ],
+    "description": [
+        "### Purpose",
+        "",
+        "### Key Features and Functionality",
+        "",
+        "### Usages in RPA",
+        ""
+    ],
+    "platforms": [
+        "Any"
+    ],
+    "protocol": {
+        "apiDocumentation": "None",
+        "w3c": "None"
+    },
+    "rules": [],
+    "key": "UniqueKey",
+    "parameters": [],
+    "pluginType": "Action",
+    "properties": [
+        {
+            "description": [
+                "...",
+                "..."
+            ],
+            "mandatory": false,
+            "name": "Argument",
+            "type": "String"
+        }
+    ],
+    "source": "Template",
+    "summary": [
+        "...",
+        "..."
+    ],
+    "examples": [
+        {
+            "description": [
+                "### Use Case",
+                "",
+                "Description"
+            ],
+            "rule": {
+                "argument": "Automation is Fun",
+                "pluginName": "UniqueKey"
+            }
+        }
+    ]
+}

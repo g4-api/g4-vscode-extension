@@ -1,0 +1,84 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {
+                "browserName": "chrome",
+                "goog:chromeOptions": {
+                    "binary": "C:\\g4-sandbox\\g4-sandbox-v2026.05.10.68\\browsers\\chrome\\chrome.exe",
+                    "args": [
+                        "--disable-gpu"
+                    ]
+                }
+            }
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "C:\\g4-sandbox\\g4-sandbox-v2026.05.10.68\\drivers\\chrome",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "id": "87323c4f4c894"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                "id": "22defb46d5d3d4",
+                "name": "G4™ Default Stage"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                        "id": "1f698489bb5ead",
+                        "name": "G4™ Default Job"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "reference": {
+                                "id": "133d344e84e72e03b4fa297348bfd78c"
+                            },
+                            "capabilities": {
+                                "displayName": "Put your actions here"
+                            },
+                            "argument": "Foo Bar"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

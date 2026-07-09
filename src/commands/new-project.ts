@@ -112,15 +112,13 @@ export class NewProjectCommand extends CommandBase {
             path.join(projectPath, 'src', '.prompts'),
             path.join(projectPath, 'src', 'configurations'),
             path.join(projectPath, 'src', 'environments'),
-            path.join(projectPath, 'src', 'models'),
-            path.join(projectPath, 'src', 'models', 'json'),
-            path.join(projectPath, 'src', 'models', 'markdown'),
+            path.join(projectPath, 'src', 'base'),
             path.join(projectPath, 'src', 'templates'),
-            path.join(projectPath, 'src', 'templates', 'examples'),
+            path.join(projectPath, 'src', 'templates.examples'),
             path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots'),
-            path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots', 'examples'),
+            path.join(projectPath, 'src', isTestProject ? 'tests.examples' : 'bots.examples'),
             path.join(projectPath, 'src', 'resources'),
-            path.join(projectPath, 'src', 'resources', 'examples')
+            path.join(projectPath, 'src', 'resources.examples')
         ];
 
         // Iterate over each intended folder path...
