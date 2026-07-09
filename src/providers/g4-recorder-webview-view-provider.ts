@@ -122,7 +122,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		const servers = this._serversStatus.map(service => ({
 			name: service.name,
 			url: service.url,
-			ok: service.ok
+			ok: service.ok,
+			driver: service.driver
 		}));
 
 		// Send an initial message to the webview to populate server data
@@ -231,8 +232,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.bulb {
-						width: 10px;
-						height: 10px;
+						width: 8px;
+						height: 8px;
+						flex: 0 0 auto;
 						border-radius: 50%;
 						border: 1px solid var(--vscode-editorGroup-border);
 						background: #c33;
@@ -263,10 +265,29 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						display: flex;
 						align-items: center;
 						gap: 8px;
+						flex: 1 1 auto;
+						min-width: 0;
+					}
+
+					.meta {
+						display: flex;
+						flex-direction: column;
+						min-width: 0;
 					}
 
 					.name {
 						font-weight: 600;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						white-space: nowrap;
+					}
+
+					.driver {
+						font-size: 0.8rem;
+						opacity: 0.7;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						white-space: nowrap;
 					}
 
 					.panel {
@@ -282,11 +303,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.refresh {
+						display: flex;
+						align-items: center;
+						justify-content: center;
 						background: transparent;
 						color: var(--vscode-textLink-foreground);
 						border: 1px solid var(--vscode-editorGroup-border);
-						padding: 4px 8px;
+						padding: 4px;
 						border-radius: var(--border-radius);
+						flex: 0 0 auto;
 					}
 
 					.refresh:hover {
@@ -314,6 +339,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					.small {
 						font-size: 0.85rem;
 						opacity: .8;
+						overflow-wrap: anywhere;
 					}
 
 					.spinner {
@@ -343,15 +369,18 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						text-overflow: ellipsis;
 						overflow: hidden;
 						white-space: nowrap;
-						max-width: 240px;
+						flex: 0 1 auto;
+						min-width: 0;
+						margin-left: 8px;
 					}
 				</style>
 			</head>
 
 			<body data-g4-recorder-view="true">
 				<div class="controls">
-					<button id="btnToggle" class="control-btn" title="Start (identical behavior to VS Code debug Start)"
-						aria-label="Start" data-state="stopped">
+					<button id="btnToggle" class="control-btn"
+						title="Start recording — connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders)."
+						aria-label="Start recording" data-state="stopped">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">
 							<path
 								d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z" />
@@ -363,13 +392,14 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				<div class="panel">
 					<div class="top">
 						<h3>Servers</h3>
-						<button class="refresh control-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">
+						<button class="refresh" id="btnRefresh"
+							title="Refresh recorder status — re-check the connection to each recorder server and update the indicators."
+							aria-label="Refresh recorder status">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20"
 								class="svg-inline-secondary">
 								<path
 									d="M552 256L408 256C398.3 256 389.5 250.2 385.8 241.2C382.1 232.2 384.1 221.9 391 215L437.7 168.3C362.4 109.7 253.4 115 184.2 184.2C109.2 259.2 109.2 380.7 184.2 455.7C259.2 530.7 380.7 530.7 455.7 455.7C463.9 447.5 471.2 438.8 477.6 429.6C487.7 415.1 507.7 411.6 522.2 421.7C536.7 431.8 540.2 451.8 530.1 466.3C521.6 478.5 511.9 490.1 501 501C401 601 238.9 601 139 501C39.1 401 39 239 139 139C233.3 44.7 382.7 39.4 483.3 122.8L535 71C541.9 64.1 552.2 62.1 561.2 65.8C570.2 69.5 576 78.3 576 88L576 232C576 245.3 565.3 256 552 256z" />
 							</svg>
-							<span>Refresh</span>
 						</button>
 					</div>
 
@@ -399,9 +429,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					function setToggleState(running) {
 						btnToggle.dataset.state = running ? 'running' : 'stopped';
 						btnToggle.title = running
-							? 'Stop'
-							: 'Start';
-						btnToggle.setAttribute('aria-label', running ? 'Stop' : 'Start');
+							? 'Stop recording — end capture, close any recorder browsers, and open the recorded workflow.'
+							: 'Start recording — connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders).';
+						btnToggle.setAttribute('aria-label', running ? 'Stop recording' : 'Start recording');
 						btnToggle.innerHTML = (running ? STOP_SVG : PLAY_SVG) + '<span>' + (running ? 'Stop' : 'Start') + '</span>';
 					}
 
@@ -467,10 +497,21 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							bulb.className = 'bulb' + (server.ok ? ' on' : '');
 							left.appendChild(bulb);
 
+							const meta = document.createElement('div');
+							meta.className = 'meta';
+
 							const name = document.createElement('span');
 							name.className = 'name';
 							name.textContent = server.name;
-							left.appendChild(name);
+							meta.appendChild(name);
+
+							const driver = document.createElement('span');
+							driver.className = 'driver';
+							driver.textContent = server.driver;
+							driver.title = server.driver;
+							meta.appendChild(driver);
+
+							left.appendChild(meta);
 							row.appendChild(left);
 
 							const url = document.createElement('a');
@@ -567,7 +608,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				name: `Recorder (${id})`,
 				ok: service.connection?.state === 'Connected',
 				service,
-				url: connection
+				url: connection,
+				driver: service.options?.driverParameters?.driver || 'Unknown'
 			});
 		}
 
@@ -621,7 +663,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		const servers = updates.map(service => ({
 			name: service.name,
 			url: service.url,
-			ok: service.ok
+			ok: service.ok,
+			driver: service.driver
 		}));
 
 		// Broadcast the updated server statuses back to the webview
@@ -671,9 +714,15 @@ type ServerStatus = {
 	 */
 	service: EventCaptureService | undefined;
 
-	/** 
+	/**
 	 * Base URL of the server.
 	 * Used for direct navigation (e.g., to Swagger docs) and network operations.
 	 */
 	url: string;
+
+	/**
+	 * The raw driver name from the recorder's configuration (e.g., "ChromeDriver",
+	 * "UiaDriver"), shown under the recorder name in the panel.
+	 */
+	driver: string;
 };

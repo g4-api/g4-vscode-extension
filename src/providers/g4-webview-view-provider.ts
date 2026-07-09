@@ -149,13 +149,15 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
             </div>
 
             <div class="btn-container">
-                <button id="showWorkflowBtn" class="btn">
+                <button id="showWorkflowBtn" class="btn"
+                    title="Open the G4 Workflow Editor in a new tab to visually build, test, and run automation workflows.">
                     Open G4 Workflow Editor
                 </button>
             </div>
 
             <div class="btn-container">
-                <button id="showSettingsBtn" class="btn">
+                <button id="showSettingsBtn" class="btn"
+                    title="Open the Settings Editor to view and edit this project's G4 configuration (manifest.json).">
                     Open Settings Editor
                 </button>
             </div>
