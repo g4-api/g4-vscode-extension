@@ -173,18 +173,15 @@ export class StopRecorderCommand extends CommandBase {
         const automationDriver = isSingleJob
             ? (initialConnection.options.driverParameters || {})
             : { driver: 'NoDriver', driverBinaries: '.' };
-        const automation = StopRecorderCommand.newAutomation(this.manifest, automationDriver);
+        const automation = StopRecorderCommand.newAutomation(
+            this.manifest,
+            StopRecorderCommand.confirmDriverBinaries(automationDriver)
+        );
 
         // Precompute the last group index per endpoint (only the final job closes its browser) and
         // track the launch job index per endpoint (later jobs mount it via "Job(N)").
         const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
         const launchJobByBaseUrl = new Map<string, number>();
-
-        // [recorder-diag] TEMPORARY: log the known recorder endpoint keys so each group's baseUrl
-        // can be compared against them to explain a driver-less job.
-        this.logger.information(
-            `[recorder-diag] connection keys: ${JSON.stringify(Array.from(this._connections.keys()))}`
-        );
 
         // Convert each group into a job and attach it to the automation.
         for (let i = 0; i < groups.length; i++) {
@@ -199,14 +196,6 @@ export class StopRecorderCommand extends CommandBase {
                 launchJobByBaseUrl,
                 lastIndexByBaseUrl
             });
-
-            // [recorder-diag] TEMPORARY: log each group's identity and its resolved driver so a
-            // driver-less job (empty/absent driverParameters) can be traced to a baseUrl mismatch.
-            this.logger.information(
-                `[recorder-diag] group #${i} baseUrl=${JSON.stringify(group.baseUrl)} ` +
-                `machineName=${JSON.stringify(group.machineName)} connectionResolved=${!!connection} ` +
-                `driverParameters=${JSON.stringify(job.driverParameters)}`
-            );
 
             automation.stages[0].jobs.push(job);
         }
@@ -311,11 +300,35 @@ export class StopRecorderCommand extends CommandBase {
         const launchJob = launchJobByBaseUrl.get(baseUrl);
 
         if (launchJob === undefined) {
-            job.driverParameters = connection?.options.driverParameters || {};
+            job.driverParameters = StopRecorderCommand.confirmDriverBinaries(connection?.options.driverParameters || {});
             launchJobByBaseUrl.set(baseUrl, jobIndex);
         } else {
-            job.driverParameters = { driver: `Job(${launchJob})` };
+            job.driverParameters = StopRecorderCommand.confirmDriverBinaries({ driver: `Job(${launchJob})` });
         }
+    }
+
+    /**
+     * Returns a driver-parameters object that satisfies the G4 designer's import gate, which keeps
+     * a driver only when it has both a non-empty `driver` and a non-empty `driverBinaries`. When an
+     * object has a driver but no explicit binaries (for example a `Job(N)` reference), a shallow
+     * copy with `driverBinaries: "."` is returned so the original (possibly shared recorder config)
+     * is never mutated; otherwise the object is returned unchanged.
+     */
+    private static confirmDriverBinaries(driverParameters: any): any {
+        // Nothing to normalize for a missing object.
+        if (!driverParameters) {
+            return driverParameters;
+        }
+
+        const hasDriver = typeof driverParameters.driver === 'string' && driverParameters.driver.length > 0;
+        const hasBinaries = typeof driverParameters.driverBinaries === 'string' && driverParameters.driverBinaries.length > 0;
+
+        // Add a placeholder binaries value only when a driver is set but no binaries were provided.
+        if (hasDriver && !hasBinaries) {
+            return { ...driverParameters, driverBinaries: '.' };
+        }
+
+        return driverParameters;
     }
 
     /**
@@ -915,13 +928,13 @@ export class StopRecorderCommand extends CommandBase {
         // Attempt to resolve the most specific locator available for this event
         const fallbackLocator = event?.value?.chain?.fallbackLocator;
         const locator = event?.value?.chain?.locator;
-        const resolvedLocator = locator || fallbackLocator;
+        const resolvedLocator = locator || fallbackLocator || undefined;
 
         // Construct the action rule based on the mouse event type and mode
         const rule: any = {
             $type: 'Action',
             pluginName: mouseEventMap.get(mouseEventType) || 'None',
-            onElement: event?.value?.chain?.locator,
+            onElement: resolvedLocator,
             context: {
                 x: event?.value?.x,
                 y: event?.value?.y,
