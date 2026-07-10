@@ -103,11 +103,38 @@ export class StopRecorderCommand extends CommandBase {
      * active connections, building an automation workflow, and displaying it.
      */
     protected async onInvokeCommand(_?: any): Promise<void> {
-        // Merge all event buffers into one list and sort by capture time. The event timestamp
-        // lives on the inner model (item.value.timestamp), not on the broadcast envelope, so it
-        // must be read from there for events from different recorders to interleave in real order.
-        const buffer = Array
-            .from(this._connections.values())
+        // Snapshot and time-order the buffered events, and resolve the connection used for
+        // automation-level defaults, before touching (and closing) the connections.
+        const buffer = StopRecorderCommand.newSortedBuffer(this._connections);
+        const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
+
+        // Build and show the workflow BEFORE stopping the browsers so a slow or failing
+        // browser-stop can never prevent the recorded workflow from reaching the canvas. The
+        // finally block always stops the browsers and closes the connections afterwards.
+        try {
+            const automation = this.newRecordedAutomation(buffer, initialConnection);
+
+            if (automation) {
+                this.showRecordedWorkflow(automation);
+            }
+        }
+        catch (error: any) {
+            this.logger.error(error || 'An unknown error occurred while stopping the recorder.');
+        }
+        finally {
+            await StopRecorderCommand.stopRecorderConnections(this._connections);
+        }
+    }
+
+    /**
+     * Merges every connection's buffered events into one list, tags each with its recorder
+     * endpoint, and orders them by capture time so events from different recorders interleave in
+     * real order. The event timestamp lives on the inner model (item.value.timestamp), not on the
+     * broadcast envelope, so it is read from there.
+     */
+    private static newSortedBuffer(connections: Map<string, EventCaptureService>): any[] {
+        return Array
+            .from(connections.values())
             .flatMap(service =>
                 service.buffer.map(item => ({
                     ...item,
@@ -115,117 +142,204 @@ export class StopRecorderCommand extends CommandBase {
                 }))
             )
             .sort((a, b) => (a?.value?.timestamp || 0) - (b?.value?.timestamp || 0));
+    }
 
-        // Resolve the connection used to source automation-level defaults (driver parameters).
-        const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
+    /**
+     * Builds the automation workflow from the time-ordered buffer, or returns null (logging why)
+     * when there is nothing to build. A single-job recording runs on the automation-level (real)
+     * driver directly so exactly one browser opens; a multi-job recording uses a no-op
+     * automation-level driver so only the per-job drivers open browsers, avoiding an extra
+     * "shadow" browser alongside the job drivers.
+     */
+    private newRecordedAutomation(buffer: any[], initialConnection: EventCaptureService | undefined): any {
+        // Abort building when there is no connection to source automation defaults from.
+        if (!initialConnection) {
+            this.logger.warning('No active EventCaptureService connections found to stop.');
+            return null;
+        }
 
-        // Build and show the workflow BEFORE stopping the browsers so a slow or failing
-        // browser-stop can never prevent the recorded workflow from reaching the canvas. The
-        // finally block below always stops the browsers and closes the connections afterwards.
-        try {
-            // Abort building when there is no connection to source automation defaults from.
-            if (!initialConnection) {
-                this.logger.warning('No active EventCaptureService connections found to stop.');
-                return;
-            }
+        // Group consecutive events by recorder endpoint.
+        const groups = StopRecorderCommand.newBufferGroups(buffer);
 
-            // Group consecutive events by recorder endpoint
-            const groups = StopRecorderCommand.newBufferGroups(buffer);
+        // Abort if no events were recorded.
+        if (!groups || groups.length === 0) {
+            this.logger.information('No recorded events found in the buffers.');
+            return null;
+        }
 
-            // Abort if no events were recorded
-            if (!groups || groups.length === 0) {
-                this.logger.information('No recorded events found in the buffers.');
-                return;
-            }
+        // A single job inherits the automation-level (real) driver; multiple jobs use a no-op
+        // automation-level driver so only the per-job drivers open browsers.
+        const isSingleJob = groups.length === 1;
+        const automationDriver = isSingleJob
+            ? (initialConnection.options.driverParameters || {})
+            : { driver: 'NoDriver', driverBinaries: '.' };
+        const automation = StopRecorderCommand.newAutomation(this.manifest, automationDriver);
 
-            // Create a base automation definition for the recorded session
-            const driverParameters = initialConnection?.options.driverParameters || {};
-            const automation = StopRecorderCommand.newAutomation(this.manifest, driverParameters);
+        // Precompute the last group index per endpoint (only the final job closes its browser) and
+        // track the launch job index per endpoint (later jobs mount it via "Job(N)").
+        const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
+        const launchJobByBaseUrl = new Map<string, number>();
 
-            // Precompute the last group index for each recorder endpoint so that only the
-            // final job using a given browser closes it; earlier jobs must leave the browser
-            // open for later jobs that mount the same driver.
-            const lastIndexByBaseUrl = new Map<string, number>();
-            for (let i = 0; i < groups.length; i++) {
-                lastIndexByBaseUrl.set(groups[i].baseUrl || '', i);
-            }
+        // [recorder-diag] TEMPORARY: log the known recorder endpoint keys so each group's baseUrl
+        // can be compared against them to explain a driver-less job.
+        this.logger.information(
+            `[recorder-diag] connection keys: ${JSON.stringify(Array.from(this._connections.keys()))}`
+        );
 
-            // Tracks, per recorder endpoint, the 1-based index of the job that launched its
-            // browser, so later jobs for the same browser can mount that driver via "Job(N)".
-            const launchJobByBaseUrl = new Map<string, number>();
+        // Convert each group into a job and attach it to the automation.
+        for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const connection = this._connections.get(group.baseUrl || '');
 
-            // Convert each group into a job and attach to the automation
-            for (let i = 0; i < groups.length; i++) {
-                // Initialize group-specific variables
-                const group = groups[i];
-                const baseUrl = group.baseUrl || '';
-                const connection = this._connections.get(baseUrl);
-                const mode = connection?.options?.mode || 'standard';
-
-                // Include the 1-based job index in the id so two browsers that share a machine
-                // name (and therefore a display name) still produce unique job ids.
-                const id = `recorded-actions-job-${i + 1}-${group.machineName.toLowerCase()}`;
-
-                // Apply think time settings from the connection options if available
-                group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
-                    enabled: false,
-                    minThinkTime: 0,
-                    maxThinkTime: 0
-                };
-
-                // Only the last job that uses this browser should close it.
-                const isLastForBrowser = lastIndexByBaseUrl.get(baseUrl) === i;
-
-                // Chromium recorders emit already-resolved, G4-ready actions (InvokeClick,
-                // SendKeys, ...), so they use a direct event-to-rule mapping instead of the
-                // UIA up/down assembly pipeline.
-                const isChromium = connection?.isChromium ?? false;
-
-                // Build the job definition from the grouped buffer of events, appending a
-                // CloseBrowser action only on the final job for this browser.
-                const job = StopRecorderCommand.newJob(
-                    id,
-                    mode,
-                    StopRecorderCommand._includeKeyboardEventMap,
-                    group,
-                    isLastForBrowser,
-                    isChromium);
-
-                // Resolve driver parameters: the first job for a browser launches it with the
-                // recorder's real driver parameters; a later job for the same browser mounts the
-                // already-launched driver by referencing the launching job as "Job(N)".
-                const launchJob = launchJobByBaseUrl.get(baseUrl);
-                if (launchJob === undefined) {
-                    job.driverParameters = connection?.options.driverParameters || {};
-                    launchJobByBaseUrl.set(baseUrl, i + 1);
-                } else {
-                    job.driverParameters = { driver: `Job(${launchJob})` };
-                }
-
-                // Attach the job to the automation definition object
-                automation.stages[0].jobs.push(job);
-            }
-
-            // Display the constructed workflow in the G4 Workflow Viewer
-            new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
-                workflow: automation
+            const job = StopRecorderCommand.newRecordedJob({
+                group,
+                index: i,
+                isSingleJob,
+                connection,
+                launchJobByBaseUrl,
+                lastIndexByBaseUrl
             });
+
+            // [recorder-diag] TEMPORARY: log each group's identity and its resolved driver so a
+            // driver-less job (empty/absent driverParameters) can be traced to a baseUrl mismatch.
+            this.logger.information(
+                `[recorder-diag] group #${i} baseUrl=${JSON.stringify(group.baseUrl)} ` +
+                `machineName=${JSON.stringify(group.machineName)} connectionResolved=${!!connection} ` +
+                `driverParameters=${JSON.stringify(job.driverParameters)}`
+            );
+
+            automation.stages[0].jobs.push(job);
         }
-        catch (error: any) {
-            this.logger.error(error || 'An unknown error occurred while stopping the recorder.');
+
+        return automation;
+    }
+
+    /**
+     * Maps each recorder endpoint to the index of the last group that uses it, so only the final
+     * job for a given browser closes it (earlier jobs must leave it open for later reuse).
+     */
+    private static newLastIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
+        const lastIndexByBaseUrl = new Map<string, number>();
+
+        for (let i = 0; i < groups.length; i++) {
+            lastIndexByBaseUrl.set(groups[i].baseUrl || '', i);
         }
-        finally {
-            // Always stop each recorder's browser (chromium only) and close its connection —
-            // even when no workflow was produced — so recording reliably ends. Run last so the
-            // canvas is shown first and a slow stop cannot block it.
-            for (const service of this._connections.values()) {
-                try {
-                    await service.stopBrowser();
-                    await service.disconnect();
-                }
-                catch {
-                    // Ignore errors during browser stop / disconnect
-                }
+
+        return lastIndexByBaseUrl;
+    }
+
+    /**
+     * Builds one recorded-actions job from a grouped buffer of events, wiring its id, think-time
+     * settings, CloseBrowser placement (only the last job for a browser), the event-to-rule mapping
+     * (chromium vs UIA), and its driver parameters.
+     */
+    private static newRecordedJob(options: {
+        group: BufferGroup,
+        index: number,
+        isSingleJob: boolean,
+        connection: EventCaptureService | undefined,
+        launchJobByBaseUrl: Map<string, number>,
+        lastIndexByBaseUrl: Map<string, number>
+    }): any {
+        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl } = options;
+
+        const baseUrl = group.baseUrl || '';
+        const mode = connection?.options?.mode || 'standard';
+
+        // Include the 1-based job index in the id so two browsers that share a machine name (and
+        // therefore a display name) still produce unique job ids.
+        const id = `recorded-actions-job-${index + 1}-${group.machineName.toLowerCase()}`;
+
+        // Apply think time settings from the connection options if available.
+        group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
+            enabled: false,
+            minThinkTime: 0,
+            maxThinkTime: 0
+        };
+
+        // Only the last job that uses this browser should close it.
+        const isLastForBrowser = lastIndexByBaseUrl.get(baseUrl) === index;
+
+        // Chromium recorders emit already-resolved, G4-ready actions (InvokeClick, SendKeys, ...),
+        // so they use a direct event-to-rule mapping instead of the UIA up/down assembly pipeline.
+        const isChromium = connection?.isChromium ?? false;
+
+        // Build the job definition from the grouped buffer of events, appending a CloseBrowser
+        // action only on the final job for this browser.
+        const job = StopRecorderCommand.newJob(
+            id,
+            mode,
+            StopRecorderCommand._includeKeyboardEventMap,
+            group,
+            isLastForBrowser,
+            isChromium);
+
+        StopRecorderCommand.setJobDriverParameters(job, {
+            isSingleJob,
+            connection,
+            baseUrl,
+            jobIndex: index + 1,
+            launchJobByBaseUrl
+        });
+
+        return job;
+    }
+
+    /**
+     * Sets a job's driver parameters. A single-job automation omits the job driver entirely so the
+     * job inherits the automation-level (real) driver and only one browser opens. In a multi-job
+     * automation the automation-level driver is a no-op, so each job carries its own: the first job
+     * for a browser launches it with the recorder's real driver (recording the launch index), and a
+     * later job for the same browser mounts it by referencing the launching job as "Job(N)".
+     */
+    private static setJobDriverParameters(job: any, options: {
+        isSingleJob: boolean,
+        connection: EventCaptureService | undefined,
+        baseUrl: string,
+        jobIndex: number,
+        launchJobByBaseUrl: Map<string, number>
+    }): void {
+        const { isSingleJob, connection, baseUrl, jobIndex, launchJobByBaseUrl } = options;
+
+        // Single-job automation: omit the job driver so it inherits the automation-level driver.
+        if (isSingleJob) {
+            delete job.driverParameters;
+            return;
+        }
+
+        // Multi-job automation: the first job launches its browser; a later job mounts it via "Job(N)".
+        const launchJob = launchJobByBaseUrl.get(baseUrl);
+
+        if (launchJob === undefined) {
+            job.driverParameters = connection?.options.driverParameters || {};
+            launchJobByBaseUrl.set(baseUrl, jobIndex);
+        } else {
+            job.driverParameters = { driver: `Job(${launchJob})` };
+        }
+    }
+
+    /**
+     * Displays the constructed workflow in the G4 Workflow Viewer.
+     */
+    private showRecordedWorkflow(automation: any): void {
+        new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
+            workflow: automation
+        });
+    }
+
+    /**
+     * Stops each recorder's browser (chromium only) and closes its connection, swallowing errors so
+     * one failing recorder never blocks the others. Run after the workflow is shown so a slow stop
+     * cannot delay the canvas.
+     */
+    private static async stopRecorderConnections(connections: Map<string, EventCaptureService>): Promise<void> {
+        for (const service of connections.values()) {
+            try {
+                await service.stopBrowser();
+                await service.disconnect();
+            }
+            catch {
+                // Ignore errors during browser stop / disconnect.
             }
         }
     }

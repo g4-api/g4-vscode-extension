@@ -173,6 +173,9 @@ export class EventCaptureService {
     /** OS process id of the browser launched for this (chromium) recorder, if any. */
     private _processId?: number;
 
+    /** When true, incoming recording events are dropped instead of buffered (suspended). */
+    private _suspended = false;
+
     /**
      * Creates a new instance of the EventCaptureService.
      *
@@ -218,6 +221,24 @@ export class EventCaptureService {
         // Chromium recorders are identified by a ChromeDriver-style driver value.
         const driver = this._options.driverParameters?.driver ?? '';
         return /chrome/i.test(driver);
+    }
+
+    /**
+     * Indicates whether this recorder is suspended. While suspended, incoming recording events are
+     * dropped instead of buffered; the hub connection stays open so resuming needs no reconnect.
+     */
+    public get isSuspended(): boolean {
+        return this._suspended;
+    }
+
+    /** Suspends buffering: incoming events are dropped until {@link resume} is called. */
+    public suspend(): void {
+        this._suspended = true;
+    }
+
+    /** Resumes buffering after a {@link suspend}. */
+    public resume(): void {
+        this._suspended = false;
     }
 
     /**
@@ -278,6 +299,11 @@ export class EventCaptureService {
     private registerHandlers(): void {
         // Buffer every incoming recording event for later consumption.
         this._connection.on('ReceiveRecordingEvent', (message: any) => {
+            // Drop events while suspended; the connection stays open so resuming needs no reconnect.
+            if (this._suspended) {
+                return;
+            }
+
             this._buffer.push(message);
         });
 

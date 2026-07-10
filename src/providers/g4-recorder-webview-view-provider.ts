@@ -123,7 +123,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
-			driver: service.driver
+			driver: service.driver,
+			suspended: service.service?.isSuspended ?? false
 		}));
 
 		// Send an initial message to the webview to populate server data
@@ -189,6 +190,20 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						}
 					}
 
+					@keyframes bulbPulseSuspended {
+						0% {
+							box-shadow: 0 0 0px #e0a316;
+						}
+
+						50% {
+							box-shadow: 0 0 6px #e0a316;
+						}
+
+						100% {
+							box-shadow: 0 0 0px #e0a316;
+						}
+					}
+
 					@keyframes spinnerRotate {
 						from {
 							transform: rotate(0deg);
@@ -199,7 +214,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					@media (prefers-reduced-motion: reduce) {
-						.bulb.on {
+						.bulb.on,
+						.bulb.suspended {
 							animation: none;
 						}
 					}
@@ -244,6 +260,13 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					.bulb.on {
 						animation: bulbPulse 1.2s ease-in-out infinite;
 						background: #3c3;
+						will-change: box-shadow;
+					}
+
+					.bulb.suspended {
+						animation: bulbPulseSuspended 1.2s ease-in-out infinite;
+						background: #e0a316;
+						box-shadow: 0 0 6px #e0a316;
 						will-change: box-shadow;
 					}
 
@@ -318,6 +341,28 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						background: rgba(127, 127, 127, 0.1);
 					}
 
+					.suspend-btn {
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						background: transparent;
+						color: var(--vscode-textLink-foreground);
+						border: 1px solid var(--vscode-editorGroup-border);
+						padding: 4px;
+						border-radius: var(--border-radius);
+						flex: 0 0 auto;
+						cursor: pointer;
+					}
+
+					.suspend-btn:hover:not(:disabled) {
+						background: rgba(127, 127, 127, 0.1);
+					}
+
+					.suspend-btn:disabled {
+						opacity: 0.4;
+						cursor: not-allowed;
+					}
+
 					.row {
 						display: flex;
 						gap: 8px;
@@ -327,7 +372,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					.server {
 						display: flex;
 						align-items: center;
-						justify-content: space-between;
+						gap: 8px;
 						padding: 6px 0;
 						border-top: 1px solid var(--vscode-editorGroup-border);
 					}
@@ -371,7 +416,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						white-space: nowrap;
 						flex: 0 1 auto;
 						min-width: 0;
-						margin-left: 8px;
 					}
 				</style>
 			</head>
@@ -424,6 +468,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					
 					var SPINNER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline spinner">' +
 						'<path d="M286.7 96.1C291.7 113 282.1 130.9 265.2 135.9C185.9 159.5 128.1 233 128.1 320C128.1 426 214.1 512 320.1 512C426.1 512 512.1 426 512.1 320C512.1 233.1 454.3 159.6 375 135.9C358.1 130.9 348.4 113 353.5 96.1C358.6 79.2 376.4 69.5 393.3 74.6C498.9 106.1 576 204 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320C64 204 141.1 106.1 246.9 74.6C263.8 69.6 281.7 79.2 286.7 96.1z"/>' +
+						'</svg>';
+
+					// Per-recorder suspend/resume icons (link-colored, sized to the compact row button).
+					var SUSPEND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="svg-inline-secondary">' +
+						'<path d="M176 96C149.5 96 128 117.5 128 144L128 496C128 522.5 149.5 544 176 544L240 544C266.5 544 288 522.5 288 496L288 144C288 117.5 266.5 96 240 96L176 96zM400 96C373.5 96 352 117.5 352 144L352 496C352 522.5 373.5 544 400 544L464 544C490.5 544 512 522.5 512 496L512 144C512 117.5 490.5 96 464 96L400 96z"/>' +
+						'</svg>';
+
+					var RESUME_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="svg-inline-secondary">' +
+						'<path d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z"/>' +
 						'</svg>';
 
 					function setToggleState(running) {
@@ -494,7 +547,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							left.className = 'left';
 
 							const bulb = document.createElement('span');
-							bulb.className = 'bulb' + (server.ok ? ' on' : '');
+							// Disconnected → red (no class); connected + suspended → amber; connected + active → green.
+							bulb.className = 'bulb' + (server.ok ? (server.suspended ? ' suspended' : ' on') : '');
 							left.appendChild(bulb);
 
 							const meta = document.createElement('div');
@@ -521,6 +575,28 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							url.href = server.url + '/swagger';
 							url.target = '_blank';
 							row.appendChild(url);
+
+							// Per-recorder suspend/resume: shows the suspend icon while active and the play
+							// icon while suspended. Disabled until the recorder is connected, since
+							// suspending an idle recorder has no effect.
+							const isSuspended = !!server.suspended;
+							const suspendBtn = document.createElement('button');
+							suspendBtn.className = 'suspend-btn';
+							suspendBtn.disabled = !server.ok;
+							suspendBtn.innerHTML = isSuspended ? RESUME_SVG : SUSPEND_SVG;
+							suspendBtn.title = server.ok
+								? (isSuspended
+									? 'Resume this recorder — continue capturing events.'
+									: 'Suspend this recorder — stop capturing events (the hub connection stays open).')
+								: 'Start the recorder to enable suspend.';
+							suspendBtn.setAttribute('aria-label', isSuspended ? 'Resume this recorder' : 'Suspend this recorder');
+							suspendBtn.addEventListener('click', function () {
+								vscode.postMessage({
+									type: isSuspended ? 'recorder:resume' : 'recorder:suspend',
+									url: server.url
+								});
+							});
+							row.appendChild(suspendBtn);
 
 							serversElement.appendChild(row);
 						}
@@ -571,6 +647,24 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 			case 'recorder:refresh': {
 				// Manually trigger a server status refresh from the webview
+				this.testServers(serversStatus);
+				break;
+			}
+
+			case 'recorder:suspend':
+			case 'recorder:resume': {
+				// Toggle buffering for the targeted recorder (identified by its base URL). The hub
+				// connection stays open; suspending only drops incoming events until resumed.
+				const service = this._recorderConnections.get(message.url);
+				if (service) {
+					if (message.type === 'recorder:suspend') {
+						service.suspend();
+					} else {
+						service.resume();
+					}
+				}
+
+				// Reflect the new suspended state immediately instead of waiting for the heartbeat tick.
 				this.testServers(serversStatus);
 				break;
 			}
@@ -664,7 +758,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
-			driver: service.driver
+			driver: service.driver,
+			suspended: service.service?.isSuspended ?? false
 		}));
 
 		// Broadcast the updated server statuses back to the webview
