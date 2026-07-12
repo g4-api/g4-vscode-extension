@@ -81,7 +81,6 @@ export class ShowReportCommand extends CommandBase {
 
             // Open the report in the first editor column.
             vscode.ViewColumn.One,
-
             {
                 // Allow scripts to run inside the report webview.
                 enableScripts: true,

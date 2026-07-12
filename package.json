@@ -143,6 +143,11 @@
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
                 },
                 {
+                    "command": "Open-Bot-In-Workflow",
+                    "group": "navigation",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
+                },
+                {
                     "command": "Show-Settings",
                     "group": "navigation",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceFilename == manifest.json"

@@ -127,8 +127,8 @@ const registerCommands = (options: {
         async (uri?: vscode.Uri) => {
             const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 
-            if (!targetUri || !isBotFile(targetUri, ['.json'])) {
-                vscode.window.showWarningMessage('Select a JSON bot file under the bots folder.');
+            if (!targetUri || !isBotFile(targetUri, ['.json'], ['bots', 'base.bots'])) {
+                vscode.window.showWarningMessage('Select a JSON bot file under the bots or base.bots folder.');
                 return;
             }
 
@@ -174,9 +174,11 @@ const registerCommands = (options: {
 };
 
 /**
- * Checks whether a URI points to a supported bot file inside a workspace bots folder.
+ * Checks whether a URI points to a supported bot file inside one of the given workspace
+ * folders (by folder-name segment). Defaults to the 'bots' folder; callers that also accept
+ * recorded/base definitions pass additional folder names (for example 'base.bots').
  */
-const isBotFile = (uri: vscode.Uri, extensions: string[]): boolean => {
+const isBotFile = (uri: vscode.Uri, extensions: string[], folderNames: string[] = ['bots']): boolean => {
     if (uri.scheme !== 'file') {
         return false;
     }
@@ -186,6 +188,7 @@ const isBotFile = (uri: vscode.Uri, extensions: string[]): boolean => {
         return false;
     }
 
+    const acceptedFolders = new Set(folderNames.map(name => name.toLowerCase()));
     const folders = vscode.workspace.workspaceFolders ?? [];
     return folders.some(folder => {
         const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
@@ -195,7 +198,7 @@ const isBotFile = (uri: vscode.Uri, extensions: string[]): boolean => {
 
         return relativePath
             .split(/[\\/]+/)
-            .some(segment => segment.toLowerCase() === 'bots');
+            .some(segment => acceptedFolders.has(segment.toLowerCase()));
     });
 };
 

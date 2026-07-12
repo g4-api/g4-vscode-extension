@@ -1462,17 +1462,17 @@
          * Behavior:
          * - Renders an optional one-line description above the body.
          * - Wires the header to collapse/expand the body via switchElement().
-         * - Starts expanded unless `open` is false.
+         * - Starts collapsed unless `open` is true.
          *
          * @param {object} options - Section options.
          * @param {string} options.id - Unique id suffix for the section.
          * @param {string} options.title - The section title.
          * @param {string} [options.desc] - An optional one-line description.
          * @param {string} options.body - The inner HTML for the section body.
-         * @param {boolean} [options.open=true] - Whether the section starts expanded.
+         * @param {boolean} [options.open=false] - Whether the section starts expanded.
          * @returns {string} HTML markup for the section.
          */
-        function writeSection({ id, title, desc, body, open = true }) {
+        function writeSection({ id, title, desc, body, open = false }) {
             // Render the optional description line above the body.
             const descHtml = desc
                 ? `<div class="section-desc">${clearString(desc)}</div>`
@@ -1958,7 +1958,8 @@
                 id: 'connection',
                 title: 'Connection',
                 desc: 'Tell G4 where the automation engine is running.',
-                body
+                body,
+                open: true
             });
         }
 

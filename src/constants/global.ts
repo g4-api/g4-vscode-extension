@@ -17,13 +17,11 @@ export class Global {
             "port": "9944"
         },
         "authentication": {
-            "password": null,
-            "token": "",
-            "username": null
+            "token": ""
         },
         "driverParameters": {
-            "driver": "SimulatorDriver",
-            "driverBinaries": "."
+            "driver": "ChromeDriver",
+            "driverBinaries": "http://localhost:4444/wd/hub"
         },
         "settings": {
             "automationSettings": {
@@ -33,8 +31,8 @@ export class Global {
                 "returnStructuredResponse": true,
                 "searchTimeout": 15000
             },
-            "clientLogSettings": {
-                "agentLogSettings": {
+            "clientLogConfiguration": {
+                "agentLogConfiguration": {
                     "enabled": true,
                     "interval": 1000
                 },
@@ -44,10 +42,70 @@ export class Global {
                     "sources": []
                 }
             },
-            "environmentsSettings": {
-                "defaultEnvironment": "SystemParameters",
-                "environmentVariables": null,
-                "returnEnvironment": false
+            "clientReportSettings": {
+                "autoView": true,
+                "reportsFolder": ".",
+                "saveReports": true
+            },
+            "recorderSettings": {
+                "enabled": false,
+                "recorders": [
+                    {
+                        "mode": "standard",
+                        "schema": "http",
+                        "host": "localhost",
+                        "port": "9955",
+                        "driverParameters": {
+                            "capabilities": {
+                                "alwaysMatch": {
+                                    "browserName": "Uia",
+                                    "uia:options": {
+                                        "label": "machine-a"
+                                    }
+                                }
+                            },
+                            "driver": "UiaDriver",
+                            "driverBinaries": "http://localhost:4444/wd/hub",
+                            "firstMatch": [
+                                {}
+                            ]
+                        },
+                        "thinkTimeSettings": {
+                            "enabled": false,
+                            "maxThinkTime": 10000,
+                            "minThinkTime": 3000
+                        }
+                    },
+                    {
+                        "mode": "standard",
+                        "schema": "http",
+                        "host": "localhost",
+                        "port": "9956",
+                        "driverParameters": {
+                            "capabilities": {
+                                "alwaysMatch": {
+                                    "browserName": "chrome",
+                                    "goog:chromeOptions": {
+                                        "binary": "C:\\g4-sandbox\\browsers\\chrome\\chrome.exe",
+                                        "args": [
+                                            "--disable-gpu"
+                                        ]
+                                    }
+                                }
+                            },
+                            "driver": "ChromeDriver",
+                            "driverBinaries": "http://localhost:4444/wd/hub",
+                            "firstMatch": [
+                                {}
+                            ]
+                        },
+                        "thinkTimeSettings": {
+                            "enabled": false,
+                            "maxThinkTime": 10000,
+                            "minThinkTime": 3000
+                        }
+                    }
+                ]
             },
             "exceptionsSettings": {
                 "returnExceptions": true
@@ -61,8 +119,7 @@ export class Global {
             },
             "pluginsSettings": {
                 "externalRepositories": null,
-                "forceRuleReference": true,
-                "servers": null
+                "forceRuleReference": true
             },
             "screenshotsSettings": {
                 "convertToBase64": false,

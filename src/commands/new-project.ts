@@ -65,27 +65,170 @@ export class NewProjectCommand extends CommandBase {
         };
 
         // Show the folder picker dialog to the user
-        vscode.window.showOpenDialog(dialogOptions).then(folderUri => {
-            // If the user canceled the dialog, folderUri will be undefined
-            if (!folderUri || folderUri.length === 0) {
-                return;
+        const folderUri = await vscode.window.showOpenDialog(dialogOptions);
+
+        // If the user canceled the dialog, folderUri will be undefined
+        if (!folderUri || folderUri.length === 0) {
+            return;
+        }
+
+        // After the location is chosen, resolve the G4 sandbox location (auto-detect / browse /
+        // skip). A skipped or cancelled selection returns undefined, and the base files keep
+        // their default paths.
+        const sandboxPath = await NewProjectCommand.resolveSandboxLocation();
+
+        // Create the project folder structure
+        NewProjectCommand.newProjectFolder(folderUri);
+
+        // Generate the initial project manifest file, recording the sandbox path when provided
+        NewProjectCommand.newProjectManifest(folderUri, this._logger, sandboxPath);
+
+        // Add sample content under the project
+        NewProjectCommand.newSampleBot(folderUri, this._logger);
+
+        // Seed the base.bots folder with the chrome/uia automation base files, rewriting the
+        // chrome paths to the selected sandbox when one was provided
+        NewProjectCommand.newBaseBots(folderUri, this._logger, sandboxPath);
+
+        // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
+        NewProjectCommand.newDocumentation(folderUri);
+
+        // Finally, open the newly created project folder in the editor
+        NewProjectCommand.openFolder(folderUri);
+    }
+
+    /**
+     * Prompts for the G4 sandbox location via a QuickPick offering auto-detect, browse, or skip.
+     *
+     * @remarks
+     * Owns the sandbox selection interaction. Auto-detect falls back to Browse when nothing is
+     * found; Skip and cancellation both return undefined so project creation proceeds with the
+     * base files' default paths.
+     *
+     * @returns The selected sandbox folder path, or undefined when skipped/cancelled.
+     */
+    private static async resolveSandboxLocation(): Promise<string | undefined> {
+        // The three actions offered to the user.
+        const autoDetectItem: vscode.QuickPickItem = {
+            label: '$(search) Auto-detect latest G4 sandbox',
+            detail: 'Find the newest g4-sandbox-* folder automatically.'
+        };
+        const browseItem: vscode.QuickPickItem = {
+            label: '$(folder-opened) Browse for G4 sandbox folder...',
+            detail: 'Select the sandbox folder manually.'
+        };
+        const skipItem: vscode.QuickPickItem = {
+            label: '$(circle-slash) Skip',
+            detail: 'Do not set a sandbox; keep the base files\' default paths.'
+        };
+
+        // Ask the user how to provide the sandbox location.
+        const choice = await vscode.window.showQuickPick(
+            [autoDetectItem, browseItem, skipItem],
+            {
+                title: 'G4 Sandbox Location',
+                placeHolder: 'Choose how to set the G4 sandbox location for this project'
+            }
+        );
+
+        // Cancelled (Esc) or Skip: no sandbox is applied.
+        if (!choice || choice === skipItem) {
+            return undefined;
+        }
+
+        // Auto-detect: use the newest sandbox; fall back to Browse when none is found.
+        if (choice === autoDetectItem) {
+            const detected = NewProjectCommand.findLatestSandbox();
+
+            if (detected) {
+                vscode.window.showInformationMessage(`G4 sandbox detected: ${detected}`);
+                return detected;
             }
 
-            // Create the project folder structure
-            NewProjectCommand.newProjectFolder(folderUri);
+            vscode.window.showWarningMessage('No G4 sandbox was auto-detected. Please browse to it.');
+        }
 
-            // Generate the initial project manifest file (e.g. package.json or equivalent)
-            NewProjectCommand.newProjectManifest(folderUri, this._logger);
+        // Browse (chosen directly, or as the auto-detect fallback).
+        return NewProjectCommand.browseSandboxLocation();
+    }
 
-            // Add sample content under the project
-            NewProjectCommand.newSampleBot(folderUri, this._logger);
-
-            // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
-            NewProjectCommand.newDocumentation(folderUri);
-
-            // Finally, open the newly created project folder in the editor
-            NewProjectCommand.openFolder(folderUri);
+    /**
+     * Opens a folder dialog to select the G4 sandbox folder.
+     *
+     * @returns The selected folder path, or undefined when the dialog is cancelled.
+     */
+    private static async browseSandboxLocation(): Promise<string | undefined> {
+        // Prompt for a single folder, labelled for the sandbox selection.
+        const selection = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select G4 Sandbox'
         });
+
+        // Cancelled: no sandbox is applied.
+        if (!selection || selection.length === 0) {
+            return undefined;
+        }
+
+        return this.getPath(selection);
+    }
+
+    /**
+     * Finds the newest installed G4 sandbox folder for the current OS, or undefined when none
+     * exists.
+     *
+     * @remarks
+     * Compute-only. Windows searches C:\g4-sandbox-* and C:\g4-sandbox\g4-sandbox-*; other
+     * platforms search the same layout under /opt. Missing roots are ignored. "Newest" is the
+     * highest folder name using a numeric-aware compare, so a versioned name such as
+     * g4-sandbox-v2026.06.24.71 wins.
+     *
+     * @returns The full path of the newest sandbox folder, or undefined.
+     */
+    private static findLatestSandbox(): string | undefined {
+        // Resolve the platform root that hosts the sandbox folders.
+        const isWindows = os.platform() === 'win32';
+        const root = isWindows ? 'C:\\' : '/opt';
+
+        // The two candidate layouts: directly under the root, and nested under a g4-sandbox folder.
+        const searchDirectories = [
+            root,
+            path.join(root, 'g4-sandbox')
+        ];
+
+        // Collect every versioned sandbox folder found across the candidate layouts.
+        const candidates: string[] = [];
+
+        for (const directory of searchDirectories) {
+            let entries: fs.Dirent[] = [];
+
+            try {
+                entries = fs.readdirSync(directory, { withFileTypes: true });
+            } catch {
+                // Directory missing or unreadable; skip it.
+                continue;
+            }
+
+            for (const entry of entries) {
+                // Match versioned sandbox folders only (g4-sandbox-<something>).
+                if (entry.isDirectory() && /^g4-sandbox-.+/i.test(entry.name)) {
+                    candidates.push(path.join(directory, entry.name));
+                }
+            }
+        }
+
+        // Nothing found on this machine.
+        if (candidates.length === 0) {
+            return undefined;
+        }
+
+        // Pick the newest by folder name (numeric-aware), so the highest version wins.
+        candidates.sort((a, b) =>
+            path.basename(b).localeCompare(path.basename(a), undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        return candidates[0];
     }
 
     /**
@@ -112,7 +255,8 @@ export class NewProjectCommand extends CommandBase {
             path.join(projectPath, 'src', '.prompts'),
             path.join(projectPath, 'src', 'configurations'),
             path.join(projectPath, 'src', 'environments'),
-            path.join(projectPath, 'src', 'base'),
+            path.join(projectPath, 'src', 'base.bots'),
+            path.join(projectPath, 'src', 'base.templates'),
             path.join(projectPath, 'src', 'templates'),
             path.join(projectPath, 'src', 'templates.examples'),
             path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots'),
@@ -135,9 +279,17 @@ export class NewProjectCommand extends CommandBase {
      *
      * @param userPath - The URI or path selected by the user for the new project.
      */
-    private static newProjectManifest(userPath: any, logger?: Logger) {
+    private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string) {
+        // Clone the base manifest so the shared constant is never mutated, then record the
+        // selected G4 sandbox path when one was provided.
+        const manifest = JSON.parse(JSON.stringify(Global.BASE_MANIFEST));
+
+        if (sandboxPath) {
+            manifest.sandbox = sandboxPath;
+        }
+
         // Convert the manifest object to a formatted JSON string with tabs for readability
-        const content = JSON.stringify(Global.BASE_MANIFEST, null, '\t');
+        const content = JSON.stringify(manifest, null, '\t');
 
         // Determine the target directory: <projectRoot>/src
         const projectPath = path.join(this.getPath(userPath), 'src');
@@ -149,6 +301,80 @@ export class NewProjectCommand extends CommandBase {
             content: content,
             logger: logger
         });
+    }
+
+    /**
+     * Seeds the base.bots folder with the chrome and uia automation base files.
+     *
+     * @remarks
+     * When a sandbox path is provided, the chrome file's browser binary and driver binaries are
+     * rewritten to point at that sandbox; the uia file (which targets a localhost hub, not a
+     * sandbox path) is copied unchanged.
+     *
+     * @param userPath    The URI(s) returned from the folder picker (project root).
+     * @param logger      Logger for reporting any file-writing errors.
+     * @param sandboxPath The selected sandbox folder path, or undefined to keep default paths.
+     */
+    private static newBaseBots(userPath: any, logger: Logger, sandboxPath?: string): void {
+        // Resolve the target base.bots folder under the project's src directory.
+        const baseBotsPath = path.join(this.getPath(userPath), 'src', 'base.bots');
+
+        // Chrome base: optionally rewrite its sandbox paths before writing.
+        this.writeFile({
+            directoryPath: baseBotsPath,
+            fileName: 'chrome-automation-base.json',
+            content: this.newChromeBaseContent(sandboxPath),
+            logger: logger
+        });
+
+        // Uia base: copied verbatim (it targets a localhost hub, not a sandbox path).
+        this.writeFile({
+            directoryPath: baseBotsPath,
+            fileName: 'uia-automation-base.json',
+            content: Utilities.getResource('uia-automation-base.json'),
+            logger: logger
+        });
+    }
+
+    /**
+     * Returns the chrome-automation-base.json content, rewriting the Chrome binary and driver
+     * paths to the given sandbox when provided.
+     *
+     * @remarks
+     * Compute-only. Falls back to the resource as-is on skip or when the resource cannot be
+     * parsed, so project creation always succeeds.
+     *
+     * @param sandboxPath The selected sandbox folder path, or undefined to keep default paths.
+     * @returns The chrome base file content to write.
+     */
+    private static newChromeBaseContent(sandboxPath?: string): string {
+        // Load the chrome base file from extension resources.
+        const raw = Utilities.getResource('chrome-automation-base.json');
+
+        // No sandbox selected: keep the default paths.
+        if (!sandboxPath) {
+            return raw;
+        }
+
+        try {
+            // Point the Chrome binary and driver at the selected sandbox, preserving the known
+            // sub-paths (browsers/chrome/chrome.exe and drivers/chrome).
+            const chrome = JSON.parse(raw);
+            const chromeOptions = chrome?.driverParameters?.capabilities?.alwaysMatch?.['goog:chromeOptions'];
+
+            if (chromeOptions) {
+                chromeOptions.binary = path.join(sandboxPath, 'browsers', 'chrome', 'chrome.exe');
+            }
+
+            if (chrome?.driverParameters) {
+                chrome.driverParameters.driverBinaries = path.join(sandboxPath, 'drivers', 'chrome');
+            }
+
+            return JSON.stringify(chrome, null, '\t');
+        } catch {
+            // Malformed resource: fall back to the raw content so project creation still succeeds.
+            return raw;
+        }
     }
 
     /**
