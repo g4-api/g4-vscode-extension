@@ -86,7 +86,7 @@ export class Global {
                                 "alwaysMatch": {
                                     "browserName": "chrome",
                                     "goog:chromeOptions": {
-                                        "binary": "C:\\g4-sandbox\\browsers\\chrome\\chrome.exe",
+                                        "binary": String.raw`C:\g4-sandbox\browsers\chrome\chrome.exe`,
                                         "args": [
                                             "--disable-gpu"
                                         ]
