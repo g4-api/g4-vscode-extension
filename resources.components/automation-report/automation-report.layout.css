@@ -1,0 +1,520 @@
+﻿*,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        @font-face {
+            font-family: 'Inter';
+            src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
+            font-weight: 100 900;
+            font-style: normal;
+            font-display: swap
+        }
+
+        html {
+            height: 100%
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            height: 100%;
+            display: flex;
+            flex-direction: column
+        }
+
+        .header {
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px
+        }
+
+        #app {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-gutter: stable
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700
+        }
+
+        .header-meta {
+            font-size: 11px;
+            margin-top: 1px
+        }
+
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .main {
+            max-width: 1440px;
+            margin: 0 auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px
+        }
+
+        .card {
+            padding: 14px 16px
+        }
+
+        .card-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            margin-bottom: 5px
+        }
+
+        .card-value {
+            font-size: 20px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums
+        }
+
+        .section {
+            overflow: hidden
+        }
+
+        .section-hdr {
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .section-body {
+            padding: 16px
+        }
+
+        .component-data {
+            display: none;
+            position: absolute;
+            left: -9999px
+        }
+
+        .is-collapsed,
+        .is-filter-hidden {
+            display: none
+        }
+
+        .session-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 16px
+        }
+
+        .si-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px
+        }
+
+        .si-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .06em
+        }
+
+        .si-value {
+            font-size: 12px;
+            font-family: 'Consolas', monospace
+        }
+
+        /* tree */
+        .plugin-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px;
+            cursor: pointer
+        }
+
+        .plugin-row--depth-0 { padding-left: 6px }
+        .plugin-row--depth-1 { padding-left: 26px }
+        .plugin-row--depth-2 { padding-left: 46px }
+        .plugin-row--depth-3 { padding-left: 66px }
+        .plugin-row--depth-4 { padding-left: 86px }
+        .plugin-row--depth-5 { padding-left: 106px }
+        .plugin-row--depth-6 { padding-left: 126px }
+        .plugin-row--depth-7 { padding-left: 146px }
+        .plugin-row--depth-8 { padding-left: 166px }
+        .plugin-row--depth-9 { padding-left: 186px }
+        .plugin-row--depth-10 { padding-left: 206px }
+        .plugin-row--depth-11 { padding-left: 226px }
+        .plugin-row--depth-12 { padding-left: 246px }
+
+        .p-toggle {
+            width: 13px;
+            height: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            flex-shrink: 0
+        }
+
+        .p-badge {
+            font-size: 9px;
+            padding: 1px 5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            flex-shrink: 0;
+            white-space: nowrap
+        }
+
+        .p-name {
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0
+        }
+
+        .p-arg {
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0
+        }
+
+        .p-elem {
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0
+        }
+
+        .p-spacer {
+            flex: 1
+        }
+
+        .p-bar-wrap {
+            width: 72px;
+            height: 5px;
+            overflow: hidden;
+            flex-shrink: 0
+        }
+
+        .p-bar {
+            height: 100%;
+            min-width: 2px
+        }
+
+        .p-runtime {
+            width: 100%;
+            height: 100%;
+            border: 0
+        }
+
+        .p-dur {
+            font-size: 10px;
+            white-space: nowrap;
+            text-align: right;
+            min-width: 52px;
+            flex-shrink: 0;
+            font-variant-numeric: tabular-nums
+        }
+
+        .p-dot {
+            width: 7px;
+            height: 7px;
+            flex-shrink: 0
+        }
+
+        .p-led {
+            width: 8px;
+            height: 8px;
+            flex-shrink: 0
+        }
+
+        .p-children {
+            margin-left: 18px
+        }
+
+        .p-children.hidden {
+            display: none
+        }
+
+        /* timeline */
+        .tl-wrap {
+            overflow-x: auto
+        }
+
+        /* assertions */
+        .assertion-depth {
+            padding-right: 8px;
+            padding-bottom: 4px
+        }
+
+        .assertion-depth--0 { padding-left: 33px }
+        .assertion-depth--1 { padding-left: 53px }
+        .assertion-depth--2 { padding-left: 73px }
+        .assertion-depth--3 { padding-left: 93px }
+        .assertion-depth--4 { padding-left: 113px }
+        .assertion-depth--5 { padding-left: 133px }
+        .assertion-depth--6 { padding-left: 153px }
+        .assertion-depth--7 { padding-left: 173px }
+        .assertion-depth--8 { padding-left: 193px }
+        .assertion-depth--9 { padding-left: 213px }
+        .assertion-depth--10 { padding-left: 233px }
+        .assertion-depth--11 { padding-left: 253px }
+        .assertion-depth--12 { padding-left: 273px }
+
+        .assert-tbl {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px
+        }
+
+        .assert-tbl th {
+            text-align: left;
+            padding: 7px 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            font-size: 10px
+        }
+
+        .assert-tbl td {
+            padding: 7px 12px;
+            vertical-align: middle
+        }
+
+        .reason {
+            font-size: 11px
+        }
+
+        /* tags */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            padding: 2px 7px;
+            font-weight: 600;
+            line-height: 1.6
+        }
+
+        /* chevron */
+        .chev {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-style: normal
+        }
+
+        .chev .chev-r {
+            display: block
+        }
+
+        .chev .chev-d {
+            display: none
+        }
+
+        .chev.open .chev-r {
+            display: none
+        }
+
+        .chev.open .chev-d {
+            display: block
+        }
+
+        .mono {
+            font-family: 'Consolas', monospace
+        }
+
+        .no-data {
+            font-style: italic;
+            padding: 16px;
+            text-align: center
+        }
+
+        /* cards */
+        .cards-5 {
+            grid-template-columns: repeat(5, 1fr)
+        }
+
+        .cards-6 {
+            grid-template-columns: repeat(6, 1fr)
+        }
+
+        .cards-req {
+            margin-bottom: 20px
+        }
+
+        /* tree */
+        .p-toggle-spacer {
+            visibility: hidden;
+            display: inline-flex;
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0
+        }
+
+        .tree-stage {
+            margin-bottom: 16px
+        }
+
+        .tree-stage-hdr {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 4px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer
+        }
+
+        .tree-job {
+            margin-left: 18px;
+            margin-bottom: 8px
+        }
+
+        .tree-job-hdr {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer
+        }
+
+        .meta-text {
+            font-weight: 400;
+            font-size: 11px
+        }
+
+        /* svg */
+        .svg-block {
+            display: block
+        }
+
+        /* table */
+        .td-center {
+            text-align: center
+        }
+
+        /* sections */
+        .section-mt {
+            margin-top: 14px
+        }
+
+        .section-mt-lg {
+            margin-top: 20px
+        }
+
+        /* error state */
+        .error-body {
+            padding: 32px;
+            text-align: center
+        }
+
+        .error-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px
+        }
+
+        .error-desc {
+            font-size: 12px
+        }
+
+        .code-tag {
+            padding: 1px 5px
+        }
+
+        /* session view */
+        .session-title-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px
+        }
+
+        .session-label {
+            font-weight: 700;
+            font-size: 14px
+        }
+
+        .session-id {
+            font-size: 12px
+        }
+
+        .assert-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            margin-left: 4px
+        }
+
+        .session-divider {
+            margin: 28px 0
+        }
+
+        .exc-stack {
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            white-space: pre-wrap;
+            margin: 0;
+            padding: 8px 12px
+        }
+
+        .exc-stack-toggle {
+            cursor: pointer;
+            width: 1px;
+            white-space: nowrap
+        }
+
+        .p-hot {
+            color: var(--vscode-editorWarning-foreground);
+            font-weight: 700
+        }
+
+        .es-label {
+            margin-bottom: 6px
+        }
+
+        .es-sep {
+            margin-top: 14px
+        }
+
+        .tree-filter {
+            margin-left: auto;
+            font-family: inherit;
+            font-size: 11px;
+            padding: 2px 6px;
+            width: 140px;
+            background: transparent;
+            color: inherit;
+            outline: none
+        }
+

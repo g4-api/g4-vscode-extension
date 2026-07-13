@@ -84,7 +84,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
             <style>
                 body {
                     margin: 0;
-                    padding: 16px;
+                    padding: 10px;
                     background: var(--vscode-sideBar-background);
                     color: var(--vscode-foreground);
                     font-family: var(--vscode-font-family);
@@ -141,7 +141,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
             </style>
             <title>G4 Engine Client</title>
         </head>
-        <body style="padding:10px;">
+        <body>
             <div class="description">
                 <strong>G4 Engine API Workflow Editor</strong><br/>
                 Visualize, build, test and run your automation workflows through a graphical interface.

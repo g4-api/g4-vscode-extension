@@ -852,22 +852,13 @@ export class Utilities {
     }
 
     /**
-     * Loads and parses the base project manifest file.
+     * Loads the base project manifest from the in-code global defaults.
      *
-     * @returns The parsed JSON object from `base-manifest.json`, or throws if the file content is invalid JSON.
+     * @returns The base manifest object used when no workspace manifest exists.
      */
     private static newProjectManifest(): any {
-        // Read the raw JSON string from the resources directory
-        const manifest = this.resolveResource('base-manifest.json');
-
-        // If the manifest is empty, return base manifest
-        if (!manifest) {
-            return Global.BASE_MANIFEST;
-        }
-
-        // Parse the JSON string into an object and return
-        // An error will be thrown here if the JSON is malformed
-        return JSON.parse(manifest);
+        // Return a clone so callers cannot mutate the shared global constant.
+        return JSON.parse(JSON.stringify(Global.BASE_MANIFEST));
     }
 
     /**
@@ -882,8 +873,8 @@ export class Utilities {
             // Determine the project root by moving two levels up from this file’s directory
             const directoryPath = path.resolve(__dirname, '..');
 
-            // Build the absolute path to the resource file under the `resources` folder
-            const filePath = path.join(directoryPath, 'resources', resourceName);
+            // Resolve namespaced resources first, with legacy flat resources as a fallback.
+            const filePath = this.resolveResourcePath(directoryPath, resourceName);
 
             // Synchronously read the file as UTF‑8 text and return its contents
             return fs.readFileSync(filePath, 'utf8');
@@ -894,5 +885,32 @@ export class Utilities {
 
         // Return an empty string when the resource cannot be resolved
         return '';
+    }
+
+    /**
+     * Resolves a resource path from the extension root.
+     *
+     * @param extensionPath - The extension root path.
+     * @param resourceName - A namespaced resource path or legacy flat resource name.
+     *
+     * @returns The first existing candidate path, or the namespaced candidate for error reporting.
+     */
+    private static resolveResourcePath(extensionPath: string, resourceName: string): string {
+        // Normalize separators so callers can pass web-style resource paths.
+        const normalizedResourceName = resourceName.replace(/[\\/]+/g, path.sep);
+
+        // Prefer the new shallow namespaced resource folders, then support old flat resources.
+        const candidatePaths = [
+            path.join(extensionPath, normalizedResourceName),
+            path.join(extensionPath, 'resources', normalizedResourceName)
+        ];
+
+        for (const candidatePath of candidatePaths) {
+            if (fs.existsSync(candidatePath)) {
+                return candidatePath;
+            }
+        }
+
+        return candidatePaths[0];
     }
 }

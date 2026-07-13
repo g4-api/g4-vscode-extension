@@ -1,0 +1,135 @@
+﻿body {
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground)
+        }
+
+        .header {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .card {
+            background-color: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .card-label {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .section {
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr {
+            background-color: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr:has(.chev:not(.open)) {
+            border-bottom: none
+        }
+
+        .si-label {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .plugin-row:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .p-arg {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .p-elem {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .p-dur {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .p-badge {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .p-bar-wrap {
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .p-runtime {
+            background-color: transparent;
+            color: var(--vscode-progressBar-background)
+        }
+
+        .p-runtime::-webkit-progress-bar {
+            background-color: transparent
+        }
+
+        .p-runtime::-webkit-progress-value {
+            background-color: var(--vscode-progressBar-background)
+        }
+
+        .p-runtime::-moz-progress-bar {
+            background-color: var(--vscode-progressBar-background)
+        }
+
+        .p-dot {
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .tag-pass {
+            border: 1px solid var(--vscode-testing-iconPassed)
+        }
+
+        .tag-fail {
+            border: 1px solid var(--vscode-testing-iconFailed)
+        }
+
+        .tag-neutral {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .assert-tbl th {
+            background-color: var(--vscode-sideBar-background);
+            color: var(--vscode-descriptionForeground);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .assert-tbl td {
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .assert-tbl tr:last-child td {
+            border-bottom: none
+        }
+
+        .assert-tbl tr:hover td {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .no-data {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .error-body {
+            border: 1px solid
+        }
+
+        .session-divider {
+            border-top: 1px solid
+        }
+
+        .tree-filter {
+            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
+        }
+
+        .tree-filter:focus {
+            border-color: var(--vscode-focusBorder)
+        }
+

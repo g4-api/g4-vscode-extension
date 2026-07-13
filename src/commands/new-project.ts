@@ -298,7 +298,7 @@ export class NewProjectCommand extends CommandBase {
         this.writeFile({
             directoryPath: baseBotsPath,
             fileName: 'uia-automation-base.json',
-            content: Utilities.getResource('uia-automation-base.json'),
+            content: Utilities.getResource('resources.base/uia-automation-base.json'),
             logger: logger
         });
     }
@@ -316,7 +316,7 @@ export class NewProjectCommand extends CommandBase {
      */
     private static newChromeBaseContent(sandboxPath?: string): string {
         // Load the chrome base file from extension resources.
-        const raw = Utilities.getResource('chrome-automation-base.json');
+        const raw = Utilities.getResource('resources.base/chrome-automation-base.json');
 
         // No sandbox selected: keep the default paths.
         if (!sandboxPath) {
@@ -405,7 +405,7 @@ export class NewProjectCommand extends CommandBase {
         const documentsContent = [
             {
                 // Load the bundled G4 manifest configuration guide from extension resources.
-                content: Utilities.getResource('g4-manifest-configuration-guide.md'),
+                content: Utilities.getResource('resources.docs/g4-manifest-configuration-guide.md'),
 
                 // Keep the original markdown file name when writing it to the project.
                 fileName: 'G4 Manifest Configuration Guide.md',
@@ -436,7 +436,7 @@ export class NewProjectCommand extends CommandBase {
      */
     private static newSampleBot(userPath: any, logger: Logger, isTestProject: boolean = false): void {
         // Load the default demo bot content from extension resources
-        const contentBasic = Utilities.getResource('demo-bot.json');
+        const contentBasic = Utilities.getResource('resources.examples/demo-bot.json');
 
         // Determine the target examples path:
         // - If this is a test project, use "<root>/src/tests/examples"

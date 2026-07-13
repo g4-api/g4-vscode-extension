@@ -1,729 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G4™ Settings</title>
-    <!-- layout -->
-    <style>
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0
-        }
-
-        @font-face {
-            font-family: 'Inter';
-            src: url('{{$ fonts.uri }}') format('truetype');
-            font-weight: 100 900;
-            font-style: normal;
-            font-display: swap
-        }
-
-        html {
-            height: 100%
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            line-height: 1.5;
-            height: 100%;
-            display: flex;
-            flex-direction: column
-        }
-
-        .header {
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            gap: 14px
-        }
-
-        #app {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            scrollbar-gutter: stable
-        }
-
-        .header-title {
-            font-size: 16px;
-            font-weight: 700
-        }
-
-        .header-meta {
-            font-size: 11px;
-            margin-top: 1px
-        }
-
-        .header-right {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
-
-        .main {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px
-        }
-
-        /* sections */
-        .section {
-            overflow: hidden
-        }
-
-        .section-hdr {
-            padding: 10px 16px;
-            font-weight: 600;
-            font-size: 12px;
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
-
-        .section-body {
-            padding: 16px
-        }
-
-        .section-desc {
-            font-size: 11px;
-            margin-bottom: 14px
-        }
-
-        .meta-text {
-            font-weight: 400;
-            font-size: 11px
-        }
-
-        /* fields */
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            margin-bottom: 16px
-        }
-
-        .field:last-child {
-            margin-bottom: 0
-        }
-
-        .field-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 16px;
-            /* Align each field's bottom edge so the inputs line up across the
-               row even when one field has an extra line of label/hint text. */
-            align-items: end
-        }
-
-        .field-row:last-child {
-            margin-bottom: 0
-        }
-
-        .field-row .field {
-            margin-bottom: 0
-        }
-
-        .connection-row {
-            grid-template-columns: minmax(150px, .8fr) minmax(260px, 1.4fr) minmax(88px, 116px) auto
-        }
-
-        .connection-action {
-            align-self: end
-        }
-
-        .connection-action .btn {
-            height: 30px;
-            white-space: nowrap
-        }
-
-        .section-status {
-            min-height: 18px;
-            margin-top: 12px
-        }
-
-        .field-label {
-            font-size: 12px;
-            font-weight: 600
-        }
-
-        .field-hint {
-            font-size: 11px
-        }
-
-        .field-error {
-            font-size: 11px;
-            min-height: 14px
-        }
-
-        .field-suffix {
-            font-size: 11px;
-            margin-left: 6px
-        }
-
-        input[type="text"],
-        input[type="password"],
-        input[type="number"],
-        select,
-        textarea {
-            font-family: inherit;
-            font-size: 12px;
-            padding: 6px 8px;
-            width: 100%;
-            background: transparent;
-            color: inherit;
-            outline: none
-        }
-
-        /* Single-line controls share one height so text inputs and selects line
-           up exactly (a native select has a taller intrinsic box than an input,
-           so equal padding alone isn't enough). Textarea keeps its own height. */
-        input[type="text"],
-        input[type="password"],
-        input[type="number"],
-        select {
-            height: 30px
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 60px;
-            font-family: 'Consolas', monospace
-        }
-
-        /* The native number spinners can't be themed (they render as a light
-           Chromium control that clashes with the editor theme), so hide them.
-           Typing and the keyboard up/down arrows still adjust the value. */
-        input[type="number"] {
-            appearance: textfield;
-            -moz-appearance: textfield
-        }
-
-        input[type="number"]::-webkit-inner-spin-button,
-        input[type="number"]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0
-        }
-
-        /* themed number steppers */
-        .num-wrap {
-            position: relative;
-            display: flex
-        }
-
-        .num-wrap input {
-            flex: 1;
-            padding-right: 24px
-        }
-
-        .num-steppers {
-            position: absolute;
-            top: 1px;
-            right: 1px;
-            bottom: 1px;
-            width: 20px;
-            display: flex;
-            flex-direction: column
-        }
-
-        .num-step {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            border: none;
-            cursor: pointer
-        }
-
-        .num-step svg {
-            width: 9px;
-            height: 9px;
-            display: block
-        }
-
-        input:focus,
-        select:focus,
-        textarea:focus {
-            border-color: var(--vscode-focusBorder)
-        }
-
-        select option {
-            background: var(--vscode-dropdown-background, var(--vscode-editor-background));
-            color: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground))
-        }
-
-        .input-wrap {
-            display: flex;
-            align-items: stretch;
-            gap: 6px
-        }
-
-        .input-wrap input,
-        .input-wrap select {
-            flex: 1
-        }
-
-        .icon-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 8px;
-            flex-shrink: 0
-        }
-
-        .icon-btn svg {
-            width: 14px;
-            height: 14px;
-            display: block
-        }
-
-        /* Button that swaps its label for a centered spinner while busy, without
-           changing size (the hidden label still reserves the width). */
-        .spin-btn {
-            position: relative
-        }
-
-        .spin-btn .btn-spinner {
-            position: absolute;
-            inset: 0;
-            display: none;
-            align-items: center;
-            justify-content: center
-        }
-
-        .spin-btn .btn-spinner svg {
-            width: 13px;
-            height: 13px;
-            display: block
-        }
-
-        .spin-btn.is-busy .btn-label {
-            visibility: hidden
-        }
-
-        .spin-btn.is-busy .btn-spinner {
-            display: flex
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg)
-            }
-        }
-
-        .is-busy svg {
-            animation: spin .8s linear infinite
-        }
-
-        /* toggle switch */
-        .toggle {
-            display: inline-flex;
-            align-self: flex-start;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            user-select: none
-        }
-
-        .toggle input {
-            position: absolute;
-            opacity: 0;
-            width: 0;
-            height: 0
-        }
-
-        .switch {
-            position: relative;
-            width: 34px;
-            height: 18px;
-            border-radius: 9px;
-            flex-shrink: 0;
-            transition: background-color .15s
-        }
-
-        .switch::after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            transition: transform .15s
-        }
-
-        .toggle input:checked+.switch::after {
-            transform: translateX(16px)
-        }
-
-        .toggle-text {
-            display: flex;
-            flex-direction: column;
-            gap: 2px
-        }
-
-        .toggle-label {
-            font-size: 12px;
-            font-weight: 600
-        }
-
-        .toggle-hint {
-            font-size: 11px
-        }
-
-        /* buttons */
-        .btn {
-            font-family: inherit;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 6px 14px;
-            cursor: pointer;
-            border: none;
-            border-radius: 2px
-        }
-
-        .btn-ghost {
-            background: transparent;
-            font-weight: 500
-        }
-
-        .btn-sm {
-            font-size: 11px;
-            padding: 3px 9px
-        }
-
-        .btn:disabled {
-            opacity: .6;
-            cursor: default
-        }
-
-        /* action bar */
-        .actionbar {
-            position: sticky;
-            bottom: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 24px;
-            z-index: 5
-        }
-
-        .actionbar .spacer {
-            flex: 1
-        }
-
-        .save-note {
-            font-size: 11px;
-            opacity: 0;
-            transition: opacity .2s
-        }
-
-        .save-note.show {
-            opacity: 1
-        }
-
-        /* repeatable cards */
-        .card-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px
-        }
-
-        .item-card {
-            padding: 14px
-        }
-
-        .item-card-hdr {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px
-        }
-
-        .item-card-title {
-            font-weight: 600;
-            font-size: 12px
-        }
-
-        .item-card-hdr .spacer {
-            flex: 1
-        }
-
-        .add-row {
-            margin-top: 12px
-        }
-
-        /* key/value rows (e.g. HTTP headers) */
-        .kv-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px
-        }
-
-        .kv-row {
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
-
-        .kv-row .kv-key {
-            flex: 0 0 38%
-        }
-
-        .kv-row .kv-val {
-            flex: 1
-        }
-
-        .kv-row .btn {
-            flex-shrink: 0
-        }
-
-        .required-mark {
-            font-weight: 700
-        }
-
-        .subhdr {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            margin: 14px 0 8px
-        }
-
-        .note {
-            font-size: 11px;
-            padding: 8px 12px;
-            margin-top: 4px
-        }
-
-        .mono {
-            font-family: 'Consolas', monospace
-        }
-
-        /* json editor */
-        .json-wrap {
-            position: relative
-        }
-
-        .json-format-btn {
-            position: absolute;
-            top: 6px;
-            right: 6px;
-            opacity: 0;
-            transition: opacity .15s
-        }
-
-        .json-wrap:hover .json-format-btn,
-        .json-wrap:focus-within .json-format-btn {
-            opacity: 1
-        }
-
-        /* chevron */
-        .chev {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-style: normal
-        }
-
-        .chev .chev-r {
-            display: block
-        }
-
-        .chev .chev-d {
-            display: none
-        }
-
-        .chev.open .chev-r {
-            display: none
-        }
-
-        .chev.open .chev-d {
-            display: block
-        }
-
-        .read-only-tag {
-            font-size: 9px;
-            padding: 1px 6px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em
-        }
-    </style>
-
-    <!-- colors -->
-    <style>
-        body {
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground)
-        }
-
-        .header {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .header-meta {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .section {
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .section-hdr {
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .section-hdr:has(.chev:not(.open)) {
-            border-bottom: none
-        }
-
-        .section-desc,
-        .field-hint,
-        .field-suffix,
-        .toggle-hint,
-        .meta-text,
-        .save-note {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .field-error,
-        .required-mark,
-        .status-err {
-            color: var(--vscode-errorForeground)
-        }
-
-        .status-ok {
-            color: var(--vscode-testing-iconPassed, #22c55e)
-        }
-
-        input[type="text"],
-        input[type="password"],
-        input[type="number"],
-        select,
-        textarea {
-            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-            background-color: var(--vscode-input-background, transparent)
-        }
-
-        .num-steppers {
-            border-left: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
-
-        .num-step {
-            background-color: var(--vscode-input-background, transparent);
-            color: var(--vscode-foreground)
-        }
-
-        .num-step:first-child {
-            border-bottom: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
-
-        .num-step:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .num-step svg path {
-            fill: currentColor
-        }
-
-        .switch {
-            background-color: var(--vscode-panel-border)
-        }
-
-        .switch::after {
-            background-color: var(--vscode-editor-background)
-        }
-
-        .toggle input:checked+.switch {
-            background-color: var(--vscode-testing-iconPassed, #22c55e)
-        }
-
-        .btn {
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground)
-        }
-
-        .btn:hover {
-            background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
-        }
-
-        .btn-ghost {
-            color: var(--vscode-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .btn-ghost:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .json-format-btn {
-            background-color: var(--vscode-input-background, var(--vscode-editor-background))
-        }
-
-        .json-format-btn:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .actionbar {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-top: 1px solid var(--vscode-panel-border)
-        }
-
-        .item-card {
-            border: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-sideBar-background)
-        }
-
-        .note {
-            border: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-sideBar-background);
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .read-only-tag {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        a {
-            color: var(--vscode-textLink-foreground);
-            text-decoration: none
-        }
-
-        a:hover {
-            color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
-            text-decoration: underline
-        }
-    </style>
-</head>
-
-<body>
-    <div id="g4-header"></div>
-    <div id="app"></div>
-    <div id="g4-actionbar"></div>
-    <textarea id="g4-data" style="display:none; position:absolute; left:-9999px">
-        {{$ settings.data }}
-    </textarea>
-
-    <script id="src-constants">
-        // Collapse/expand chevron used by every settings section header.
+﻿// Collapse/expand chevron used by every settings section header.
         const SVG_CHEVRON = `
         <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
             <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
@@ -812,10 +87,8 @@
                 statusClassName: ''
             }
         };
-    </script>
 
-    <script id="src-defaults">
-        /**
+/**
          * Built-in starting values for the settings form.
          *
          * These mirror the shipped `manifest.json` exactly, including value types
@@ -945,10 +218,8 @@
                 }
             }
         };
-    </script>
 
-    <script id="src-utilities">
-        /**
+/**
          * Escapes a value so it can be safely rendered as HTML text or inside
          * double-quoted HTML attributes.
          *
@@ -1175,10 +446,10 @@
             }
 
             // The element should be hidden when it is currently visible.
-            const isHide = element.style.display !== 'none';
+            const isHide = !element.classList.contains('is-collapsed');
 
             // Apply the new visibility state.
-            element.style.display = isHide ? 'none' : '';
+            element.classList.toggle('is-collapsed', isHide);
 
             // If no icon exists, only the element visibility is toggled.
             if (!icon) {
@@ -1207,10 +478,8 @@
                 errEl.textContent = message;
             }
         }
-    </script>
 
-    <script id="src-state">
-        // The VS Code webview bridge. Acquired once; guarded so the page also
+// The VS Code webview bridge. Acquired once; guarded so the page also
         // renders correctly when opened outside the extension host.
         globalThis.VSCODE = (typeof acquireVsCodeApi === 'function')
             ? acquireVsCodeApi()
@@ -1248,10 +517,8 @@
         // so the webview can read it directly.
         globalThis.DEV_LICENSE_URL =
             'https://raw.githubusercontent.com/g4-api/g4-services/main/README.md';
-    </script>
 
-    <script id="src-engine">
-        /**
+/**
          * Builds the configured engine's Capabilities page URL from the current
          * Connection settings, with sensible fallbacks for any blank part.
          *
@@ -1339,7 +606,7 @@
             let statusClassName = 'status-err';
 
             // Spin the clicked button while the request is in flight. No manual
-            // cleanup needed — the section re-render below rebuilds the button.
+            // cleanup needed â€” the section re-render below rebuilds the button.
             if (button) {
                 button.disabled = true;
                 button.classList.add('is-busy');
@@ -1625,10 +892,8 @@
 
         // Listen for host responses to sandbox browse/auto-detect requests.
         window.addEventListener('message', onHostMessage);
-    </script>
 
-    <script id="src-controls">
-        /**
+/**
          * Resolves status metadata for a section id.
          *
          * @remarks
@@ -1746,7 +1011,7 @@
                     <i class="chev ${open ? 'open' : ''}" id="seci-${id}">${SVG_CHEVRON}</i>
                     ${clearString(title)}
                 </div>
-                <div class="section-body" id="sec-${id}" ${open ? '' : 'style="display:none"'}>
+                <div class="section-body${open ? '' : ' is-collapsed'}" id="sec-${id}">
                     ${descHtml}${body}${statusHtml}
                 </div>
             </div>`;
@@ -2086,7 +1351,7 @@
                 <label class="field-label">${clearString(label)}</label>
                 ${hintHtml}
                 <div class="json-wrap">
-                    <textarea id="${taId}" class="mono" style="min-height:${rows * 18}px"
+                    <textarea id="${taId}" class="mono settings-json-textarea" rows="${rows}"
                         oninput="setJsonValue('${path}', this.value, '${errId}')">${clearString(text)}</textarea>
                     <button type="button" class="btn btn-ghost btn-sm json-format-btn"
                         title="Check &amp; Format JSON" onclick="formatJson('${taId}', '${path}', '${errId}')">Format</button>
@@ -2096,7 +1361,7 @@
         }
 
         /**
-         * Renders an editor for a string→string map (e.g. HTTP headers) as a list
+         * Renders an editor for a stringâ†’string map (e.g. HTTP headers) as a list
          * of key/value rows with add and remove controls.
          *
          * Behavior:
@@ -2214,10 +1479,10 @@
             const url = getCapabilitiesUrl();
 
             // Render the hint with an external link routed through the host bridge.
-            return `<div class="field-hint" style="margin-bottom:12px">
+            return `<div class="field-hint settings-hint-block--compact">
                 Browse the full G4 catalog on the
                 <a href="${clearString(url)}" onclick="return openExternal(this.href)" target="_blank" rel="noopener noreferrer">Capabilities page</a>
-                — search plugins, read each plugin's manifest and documentation, and add external or MCP sources.
+                â€” search plugins, read each plugin's manifest and documentation, and add external or MCP sources.
             </div>`;
         }
 
@@ -2268,14 +1533,12 @@
             ${writeJson({
                 path: `${base}.capabilities.alwaysMatch`,
                 label: 'Capabilities (alwaysMatch)',
-                hint: 'Advanced. WebDriver capabilities applied to every session — set the browser binary, launch args, etc.',
+                hint: 'Advanced. WebDriver capabilities applied to every session â€” set the browser binary, launch args, etc.',
                 rows: 10
             })}`;
         }
-    </script>
 
-    <script id="src-sections">
-        /**
+/**
          * Builds the "Connection" section: where the G4 engine lives.
          *
          * @returns {string} HTML markup for the section.
@@ -2332,25 +1595,25 @@
         function writeLicenseSection() {
             // Build the license guidance, auto-fetch button, and token field.
             const body = `
-            <p class="field-hint" style="margin-bottom:10px">
+            <p class="field-hint settings-hint-block">
                 Need a token? Get a free, full-featured license for personal use at
                 <a href="https://github.com/g4-api/g4-services#development-license" target="_blank" rel="noopener noreferrer">g4-api/g4-services</a>.
-                It renews periodically — when it expires, just request a new one and paste it here.
+                It renews periodically â€” when it expires, just request a new one and paste it here.
                 If the personal license doesn't work,
                 <a href="https://github.com/g4-api/g4-services/issues" target="_blank" rel="noopener noreferrer">open an issue</a>
                 and we'll help you out.
             </p>
-            <div class="add-row" style="margin-top:0;margin-bottom:4px">
+            <div class="add-row settings-add-row--license">
                 <button type="button" class="btn btn-ghost btn-sm" id="fetch-token-btn"
                     onclick="getDevelopmentLicense()">Fetch Free Token Automatically</button>
             </div>
-            <div class="field-hint" style="margin-bottom:16px">
-                Downloads the latest free token from GitHub and fills it in below — no copy/paste needed (requires internet access).
+            <div class="field-hint settings-hint-block--loose">
+                Downloads the latest free token from GitHub and fills it in below â€” no copy/paste needed (requires internet access).
             </div>
             ${writeSecret({
                 path: 'authentication.token',
                 label: 'License Token',
-                hint: 'Your private key for the engine. Treat it like a password — never share or post it.'
+                hint: 'Your private key for the engine. Treat it like a password â€” never share or post it.'
             })}
             <div class="note">Tip: keep this on one line, with no spaces or line breaks. If you start seeing "unauthorized" errors, your token may have expired.</div>`;
 
@@ -2411,7 +1674,7 @@
                 label: 'Parallel Workflows',
                 type: 'number',
                 min: 1,
-                hint: 'How many workflows run at once. Every flow is isolated in its own sandbox, so raising this is safe — and recommended for data-driven runs. 1 = one at a time (minimum).'
+                hint: 'How many workflows run at once. Every flow is isolated in its own sandbox, so raising this is safe â€” and recommended for data-driven runs. 1 = one at a time (minimum).'
             })}
             </div>
             ${writeToggle({
@@ -2543,7 +1806,7 @@
             ${writeToggle({
                 path: 'settings.exceptionsSettings.returnExceptions',
                 label: 'Include Error Details',
-                hint: 'Error type, message, and stack trace — useful for debugging.'
+                hint: 'Error type, message, and stack trace â€” useful for debugging.'
             })}
             ${writeToggle({
                 path: 'settings.performancePointsSettings.returnPerformancePoints',
@@ -2571,7 +1834,7 @@
             ${writeToggle({
                 path: 'settings.screenshotsSettings.returnScreenshots',
                 label: 'Capture Screenshots',
-                hint: 'Off means no screenshots — the smallest, fastest runs.'
+                hint: 'Off means no screenshots â€” the smallest, fastest runs.'
             })}
             ${writeToggle({
                 path: 'settings.screenshotsSettings.onExceptionOnly',
@@ -2634,7 +1897,7 @@
                 label: 'URL',
                 required: true,
                 validate: 'url',
-                placeholder: 'https://…',
+                placeholder: 'https://â€¦',
                 hint: 'The repository endpoint G4 loads plugins from.'
             })}
                 <div class="field-row">
@@ -2706,7 +1969,7 @@
             })}
             ${writeCapabilitiesNote()}
             <div class="subhdr">External Plugin Repositories</div>
-            <div class="field-hint" style="margin-bottom:10px">Load extra plugins from remote repositories at startup. Leave empty to use built-in plugins only.</div>
+            <div class="field-hint settings-hint-block">Load extra plugins from remote repositories at startup. Leave empty to use built-in plugins only.</div>
             <div class="card-list">${cards}</div>
             <div class="add-row">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="addRepository()">+ Add Repository</button>
@@ -2881,7 +2144,7 @@
                 path: `${base}.url`,
                 label: 'URL',
                 validate: 'url',
-                placeholder: 'https://…',
+                placeholder: 'https://â€¦',
                 hint: 'The remote MCP server endpoint.'
             })}`;
 
@@ -2967,7 +2230,7 @@
             // Build the capabilities note, server list, and add button.
             const body = `
             ${writeCapabilitiesNote()}
-            <div class="field-hint" style="margin-bottom:10px">Connect external MCP servers — their tools appear in the G4 plugin catalog.</div>
+            <div class="field-hint settings-hint-block">Connect external MCP servers â€” their tools appear in the G4 plugin catalog.</div>
             <div class="card-list">${cards}</div>
             <div class="add-row">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="addServer()">+ Add MCP Server</button>
@@ -2981,10 +2244,8 @@
                 body
             });
         }
-    </script>
 
-    <script id="src-handlers">
-        /**
+/**
          * Handles a single value change from a bound control.
          *
          * Behavior:
@@ -3184,7 +2445,7 @@
             const errEl = errId ? document.getElementById(errId) : null;
             const text = String(rawValue ?? '').trim();
 
-            // An empty box means "no value here" — store an empty object.
+            // An empty box means "no value here" â€” store an empty object.
             if (!text) {
                 setPath(globalThis.STATE, path, {});
                 setError(errEl, '');
@@ -3203,7 +2464,7 @@
 
                 setError(
                     errEl,
-                    `Invalid JSON — ${message}. Fix the highlighted text; this change won't be saved until it parses.`
+                    `Invalid JSON â€” ${message}. Fix the highlighted text; this change won't be saved until it parses.`
                 );
             }
         }
@@ -3231,7 +2492,7 @@
             // Read the trimmed text.
             const text = String(textarea.value ?? '').trim();
 
-            // An empty box means "no value here" — store an empty object.
+            // An empty box means "no value here" â€” store an empty object.
             if (!text) {
                 setPath(globalThis.STATE, path, {});
                 setError(errEl, '');
@@ -3252,7 +2513,7 @@
 
                 setError(
                     errEl,
-                    `Invalid JSON — ${message}. Fix the highlighted text before formatting.`
+                    `Invalid JSON â€” ${message}. Fix the highlighted text before formatting.`
                 );
             }
         }
@@ -3400,7 +2661,7 @@
         }
 
         /**
-         * Adds an empty entry to the string→string map at `path`, with a unique
+         * Adds an empty entry to the stringâ†’string map at `path`, with a unique
          * placeholder key.
          *
          * Behavior:
@@ -3512,7 +2773,7 @@
                 return 'basic';
             }
 
-            // Nothing recognizable — treat as none.
+            // Nothing recognizable â€” treat as none.
             return 'none';
         }
 
@@ -3666,10 +2927,8 @@
             // Return the cleaned manifest.
             return manifest;
         }
-    </script>
 
-    <script id="src-app">
-        // Maps each section id to the function that builds its full markup, so a
+// Maps each section id to the function that builds its full markup, so a
         // single section can be re-rendered in place without rebuilding the page.
         globalThis.SECTION_BUILDERS = {
             connection: writeConnectionSection,
@@ -3686,9 +2945,9 @@
         };
 
         /**
-         * Re-renders a single section's body in place. Every other section — and
+         * Re-renders a single section's body in place. Every other section â€” and
          * this section's own collapsed/expanded state and the page scroll
-         * position — is left untouched, because only the inner content of the
+         * position â€” is left untouched, because only the inner content of the
          * live body element is swapped (its display style, which encodes
          * collapse, never changes).
          *
@@ -3837,7 +3096,7 @@
             document.getElementById('app').innerHTML = `
             <div class="main">
                 ${sections}
-                <div style="height:8px"></div>
+                <div class="settings-page-spacer"></div>
             </div>`;
 
             // Render the sticky action bar with Save / Reset controls.
@@ -3855,7 +3114,4 @@
 
         // Populate the Driver dropdowns from the engine (best effort).
         updateDrivers();
-    </script>
-</body>
 
-</html>
