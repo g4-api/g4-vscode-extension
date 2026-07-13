@@ -187,7 +187,7 @@
          */
         function formatBytes(bytes) {
             // No byte value was provided.
-            if (bytes == null) {
+            if (bytes === null) {
                 return 'â€”';
             }
 
@@ -215,7 +215,7 @@
          */
         function formatDuration(ticks) {
             // No duration value was provided.
-            if (ticks == null) {
+            if (ticks === null) {
                 return 'â€”';
             }
 
@@ -1019,15 +1019,15 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             ];
 
             // Renders all jobs for a given stage, including their nested rules.
-            const writeJobsHtml = (jobs) => {
-                return jobs.map(job => {
+            const writeJobsHtml = (jobs, stageIndex) => {
+                return jobs.map((job, jobIndex) => {
                     // Resolve rules/actions for the current job.
                     const rules = job.rules || [];
 
                     // Resolve a stable job id when available.
                     // Generate a fallback id when the request does not include one.
                     const jid = job.reference?.id ||
-                        ('j' + Math.random().toString(36).slice(2));
+                        `j-${stageIndex}-${jobIndex}`;
 
                     // Resolve the job display name.
                     const jname = job.reference?.name || 'Job';
@@ -1042,18 +1042,18 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                             </div>
                             <div id="rj-${clearString(jid)}">${rules.map(r => writeRequestRule(r)).join('')}</div>
                         </div>`;
-                }).join('')
+                }).join('');
             };
 
             // Render all stages and their nested jobs/rules.
-            const stagesHtml = stages.map(stage => {
+            const stagesHtml = stages.map((stage, stageIndex) => {
                 // Resolve jobs for the current stage.
                 const jobs = stage.jobs || [];
 
                 // Resolve a stable stage id when available.
                 // Generate a fallback id when the request does not include one.
                 const sid = stage.reference?.id ||
-                    ('s' + Math.random().toString(36).slice(2));
+                    `s-${stageIndex}`;
 
                 // Resolve the stage display name.
                 const sname = stage.reference?.name || 'Stage';
@@ -1067,7 +1067,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                         <span class="meta-text">${jobs.length} job${jobs.length > 1 ? 's' : ''}</span>
                     </div>
                     <div id="rs-${clearString(sid)}">
-                        ${writeJobsHtml(jobs)}
+                        ${writeJobsHtml(jobs, stageIndex)}
                     </div>
                 </div>`;
             }).join('');
@@ -1152,7 +1152,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                         ${plugins.map(p => writePlugins(p, 0, jobRunTime, hotSet)).join('')}
                     </div>
                 </div>`;
-            }
+            };
 
             const writeStage = (stage) => {
                 // Resolve the jobs for the current stage.
@@ -1176,7 +1176,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                         ${jobs.map(job => writeJob(job)).join('')}
                     </div>
                 </div>`;
-            }
+            };
 
             // If the report does not contain stages, show an empty-state message.
             if (!stages?.length) {
@@ -1779,7 +1779,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                             <input 
                                 class="tree-filter"
                                 type="text"
-                                placeholder="Filterâ€¦"
+                                placeholder="Filter"
                                 oninput="filterTree('${safeSid}', this.value)"
                                 onclick="event.stopPropagation()" />
                         </div>
