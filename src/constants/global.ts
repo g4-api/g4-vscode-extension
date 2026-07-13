@@ -48,9 +48,10 @@ export class Global {
                 "saveReports": true
             },
             "recorderSettings": {
-                "enabled": false,
+                "enabled": true,
                 "recorders": [
                     {
+                        "enabled": true,
                         "mode": "standard",
                         "schema": "http",
                         "host": "localhost",
@@ -71,12 +72,13 @@ export class Global {
                             ]
                         },
                         "thinkTimeSettings": {
-                            "enabled": false,
+                            "enabled": true,
                             "maxThinkTime": 10000,
                             "minThinkTime": 3000
                         }
                     },
                     {
+                        "enabled": true,
                         "mode": "standard",
                         "schema": "http",
                         "host": "localhost",

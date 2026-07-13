@@ -217,7 +217,7 @@ const registerProviders = (options: {
     hubConnections: Map<string, NotificationService>,
     recorderConnections: Map<string, EventCaptureService>
 }) => {
-    // Register the main G4 webview provider that powers the extension’s UI panel.
+    // Register the main G4 webview provider that powers the extension's UI panel.
     new G4WebviewViewProvider(options.context).register();
 
     // Register the recorder view provider that displays captured UI events

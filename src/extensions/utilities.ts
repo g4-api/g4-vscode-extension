@@ -293,7 +293,7 @@ export class Utilities {
     }
 
     /**
-     * Retrieves a flat, alphabetically sorted list of folders (A–Z) followed by files (A–Z)
+     * Retrieves a flat, alphabetically sorted list of folders (A-Z) followed by files (A-Z)
      * from the specified directory, with optional exclusion and inclusion filters.
      *
      * @param folderPath     - Absolute path of the directory to scan.
@@ -415,7 +415,7 @@ export class Utilities {
             return '';
         }
 
-        // Otherwise, return the document’s text content
+        // Otherwise, return the document's text content
         return editor.document.getText();
     }
 
@@ -424,7 +424,7 @@ export class Utilities {
      *
      * @param resourceName - The filename of the resource to load (e.g., `"config.json"`).
      * 
-     * @returns The file contents as a UTF‑8 string, or an empty string if the resource cannot be read.
+     * @returns The file contents as a UTF-8 string, or an empty string if the resource cannot be read.
      */
     public static getResource(resourceName: string): string {
         // Delegate to the private resolver which handles file lookup and error swallowing
@@ -465,7 +465,7 @@ export class Utilities {
      *          with any leading backslash removed for Windows-style URIs.
      */
     public static getSystemFolderPath(folder: 'bots' | 'configurations' | 'environments' | 'models' | 'templates' | 'resources' | 'tests'): string {
-        // Attempt to get the first workspace folder’s file system path
+        // Attempt to get the first workspace folder's file system path
         let workspace = vscode.workspace.workspaceFolders
             ?.map(f => f.uri.path)[0];
 
@@ -475,7 +475,7 @@ export class Utilities {
         // Construct the target folder path inside the workspace
         const systemFolderPath = path.join(workspace, folder);
 
-        // On Windows, VSCode URI paths may begin with a leading backslash (e.g., "\C:\…")
+        // On Windows, VSCode URI paths may begin with a leading backslash (e.g., "\C:\...")
         // Strip it off to produce a valid file system path
         return systemFolderPath.startsWith('\\')
             ? systemFolderPath.substring(1)
@@ -491,7 +491,7 @@ export class Utilities {
      * @returns The resolved folder path, with any leading backslash removed for Windows paths.
      */
     public static getSystemUtilityFolderPath(folder: 'build' | 'docs' | 'scripts'): string {
-        // Retrieve the first workspace folder’s file system path (if any)
+        // Retrieve the first workspace folder's file system path (if any)
         let workspace = vscode.workspace.workspaceFolders
             ?.map(f => f.uri.path)[0];
 
@@ -502,7 +502,7 @@ export class Utilities {
         // and into the specified utility folder (e.g., "../build")
         const targetPath = path.join(workspace, '..', folder);
 
-        // On Windows, VSCode URIs may start with a leading backslash (e.g., "\C:\…")
+        // On Windows, VSCode URIs may start with a leading backslash (e.g., "\C:\...")
         // Remove it to form a valid file system path
         return targetPath.startsWith('\\')
             ? targetPath.substring(1)
@@ -512,8 +512,8 @@ export class Utilities {
     /**
      * Generates a timestamp string in the format `DD/MM/YY, HH:MM:SS.mmm`.
      *
-     * @returns A formatted timestamp using the 'en-GB' locale with two‑digit date/time components
-     *          and three‑digit milliseconds appended after a dot.
+     * @returns A formatted timestamp using the 'en-GB' locale with two-digit date/time components
+     *          and three-digit milliseconds appended after a dot.
      */
     public static getTimestamp(): string {
         // Create a new Date instance representing the current date and time
@@ -521,13 +521,13 @@ export class Utilities {
 
         // Define formatting options for day, month, year, hour, minute, and second
         const options: Intl.DateTimeFormatOptions = {
-            year: '2-digit',   // two‑digit year (e.g., "25")
-            month: '2-digit',  // two‑digit month (e.g., "07" for July)
-            day: '2-digit',    // two‑digit day of month (e.g., "21")
-            hour: '2-digit',   // two‑digit hour (24‑hour clock)
-            minute: '2-digit', // two‑digit minute
-            second: '2-digit', // two‑digit second
-            hour12: false      // use 24‑hour clock rather than AM/PM
+            year: '2-digit',   // two-digit year (e.g., "25")
+            month: '2-digit',  // two-digit month (e.g., "07" for July)
+            day: '2-digit',    // two-digit day of month (e.g., "21")
+            hour: '2-digit',   // two-digit hour (24-hour clock)
+            minute: '2-digit', // two-digit minute
+            second: '2-digit', // two-digit second
+            hour12: false      // use 24-hour clock rather than AM/PM
         };
 
         // Format date/time according to 'en-GB' locale (produces "DD/MM/YY, HH:MM:SS")
@@ -707,7 +707,7 @@ export class Utilities {
         excludeFolders: string[] = [],
         includeFiles: string[] = []): string[] {
 
-        // Helper: sort an array of names alphabetically (A–Z)
+        // Helper: sort an array of names alphabetically (A-Z)
         const sortByName = (list: string[]) => {
             return list.sort((n1: string, n2: string) => {
                 if (n1 > n2) {
@@ -791,7 +791,7 @@ export class Utilities {
     }
 
     /**
-     * Retrieves the G4 server configuration from the workspace’s project manifest.
+     * Retrieves the G4 server configuration from the workspace's project manifest.
      *
      * @returns The `ServerConfiguration` defined under the `G4Server` key in the manifest,
      *          or `undefined` if no manifest or configuration is present.
@@ -805,7 +805,7 @@ export class Utilities {
     }
 
     /**
-     * Resolves and loads the project’s manifest file from the current workspace.
+     * Resolves and loads the project's manifest file from the current workspace.
      *
      * @param getDefault - If true (default), falls back to the base manifest when no workspace manifest is found or readable.
      *                     If false, returns `undefined` instead of the default manifest.
@@ -813,7 +813,7 @@ export class Utilities {
      * @returns The parsed manifest object, or `undefined` if `getDefault` is false and no valid manifest is found.
      */
     private static resolveProjectManifest(getDefault: boolean = true): any {
-        // Attempt to get the first workspace folder’s file system path
+        // Attempt to get the first workspace folder's file system path
         let workspace = vscode.workspace.workspaceFolders
             ?.map(folder => folder.uri.path)[0];
 
@@ -827,13 +827,13 @@ export class Utilities {
             ? path.join(workspace, 'manifest.json')
             : path.join(workspace, 'src', 'manifest.json');
 
-        // On Windows URIs, remove leading backslash if present (e.g., '\C:\…')
+        // On Windows URIs, remove leading backslash if present (e.g., '\C:\...')
         manifest = manifest.startsWith('\\')
             ? manifest.substring(1)
             : manifest;
 
         try {
-            // Read manifest file synchronously as UTF‑8 text
+            // Read manifest file synchronously as UTF-8 text
             const data = fs.readFileSync(manifest, 'utf8');
 
             // Parse JSON and return the resulting object
@@ -866,17 +866,17 @@ export class Utilities {
      *
      * @param resourceName - The filename of the resource to load (e.g., `"config.json"`).
      * 
-     * @returns The file’s contents as a UTF‑8 string, or an empty string if the file cannot be found or read.
+     * @returns The file's contents as a UTF-8 string, or an empty string if the file cannot be found or read.
      */
     private static resolveResource(resourceName: string): string {
         try {
-            // Determine the project root by moving two levels up from this file’s directory
+            // Determine the project root by moving two levels up from this file's directory
             const directoryPath = path.resolve(__dirname, '..');
 
             // Resolve namespaced resources first, with legacy flat resources as a fallback.
             const filePath = this.resolveResourcePath(directoryPath, resourceName);
 
-            // Synchronously read the file as UTF‑8 text and return its contents
+            // Synchronously read the file as UTF-8 text and return its contents
             return fs.readFileSync(filePath, 'utf8');
         } catch (error: any) {
             // If any error occurs (e.g., file not found, permission denied), log the error message

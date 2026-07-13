@@ -41,7 +41,7 @@ export class StartRecorderCommand extends CommandBase {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
 
-        // Create a dedicated child logger for this command’s messages.
+        // Create a dedicated child logger for this command's messages.
         this._logger = this.logger?.newLogger('G4.StartRecorder');
 
         // Command identifier as used in package.json and when invoking via commands.executeCommand.
@@ -114,7 +114,7 @@ export class StartRecorderCommand extends CommandBase {
                 // Start each connection and collect its Promise; let them run concurrently.
                 starts.push(service.start());
             } catch (error: unknown) {
-                // Ensure we don’t fail the whole loop on one bad endpoint.
+                // Ensure we don't fail the whole loop on one bad endpoint.
                 const message = error instanceof Error ? error.message : String(error);
                 this._logger.error(`Failed to start recorder for endpoint ${endpoint}: ${message}`);
             }

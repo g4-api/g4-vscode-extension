@@ -90,6 +90,9 @@ export class NewProjectCommand extends CommandBase {
         // chrome paths to the selected sandbox when one was provided
         NewProjectCommand.newBaseBots(folderUri, this._logger, sandboxPath);
 
+        // Seed the base.templates folder with a schema-safe generic template manifest.
+        NewProjectCommand.newBaseTemplates(folderUri, this._logger);
+
         // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
         NewProjectCommand.newDocumentation(folderUri);
 
@@ -153,7 +156,7 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Creates the standard project folder structure under the user‑selected path.
+     * Creates the standard project folder structure under the user-selected path.
      *
      * @param userPath - The URI or path selected by the user for the new project.
      */
@@ -166,7 +169,7 @@ export class NewProjectCommand extends CommandBase {
         // - Documentation (docs)
         // - Build outputs (build)
         // - Custom scripts (scripts)
-        // - Source code (src) with organized subfolders for configurations, environments, models, plugins, tests, and resources
+        // - Source code (src) with organized subfolders for environments, templates, bots, and resources
         const folders = [
             path.join(projectPath, 'docs'),
             path.join(projectPath, 'docs', 'examples'),
@@ -176,7 +179,6 @@ export class NewProjectCommand extends CommandBase {
             path.join(projectPath, 'src', '.claude'),
             path.join(projectPath, 'src', '.github'),
             path.join(projectPath, 'src', '.vscode'),
-            path.join(projectPath, 'src', 'configurations'),
             path.join(projectPath, 'src', 'environments'),
             path.join(projectPath, 'src', 'base.bots'),
             path.join(projectPath, 'src', 'base.templates'),
@@ -221,7 +223,7 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Generates a Manifest.json file in the project's src folder based on the extension’s package manifest.
+     * Generates a Manifest.json file in the project's src folder based on the extension's package manifest.
      *
      * @param userPath - The URI or path selected by the user for the new project.
      * @param logger - Optional logger for reporting file-writing errors.
@@ -321,6 +323,25 @@ export class NewProjectCommand extends CommandBase {
             directoryPath: baseBotsPath,
             fileName: 'uia-automation-base.json',
             content: Utilities.getResource('resources.base/uia-automation-base.json'),
+            logger: logger
+        });
+    }
+
+    /**
+     * Seeds the base.templates folder with the generic schema-safe template.
+     *
+     * @param userPath The URI(s) returned from the folder picker (project root).
+     * @param logger Logger for reporting any file-writing errors.
+     */
+    private static newBaseTemplates(userPath: any, logger: Logger): void {
+        // Resolve the target base.templates folder under the project's src directory.
+        const baseTemplatesPath = path.join(this.getPath(userPath), 'src', 'base.templates');
+
+        // Copy the bundled base template so new projects start with a valid template manifest.
+        this.writeFile({
+            directoryPath: baseTemplatesPath,
+            fileName: 'template-base.json',
+            content: Utilities.getResource('resources.base/template-base.json'),
             logger: logger
         });
     }
@@ -458,7 +479,7 @@ export class NewProjectCommand extends CommandBase {
         // Convert the provided URI or object into a file system path string
         let projectPath = this.getPath(userPath);
 
-        // On Windows, if the path starts with a leading slash (e.g. "/C:/…"), strip it off
+        // On Windows, if the path starts with a leading slash (e.g. "/C:/..."), strip it off
         projectPath = os.platform() === 'win32' && projectPath.startsWith('/')
             ? projectPath.substring(1, projectPath.length)
             : projectPath;
@@ -471,7 +492,7 @@ export class NewProjectCommand extends CommandBase {
         // Create a file URI pointing to the "src" directory inside the project
         const uri = vscode.Uri.file(path.join(projectPath, 'src'));
 
-        // Use VS Code’s built-in command to open the folder in the workspace
+        // Use VS Code's built-in command to open the folder in the workspace
         vscode.commands.executeCommand('vscode.openFolder', uri);
     }
 
@@ -503,22 +524,22 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Extracts and normalizes a file-system path from the array returned by VS Code’s open dialog.
+     * Extracts and normalizes a file-system path from the array returned by VS Code's open dialog.
      *
      * @param userPath - The array of URIs selected by the user (from showOpenDialog).
      * 
      * @returns The normalized file system path. On Windows, leading slashes are removed
-     *          and forward‐slashes are converted to backslashes; on other platforms, the
+     *          and forward-slashes are converted to backslashes; on other platforms, the
      *          path is returned unchanged.
      */
     private static getPath(userPath: any): string {
         // start with an empty path in case nothing is selected
         let path = '';
 
-        // if the user selected at least one folder/file, take the first URI’s path
+        // if the user selected at least one folder/file, take the first URI's path
         path = userPath?.[0]?.path ?? '';
 
-        // on Windows, remove a leading slash (e.g. "/C:/…") and convert "/" to "\"
+        // on Windows, remove a leading slash (e.g. "/C:/...") and convert "/" to "\"
         if (os.platform() === 'win32') {
             return path.replaceAll('/', '\\').substring(1, path.length);
         }

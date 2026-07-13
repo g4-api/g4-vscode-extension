@@ -1,4 +1,4 @@
-﻿// Creates a small circular LED/status icon.
+// Creates a small circular LED/status icon.
         const LED = (fill) => `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
             <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
@@ -188,7 +188,7 @@
         function formatBytes(bytes) {
             // No byte value was provided.
             if (bytes === null) {
-                return 'â€”';
+                return '-';
             }
 
             // Display values of 1024 bytes or more as kilobytes.
@@ -216,7 +216,7 @@
         function formatDuration(ticks) {
             // No duration value was provided.
             if (ticks === null) {
-                return 'â€”';
+                return '-';
             }
 
             // Convert .NET ticks into milliseconds.
@@ -251,7 +251,7 @@
         function formatDateTime(iso) {
             // No date/time value was provided.
             if (!iso) {
-                return 'â€”';
+                return '-';
             }
 
             // Convert the ISO string into a Date and format it using the local locale.
@@ -279,7 +279,7 @@
         function formatTime(iso) {
             // No time value was provided.
             if (!iso) {
-                return 'â€”';
+                return '-';
             }
 
             // Convert the ISO string into a Date and format only the time portion.
@@ -461,7 +461,7 @@
 
             // If the string is longer than the allowed length, cut it and append ellipsis.
             return s.length > maxLength
-                ? s.slice(0, maxLength) + 'â€¦'
+                ? s.slice(0, maxLength) + '...'
                 : s;
         }
 
@@ -630,11 +630,11 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             // Build the card model used by the HTML template.
             const items = [
                 { label: 'Total Runtime', value: formatDuration(performancePoint.runTime) },
-                { label: 'Avg. Action Time', value: averageRuntime ? formatDuration(averageRuntime) : 'â€”' },
+                { label: 'Avg. Action Time', value: averageRuntime ? formatDuration(averageRuntime) : '-' },
                 { label: 'Total Actions', value: String(plugins.length) },
                 { label: 'Total Exceptions', value: String(exceptions) },
                 { label: 'Failed Assertions', value: String(fails) },
-                { label: 'Total Timeouts', value: timeouts > 0 ? formatDuration(timeouts) : 'â€”' },
+                { label: 'Total Timeouts', value: timeouts > 0 ? formatDuration(timeouts) : '-' },
             ];
 
             // Render all summary cards as HTML.
@@ -670,12 +670,12 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
 
                 return `
                 <tr>
-                    <td class="mono">${clearString(assert.onElement || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Condition || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Operator || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Expected ?? 'â€”')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? 'â€”'))}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || 'â€”')}</td>
+                    <td class="mono">${clearString(assert.onElement || '-')}</td>
+                    <td class="mono">${clearString(content.Condition || '-')}</td>
+                    <td class="mono">${clearString(content.Operator || '-')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
                 </tr>`;
             }).join('');
 
@@ -683,9 +683,9 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             const exceptionRows = exceptions.map(i => `
                 <tr>
                     <td class="mono">${clearString(i.pluginName || '?')}</td>
-                    <td class="mono">${clearString(i.type || 'â€”')}</td>
-                    <td>${clearString(i.exception?.Message || 'â€”')}</td>
-                    <td class="reason">${clearString(i.reasonPhrase || 'â€”')}</td>
+                    <td class="mono">${clearString(i.type || '-')}</td>
+                    <td>${clearString(i.exception?.Message || '-')}</td>
+                    <td class="reason">${clearString(i.reasonPhrase || '-')}</td>
                 </tr>`).join('');
 
             // Build the failed assertions table.
@@ -801,7 +801,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                 // Render the stack trace toggle cell only when stack trace data exists.
                 const stackToggle = stack
                     ? `<td class="exc-stack-toggle" onclick="toggleElement('${eid}','${eid}-ic')"><i class="chev" id="${eid}-ic">${SVG_CHEVRON}</i></td>`
-                    : '<td>â€”</td>';
+                    : '<td>-</td>';
 
                 // Render the hidden stack trace row.
                 // It is expanded/collapsed by clicking the stack trace toggle cell.
@@ -813,9 +813,9 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                 return `
                 <tr>
                     <td class="mono">${clearString(ex.pluginName || '?')}</td>
-                    <td class="mono">${clearString(ex.type || 'â€”')}</td>
-                    <td>${clearString(ex.exception?.Message || 'â€”')}</td>
-                    <td class="reason">${clearString(ex.reasonPhrase || 'â€”')}</td>
+                    <td class="mono">${clearString(ex.type || '-')}</td>
+                    <td>${clearString(ex.exception?.Message || '-')}</td>
+                    <td class="reason">${clearString(ex.reasonPhrase || '-')}</td>
                     ${stackToggle}
                 </tr>${stackRow}`;
             }).join('');
@@ -934,7 +934,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                             <path fill="${ledColor}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
                         </svg>
                         <span class="p-name">${clearString(display)}</span>
-                        ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                        ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
                         ${onElement ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(onElement, 40))}</span>` : ''}
                         <span class="p-spacer"></span>
                     <div class="p-bar-wrap">
@@ -978,7 +978,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                     <path fill="currentColor" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
                 </svg>
                 <span class="p-name">${clearString(name)}</span>
-                ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
                 ${element ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(element, 40))}</span>` : ''}
                 <span class="p-spacer"></span>
             </div>`;
@@ -1010,12 +1010,12 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             // Runtime-related values are not available in request mode,
             // because this view represents the automation request before execution.
             const cards = [
-                { label: 'Total Runtime', value: 'â€”' },
-                { label: 'Avg. Action Time', value: 'â€”' },
+                { label: 'Total Runtime', value: '-' },
+                { label: 'Avg. Action Time', value: '-' },
                 { label: 'Total Actions', value: String(allRules.length) },
-                { label: 'Total Exceptions', value: 'â€”' },
-                { label: 'Failed Assertions', value: 'â€”' },
-                { label: 'Total Timeouts', value: 'â€”' },
+                { label: 'Total Exceptions', value: '-' },
+                { label: 'Failed Assertions', value: '-' },
+                { label: 'Total Timeouts', value: '-' },
             ];
 
             // Renders all jobs for a given stage, including their nested rules.
@@ -1480,13 +1480,13 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                 // Render one assertion result row.
                 return `
                 <tr>
-                    <td class="mono">${clearString(assertion.onElement || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Condition || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Operator || 'â€”')}</td>
-                    <td class="mono">${clearString(content.Expected ?? 'â€”')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? 'â€”'))}</td>
+                    <td class="mono">${clearString(assertion.onElement || '-')}</td>
+                    <td class="mono">${clearString(content.Condition || '-')}</td>
+                    <td class="mono">${clearString(content.Operator || '-')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
                     <td class="td-center">${ledSvg}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || 'â€”')}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
                 </tr>`;
             }).join('');
 
@@ -1545,12 +1545,12 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                 const root = schema.root || {};
 
                 // Resolve the configured driver.
-                // Falls back to an em dash when the driver is missing.
-                const driver = root.driverParameters?.driver || 'â€”';
+                // Falls back to an ASCII hyphen when the driver is missing.
+                const driver = root.driverParameters?.driver || '-';
 
                 // Resolve the configured browser name from WebDriver capabilities.
-                // Falls back to an em dash when the browser is missing.
-                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || 'â€”';
+                // Falls back to an ASCII hyphen when the browser is missing.
+                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '-';
 
                 // Render the request configuration header.
                 document.getElementById('g4-header').innerHTML = `
@@ -1718,11 +1718,11 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                     ? `
                         <div class="si-item">
                             <div class="si-label">Machine</div>
-                            <div class="si-value">${clearString(machine.machineName || 'â€”')}</div>
+                            <div class="si-value">${clearString(machine.machineName || '-')}</div>
                         </div>
                         <div class="si-item">
                             <div class="si-label">IP</div>
-                            <div class="si-value">${clearString(machine.machineIp || 'â€”')}</div>
+                            <div class="si-value">${clearString(machine.machineIp || '-')}</div>
                         </div>`
                     : '';
 

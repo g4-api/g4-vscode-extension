@@ -1,58 +1,104 @@
 {
-    "aliases": [],
+    "aliases": [
+        "TemplateAction"
+    ],
     "author": {
         "link": "",
         "name": ""
     },
     "categories": [
-        "CustomTemplates"
+        "Templates"
     ],
+    "source": "Template",
     "description": [
         "### Purpose",
         "",
+        "The `TemplateAction` plugin is a generic template that can be customized to automate a reusable workflow step.",
+        "",
         "### Key Features and Functionality",
         "",
+        "| Feature              | Description                                                                 |",
+        "|----------------------|-----------------------------------------------------------------------------|",
+        "| Reusable Parameters  | Defines placeholder parameters that can be renamed for the target workflow. |",
+        "| Configurable Rules   | Provides starter rules that can be replaced with project-specific actions.  |",
+        "| Template Structure   | Preserves the expected template manifest structure for new automation work. |",
+        "",
         "### Usages in RPA",
-        ""
-    ],
-    "platforms": [
-        "Any"
-    ],
-    "protocol": {
-        "apiDocumentation": "None",
-        "w3c": "None"
-    },
-    "rules": [],
-    "key": "UniqueKey",
-    "parameters": [],
-    "pluginType": "Action",
-    "properties": [
-        {
-            "description": [
-                "...",
-                "..."
-            ],
-            "mandatory": false,
-            "name": "Argument",
-            "type": "String"
-        }
-    ],
-    "source": "Template",
-    "summary": [
-        "...",
-        "..."
+        "",
+        "| Usage                  | Description                                                                    |",
+        "|------------------------|--------------------------------------------------------------------------------|",
+        "| Workflow Scaffolding   | Starts a new template from a schema-safe baseline.                             |",
+        "| Action Composition     | Groups common automation rules behind a single reusable template key.          |",
+        "| Project Customization  | Provides a neutral starting point for project-specific automation definitions. |"
     ],
     "examples": [
         {
             "description": [
-                "### Use Case",
-                "",
-                "Description"
+                "Run the template action with placeholder input values that should be customized for the project."
             ],
             "rule": {
-                "argument": "Automation is Fun",
-                "pluginName": "UniqueKey"
+                "$type": "Action",
+                "pluginName": "TemplateAction",
+                "argument": "{{$ --InputValue:Sample --TargetValue:Example}}"
             }
         }
+    ],
+    "key": "TemplateAction",
+    "manifestVersion": 4,
+    "parameters": [
+        {
+            "description": [
+                "Specifies the primary input value used by this template action."
+            ],
+            "mandatory": true,
+            "name": "InputValue",
+            "type": "String"
+        },
+        {
+            "description": [
+                "Specifies the target value or locator context used by this template action."
+            ],
+            "mandatory": true,
+            "name": "TargetValue",
+            "type": "String"
+        }
+    ],
+    "pluginType": "Action",
+    "properties": [
+        {
+            "description": [
+                "Specifies the argument expression passed to the template action. Customize this value to match the target workflow."
+            ],
+            "mandatory": true,
+            "name": "Argument",
+            "type": "String|Expression"
+        }
+    ],
+    "rules": [
+        {
+            "$type": "Action",
+            "locator": "CssSelector",
+            "onElement": "#template-target",
+            "pluginName": "SendKeys",
+            "argument": "{{$ parameters.InputValue }}"
+        },
+        {
+            "$type": "Action",
+            "onElement": "//template-target",
+            "pluginName": "SendKeys",
+            "argument": "{{$ parameters.TargetValue }}"
+        },
+        {
+            "$type": "Action",
+            "onElement": "//template-submit",
+            "pluginName": "Click"
+        }
+    ],
+    "scopes": [
+        "Web",
+        "MobileWeb"
+    ],
+    "summary": [
+        "The `TemplateAction` plugin provides a generic, schema-safe starting point for reusable automation templates."
     ]
 }

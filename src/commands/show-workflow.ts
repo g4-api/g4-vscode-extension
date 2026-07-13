@@ -297,7 +297,7 @@ export class ShowWorkflowCommand extends CommandBase {
 
     /**
      * Returns the HTML `<script>` block to inject into the WebView.
-     * This script wires up drag‐and‐drop file import and messaging
+     * This script wires up drag-and-drop file import and messaging
      * between the WebView and the VS Code extension host.
      *
      * @returns {string} The HTML/JS shim as a string.
@@ -693,14 +693,14 @@ export class ShowWorkflowCommand extends CommandBase {
 
             /**
              * Detects and patches the main HTML entry point for the embedded workflow editor.
-             * Replaces the default CSS filename with a VS Code–specific stylesheet, then writes
+             * Replaces the default CSS filename with a VS Code-specific stylesheet, then writes
              * the modified HTML to disk.
              */
             if (resource === 'views/canvas.html') {
                 // Read the fetched HTML content as a UTF-8 string
                 let htmlText = await res.text();
 
-                // Swap out the blueprint CSS filename for the VS Code–optimized version
+                // Swap out the blueprint CSS filename for the VS Code-optimized version
                 htmlText = htmlText.replaceAll(
                     'designer-blueprint-parameters-g4.css',
                     'designer-blueprint-parameters-vscode.css'

@@ -65,7 +65,7 @@ export class StopRecorderCommand extends CommandBase {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
 
-        // Create a dedicated child logger for this command’s messages.
+        // Create a dedicated child logger for this command's messages.
         this._logger = this.logger?.newLogger('G4.StartRecorder');
 
         // Command identifier as used in package.json and when invoking via commands.executeCommand.
@@ -386,7 +386,7 @@ export class StopRecorderCommand extends CommandBase {
             return null;
         }
 
-        // Retrieve the last element in the event’s UI path (deepest element)
+        // Retrieve the last element in the event's UI path (deepest element)
         const path = event?.value?.chain?.path || [];
         const element = path.at(-1) ?? null;
 
@@ -420,7 +420,7 @@ export class StopRecorderCommand extends CommandBase {
      * based on the timestamps of items in their internal buffers.
      *
      * This method is useful when coordinating multiple capture services that may
-     * record events in parallel — ensuring actions are processed in the correct order.
+     * record events in parallel - ensuring actions are processed in the correct order.
      */
     private static getFirstCaptureService(
         connections: Map<string, EventCaptureService>
@@ -958,7 +958,7 @@ export class StopRecorderCommand extends CommandBase {
      * coming from the same recorder endpoint (baseUrl).
      *
      * Unlike a traditional "group by" operation, this method preserves
-     * **order and continuity** — meaning if the same recorder appears again
+     * **order and continuity** - meaning if the same recorder appears again
      * later in the buffer, it starts a **new group** rather than merging with
      * previous occurrences. Grouping by endpoint (rather than machine name)
      * keeps two browsers hosted on the same machine in separate jobs and lets a

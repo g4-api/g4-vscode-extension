@@ -747,7 +747,7 @@ export abstract class LoggerBase implements Logger {
         // Uppercase log level for readability (e.g., "ERROR", "INFO").
         const logLevel = logEntry.logLevel.toUpperCase();
 
-        // Retrieve a visual symbol for the log level (e.g., ⚠, ❗, ℹ).
+        // Retrieve a visual symbol for the log level (e.g., !, !, i).
         const symbol = LoggerBase.getLevelSymbol(level);
 
         // Build the formatted output lines for this log entry.
@@ -827,12 +827,12 @@ export abstract class LoggerBase implements Logger {
                 .map(name => name.toUpperCase())
                 .includes(logEntry.logName.toUpperCase());
 
-            // Exclude mode → filter (skip) if the source *is* in the list.
+            // Exclude mode -> filter (skip) if the source *is* in the list.
             if (filterType === 'exclude' && isSource) {
                 return true;
             }
 
-            // Include mode → filter (skip) if the source *is not* in the list.
+            // Include mode -> filter (skip) if the source *is not* in the list.
             if (filterType === 'include' && !isSource) {
                 return true;
             }
@@ -964,22 +964,22 @@ export abstract class LoggerBase implements Logger {
      *
      * Each log level is mapped to a distinct Unicode symbol to make
      * log entries easier to scan visually in the output channel.
-     * If no symbol is defined for the provided level, a generic bullet (`•`) is returned.
+     * If no symbol is defined for the provided level, a generic bullet (`*`) is returned.
      */
     private static getLevelSymbol(logLevel: LogLevel): string {
         // Symbol mapping for each supported log level.
         const symbols: { [key: string]: string } = {
-            'trace': '⚐',
-            'debug': '⚑',
-            'information': '🛈',
-            'warning': '⚠',
-            'error': '☢',
-            'fatal': '☢',
+            'trace': 'T',
+            'debug': 'D',
+            'information': 'i',
+            'warning': '!',
+            'error': 'E',
+            'fatal': 'E',
         };
 
         // Convert the provided level to lowercase and return the corresponding symbol.
         // If no match exists, fall back to a generic bullet.
-        return symbols[`${logLevel}`.toLowerCase()] || '•';
+        return symbols[`${logLevel}`.toLowerCase()] || '*';
     }
 
     /**
@@ -1007,13 +1007,13 @@ export abstract class LoggerBase implements Logger {
 
         // Define formatting options for day, month, year, hour, minute, and second
         const options: Intl.DateTimeFormatOptions = {
-            year: '2-digit',   // two‑digit year (e.g., "25")
-            month: '2-digit',  // two‑digit month (e.g., "07" for July)
-            day: '2-digit',    // two‑digit day of month (e.g., "21")
-            hour: '2-digit',   // two‑digit hour (24‑hour clock)
-            minute: '2-digit', // two‑digit minute
-            second: '2-digit', // two‑digit second
-            hour12: false      // use 24‑hour clock rather than AM/PM
+            year: '2-digit',   // two-digit year (e.g., "25")
+            month: '2-digit',  // two-digit month (e.g., "07" for July)
+            day: '2-digit',    // two-digit day of month (e.g., "21")
+            hour: '2-digit',   // two-digit hour (24-hour clock)
+            minute: '2-digit', // two-digit minute
+            second: '2-digit', // two-digit second
+            hour12: false      // use 24-hour clock rather than AM/PM
         };
 
         // Format date/time according to 'en-GB' locale (produces "DD/MM/YY, HH:MM:SS")
@@ -1072,7 +1072,7 @@ export abstract class LoggerBase implements Logger {
     /**
      * Determines whether FATAL-level logging is permitted.
      *
-     * FATAL represents the highest severity — this method effectively allows
+     * FATAL represents the highest severity - this method effectively allows
      * logging if *any* level is active, since fatal messages are always critical.
      */
     private readonly assertFatalCompliance = (): boolean =>
@@ -1085,8 +1085,8 @@ export abstract class LoggerBase implements Logger {
  * or error scenario to help categorize log entries consistently.
  *
  * Event codes follow a structured naming convention:
- * - **HUB*** — Issues related to G4 Hub or Agent communication.
- * - **EXT*** — External or undefined events (fallback category).
+ * - **HUB*** - Issues related to G4 Hub or Agent communication.
+ * - **EXT*** - External or undefined events (fallback category).
  *
  * Example:
  * ```ts
@@ -1174,8 +1174,8 @@ export type LogSettings = {
 export type SourceOptions = {
     /**
      * Determines whether to include or exclude the listed sources.
-     * - `"include"` → Allow only specified loggers.
-     * - `"exclude"` → Block specified loggers.
+     * - `"include"` -> Allow only specified loggers.
+     * - `"exclude"` -> Block specified loggers.
      */
     filter: 'include' | 'exclude';
 

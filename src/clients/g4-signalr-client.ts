@@ -338,7 +338,7 @@ export class EventCaptureService {
             // Initiate the SignalR connection to the hub.
             await this._connection.start();
 
-            // Inform the user we’re connected and ready to receive events.
+            // Inform the user we're connected and ready to receive events.
             this._options.logger.information(
                 `Connected to G4 events capture hub at ${this._options.baseUrl}`
             );

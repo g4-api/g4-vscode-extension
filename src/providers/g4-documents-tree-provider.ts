@@ -121,7 +121,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
      */
     public refresh(): void {
         // Signal a full refresh (rebuild from root). Passing `undefined` is the
-        // VS Code convention for “everything has changed”.
+        // VS Code convention for "everything has changed".
         this._onDidChangeTreeData.fire(undefined);
     }
 
@@ -285,7 +285,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                 }
             }
 
-            // Convert back to an array and sort by the original (display) label A→Z.
+            // Convert back to an array and sort by the original (display) label A->Z.
             return Array.from(map.values()).sort((a, b) => {
                 const aLabel = typeof a.label === 'string' ? a.label : '';
                 const bLabel = typeof b.label === 'string' ? b.label : '';
@@ -315,7 +315,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             .filter((i: any) => String(i?.manifest?.source).toUpperCase() === 'TEMPLATE')
             .map(convertToTreeItem);
 
-        // Normalize: distinct by label and sort A→Z.
+        // Normalize: distinct by label and sort A->Z.
         return {
             plugins: sortPlugins(plugins),
             templates: sortPlugins(templates)
@@ -341,7 +341,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             return item;
         });
 
-        // Sort roots by label (A→Z). If label isn’t a string, fall back to empty.
+        // Sort roots by label (A->Z). If label isn't a string, fall back to empty.
         return roots.sort((a, b) => {
             const aLabel = typeof a.label === "string" ? a.label : "";
             const bLabel = typeof b.label === "string" ? b.label : "";
@@ -376,13 +376,13 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             return [];
         }
 
-        // Return the top-level items directly — each will sit at the tree root
+        // Return the top-level items directly - each will sit at the tree root
         // alongside the plugin-type roots, with no enclosing Documentation node.
         return await this.buildDocsTree(docsUri);
     }
 
     // Recursively builds TreeItems for Markdown files under `folderUri`.
-    // Empty folders and non-Markdown files are skipped; folders sort before files, A→Z within each group.
+    // Empty folders and non-Markdown files are skipped; folders sort before files, A->Z within each group.
     private static async buildDocsTree(folderUri: vscode.Uri): Promise<TreeItem[]> {
         const markdownExtensions = new Set(['.md', '.markdown', '.mdx']);
 
@@ -432,9 +432,9 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                 const file = new TreeItem(labelWithoutExtension) as TreeItem & { data?: any };
                 file.iconPath = new vscode.ThemeIcon('markdown');
                 file.data = {
-                    // Full URI string → unique across folders even when filenames collide.
+                    // Full URI string -> unique across folders even when filenames collide.
                     key: childUri.toString(),
-                    // Raw text → triggers the existing Markdown preview on selection.
+                    // Raw text -> triggers the existing Markdown preview on selection.
                     document: content,
                 };
                 return file;
@@ -446,7 +446,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
         const filtered = built.filter((node): node is TreeItem => node !== undefined);
 
-        // Folders first, then files; case-insensitive A→Z within each group.
+        // Folders first, then files; case-insensitive A->Z within each group.
         return filtered.sort((a, b) => {
             const aIsFolder = (a as TreeItem & { children?: TreeItem[] }).children !== undefined;
             const bIsFolder = (b as TreeItem & { children?: TreeItem[] }).children !== undefined;
@@ -470,7 +470,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         // Extract the Markdown content (expected to be a string under node.data.document).
         const content = node?.data?.document as string | undefined;
 
-        // Nothing to preview—let the user know and bail out early.
+        // Nothing to preview-let the user know and bail out early.
         if (!content) {
             vscode.window.showWarningMessage('No markdown content on this item.');
             return;

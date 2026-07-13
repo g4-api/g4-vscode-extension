@@ -20,7 +20,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	private static readonly _manifest: any = Utilities.getManifest();
 
 	/** 
-	 * The active webview instance — assigned once the view is resolved.
+	 * The active webview instance - assigned once the view is resolved.
 	 * Used to send messages and updates to the front-end (via `postMessage`).
 	 */
 	private _view?: vscode.WebviewView;
@@ -33,7 +33,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 	/**
 	 * Internal list of all known server statuses.
-	 * Each element tracks one server’s health, name, and connection reference.
+	 * Each element tracks one server's health, name, and connection reference.
 	 */
 	private readonly _serversStatus: ServerStatus[];
 
@@ -41,7 +41,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * Creates a new instance of the recorder view provider.
 	 *
 	 * @param _context - The VS Code extension context (used for lifecycle, paths, etc.)
-	 * @param _recorderConnections - A map of server names → EventCaptureService instances.
+	 * @param _recorderConnections - A map of server names -> EventCaptureService instances.
 	 */
 	constructor(
 		private readonly _context: vscode.ExtensionContext,
@@ -58,7 +58,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * by registering it under a defined view type (`VIEW_TYPE`). Once registered,
 	 * VS Code can instantiate and manage the webview as part of the UI.
 	 *
-	 * The `retainContextWhenHidden` option ensures that the webview’s state
+	 * The `retainContextWhenHidden` option ensures that the webview's state
 	 * (scripts, DOM, and data) is preserved even when the panel is hidden,
 	 * improving user experience by avoiding reloads.
 	 */
@@ -151,7 +151,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * can be safely garbage collected.
 	 */
 	public dispose() {
-		// Stop the periodic heartbeat if it’s still running
+		// Stop the periodic heartbeat if it's still running
 		if (this._timer) {
 			clearInterval(this._timer); // Cancel the repeating interval
 			this._timer = undefined;    // Clear the reference for GC
@@ -423,7 +423,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			<body data-g4-recorder-view="true">
 				<div class="controls">
 					<button id="btnToggle" class="control-btn"
-						title="Start recording — connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders)."
+						title="Start recording - connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders)."
 						aria-label="Start recording" data-state="stopped">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">
 							<path
@@ -437,7 +437,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					<div class="top">
 						<h3>Servers</h3>
 						<button class="refresh" id="btnRefresh"
-							title="Refresh recorder status — re-check the connection to each recorder server and update the indicators."
+							title="Refresh recorder status - re-check the connection to each recorder server and update the indicators."
 							aria-label="Refresh recorder status">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20"
 								class="svg-inline-secondary">
@@ -482,8 +482,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					function setToggleState(running) {
 						btnToggle.dataset.state = running ? 'running' : 'stopped';
 						btnToggle.title = running
-							? 'Stop recording — end capture, close any recorder browsers, and open the recorded workflow.'
-							: 'Start recording — connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders).';
+							? 'Stop recording - end capture, close any recorder browsers, and open the recorded workflow.'
+							: 'Start recording - connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders).';
 						btnToggle.setAttribute('aria-label', running ? 'Stop recording' : 'Start recording');
 						btnToggle.innerHTML = (running ? STOP_SVG : PLAY_SVG) + '<span>' + (running ? 'Stop' : 'Start') + '</span>';
 					}
@@ -547,7 +547,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							left.className = 'left';
 
 							const bulb = document.createElement('span');
-							// Disconnected → red (no class); connected + suspended → amber; connected + active → green.
+							// Disconnected -> red (no class); connected + suspended -> amber; connected + active -> green.
 							bulb.className = 'bulb' + (server.ok ? (server.suspended ? ' suspended' : ' on') : '');
 							left.appendChild(bulb);
 
@@ -586,8 +586,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							suspendBtn.innerHTML = isSuspended ? RESUME_SVG : SUSPEND_SVG;
 							suspendBtn.title = server.ok
 								? (isSuspended
-									? 'Resume this recorder — continue capturing events.'
-									: 'Suspend this recorder — stop capturing events (the hub connection stays open).')
+									? 'Resume this recorder - continue capturing events.'
+									: 'Suspend this recorder - stop capturing events (the hub connection stays open).')
 								: 'Start the recorder to enable suspend.';
 							suspendBtn.setAttribute('aria-label', isSuspended ? 'Resume this recorder' : 'Suspend this recorder');
 							suspendBtn.addEventListener('click', function () {
@@ -738,7 +738,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		// Iterate through each server in the provided list
 		for (const status of serversStatus) {
 
-			// Determine if the server’s connection is currently active
+			// Determine if the server's connection is currently active
 			const ok = status.service?.connection?.state === 'Connected';
 
 			// Update the status object fields
@@ -786,20 +786,20 @@ type ServerStatus = {
 
 	/** 
 	 * Timestamp (in milliseconds since epoch) of the last successful health check.
-	 * Optional — may be undefined if the server has never been checked or initialized.
+	 * Optional - may be undefined if the server has never been checked or initialized.
 	 */
 	lastChecked?: number;
 
 	/** 
 	 * Human-readable name of the server.
-	 * Displayed in the UI and used for quick identification (e.g., “G4 API”, “Recorder Service”).
+	 * Displayed in the UI and used for quick identification (e.g., "G4 API", "Recorder Service").
 	 */
 	name: string;
 
 	/** 
 	 * Indicates whether the server is reachable and healthy.
-	 * true  → server responded successfully to health check.
-	 * false → server is unreachable or returned an error.
+	 * true  -> server responded successfully to health check.
+	 * false -> server is unreachable or returned an error.
 	 */
 	ok: boolean;
 
