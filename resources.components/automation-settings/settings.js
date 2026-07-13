@@ -138,6 +138,7 @@ globalThis.DEFAULTS = {
         },
         "recorderSettings": {
             "enabled": true,
+            "useSandbox": false,
             "recorders": [
                 {
                     "enabled": true,
@@ -2649,6 +2650,11 @@ function writeRecordersSection() {
         path: 'settings.recorderSettings.enabled',
         label: 'Enable Desktop Recording',
         hint: 'Master switch for all recorders below.'
+    })}
+    ${writeToggle({
+        path: 'settings.recorderSettings.useSandbox',
+        label: 'Use Sandbox Recorders',
+        hint: 'Start bundled recorder services from the configured sandbox when they are not already running.'
     })}
     <div class="card-list">${cards}</div>
     <div class="add-row">

@@ -8,6 +8,8 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { EventCaptureService, EventCaptureOptions } from '../clients/g4-signalr-client';
+import { G4RecorderSandboxService } from '../services/g4-recorder-sandbox-service';
+import { Utilities } from '../extensions/utilities';
 
 /**
  * Registers and runs the **Start-Recorder** command, creating and managing
@@ -82,8 +84,8 @@ export class StartRecorderCommand extends CommandBase {
         // Register the command and bind it to invokeCommand.
         const disposable = vscode.commands.registerCommand(
             this.command,
-            async (_: any) => {
-                await this.invokeCommand();
+            async (commandOptions: StartRecorderCommandOptions) => {
+                await this.invokeCommand(commandOptions);
             },
             this // `thisArg` ensures `this` inside invokeCommand is this instance
         );
@@ -96,9 +98,12 @@ export class StartRecorderCommand extends CommandBase {
      * Command execution entry point. Starts all configured EventCaptureService
      * connections (one per endpoint).
      *
-     * @param args Optional arguments passed when invoking the command.
+     * @param commandOptions Optional arguments passed when invoking the command.
      */
-    protected async onInvokeCommand(): Promise<void> {
+    protected async onInvokeCommand(commandOptions?: StartRecorderCommandOptions): Promise<void> {
+        // Start sandboxed recorder processes before SignalR connects when the user enabled sandbox mode.
+        await this.startSandboxRecordersWhenRequired(commandOptions);
+
         // Build an array of start promises so we can await them collectively.
         const starts: Promise<void>[] = [];
 
@@ -136,4 +141,72 @@ export class StartRecorderCommand extends CommandBase {
             }
         }
     }
+
+    /**
+     * Starts sandboxed recorder services when the manifest or panel override enables sandbox use.
+     *
+     * @param commandOptions - Optional command arguments from the recorder panel.
+     *
+     * @remarks
+     * This method is intentionally command-owned. Extension activation must never wait for or start
+     * recorder services; the recorder process check only runs after the user starts recording.
+     */
+    private async startSandboxRecordersWhenRequired(commandOptions?: StartRecorderCommandOptions): Promise<void> {
+        // Resolve the effective sandbox setting, letting the recorder panel override the manifest in memory.
+        const manifest = Utilities.getManifest();
+        const manifestUseSandbox = manifest?.settings?.recorderSettings?.useSandbox === true;
+        const sandboxOverride = commandOptions?.useSandbox;
+        const isOverrideConfigured = sandboxOverride !== null && sandboxOverride !== undefined;
+        const useSandbox = isOverrideConfigured
+            ? sandboxOverride === true
+            : manifestUseSandbox;
+
+        if (!useSandbox) {
+            return;
+        }
+
+        // Only enabled recorder services are present in the connection map and should be started.
+        const recorders = Array
+            .from(this._connections.values())
+            .map(service => service.options);
+
+        if (recorders.length === 0) {
+            return;
+        }
+
+        // Ask the sandbox service to ping and start each recorder endpoint before SignalR connects.
+        const results = await G4RecorderSandboxService.startFromOptionsWhenRequired({
+            recorders,
+            sandboxPath: manifest?.sandbox
+        });
+
+        // Surface sandbox failures as VS Code warnings so the user sees why recording may not connect.
+        const shownWarnings = new Set<string>();
+
+        for (const result of results) {
+            const warningMessage = result.message ?? '';
+            const isWarningNeeded = !result.isReady && warningMessage.length > 0;
+
+            if (!isWarningNeeded) {
+                continue;
+            }
+
+            // Avoid repeating the same warning when several recorder endpoints share the same failure.
+            if (shownWarnings.has(warningMessage)) {
+                continue;
+            }
+
+            shownWarnings.add(warningMessage);
+            this._logger.warning(warningMessage);
+            vscode.window.showWarningMessage(warningMessage);
+        }
+    }
 }
+
+/**
+ * Optional Start-Recorder command arguments sent by the recorder panel.
+ */
+type StartRecorderCommandOptions = {
+    /** Memory-only sandbox override selected in the recorder panel. */
+    useSandbox?: boolean;
+};

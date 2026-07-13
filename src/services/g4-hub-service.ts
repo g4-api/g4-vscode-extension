@@ -1,19 +1,11 @@
 import * as fs from 'node:fs';
-import type { ClientRequest, IncomingMessage } from 'node:http';
-import { request as requestHttp } from 'node:http';
-import { request as requestHttps } from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawn } from 'node:child_process';
+import { G4ServiceHealth } from './g4-service-health';
 
 // Keeps startup responsive while still giving a freshly spawned hub time to bind the port.
 const HUB_START_TIMEOUT_MILLISECONDS = 30000;
-
-// Keeps each health probe short so activation can continue to the normal retry loop quickly.
-const PING_TIMEOUT_MILLISECONDS = 2000;
-
-// Polls often enough to make startup feel immediate without hammering a process that is booting.
-const PING_RETRY_INTERVAL_MILLISECONDS = 1000;
 
 /**
  * Starts the sandboxed G4 Hub process when the manifest points to a local sandbox and
@@ -82,7 +74,7 @@ export class G4HubService {
         }
 
         // If the server is already alive, leave it alone and let normal activation continue.
-        const isHubRunning = await this.testPing(baseUri);
+        const isHubRunning = await G4ServiceHealth.testPing(baseUri);
 
         if (isHubRunning) {
             return true;
@@ -96,7 +88,7 @@ export class G4HubService {
         }
 
         // Once a process is spawned, wait briefly so callers know whether startup reached the ping endpoint.
-        return this.waitForPing(baseUri);
+        return G4ServiceHealth.waitForPing(baseUri, HUB_START_TIMEOUT_MILLISECONDS);
     }
 
     /**
@@ -349,99 +341,6 @@ export class G4HubService {
         }
     }
 
-    /**
-     * Sends one ping request to the configured G4 Hub.
-     *
-     * @param baseUri - The configured G4 server base URI.
-     * @returns True when the ping endpoint returns a 2xx response.
-     *
-     * @remarks
-     * Uses local callback handlers so request lifecycle, timeout cleanup, and error handling stay readable.
-     */
-    private static async testPing(baseUri: string): Promise<boolean> {
-        return new Promise<boolean>((resolve) => {
-            let pingRequest: ClientRequest;
-
-            const onPingResponse = (response: IncomingMessage): void => {
-                // Drain the response so Node can reuse or close the socket cleanly.
-                response.resume();
-
-                // Treat any successful HTTP response as proof that the hub service is alive.
-                const statusCode = response.statusCode ?? 0;
-                const isSuccessStatus = statusCode >= 200 && statusCode <= 299;
-
-                resolve(isSuccessStatus);
-            };
-
-            const onPingTimeout = (): void => {
-                // Destroy the socket on timeout so activation is not blocked by a hung connection.
-                pingRequest.destroy();
-
-                resolve(false);
-            };
-
-            const onPingError = (): void => {
-                // Connection failures simply mean the normal activation retry loop should continue.
-                resolve(false);
-            };
-
-            // Create the protocol-specific request against the canonical ping endpoint.
-            const pingUrl = new URL('/api/v4/g4/ping', baseUri);
-            const requestFactory = pingUrl.protocol === 'https:'
-                ? requestHttps
-                : requestHttp;
-
-            pingRequest = requestFactory(pingUrl, { method: 'GET', timeout: PING_TIMEOUT_MILLISECONDS }, onPingResponse);
-
-            // Wire timeout and error events after request creation so every failure resolves false.
-            pingRequest.on('timeout', onPingTimeout);
-            pingRequest.on('error', onPingError);
-            pingRequest.end();
-        });
-    }
-
-    /**
-     * Waits for the requested duration.
-     *
-     * @param timeoutMilliseconds - Duration to wait before resolving.
-     * @returns A promise that resolves after the timeout elapses.
-     *
-     * @remarks
-     * Uses compute-only timeout input and isolates the timer callback from the polling loop.
-     */
-    private static async waitAsync(timeoutMilliseconds: number): Promise<void> {
-        return new Promise<void>((resolve) => {
-            setTimeout(resolve, timeoutMilliseconds);
-        });
-    }
-
-    /**
-     * Waits for a newly spawned G4 Hub to begin answering ping requests.
-     *
-     * @param baseUri - The configured G4 server base URI.
-     * @returns True when the server becomes healthy before the timeout.
-     *
-     * @remarks
-     * Uses compute-only URI input and owns only the bounded polling sequence after process spawn.
-     */
-    private static async waitForPing(baseUri: string): Promise<boolean> {
-        // Poll until the startup deadline so slow machines still get a chance to bind the port.
-        const deadline = Date.now() + HUB_START_TIMEOUT_MILLISECONDS;
-
-        while (Date.now() < deadline) {
-            const isHubRunning = await this.testPing(baseUri);
-
-            if (isHubRunning) {
-                return true;
-            }
-
-            // Pause between probes to give the spawned hub time to finish binding its port.
-            await this.waitAsync(PING_RETRY_INTERVAL_MILLISECONDS);
-        }
-
-        // The hub did not become healthy within the startup budget.
-        return false;
-    }
 }
 
 /**

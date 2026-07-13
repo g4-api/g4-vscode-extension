@@ -49,6 +49,7 @@ export class Global {
             },
             "recorderSettings": {
                 "enabled": true,
+                "useSandbox": false,
                 "recorders": [
                     {
                         "enabled": true,

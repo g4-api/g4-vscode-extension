@@ -32,6 +32,12 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	private _timer?: NodeJS.Timeout;
 
 	/**
+	 * Memory-only sandbox override used by the recorder panel.
+	 * Starts from the manifest value but is never written back to manifest.json.
+	 */
+	private _useSandboxOverride: boolean;
+
+	/**
 	 * Internal list of all known server statuses.
 	 * Each element tracks one server's health, name, and connection reference.
 	 */
@@ -49,6 +55,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	) {
 		// Initialize the internal status array based on currently active connections.
 		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recorderConnections);
+
+		// Seed the panel-only override from the manifest so the first start matches saved settings.
+		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		this._useSandboxOverride = settings?.useSandbox === true;
 	}
 
 	/**
@@ -132,6 +142,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			type: 'servers:init',
 			payload: {
 				enabled: enabled,
+				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
 		});
@@ -278,8 +289,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.controls {
-						align-items: center;
+						align-items: flex-start;
 						display: flex;
+						flex-direction: column;
 						gap: 8px;
 						margin-bottom: 12px;
 					}
@@ -363,6 +375,65 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						cursor: not-allowed;
 					}
 
+					.switch {
+						background-color: var(--vscode-panel-border);
+						border-radius: 9px;
+						height: 18px;
+						position: relative;
+						transition: background-color .15s ease;
+						width: 34px;
+					}
+
+					.switch::after {
+						background-color: var(--vscode-editor-background);
+						border-radius: 50%;
+						content: '';
+						height: 14px;
+						left: 2px;
+						position: absolute;
+						top: 2px;
+						transition: transform .15s ease;
+						width: 14px;
+					}
+
+					.toggle {
+						align-items: center;
+						cursor: pointer;
+						display: inline-flex;
+						gap: 10px;
+					}
+
+					.toggle input {
+						height: 0;
+						opacity: 0;
+						position: absolute;
+						width: 0;
+					}
+
+					.toggle input:checked + .switch {
+						background-color: var(--vscode-testing-iconPassed, #22c55e);
+					}
+
+					.toggle input:checked + .switch::after {
+						transform: translateX(16px);
+					}
+
+					.toggle-hint {
+						color: var(--vscode-descriptionForeground);
+						font-size: 11px;
+					}
+
+					.toggle-label {
+						font-size: 12px;
+						font-weight: 600;
+					}
+
+					.toggle-text {
+						display: flex;
+						flex-direction: column;
+						gap: 2px;
+					}
+
 					.row {
 						display: flex;
 						gap: 8px;
@@ -431,6 +502,14 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						</svg>
 						<span>Start</span>
 					</button>
+					<label class="toggle" title="Use sandbox recorder services for the next start.">
+						<input type="checkbox" id="useSandboxToggle" aria-label="Use Sandbox Recorders" />
+						<span class="switch"></span>
+						<span class="toggle-text">
+							<span class="toggle-label">Use Sandbox</span>
+							<span class="toggle-hint">Applies only to future starts.</span>
+						</span>
+					</label>
 				</div>
 
 				<div class="panel">
@@ -456,6 +535,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					const serversElement = document.getElementById('servers');
 					const footerElement = document.getElementById('footer');
 					const btnToggle = document.getElementById('btnToggle');
+					const useSandboxToggle = document.getElementById('useSandboxToggle');
+					let useSandbox = false;
 
 					// Inline SVGs (using normal strings)
 					var PLAY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
@@ -501,10 +582,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 								setToggleState(false);
 							}, 5000);
 						} else {
-							vscode.postMessage({ type: 'recorder:start' });
+							vscode.postMessage({ type: 'recorder:start', useSandbox: useSandbox });
 							vscode.postMessage({ type: 'recorder:refresh' });
 							setToggleState(true);
 						}
+					});
+
+					useSandboxToggle.addEventListener('change', function () {
+						useSandbox = useSandboxToggle.checked === true;
+						vscode.postMessage({ type: 'recorder:useSandbox', useSandbox: useSandbox });
 					});
 
 					document.getElementById('btnRefresh').addEventListener('click', function () {
@@ -514,6 +600,11 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					function render(serversData) {
 						const servers = serversData.servers || [];
 						serversElement.innerHTML = '';
+
+						if (serversData.useSandbox !== undefined) {
+							useSandbox = serversData.useSandbox === true;
+							useSandboxToggle.checked = useSandbox;
+						}
 						
 						if(!serversData.enabled) {
 							document.querySelector("#btnToggle")?.remove();
@@ -635,7 +726,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		switch (message?.type) {
 			case 'recorder:start': {
 				// Trigger VS Code command to start the recorder process
-				await vscode.commands.executeCommand('Start-Recorder');
+				await vscode.commands.executeCommand('Start-Recorder', {
+					useSandbox: message.useSandbox === true
+				});
 				break;
 			}
 
@@ -665,6 +758,13 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				}
 
 				// Reflect the new suspended state immediately instead of waiting for the heartbeat tick.
+				this.testServers(serversStatus);
+				break;
+			}
+
+			case 'recorder:useSandbox': {
+				// Store only the panel override; settings remain unchanged until edited in the settings page.
+				this._useSandboxOverride = message.useSandbox === true;
 				this.testServers(serversStatus);
 				break;
 			}
@@ -767,6 +867,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			type: 'servers:update',
 			payload: {
 				enabled: enabled,
+				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
 		});
