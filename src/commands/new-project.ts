@@ -80,14 +80,11 @@ export class NewProjectCommand extends CommandBase {
         // Create the project folder structure
         NewProjectCommand.newProjectFolder(folderUri);
 
-        // Create root-level tool configuration files that agent and MCP clients expect.
-        NewProjectCommand.newProjectConfigurationFiles(folderUri, this._logger);
-
         // Generate the initial project manifest file, recording the sandbox path when provided
-        NewProjectCommand.newProjectManifest(folderUri, this._logger, sandboxPath);
+        const manifest = NewProjectCommand.newProjectManifest(folderUri, this._logger, sandboxPath);
 
-        // Add sample content under the project
-        NewProjectCommand.newSampleBot(folderUri, this._logger);
+        // Create VS Code tool configuration files that agent and MCP clients expect.
+        NewProjectCommand.newProjectConfigurationFiles(folderUri, manifest, this._logger);
 
         // Seed the base.bots folder with the chrome/uia automation base files, rewriting the
         // chrome paths to the selected sandbox when one was provided
@@ -175,21 +172,17 @@ export class NewProjectCommand extends CommandBase {
             path.join(projectPath, 'docs', 'examples'),
             path.join(projectPath, 'build'),
             path.join(projectPath, 'scripts'),
-            path.join(projectPath, 'src', '.agents', 'skills'),
-            path.join(projectPath, 'src', '.claude', 'skills'),
+            path.join(projectPath, 'src', '.agents'),
+            path.join(projectPath, 'src', '.claude'),
             path.join(projectPath, 'src', '.github'),
-            path.join(projectPath, 'src', '.prompts'),
             path.join(projectPath, 'src', '.vscode'),
             path.join(projectPath, 'src', 'configurations'),
             path.join(projectPath, 'src', 'environments'),
             path.join(projectPath, 'src', 'base.bots'),
             path.join(projectPath, 'src', 'base.templates'),
             path.join(projectPath, 'src', 'templates'),
-            path.join(projectPath, 'src', 'templates.examples'),
             path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots'),
-            path.join(projectPath, 'src', isTestProject ? 'tests.examples' : 'bots.examples'),
-            path.join(projectPath, 'src', 'resources'),
-            path.join(projectPath, 'src', 'resources.examples')
+            path.join(projectPath, 'src', 'resources')
         ];
 
         // Iterate over each intended folder path...
@@ -202,34 +195,27 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Creates root-level configuration files for tool integrations in a new project.
+     * Creates VS Code workspace configuration files for tool integrations in a new project.
      *
      * @remarks
-     * Owns root and source-level configuration files. The required parent folders are created
-     * by newProjectFolder() before this method runs, and the files intentionally start as empty
-     * JSON objects so users can opt into their preferred MCP/client settings.
+     * Owns source-level configuration files. The MCP file is derived from the generated
+     * manifest so GitHub Copilot connects to the same G4 server as the project.
      *
      * @param userPath - The URI or path selected by the user for the new project.
+     * @param manifest - The generated project manifest used to derive MCP server settings.
      * @param logger - Optional logger for reporting file-writing errors.
      */
-    private static newProjectConfigurationFiles(userPath: any, logger?: Logger): void {
-        // Resolve the project root once so root and nested configuration files stay aligned.
+    private static newProjectConfigurationFiles(userPath: any, manifest: any, logger?: Logger): void {
+        // Resolve the project root once so all generated configuration files stay aligned.
         const projectPath = this.getPath(userPath);
-        const emptyJsonContent = JSON.stringify({}, null, '\t');
+        const vscodeConfigurationPath = path.join(projectPath, 'src', '.vscode');
+        const mcpContent = this.newMcpConfigurationContent(manifest);
 
-        // Root MCP configuration consumed by agent tooling.
+        // VS Code MCP configuration consumed by built-in Copilot tooling.
         this.writeFile({
-            directoryPath: projectPath,
-            fileName: '.mcp.json',
-            content: emptyJsonContent,
-            logger: logger
-        });
-
-        // VS Code-specific MSP configuration under the source workspace settings folder.
-        this.writeFile({
-            directoryPath: path.join(projectPath, 'src', '.vscode'),
-            fileName: 'msp.json',
-            content: emptyJsonContent,
+            directoryPath: vscodeConfigurationPath,
+            fileName: 'mcp.json',
+            content: mcpContent,
             logger: logger
         });
     }
@@ -240,8 +226,10 @@ export class NewProjectCommand extends CommandBase {
      * @param userPath - The URI or path selected by the user for the new project.
      * @param logger - Optional logger for reporting file-writing errors.
      * @param sandboxPath - The selected sandbox folder path, or undefined to keep default paths.
+     *
+     * @returns The manifest object written to disk so related generated files can reuse it.
      */
-    private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string) {
+    private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string): any {
         // Clone the base manifest so the shared constant is never mutated, then record the
         // selected G4 sandbox path when one was provided.
         const manifest = JSON.parse(JSON.stringify(Global.BASE_MANIFEST));
@@ -268,6 +256,40 @@ export class NewProjectCommand extends CommandBase {
             content: content,
             logger: logger
         });
+
+        // Return the same manifest used for manifest.json so follow-up generated files stay aligned.
+        return manifest;
+    }
+
+    /**
+     * Creates the VS Code MCP configuration content from the generated project manifest.
+     *
+     * @remarks
+     * Compute-only. The generated MCP server URL intentionally follows the G4 Hub MCP endpoint
+     * contract while reusing the manifest's configured protocol, host, and port.
+     *
+     * @param manifest - The generated project manifest containing the G4 server endpoint.
+     * @returns Formatted JSON content for the VS Code `mcp.json` file.
+     */
+    private static newMcpConfigurationContent(manifest: any): string {
+        // Normalize each endpoint field so the generated URL does not inherit surrounding spaces.
+        const schema = `${manifest?.g4Server?.schema ?? ''}`.trim();
+        const host = `${manifest?.g4Server?.host ?? ''}`.trim();
+        const port = `${manifest?.g4Server?.port ?? ''}`.trim();
+
+        // Compose the MCP endpoint from manifest values and the fixed G4 MCP route.
+        const mcpConfiguration = {
+            servers: {
+                'g4-engine': {
+                    type: 'http',
+                    url: `${schema}://${host}:${port}/api/v4/g4/mcp`
+                }
+            },
+            inputs: []
+        };
+
+        // Format generated JSON with the project's tab indentation convention.
+        return JSON.stringify(mcpConfiguration, null, '\t');
     }
 
     /**
@@ -425,36 +447,6 @@ export class NewProjectCommand extends CommandBase {
                 content: document.content
             });
         }
-    }
-
-    /**
-     * Writes a sample bot definition file into the project’s examples directory.
-     * 
-     * @param userPath      The URI(s) returned from the folder picker, used to determine the project root.
-     * @param logger        Logger instance to report any file‐writing errors.
-     * @param isTestProject When true, writes into "tests/examples"; otherwise into "bots/examples".
-     */
-    private static newSampleBot(userPath: any, logger: Logger, isTestProject: boolean = false): void {
-        // Load the default demo bot content from extension resources
-        const contentBasic = Utilities.getResource('resources.examples/demo-bot.json');
-
-        // Determine the target examples path:
-        // - If this is a test project, use "<root>/src/tests/examples"
-        // - Otherwise, use "<root>/src/bots/examples"
-        const examplesPath = path.join(
-            this.getPath(userPath),
-            'src',
-            isTestProject ? 'tests' : 'bots',
-            'examples'
-        );
-
-        // Write the sample bot file "find-something-on-bing.g4" into the examples folder
-        this.writeFile({
-            directoryPath: examplesPath,
-            fileName: 'find-something-on-bing.json',
-            content: contentBasic,
-            logger: logger
-        });
     }
 
     /**

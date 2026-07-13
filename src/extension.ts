@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
 import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
@@ -16,6 +17,7 @@ import { SyncCacheCommand } from './commands/sync-cache';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
+import { G4HubService, G4ProjectManifest } from './services/g4-hub-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -30,11 +32,15 @@ const captureConnections = new Map<string, EventCaptureService>();
  * all commands, events and providers that the extension exposes.
  *
  * @param context The extension context provided by VS Code that contains subscriptions,
- *                global state, workspace state and other shared resources for the extension.
+ *        global state, workspace state and other shared resources for the extension.
  */
 export async function activate(context: vscode.ExtensionContext) {
-    // Read the configured G4 endpoint from the extension settings.
+    // Read the configured G4 endpoint through the original activation path so
+    // command registration is not blocked by project-manifest availability.
     const baseUri = Utilities.getG4Endpoint();
+
+    // Start the sandboxed hub opportunistically without delaying activation events.
+    void startSandboxHubFromManifest().catch(() => undefined);
 
     // Resolve configuration options related to events capture, such as recording behavior
     // and filters applied while listening to editor or UI events.
@@ -58,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize the base URI used to communicate with the backend hub or services.
     // This typically resolves configuration, environment and connection parameters.
-    await InitializeConnection(baseUri, context);
+    await initializeConnection(baseUri, context);
 }
 
 /**
@@ -230,7 +236,7 @@ const registerProviders = (options: {
  * Continuously attempts to connect to the G4 SignalR hub until a stable connection
  * is established, then synchronizes external repositories and MCP servers into the cache.
  */
-const InitializeConnection = async (baseUri: string, context: vscode.ExtensionContext): Promise<string> => {
+const initializeConnection = async (baseUri: string, context: vscode.ExtensionContext): Promise<string> => {
     // Determine whether a usable endpoint is available.
     const canConnect = baseUri !== null && baseUri !== '';
 
@@ -278,7 +284,7 @@ const InitializeConnection = async (baseUri: string, context: vscode.ExtensionCo
 
             // Return the configured base URI after a successful connection.
             return baseUri;
-        } catch (error: any) { // NOSONAR
+        } catch {
             // Show a retry message when the SignalR connection attempt fails.
             vscode.window.setStatusBarMessage('$(sync~spin)G4 Engine SignalR Connection Failed. Retrying...');
 
@@ -287,4 +293,49 @@ const InitializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             continue;
         }
     }
+};
+
+/**
+ * Reads the current workspace manifest when it exists and parses successfully.
+ *
+ * @returns The parsed manifest, or null while the workspace has no readable manifest.
+ */
+const readProjectManifest = async (): Promise<G4ProjectManifest | null> => {
+    // Activation can start before a workspace folder is available.
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+
+    if (workspaceFolders.length === 0) {
+        return null;
+    }
+
+    try {
+        // Use the existing manifest-location convention shared by commands.
+        const manifestPath = Utilities.resolveManifestUri();
+        const manifestContent = await fs.readFile(manifestPath, 'utf8');
+
+        return JSON.parse(manifestContent) as G4ProjectManifest;
+    } catch {
+        return null;
+    }
+};
+
+/**
+ * Starts the sandboxed G4 Hub from the current project manifest when the manifest is available.
+ *
+ * @returns A promise that resolves after the optional startup attempt completes.
+ *
+ * @remarks
+ * Runs as a detached activation task so missing manifests, new project creation, and slow hub
+ * startup never block command and provider registration.
+ */
+const startSandboxHubFromManifest = async (): Promise<void> => {
+    // Missing, malformed, or unreadable manifests are expected during new project creation.
+    const manifest = await readProjectManifest();
+
+    if (manifest === null) {
+        return;
+    }
+
+    // Incomplete server or sandbox configuration is skipped silently by the hub service.
+    await G4HubService.startFromManifestWhenRequired(manifest);
 };

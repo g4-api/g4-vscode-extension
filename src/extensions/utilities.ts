@@ -155,7 +155,8 @@ export class Utilities {
     public static findLatestSandbox(): string | undefined {
         // Resolve the platform root that hosts the sandbox folders.
         const isWindows = os.platform() === 'win32';
-        const root = isWindows ? 'C:\\' : '/opt';
+        const windowsRoot = path.win32.parse('C:/').root;
+        const root = isWindows ? windowsRoot : '/opt';
 
         // The two candidate layouts: directly under the root, and nested under a g4-sandbox folder.
         const searchDirectories = [
