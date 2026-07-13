@@ -1,0 +1,591 @@
+﻿*,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        @font-face {
+            font-family: 'Inter';
+            src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
+            font-weight: 100 900;
+            font-style: normal;
+            font-display: swap
+        }
+
+        html {
+            height: 100%
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            height: 100%;
+            display: flex;
+            flex-direction: column
+        }
+
+        .header {
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px
+        }
+
+        #app {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            scrollbar-gutter: stable
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 700
+        }
+
+        .header-meta {
+            font-size: 11px;
+            margin-top: 1px
+        }
+
+        .header-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px
+        }
+
+        /* sections */
+        .section {
+            overflow: hidden
+        }
+
+        .section-hdr {
+            padding: 10px 16px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .section-body {
+            padding: 16px
+        }
+
+        .section-desc {
+            font-size: 11px;
+            margin-bottom: 14px
+        }
+
+        .meta-text {
+            font-weight: 400;
+            font-size: 11px
+        }
+
+        /* fields */
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 16px
+        }
+
+        .field:last-child {
+            margin-bottom: 0
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+            /* Align each field's bottom edge so the inputs line up across the
+               row even when one field has an extra line of label/hint text. */
+            align-items: end
+        }
+
+        .field-row:last-child {
+            margin-bottom: 0
+        }
+
+        .component-data {
+            display: none;
+            position: absolute;
+            left: -9999px
+        }
+
+        .is-collapsed {
+            display: none
+        }
+
+        .settings-json-textarea {
+            min-height: 180px
+        }
+
+        .settings-hint-block {
+            margin-bottom: 10px
+        }
+
+        .settings-hint-block--compact {
+            margin-bottom: 12px
+        }
+
+        .settings-hint-block--loose {
+            margin-bottom: 16px
+        }
+
+        .settings-add-row--license {
+            margin-top: 0;
+            margin-bottom: 4px
+        }
+
+        .settings-page-spacer {
+            height: 8px
+        }
+
+        .field-row .field {
+            margin-bottom: 0
+        }
+
+        .connection-row {
+            grid-template-columns: minmax(150px, .8fr) minmax(260px, 1.4fr) minmax(88px, 116px) auto
+        }
+
+        .connection-action {
+            align-self: end
+        }
+
+        .connection-action .btn {
+            height: 30px;
+            white-space: nowrap
+        }
+
+        .section-status {
+            min-height: 18px;
+            margin-top: 12px
+        }
+
+        .field-label {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .field-hint {
+            font-size: 11px
+        }
+
+        .field-error {
+            font-size: 11px;
+            min-height: 14px
+        }
+
+        .field-suffix {
+            font-size: 11px;
+            margin-left: 6px
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            font-family: inherit;
+            font-size: 12px;
+            padding: 6px 8px;
+            width: 100%;
+            background: transparent;
+            color: inherit;
+            outline: none
+        }
+
+        /* Single-line controls share one height so text inputs and selects line
+           up exactly (a native select has a taller intrinsic box than an input,
+           so equal padding alone isn't enough). Textarea keeps its own height. */
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
+            height: 30px
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: 'Consolas', monospace
+        }
+
+        /* The native number spinners can't be themed (they render as a light
+           Chromium control that clashes with the editor theme), so hide them.
+           Typing and the keyboard up/down arrows still adjust the value. */
+        input[type="number"] {
+            appearance: textfield;
+            -moz-appearance: textfield
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0
+        }
+
+        /* themed number steppers */
+        .num-wrap {
+            position: relative;
+            display: flex
+        }
+
+        .num-wrap input {
+            flex: 1;
+            padding-right: 24px
+        }
+
+        .num-steppers {
+            position: absolute;
+            top: 1px;
+            right: 1px;
+            bottom: 1px;
+            width: 20px;
+            display: flex;
+            flex-direction: column
+        }
+
+        .num-step {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border: none;
+            cursor: pointer
+        }
+
+        .num-step svg {
+            width: 9px;
+            height: 9px;
+            display: block
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--vscode-focusBorder)
+        }
+
+        select option {
+            background: var(--vscode-dropdown-background, var(--vscode-editor-background));
+            color: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground))
+        }
+
+        .input-wrap {
+            display: flex;
+            align-items: stretch;
+            gap: 6px
+        }
+
+        .input-wrap input,
+        .input-wrap select {
+            flex: 1
+        }
+
+        .icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 8px;
+            flex-shrink: 0
+        }
+
+        .icon-btn svg {
+            width: 14px;
+            height: 14px;
+            display: block
+        }
+
+        /* Button that swaps its label for a centered spinner while busy, without
+           changing size (the hidden label still reserves the width). */
+        .spin-btn {
+            position: relative
+        }
+
+        .spin-btn .btn-spinner {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center
+        }
+
+        .spin-btn .btn-spinner svg {
+            width: 13px;
+            height: 13px;
+            display: block
+        }
+
+        .spin-btn.is-busy .btn-label {
+            visibility: hidden
+        }
+
+        .spin-btn.is-busy .btn-spinner {
+            display: flex
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        .is-busy svg {
+            animation: spin .8s linear infinite
+        }
+
+        /* toggle switch */
+        .toggle {
+            display: inline-flex;
+            align-self: flex-start;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none
+        }
+
+        .toggle input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0
+        }
+
+        .switch {
+            position: relative;
+            width: 34px;
+            height: 18px;
+            border-radius: 9px;
+            flex-shrink: 0;
+            transition: background-color .15s
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            transition: transform .15s
+        }
+
+        .toggle input:checked+.switch::after {
+            transform: translateX(16px)
+        }
+
+        .toggle-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px
+        }
+
+        .toggle-label {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        .toggle-hint {
+            font-size: 11px
+        }
+
+        /* buttons */
+        .btn {
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 2px
+        }
+
+        .btn-ghost {
+            background: transparent;
+            font-weight: 500
+        }
+
+        .btn-sm {
+            font-size: 11px;
+            padding: 3px 9px
+        }
+
+        .btn:disabled {
+            opacity: .6;
+            cursor: default
+        }
+
+        /* action bar */
+        .actionbar {
+            position: sticky;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            z-index: 5
+        }
+
+        .actionbar .spacer {
+            flex: 1
+        }
+
+        .save-note {
+            font-size: 11px;
+            opacity: 0;
+            transition: opacity .2s
+        }
+
+        .save-note.show {
+            opacity: 1
+        }
+
+        /* repeatable cards */
+        .card-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px
+        }
+
+        .item-card {
+            padding: 14px
+        }
+
+        .item-card-hdr {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px
+        }
+
+        .item-card-title {
+            font-weight: 600;
+            font-size: 12px
+        }
+
+        .item-card-hdr .spacer {
+            flex: 1
+        }
+
+        .add-row {
+            margin-top: 12px
+        }
+
+        /* key/value rows (e.g. HTTP headers) */
+        .kv-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px
+        }
+
+        .kv-row {
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .kv-row .kv-key {
+            flex: 0 0 38%
+        }
+
+        .kv-row .kv-val {
+            flex: 1
+        }
+
+        .kv-row .btn {
+            flex-shrink: 0
+        }
+
+        .required-mark {
+            font-weight: 700
+        }
+
+        .subhdr {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin: 14px 0 8px
+        }
+
+        .note {
+            font-size: 11px;
+            padding: 8px 12px;
+            margin-top: 4px
+        }
+
+        .mono {
+            font-family: 'Consolas', monospace
+        }
+
+        /* json editor */
+        .json-wrap {
+            position: relative
+        }
+
+        .json-format-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            opacity: 0;
+            transition: opacity .15s
+        }
+
+        .json-wrap:hover .json-format-btn,
+        .json-wrap:focus-within .json-format-btn {
+            opacity: 1
+        }
+
+        /* chevron */
+        .chev {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-style: normal
+        }
+
+        .chev .chev-r {
+            display: block
+        }
+
+        .chev .chev-d {
+            display: none
+        }
+
+        .chev.open .chev-r {
+            display: none
+        }
+
+        .chev.open .chev-d {
+            display: block
+        }
+
+        .read-only-tag {
+            font-size: 9px;
+            padding: 1px 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em
+        }
+

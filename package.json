@@ -99,25 +99,25 @@
                     "type": "webview",
                     "id": "g4View",
                     "name": "Engine Client",
-                    "icon": "resources/g4-icon.svg"
+                    "icon": "resources.assets/g4-icon.svg"
                 },
                 {
                     "type": "webview",
                     "id": "g4RecorderView",
                     "name": "G4 Recorder",
-                    "icon": "resources/g4-icon.svg"
+                    "icon": "resources.assets/g4-icon.svg"
                 },
                 {
                     "type": "tree",
                     "id": "g4Documentations",
                     "name": "G4 Documentations",
-                    "icon": "resources/g4-documents-icon.svg"
+                    "icon": "resources.assets/g4-documents-icon.svg"
                 },
                 {
                     "type": "tree",
                     "id": "g4BotsManager",
                     "name": "G4 Bots Manager",
-                    "icon": "resources/g4-bots-icon.svg"
+                    "icon": "resources.assets/g4-bots-icon.svg"
                 }
             ]
         },
@@ -126,7 +126,7 @@
                 {
                     "id": "g4Container",
                     "title": "G4",
-                    "icon": "resources/g4-icon.svg"
+                    "icon": "resources.assets/g4-icon.svg"
                 }
             ]
         },
@@ -141,6 +141,11 @@
                     "command": "Open-Bot-In-Workflow",
                     "group": "navigation",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Open-Bot-In-Workflow",
+                    "group": "navigation",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
                 },
                 {
                     "command": "Show-Settings",
@@ -215,8 +220,12 @@
         "webpack-cli": "^6.0.1"
     },
     "files": [
-        "resources/**",
-        "fonts/**",
+        "resources.assets/**",
+        "resources.base/**",
+        "resources.components/**",
+        "resources.docs/**",
+        "resources.examples/**",
+        "resources.fonts/**",
         "languages/**",
         "dist/**",
         "node_modules/**",

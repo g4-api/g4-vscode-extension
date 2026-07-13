@@ -1,614 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G4™ Automation Report</title>
-    <!-- layout -->
-    <style>
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0
-        }
-
-        @font-face {
-            font-family: 'Inter';
-            src: url('{{$ fonts.uri }}') format('truetype');
-            font-weight: 100 900;
-            font-style: normal;
-            font-display: swap
-        }
-
-        html {
-            height: 100%
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            font-size: 13px;
-            line-height: 1.5;
-            height: 100%;
-            display: flex;
-            flex-direction: column
-        }
-
-        .header {
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            gap: 14px
-        }
-
-        #app {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            scrollbar-gutter: stable
-        }
-
-        .header-title {
-            font-size: 16px;
-            font-weight: 700
-        }
-
-        .header-meta {
-            font-size: 11px;
-            margin-top: 1px
-        }
-
-        .header-right {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
-
-        .main {
-            max-width: 1440px;
-            margin: 0 auto;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px
-        }
-
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 10px
-        }
-
-        .card {
-            padding: 14px 16px
-        }
-
-        .card-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            margin-bottom: 5px
-        }
-
-        .card-value {
-            font-size: 20px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums
-        }
-
-        .section {
-            overflow: hidden
-        }
-
-        .section-hdr {
-            padding: 10px 16px;
-            font-weight: 600;
-            font-size: 12px;
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
-
-        .section-body {
-            padding: 16px
-        }
-
-        .session-info {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 16px
-        }
-
-        .si-item {
-            display: flex;
-            flex-direction: column;
-            gap: 2px
-        }
-
-        .si-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: .06em
-        }
-
-        .si-value {
-            font-size: 12px;
-            font-family: 'Consolas', monospace
-        }
-
-        /* tree */
-        .plugin-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 8px;
-            cursor: pointer
-        }
-
-        .p-toggle {
-            width: 13px;
-            height: 13px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 9px;
-            flex-shrink: 0
-        }
-
-        .p-badge {
-            font-size: 9px;
-            padding: 1px 5px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            flex-shrink: 0;
-            white-space: nowrap
-        }
-
-        .p-name {
-            font-weight: 600;
-            white-space: nowrap;
-            flex-shrink: 0
-        }
-
-        .p-arg {
-            font-family: 'Consolas', monospace;
-            font-size: 11px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0
-        }
-
-        .p-elem {
-            font-family: 'Consolas', monospace;
-            font-size: 10px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            min-width: 0
-        }
-
-        .p-spacer {
-            flex: 1
-        }
-
-        .p-bar-wrap {
-            width: 72px;
-            height: 5px;
-            overflow: hidden;
-            flex-shrink: 0
-        }
-
-        .p-bar {
-            height: 100%;
-            min-width: 2px
-        }
-
-        .p-dur {
-            font-size: 10px;
-            white-space: nowrap;
-            text-align: right;
-            min-width: 52px;
-            flex-shrink: 0;
-            font-variant-numeric: tabular-nums
-        }
-
-        .p-dot {
-            width: 7px;
-            height: 7px;
-            flex-shrink: 0
-        }
-
-        .p-led {
-            width: 8px;
-            height: 8px;
-            flex-shrink: 0
-        }
-
-        .p-children {
-            margin-left: 18px
-        }
-
-        .p-children.hidden {
-            display: none
-        }
-
-        /* timeline */
-        .tl-wrap {
-            overflow-x: auto
-        }
-
-        /* assertions */
-        .assert-tbl {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px
-        }
-
-        .assert-tbl th {
-            text-align: left;
-            padding: 7px 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            font-size: 10px
-        }
-
-        .assert-tbl td {
-            padding: 7px 12px;
-            vertical-align: middle
-        }
-
-        .reason {
-            font-size: 11px
-        }
-
-        /* tags */
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 10px;
-            padding: 2px 7px;
-            font-weight: 600;
-            line-height: 1.6
-        }
-
-        /* chevron */
-        .chev {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-style: normal
-        }
-
-        .chev .chev-r {
-            display: block
-        }
-
-        .chev .chev-d {
-            display: none
-        }
-
-        .chev.open .chev-r {
-            display: none
-        }
-
-        .chev.open .chev-d {
-            display: block
-        }
-
-        .mono {
-            font-family: 'Consolas', monospace
-        }
-
-        .no-data {
-            font-style: italic;
-            padding: 16px;
-            text-align: center
-        }
-
-        /* cards */
-        .cards-5 {
-            grid-template-columns: repeat(5, 1fr)
-        }
-
-        .cards-6 {
-            grid-template-columns: repeat(6, 1fr)
-        }
-
-        .cards-req {
-            margin-bottom: 20px
-        }
-
-        /* tree */
-        .p-toggle-spacer {
-            visibility: hidden;
-            display: inline-flex;
-            width: 13px;
-            height: 13px;
-            flex-shrink: 0
-        }
-
-        .tree-stage {
-            margin-bottom: 16px
-        }
-
-        .tree-stage-hdr {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 4px;
-            font-weight: 700;
-            font-size: 13px;
-            cursor: pointer
-        }
-
-        .tree-job {
-            margin-left: 18px;
-            margin-bottom: 8px
-        }
-
-        .tree-job-hdr {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer
-        }
-
-        .meta-text {
-            font-weight: 400;
-            font-size: 11px
-        }
-
-        /* svg */
-        .svg-block {
-            display: block
-        }
-
-        /* table */
-        .td-center {
-            text-align: center
-        }
-
-        /* sections */
-        .section-mt {
-            margin-top: 14px
-        }
-
-        .section-mt-lg {
-            margin-top: 20px
-        }
-
-        /* error state */
-        .error-body {
-            padding: 32px;
-            text-align: center
-        }
-
-        .error-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px
-        }
-
-        .error-desc {
-            font-size: 12px
-        }
-
-        .code-tag {
-            padding: 1px 5px
-        }
-
-        /* session view */
-        .session-title-bar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 14px
-        }
-
-        .session-label {
-            font-weight: 700;
-            font-size: 14px
-        }
-
-        .session-id {
-            font-size: 12px
-        }
-
-        .assert-count {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            margin-left: 4px
-        }
-
-        .session-divider {
-            margin: 28px 0
-        }
-
-        .exc-stack {
-            font-family: 'Consolas', monospace;
-            font-size: 10px;
-            white-space: pre-wrap;
-            margin: 0;
-            padding: 8px 12px
-        }
-
-        .exc-stack-toggle {
-            cursor: pointer;
-            width: 1px;
-            white-space: nowrap
-        }
-
-        .p-hot {
-            color: var(--vscode-editorWarning-foreground);
-            font-weight: 700
-        }
-
-        .es-label {
-            margin-bottom: 6px
-        }
-
-        .es-sep {
-            margin-top: 14px
-        }
-
-        .tree-filter {
-            margin-left: auto;
-            font-family: inherit;
-            font-size: 11px;
-            padding: 2px 6px;
-            width: 140px;
-            background: transparent;
-            color: inherit;
-            outline: none
-        }
-    </style>
-
-    <!-- colors -->
-    <style>
-        body {
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground)
-        }
-
-        .header {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .card {
-            background-color: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .card-label {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .section {
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .section-hdr {
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .section-hdr:has(.chev:not(.open)) {
-            border-bottom: none
-        }
-
-        .si-label {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .plugin-row:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .p-arg {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .p-elem {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .p-dur {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .p-badge {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .p-bar-wrap {
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .p-dot {
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .tag-pass {
-            border: 1px solid var(--vscode-testing-iconPassed)
-        }
-
-        .tag-fail {
-            border: 1px solid var(--vscode-testing-iconFailed)
-        }
-
-        .tag-neutral {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .assert-tbl th {
-            background-color: var(--vscode-sideBar-background);
-            color: var(--vscode-descriptionForeground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .assert-tbl td {
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .assert-tbl tr:last-child td {
-            border-bottom: none
-        }
-
-        .assert-tbl tr:hover td {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .no-data {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .error-body {
-            border: 1px solid
-        }
-
-        .session-divider {
-            border-top: 1px solid
-        }
-
-        .tree-filter {
-            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
-
-        .tree-filter:focus {
-            border-color: var(--vscode-focusBorder)
-        }
-    </style>
-</head>
-
-<body>
-    <div id="g4-header"></div>
-    <div id="app"></div>
-    <textarea id="g4-data" style="display:none; position:absolute; left:-9999px">
-        {{$ report.data }}
-    </textarea>
-
-    <script id="src-constants">
-        // Creates a small circular LED/status icon.
+// Creates a small circular LED/status icon.
         const LED = (fill) => `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
             <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
@@ -621,10 +11,8 @@
         <svg class="chev-d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
             <path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
         </svg>`;
-    </script>
 
-    <script id="src-utilities">
-        /**
+/**
          * Escapes a value so it can be safely rendered as HTML text or inside
          * double-quoted HTML attributes.
          *
@@ -711,7 +99,7 @@
                 // Check whether any descendant plugin node is currently visible.
                 const hasMatchingDescendant = Array
                     .from(node.querySelectorAll('.p-node'))
-                    .some(d => d.style.display !== 'none');
+                    .some(descendant => !descendant.classList.contains('is-filter-hidden'));
 
                 // Show this node when:
                 // - The query is empty.
@@ -720,9 +108,7 @@
                 const isShow = !q || self || hasMatchingDescendant;
 
                 // Apply the visibility result.
-                node.style.display = isShow
-                    ? ''
-                    : 'none';
+                node.classList.toggle('is-filter-hidden', !isShow);
 
                 // When a descendant matches, expand this node so the match is visible.
                 if (q && hasMatchingDescendant) {
@@ -801,8 +187,8 @@
          */
         function formatBytes(bytes) {
             // No byte value was provided.
-            if (bytes == null) {
-                return '—';
+            if (bytes === null) {
+                return '-';
             }
 
             // Display values of 1024 bytes or more as kilobytes.
@@ -829,8 +215,8 @@
          */
         function formatDuration(ticks) {
             // No duration value was provided.
-            if (ticks == null) {
-                return '—';
+            if (ticks === null) {
+                return '-';
             }
 
             // Convert .NET ticks into milliseconds.
@@ -865,7 +251,7 @@
         function formatDateTime(iso) {
             // No date/time value was provided.
             if (!iso) {
-                return '—';
+                return '-';
             }
 
             // Convert the ISO string into a Date and format it using the local locale.
@@ -893,7 +279,7 @@
         function formatTime(iso) {
             // No time value was provided.
             if (!iso) {
-                return '—';
+                return '-';
             }
 
             // Convert the ISO string into a Date and format only the time portion.
@@ -1075,8 +461,26 @@
 
             // If the string is longer than the allowed length, cut it and append ellipsis.
             return s.length > maxLength
-                ? s.slice(0, maxLength) + '…'
+                ? s.slice(0, maxLength) + '...'
                 : s;
+        }
+
+        /**
+         * Resolves a bounded CSS depth class suffix for nested report rows.
+         *
+         * @param {number} depth - The source tree depth.
+         * @returns {number} A depth value between 0 and 12.
+         */
+        function getDepthClass(depth) {
+            // Normalize invalid values to the root depth class.
+            const parsedDepth = Number(depth);
+
+            if (!Number.isFinite(parsedDepth) || parsedDepth < 0) {
+                return 0;
+            }
+
+            // Keep generated class names inside the CSS range.
+            return Math.min(12, Math.floor(parsedDepth));
         }
 
         /**
@@ -1104,13 +508,11 @@
                 return;
             }
 
-            // The element should be hidden when it is currently visible.
-            const isHide = element.style.display !== 'none';
+        // The element should be hidden when it is currently visible.
+        const isHide = !element.classList.contains('is-collapsed');
 
-            // Toggle the element display state.
-            element.style.display = isHide
-                ? 'none'
-                : '';
+        // Toggle the element display state.
+        element.classList.toggle('is-collapsed', isHide);
 
             // If no icon exists, only the element visibility is toggled.
             if (!icon) {
@@ -1168,14 +570,10 @@
                 ? icon.classList.add('open')
                 : icon.classList.remove('open');
         }
-    </script>
 
-    <script id="src-data">
-        const DATA = JSON.parse(document.getElementById('g4-data').value);
-    </script>
+const DATA = JSON.parse(document.getElementById('g4-data').value);
 
-    <script id="src-cards">
-        /**
+/**
          * Renders the top-level report summary cards.
          *
          * Behavior:
@@ -1232,11 +630,11 @@
             // Build the card model used by the HTML template.
             const items = [
                 { label: 'Total Runtime', value: formatDuration(performancePoint.runTime) },
-                { label: 'Avg. Action Time', value: averageRuntime ? formatDuration(averageRuntime) : '—' },
+                { label: 'Avg. Action Time', value: averageRuntime ? formatDuration(averageRuntime) : '-' },
                 { label: 'Total Actions', value: String(plugins.length) },
                 { label: 'Total Exceptions', value: String(exceptions) },
                 { label: 'Failed Assertions', value: String(fails) },
-                { label: 'Total Timeouts', value: timeouts > 0 ? formatDuration(timeouts) : '—' },
+                { label: 'Total Timeouts', value: timeouts > 0 ? formatDuration(timeouts) : '-' },
             ];
 
             // Render all summary cards as HTML.
@@ -1248,10 +646,8 @@
             ).join('')}
             </div>`;
         }
-    </script>
 
-    <script id="src-error-summary">
-        /**
+/**
          * Renders the error summary section for failed assertions and exceptions.
          *
          * Behavior:
@@ -1274,12 +670,12 @@
 
                 return `
                 <tr>
-                    <td class="mono">${clearString(assert.onElement || '—')}</td>
-                    <td class="mono">${clearString(content.Condition || '—')}</td>
-                    <td class="mono">${clearString(content.Operator || '—')}</td>
-                    <td class="mono">${clearString(content.Expected ?? '—')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? '—'))}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || '—')}</td>
+                    <td class="mono">${clearString(assert.onElement || '-')}</td>
+                    <td class="mono">${clearString(content.Condition || '-')}</td>
+                    <td class="mono">${clearString(content.Operator || '-')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
                 </tr>`;
             }).join('');
 
@@ -1287,9 +683,9 @@
             const exceptionRows = exceptions.map(i => `
                 <tr>
                     <td class="mono">${clearString(i.pluginName || '?')}</td>
-                    <td class="mono">${clearString(i.type || '—')}</td>
-                    <td>${clearString(i.exception?.Message || '—')}</td>
-                    <td class="reason">${clearString(i.reasonPhrase || '—')}</td>
+                    <td class="mono">${clearString(i.type || '-')}</td>
+                    <td>${clearString(i.exception?.Message || '-')}</td>
+                    <td class="reason">${clearString(i.reasonPhrase || '-')}</td>
                 </tr>`).join('');
 
             // Build the failed assertions table.
@@ -1371,10 +767,8 @@
                 <div class="section-body" id="es-${sid}">${assertBlock}${exceptionBlock}</div>
             </div>`;
         }
-    </script>
 
-    <script id="src-plugin-tree">
-        // Incremental id used to generate unique plugin/process node ids.
+// Incremental id used to generate unique plugin/process node ids.
         // These ids are used by the report tree expand/collapse behavior.
         let _processId = 0;
 
@@ -1407,21 +801,21 @@
                 // Render the stack trace toggle cell only when stack trace data exists.
                 const stackToggle = stack
                     ? `<td class="exc-stack-toggle" onclick="toggleElement('${eid}','${eid}-ic')"><i class="chev" id="${eid}-ic">${SVG_CHEVRON}</i></td>`
-                    : '<td>—</td>';
+                    : '<td>-</td>';
 
                 // Render the hidden stack trace row.
                 // It is expanded/collapsed by clicking the stack trace toggle cell.
-                const stackRow = stack
-                    ? `<tr id="${eid}" style="display:none"><td colspan="5"><pre class="exc-stack">${clearString(stack)}</pre></td></tr>`
+            const stackRow = stack
+                ? `<tr id="${eid}" class="is-collapsed"><td colspan="5"><pre class="exc-stack">${clearString(stack)}</pre></td></tr>`
                     : '';
 
                 // Render the main exception row and optional stack trace row.
                 return `
                 <tr>
                     <td class="mono">${clearString(ex.pluginName || '?')}</td>
-                    <td class="mono">${clearString(ex.type || '—')}</td>
-                    <td>${clearString(ex.exception?.Message || '—')}</td>
-                    <td class="reason">${clearString(ex.reasonPhrase || '—')}</td>
+                    <td class="mono">${clearString(ex.type || '-')}</td>
+                    <td>${clearString(ex.exception?.Message || '-')}</td>
+                    <td class="reason">${clearString(ex.reasonPhrase || '-')}</td>
                     ${stackToggle}
                 </tr>${stackRow}`;
             }).join('');
@@ -1430,7 +824,7 @@
             // The left padding is increased by depth so nested plugin exceptions
             // visually align under their owning plugin/action.
             return `
-            <div style="padding-left:${6 + depth * 20 + 27}px;padding-right:8px;padding-bottom:4px">
+        <div class="assertion-depth assertion-depth--${getDepthClass(depth)}">
             <table class="assert-tbl">
                 <thead>
                     <tr>
@@ -1534,18 +928,17 @@
             // Render the plugin node.
             return `
             <div class="p-node" data-name="${clearString(display.toLowerCase())}">
-                <div class="plugin-row" style="padding-left:${6 + depth * 20}px" onclick="togglePlugin('${id}')" title="${title}">
+            <div class="plugin-row plugin-row--depth-${getDepthClass(depth)}" onclick="togglePlugin('${id}')" title="${title}">
                     <div class="p-toggle">${isNestedPlugins ? `<i class="chev" id="ci-${id}">${SVG_CHEVRON}</i>` : '<span class="p-toggle-spacer"></span>'}</div>
                         <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8">
                             <path fill="${ledColor}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
                         </svg>
                         <span class="p-name">${clearString(display)}</span>
-                        ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                        ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
                         ${onElement ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(onElement, 40))}</span>` : ''}
                         <span class="p-spacer"></span>
-                        <div class="p-bar-wrap">
-                            <div class="p-bar bar-${clearString(type)}" style="width:${barPct.toFixed(1)}%">
-                        </div>
+                    <div class="p-bar-wrap">
+                        <progress class="p-runtime p-bar bar-${clearString(type)}" value="${barPct.toFixed(1)}" max="100"></progress>
                     </div>
                     <span class="p-dur${isHot ? ' p-hot' : ''}">${formatDuration(runTime)}</span>
                 </div>
@@ -1585,7 +978,7 @@
                     <path fill="currentColor" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
                 </svg>
                 <span class="p-name">${clearString(name)}</span>
-                ${argument ? `<span class="p-arg">${clearString(setTruncates(argument, 55))}</span>` : ''}
+                ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
                 ${element ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(element, 40))}</span>` : ''}
                 <span class="p-spacer"></span>
             </div>`;
@@ -1617,24 +1010,24 @@
             // Runtime-related values are not available in request mode,
             // because this view represents the automation request before execution.
             const cards = [
-                { label: 'Total Runtime', value: '—' },
-                { label: 'Avg. Action Time', value: '—' },
+                { label: 'Total Runtime', value: '-' },
+                { label: 'Avg. Action Time', value: '-' },
                 { label: 'Total Actions', value: String(allRules.length) },
-                { label: 'Total Exceptions', value: '—' },
-                { label: 'Failed Assertions', value: '—' },
-                { label: 'Total Timeouts', value: '—' },
+                { label: 'Total Exceptions', value: '-' },
+                { label: 'Failed Assertions', value: '-' },
+                { label: 'Total Timeouts', value: '-' },
             ];
 
             // Renders all jobs for a given stage, including their nested rules.
-            const writeJobsHtml = (jobs) => {
-                return jobs.map(job => {
+            const writeJobsHtml = (jobs, stageIndex) => {
+                return jobs.map((job, jobIndex) => {
                     // Resolve rules/actions for the current job.
                     const rules = job.rules || [];
 
                     // Resolve a stable job id when available.
                     // Generate a fallback id when the request does not include one.
                     const jid = job.reference?.id ||
-                        ('j' + Math.random().toString(36).slice(2));
+                        `j-${stageIndex}-${jobIndex}`;
 
                     // Resolve the job display name.
                     const jname = job.reference?.name || 'Job';
@@ -1649,18 +1042,18 @@
                             </div>
                             <div id="rj-${clearString(jid)}">${rules.map(r => writeRequestRule(r)).join('')}</div>
                         </div>`;
-                }).join('')
+                }).join('');
             };
 
             // Render all stages and their nested jobs/rules.
-            const stagesHtml = stages.map(stage => {
+            const stagesHtml = stages.map((stage, stageIndex) => {
                 // Resolve jobs for the current stage.
                 const jobs = stage.jobs || [];
 
                 // Resolve a stable stage id when available.
                 // Generate a fallback id when the request does not include one.
                 const sid = stage.reference?.id ||
-                    ('s' + Math.random().toString(36).slice(2));
+                    `s-${stageIndex}`;
 
                 // Resolve the stage display name.
                 const sname = stage.reference?.name || 'Stage';
@@ -1674,7 +1067,7 @@
                         <span class="meta-text">${jobs.length} job${jobs.length > 1 ? 's' : ''}</span>
                     </div>
                     <div id="rs-${clearString(sid)}">
-                        ${writeJobsHtml(jobs)}
+                        ${writeJobsHtml(jobs, stageIndex)}
                     </div>
                 </div>`;
             }).join('');
@@ -1759,7 +1152,7 @@
                         ${plugins.map(p => writePlugins(p, 0, jobRunTime, hotSet)).join('')}
                     </div>
                 </div>`;
-            }
+            };
 
             const writeStage = (stage) => {
                 // Resolve the jobs for the current stage.
@@ -1783,7 +1176,7 @@
                         ${jobs.map(job => writeJob(job)).join('')}
                     </div>
                 </div>`;
-            }
+            };
 
             // If the report does not contain stages, show an empty-state message.
             if (!stages?.length) {
@@ -1793,10 +1186,8 @@
             // Render all stages.
             return stages.map(stage => writeStage(stage)).join('');
         }
-    </script>
 
-    <script id="src-timeline">
-        /**
+/**
          * Renders a simple request timeline for automation request rules.
          *
          * Behavior:
@@ -2035,10 +1426,8 @@
                 </svg>
             </div>`;
         }
-    </script>
 
-    <script id="src-assertions">
-        /**
+/**
          * Renders the assertion results table.
          *
          * Behavior:
@@ -2091,13 +1480,13 @@
                 // Render one assertion result row.
                 return `
                 <tr>
-                    <td class="mono">${clearString(assertion.onElement || '—')}</td>
-                    <td class="mono">${clearString(content.Condition || '—')}</td>
-                    <td class="mono">${clearString(content.Operator || '—')}</td>
-                    <td class="mono">${clearString(content.Expected ?? '—')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? '—'))}</td>
+                    <td class="mono">${clearString(assertion.onElement || '-')}</td>
+                    <td class="mono">${clearString(content.Condition || '-')}</td>
+                    <td class="mono">${clearString(content.Operator || '-')}</td>
+                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
+                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
                     <td class="td-center">${ledSvg}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || '—')}</td>
+                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
                 </tr>`;
             }).join('');
 
@@ -2118,10 +1507,8 @@
                 <tbody>${rows}</tbody>
             </table>`;
         }
-    </script>
 
-    <script id="src-header">
-        /**
+/**
          * Renders the report header section.
          *
          * @param {object|null|undefined} automationReference - The automation reference metadata.
@@ -2144,10 +1531,8 @@
                 </div>
             </div>`;
         }
-    </script>
 
-    <script id="src-app">
-        (() => {
+(() => {
             // Renders the request configuration view.
             //
             // Behavior:
@@ -2160,12 +1545,12 @@
                 const root = schema.root || {};
 
                 // Resolve the configured driver.
-                // Falls back to an em dash when the driver is missing.
-                const driver = root.driverParameters?.driver || '—';
+                // Falls back to an ASCII hyphen when the driver is missing.
+                const driver = root.driverParameters?.driver || '-';
 
                 // Resolve the configured browser name from WebDriver capabilities.
-                // Falls back to an em dash when the browser is missing.
-                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '—';
+                // Falls back to an ASCII hyphen when the browser is missing.
+                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '-';
 
                 // Render the request configuration header.
                 document.getElementById('g4-header').innerHTML = `
@@ -2333,11 +1718,11 @@
                     ? `
                         <div class="si-item">
                             <div class="si-label">Machine</div>
-                            <div class="si-value">${clearString(machine.machineName || '—')}</div>
+                            <div class="si-value">${clearString(machine.machineName || '-')}</div>
                         </div>
                         <div class="si-item">
                             <div class="si-label">IP</div>
-                            <div class="si-value">${clearString(machine.machineIp || '—')}</div>
+                            <div class="si-value">${clearString(machine.machineIp || '-')}</div>
                         </div>`
                     : '';
 
@@ -2394,7 +1779,7 @@
                             <input 
                                 class="tree-filter"
                                 type="text"
-                                placeholder="Filter…"
+                                placeholder="Filter"
                                 oninput="filterTree('${safeSid}', this.value)"
                                 onclick="event.stopPropagation()" />
                         </div>
@@ -2442,7 +1827,4 @@
             document.getElementById('app').innerHTML =
                 `<div class="main">${sessionHtml}</div>`;
         })();
-    </script>
-</body>
 
-</html>

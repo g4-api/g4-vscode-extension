@@ -8,6 +8,6 @@ export type ResourceModel = {
     /** The file system path to the resource, either absolute or relative. */
     path: string;
 
-    /** The full UTF‑8 text contents of the resource file. */
+    /** The full UTF-8 text contents of the resource file. */
     content: string;
 };

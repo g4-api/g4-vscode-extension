@@ -65,7 +65,7 @@ export class StopRecorderCommand extends CommandBase {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
 
-        // Create a dedicated child logger for this command’s messages.
+        // Create a dedicated child logger for this command's messages.
         this._logger = this.logger?.newLogger('G4.StartRecorder');
 
         // Command identifier as used in package.json and when invoking via commands.executeCommand.
@@ -103,90 +103,257 @@ export class StopRecorderCommand extends CommandBase {
      * active connections, building an automation workflow, and displaying it.
      */
     protected async onInvokeCommand(_?: any): Promise<void> {
-        // Merge all event buffers into one list and sort by timestamp
-        const buffer = Array
-            .from(this._connections.values())
+        // Snapshot and time-order the buffered events, and resolve the connection used for
+        // automation-level defaults, before touching (and closing) the connections.
+        const buffer = StopRecorderCommand.newSortedBuffer(this._connections);
+        const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
+
+        // Build and show the workflow BEFORE stopping the browsers so a slow or failing
+        // browser-stop can never prevent the recorded workflow from reaching the canvas. The
+        // finally block always stops the browsers and closes the connections afterwards.
+        try {
+            const automation = this.newRecordedAutomation(buffer, initialConnection);
+
+            if (automation) {
+                this.showRecordedWorkflow(automation);
+            }
+        }
+        catch (error: any) {
+            this.logger.error(error || 'An unknown error occurred while stopping the recorder.');
+        }
+        finally {
+            await StopRecorderCommand.stopRecorderConnections(this._connections);
+        }
+    }
+
+    /**
+     * Merges every connection's buffered events into one list, tags each with its recorder
+     * endpoint, and orders them by capture time so events from different recorders interleave in
+     * real order. The event timestamp lives on the inner model (item.value.timestamp), not on the
+     * broadcast envelope, so it is read from there.
+     */
+    private static newSortedBuffer(connections: Map<string, EventCaptureService>): any[] {
+        return Array
+            .from(connections.values())
             .flatMap(service =>
                 service.buffer.map(item => ({
                     ...item,
                     baseUrl: service.options.baseUrl
                 }))
             )
-            .sort((a, b) => a.timestamp - b.timestamp);
+            .sort((a, b) => (a?.value?.timestamp || 0) - (b?.value?.timestamp || 0));
+    }
 
-        // Clear all buffers and close all service connections
-        for (const service of this._connections.values()) {
-            try {
-                await service.disconnect();
-            }
-            catch {
-                // Ignore errors during disconnect
-            }
-        }
-
-        // Find the connection that captured the earliest event
-        const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
-
-        // Abort if no active connections exist
+    /**
+     * Builds the automation workflow from the time-ordered buffer, or returns null (logging why)
+     * when there is nothing to build. A single-job recording runs on the automation-level (real)
+     * driver directly so exactly one browser opens; a multi-job recording uses a no-op
+     * automation-level driver so only the per-job drivers open browsers, avoiding an extra
+     * "shadow" browser alongside the job drivers.
+     */
+    private newRecordedAutomation(buffer: any[], initialConnection: EventCaptureService | undefined): any {
+        // Abort building when there is no connection to source automation defaults from.
         if (!initialConnection) {
             this.logger.warning('No active EventCaptureService connections found to stop.');
+            return null;
+        }
+
+        // Group consecutive events by recorder endpoint.
+        const groups = StopRecorderCommand.newBufferGroups(buffer);
+
+        // Abort if no events were recorded.
+        if (!groups || groups.length === 0) {
+            this.logger.information('No recorded events found in the buffers.');
+            return null;
+        }
+
+        // A single job inherits the automation-level (real) driver; multiple jobs use a no-op
+        // automation-level driver so only the per-job drivers open browsers.
+        const isSingleJob = groups.length === 1;
+        const automationDriver = isSingleJob
+            ? (initialConnection.options.driverParameters || {})
+            : { driver: 'NoDriver', driverBinaries: '.' };
+        const automation = StopRecorderCommand.newAutomation(
+            this.manifest,
+            StopRecorderCommand.confirmDriverBinaries(automationDriver)
+        );
+
+        // Precompute the last group index per endpoint (only the final job closes its browser) and
+        // track the launch job index per endpoint (later jobs mount it via "Job(N)").
+        const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
+        const launchJobByBaseUrl = new Map<string, number>();
+
+        // Convert each group into a job and attach it to the automation.
+        for (let i = 0; i < groups.length; i++) {
+            const group = groups[i];
+            const connection = this._connections.get(group.baseUrl || '');
+
+            const job = StopRecorderCommand.newRecordedJob({
+                group,
+                index: i,
+                isSingleJob,
+                connection,
+                launchJobByBaseUrl,
+                lastIndexByBaseUrl
+            });
+
+            automation.stages[0].jobs.push(job);
+        }
+
+        return automation;
+    }
+
+    /**
+     * Maps each recorder endpoint to the index of the last group that uses it, so only the final
+     * job for a given browser closes it (earlier jobs must leave it open for later reuse).
+     */
+    private static newLastIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
+        const lastIndexByBaseUrl = new Map<string, number>();
+
+        for (let i = 0; i < groups.length; i++) {
+            lastIndexByBaseUrl.set(groups[i].baseUrl || '', i);
+        }
+
+        return lastIndexByBaseUrl;
+    }
+
+    /**
+     * Builds one recorded-actions job from a grouped buffer of events, wiring its id, think-time
+     * settings, CloseBrowser placement (only the last job for a browser), the event-to-rule mapping
+     * (chromium vs UIA), and its driver parameters.
+     */
+    private static newRecordedJob(options: {
+        group: BufferGroup,
+        index: number,
+        isSingleJob: boolean,
+        connection: EventCaptureService | undefined,
+        launchJobByBaseUrl: Map<string, number>,
+        lastIndexByBaseUrl: Map<string, number>
+    }): any {
+        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl } = options;
+
+        const baseUrl = group.baseUrl || '';
+        const mode = connection?.options?.mode || 'standard';
+
+        // Include the 1-based job index in the id so two browsers that share a machine name (and
+        // therefore a display name) still produce unique job ids.
+        const id = `recorded-actions-job-${index + 1}-${group.machineName.toLowerCase()}`;
+
+        // Apply think time settings from the connection options if available.
+        group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
+            enabled: false,
+            minThinkTime: 0,
+            maxThinkTime: 0
+        };
+
+        // Only the last job that uses this browser should close it.
+        const isLastForBrowser = lastIndexByBaseUrl.get(baseUrl) === index;
+
+        // Chromium recorders emit already-resolved, G4-ready actions (InvokeClick, SendKeys, ...),
+        // so they use a direct event-to-rule mapping instead of the UIA up/down assembly pipeline.
+        const isChromium = connection?.isChromium ?? false;
+
+        // Build the job definition from the grouped buffer of events, appending a CloseBrowser
+        // action only on the final job for this browser.
+        const job = StopRecorderCommand.newJob(
+            id,
+            mode,
+            StopRecorderCommand._includeKeyboardEventMap,
+            group,
+            isLastForBrowser,
+            isChromium);
+
+        StopRecorderCommand.setJobDriverParameters(job, {
+            isSingleJob,
+            connection,
+            baseUrl,
+            jobIndex: index + 1,
+            launchJobByBaseUrl
+        });
+
+        return job;
+    }
+
+    /**
+     * Sets a job's driver parameters. A single-job automation omits the job driver entirely so the
+     * job inherits the automation-level (real) driver and only one browser opens. In a multi-job
+     * automation the automation-level driver is a no-op, so each job carries its own: the first job
+     * for a browser launches it with the recorder's real driver (recording the launch index), and a
+     * later job for the same browser mounts it by referencing the launching job as "Job(N)".
+     */
+    private static setJobDriverParameters(job: any, options: {
+        isSingleJob: boolean,
+        connection: EventCaptureService | undefined,
+        baseUrl: string,
+        jobIndex: number,
+        launchJobByBaseUrl: Map<string, number>
+    }): void {
+        const { isSingleJob, connection, baseUrl, jobIndex, launchJobByBaseUrl } = options;
+
+        // Single-job automation: omit the job driver so it inherits the automation-level driver.
+        if (isSingleJob) {
+            delete job.driverParameters;
             return;
         }
 
-        try {
-            // Group consecutive events by machine name
-            const groups = StopRecorderCommand.newBufferGroups(buffer);
+        // Multi-job automation: the first job launches its browser; a later job mounts it via "Job(N)".
+        const launchJob = launchJobByBaseUrl.get(baseUrl);
 
-            // Abort if no events were recorded
-            if (!groups || groups.length === 0) {
-                this.logger.information('No recorded events found in the buffers.');
-                return;
-            }
-
-            // Create a base automation definition for the recorded session
-            const driverParameters = initialConnection?.options.driverParameters || {};
-            const automation = StopRecorderCommand.newAutomation(this.manifest, driverParameters);
-
-            // Convert each group into a job and attach to the automation
-            for (let i = 0; i < groups.length; i++) {
-                // Initialize group-specific variables
-                const group = groups[i];
-                const connection = this._connections.get(group.baseUrl || '');
-                const mode = connection?.options?.mode || 'standard';
-                const id = `recorded-actions-job-${group.machineName.toLowerCase()}`;
-
-                // Apply think time settings from the connection options if available
-                group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
-                    enabled: false,
-                    minThinkTime: 0,
-                    maxThinkTime: 0
-                };
-
-                // Build the job definition from the grouped buffer of events
-                const job = StopRecorderCommand.newJob(
-                    id,
-                    mode,
-                    StopRecorderCommand._includeKeyboardEventMap,
-                    group);
-
-                // Apply driver parameters for subsequent groups if available
-                if (i !== 0) {
-                    if (connection) {
-                        job.driverParameters = connection?.options.driverParameters || {};
-                    }
-                }
-
-                // Attach the job to the automation definition object
-                automation.stages[0].jobs.push(job);
-            }
-
-            // Display the constructed workflow in the G4 Workflow Viewer
-            new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
-                workflow: automation
-            });
+        if (launchJob === undefined) {
+            job.driverParameters = StopRecorderCommand.confirmDriverBinaries(connection?.options.driverParameters || {});
+            launchJobByBaseUrl.set(baseUrl, jobIndex);
+        } else {
+            job.driverParameters = StopRecorderCommand.confirmDriverBinaries({ driver: `Job(${launchJob})` });
         }
-        catch (error: any) {
-            this.logger.error(error || 'An unknown error occurred while stopping the recorder.');
+    }
+
+    /**
+     * Returns a driver-parameters object that satisfies the G4 designer's import gate, which keeps
+     * a driver only when it has both a non-empty `driver` and a non-empty `driverBinaries`. When an
+     * object has a driver but no explicit binaries (for example a `Job(N)` reference), a shallow
+     * copy with `driverBinaries: "."` is returned so the original (possibly shared recorder config)
+     * is never mutated; otherwise the object is returned unchanged.
+     */
+    private static confirmDriverBinaries(driverParameters: any): any {
+        // Nothing to normalize for a missing object.
+        if (!driverParameters) {
+            return driverParameters;
+        }
+
+        const hasDriver = typeof driverParameters.driver === 'string' && driverParameters.driver.length > 0;
+        const hasBinaries = typeof driverParameters.driverBinaries === 'string' && driverParameters.driverBinaries.length > 0;
+
+        // Add a placeholder binaries value only when a driver is set but no binaries were provided.
+        if (hasDriver && !hasBinaries) {
+            return { ...driverParameters, driverBinaries: '.' };
+        }
+
+        return driverParameters;
+    }
+
+    /**
+     * Displays the constructed workflow in the G4 Workflow Viewer.
+     */
+    private showRecordedWorkflow(automation: any): void {
+        new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
+            workflow: automation
+        });
+    }
+
+    /**
+     * Stops each recorder's browser (chromium only) and closes its connection, swallowing errors so
+     * one failing recorder never blocks the others. Run after the workflow is shown so a slow stop
+     * cannot delay the canvas.
+     */
+    private static async stopRecorderConnections(connections: Map<string, EventCaptureService>): Promise<void> {
+        for (const service of connections.values()) {
+            try {
+                await service.stopBrowser();
+                await service.disconnect();
+            }
+            catch {
+                // Ignore errors during browser stop / disconnect.
+            }
         }
     }
 
@@ -219,7 +386,7 @@ export class StopRecorderCommand extends CommandBase {
             return null;
         }
 
-        // Retrieve the last element in the event’s UI path (deepest element)
+        // Retrieve the last element in the event's UI path (deepest element)
         const path = event?.value?.chain?.path || [];
         const element = path.at(-1) ?? null;
 
@@ -253,7 +420,7 @@ export class StopRecorderCommand extends CommandBase {
      * based on the timestamps of items in their internal buffers.
      *
      * This method is useful when coordinating multiple capture services that may
-     * record events in parallel — ensuring actions are processed in the correct order.
+     * record events in parallel - ensuring actions are processed in the correct order.
      */
     private static getFirstCaptureService(
         connections: Map<string, EventCaptureService>
@@ -267,26 +434,34 @@ export class StopRecorderCommand extends CommandBase {
         // The service whose buffer contains the earliest event.
         let earliestService: EventCaptureService | undefined;
 
-        // The earliest buffered event item found across all services.
-        let earliestItem: { timestamp: number } | undefined;
+        // The earliest buffered event timestamp found across all services.
+        let earliestTimestamp: number | undefined;
 
         // Iterate through all available capture services.
         for (const service of connections.values()) {
 
-            // Examine each buffered item in the service.
+            // Examine each buffered item in the service. The event timestamp is on the inner
+            // model (item.value.timestamp), not on the broadcast envelope.
             for (const item of service.buffer) {
+                const timestamp = item?.value?.timestamp;
 
-                // If this is the first item checked, or if the current item has an earlier timestamp,
-                // record it as the earliest so far.
-                if (!earliestItem || item.timestamp < earliestItem.timestamp) {
-                    earliestItem = item;
+                // Skip items without a usable timestamp.
+                if (typeof timestamp !== 'number') {
+                    continue;
+                }
+
+                // If this is the first item checked, or if the current item has an earlier
+                // timestamp, record it as the earliest so far.
+                if (earliestTimestamp === undefined || timestamp < earliestTimestamp) {
+                    earliestTimestamp = timestamp;
                     earliestService = service;
                 }
             }
         }
 
-        // Return the service that recorded the earliest event (if any were found).
-        return earliestService;
+        // Fall back to the first connection when no timestamped event was found, so the caller
+        // still has a service to source automation defaults from instead of aborting entirely.
+        return earliestService ?? Array.from(connections.values())[0];
     }
 
     /**
@@ -335,6 +510,100 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
+     * Maps a grouped buffer of Chromium recorder events to executable G4 rules.
+     *
+     * The Chromium extension already resolves each interaction into a G4-ready event whose
+     * `event` field is the plugin name (for example `InvokeClick`, `SendKeys`, `OpenUrl`) and
+     * whose `chain.locator` is the element XPath. Each event therefore maps one-to-one to a
+     * rule, unlike the UIA recorder whose low-level up/down events must be assembled.
+     */
+    private static resolveChromiumEvents(buffer: any[]): any[] {
+        // Accumulates one rule per resolvable recorder event, in capture order.
+        const rules: any[] = [];
+
+        for (const item of buffer) {
+            // The recorder model sits inside the broadcast envelope's `value` property.
+            const model = item?.value;
+
+            // Skip envelopes without a usable event (the event name is the plugin name).
+            if (!model?.event) {
+                continue;
+            }
+
+            rules.push(StopRecorderCommand.newChromiumRule(model));
+        }
+
+        return rules;
+    }
+
+    /**
+     * Builds a single G4 rule from one Chromium recorder event model.
+     *
+     * The event name is used verbatim as the plugin name; the element locator and argument are
+     * resolved per event family so the rule matches the G4 action's expected shape (element vs.
+     * argument-only actions).
+     */
+    private static newChromiumRule(model: any): any {
+        // The element XPath the interaction targeted (empty for navigation/window events).
+        const locator = model?.chain?.locator || '';
+
+        // The event-specific payload (typed text, url, scroll direction, window index, ...).
+        const value = model?.value || {};
+
+        // Every rule is an Action whose plugin name is the recorder's resolved event name, and
+        // carries the capture timestamp so think-time insertion works uniformly with UIA jobs.
+        const rule: any = {
+            $type: 'Action',
+            pluginName: model.event,
+            context: {
+                timestamp: model.timestamp
+            }
+        };
+
+        switch (model.event) {
+            case 'SendKeys':
+                // Typed text targets the focused element; carry the text as the --keys argument.
+                rule.onElement = locator || undefined;
+                rule.argument = `{{$ --keys:${value.text ?? ''}}}`;
+                break;
+
+            case 'OpenUrl':
+                // Address-bar navigation: the destination URL is the argument, no element.
+                rule.argument = value.url ?? '';
+                break;
+
+            case 'UpdatePage':
+            case 'UndoNavigation':
+            case 'RedoNavigation':
+                // Reload / back / forward navigations take neither an element nor an argument.
+                break;
+
+            case 'SwitchWindow':
+            case 'CloseWindow':
+                // Window actions target a window-handle index rather than a DOM element.
+                rule.argument = `${value.index ?? 0}`;
+                break;
+
+            case 'InvokeScroll':
+                // Wheel scroll carries a readable direction and a normalized notch count.
+                rule.onElement = locator || undefined;
+                rule.argument = `{{$ --direction:${value.direction ?? 'Down'} --times:${value.notches ?? 1}}}`;
+                break;
+
+            default:
+                // Element-targeted actions (InvokeClick, InvokeDoubleClick, InvokeContextClick,
+                // MoveMouseCursor, SubmitForm, SwitchFrame, SwitchParentFrame) run against the
+                // recorded locator with no extra argument.
+                if (locator) {
+                    rule.onElement = locator;
+                }
+                break;
+        }
+
+        return rule;
+    }
+
+    /**
      * Builds a job definition from a grouped buffer of recorded events.
      * Each job aggregates mouse and keyboard actions into executable rules.
      */
@@ -342,7 +611,9 @@ export class StopRecorderCommand extends CommandBase {
         id: string,
         mode: string,
         includeKeyboardEventMap: Map<string, string>,
-        bufferGroup: BufferGroup
+        bufferGroup: BufferGroup,
+        appendCloseBrowser: boolean = true,
+        isChromium: boolean = false
     ): any {
         /**
          * Inserts "think time" delay actions between recorded rules based on the
@@ -426,33 +697,43 @@ export class StopRecorderCommand extends CommandBase {
             rules: [] as any[]
         };
 
-        // Sequentially resolve and classify each recorded event
-        while (buffer.length > 0) {
-            // Safely extract the next buffered event
-            const event = StopRecorderCommand.assertEvent(buffer.shift())?.event;
+        // Chromium recorders push events that are already resolved G4 actions (the event name is
+        // the plugin name and the chain carries the element locator), so each maps directly to a
+        // rule. The UIA recorder instead emits low-level up/down events that must be assembled.
+        if (isChromium) {
+            job.rules = StopRecorderCommand.resolveChromiumEvents(buffer);
+        } else {
+            // Sequentially resolve and classify each recorded UIA event
+            while (buffer.length > 0) {
+                // Safely extract the next buffered event
+                const event = StopRecorderCommand.assertEvent(buffer.shift())?.event;
 
-            // Skip invalid or undefined entries
-            if (!event) {
-                continue;
+                // Skip invalid or undefined entries
+                if (!event) {
+                    continue;
+                }
+
+                // Mouse events are translated to UI interaction actions
+                if (event?.value?.type?.match(/mouse/gi)) {
+                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event);
+                    job.rules.push(mouseAction);
+                    continue;
+                }
+
+                // Keyboard sequences are consolidated into a single input action
+                const keyboardActions = StopRecorderCommand.resolveKeyboardEvent(mode, event, includeKeyboardEventMap, buffer);
+                job.rules.push(...keyboardActions);
             }
-
-            // Mouse events are translated to UI interaction actions
-            if (event?.value?.type?.match(/mouse/gi)) {
-                const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event);
-                job.rules.push(mouseAction);
-                continue;
-            }
-
-            // Keyboard sequences are consolidated into a single input action
-            const keyboardActions = StopRecorderCommand.resolveKeyboardEvent(mode, event, includeKeyboardEventMap, buffer);
-            job.rules.push(...keyboardActions);
         }
 
-        // Always close the browser at the end of the recorded session
-        job.rules.push({
-            $type: 'Action',
-            pluginName: "CloseBrowser"
-        });
+        // Close the browser at the end only when this is the final job that uses it; a browser
+        // reused by a later job must stay open so that job can mount the same driver.
+        if (appendCloseBrowser) {
+            job.rules.push({
+                $type: 'Action',
+                pluginName: "CloseBrowser"
+            });
+        }
 
         // Insert think time delays between actions based on recorded timestamps
         if (bufferGroup.thinkTimeSettings?.enabled) {
@@ -647,13 +928,13 @@ export class StopRecorderCommand extends CommandBase {
         // Attempt to resolve the most specific locator available for this event
         const fallbackLocator = event?.value?.chain?.fallbackLocator;
         const locator = event?.value?.chain?.locator;
-        const resolvedLocator = locator || fallbackLocator;
+        const resolvedLocator = locator || fallbackLocator || undefined;
 
         // Construct the action rule based on the mouse event type and mode
         const rule: any = {
             $type: 'Action',
             pluginName: mouseEventMap.get(mouseEventType) || 'None',
-            onElement: event?.value?.chain?.locator,
+            onElement: resolvedLocator,
             context: {
                 x: event?.value?.x,
                 y: event?.value?.y,
@@ -674,28 +955,32 @@ export class StopRecorderCommand extends CommandBase {
     /**
      * Groups a flat list of recorded event objects into consecutive groups,
      * where each group represents a continuous sequence of events
-     * coming from the same machine (machineName).
+     * coming from the same recorder endpoint (baseUrl).
      *
      * Unlike a traditional "group by" operation, this method preserves
-     * **order and continuity** — meaning if the same machine appears again
+     * **order and continuity** - meaning if the same recorder appears again
      * later in the buffer, it starts a **new group** rather than merging with
-     * previous occurrences.
+     * previous occurrences. Grouping by endpoint (rather than machine name)
+     * keeps two browsers hosted on the same machine in separate jobs and lets a
+     * browser that reappears later form a new, mountable job.
      */
     private static newBufferGroups(buffer: any[]): BufferGroup[] {
-        // The final list of groups. Each group contains events with the same machine name.
+        // The final list of groups. Each group contains a continuous run of events that
+        // originated from the same recorder endpoint.
         const groups: BufferGroup[] = [];
 
         // Tracks the currently active group being populated.
         let currentGroup: BufferGroup | null = null;
 
-        // Iterate through each event in the buffer in sequential order.
+        // Iterate through each event in the buffer in sequential (timestamp) order.
         for (const event of buffer) {
-            // When encountering the first event, or when the machine name changes,
-            // start a new group with a new incremental ID.
-            if (!currentGroup || currentGroup.machineName !== event.value.machineName) {
+            // When encountering the first event, or when the originating recorder endpoint
+            // changes, start a new group with a new incremental ID.
+            if (!currentGroup || currentGroup.baseUrl !== event.baseUrl) {
                 currentGroup = {
                     id: groups.length + 1,                // Sequential numeric group ID.
-                    machineName: event.value.machineName, // Machine name defining this group.
+                    baseUrl: event.baseUrl,               // Recorder endpoint defining this group.
+                    machineName: event.value.machineName, // Machine name, kept for display.
                     events: []                            // Container for grouped events.
                 };
                 groups.push(currentGroup);
@@ -705,12 +990,7 @@ export class StopRecorderCommand extends CommandBase {
             currentGroup.events.push(event);
         }
 
-        // Base URL of the capture service.
-        if (currentGroup) {
-            currentGroup.baseUrl = buffer[0].baseUrl;
-        }
-
-        // Return all constructed machine-based event groups.
+        // Return all constructed endpoint-based event groups.
         return groups;
     }
 }

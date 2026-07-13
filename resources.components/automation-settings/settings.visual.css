@@ -1,0 +1,146 @@
+﻿body {
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground)
+        }
+
+        .header {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .header-meta {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .section {
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr {
+            background-color: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .section-hdr:has(.chev:not(.open)) {
+            border-bottom: none
+        }
+
+        .section-desc,
+        .field-hint,
+        .field-suffix,
+        .toggle-hint,
+        .meta-text,
+        .save-note {
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .field-error,
+        .required-mark,
+        .status-err {
+            color: var(--vscode-errorForeground)
+        }
+
+        .status-ok {
+            color: var(--vscode-testing-iconPassed, #22c55e)
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+            background-color: var(--vscode-input-background, transparent)
+        }
+
+        .num-steppers {
+            border-left: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
+        }
+
+        .num-step {
+            background-color: var(--vscode-input-background, transparent);
+            color: var(--vscode-foreground)
+        }
+
+        .num-step:first-child {
+            border-bottom: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
+        }
+
+        .num-step:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .num-step svg path {
+            fill: currentColor
+        }
+
+        .switch {
+            background-color: var(--vscode-panel-border)
+        }
+
+        .switch::after {
+            background-color: var(--vscode-editor-background)
+        }
+
+        .toggle input:checked+.switch {
+            background-color: var(--vscode-testing-iconPassed, #22c55e)
+        }
+
+        .btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground)
+        }
+
+        .btn:hover {
+            background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
+        }
+
+        .btn-ghost {
+            color: var(--vscode-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        .btn-ghost:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .json-format-btn {
+            background-color: var(--vscode-input-background, var(--vscode-editor-background))
+        }
+
+        .json-format-btn:hover {
+            background-color: var(--vscode-list-hoverBackground)
+        }
+
+        .actionbar {
+            background-color: var(--vscode-editorGroupHeader-tabsBackground);
+            border-top: 1px solid var(--vscode-panel-border)
+        }
+
+        .item-card {
+            border: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background)
+        }
+
+        .note {
+            border: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-sideBar-background);
+            color: var(--vscode-descriptionForeground)
+        }
+
+        .read-only-tag {
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border: 1px solid var(--vscode-panel-border)
+        }
+
+        a {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none
+        }
+
+        a:hover {
+            color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+            text-decoration: underline
+        }
+

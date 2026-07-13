@@ -1,0 +1,81 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {
+                "browserName": "Uia",
+                "uia:options": {
+                    "label": "machine-a"
+                }
+            }
+        },
+        "driver": "UiaDriver",
+        "driverBinaries": "http://localhost:5555/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "id": "aae7674a6c245"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
+                "id": "ccc0bb481c36f",
+                "name": "G4™ Default Stage"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
+                        "id": "1aead9f7069dde",
+                        "name": "G4™ Default Job"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "reference": {
+                                "id": "0a71ef9c543a1e4a88d63e274303a844"
+                            },
+                            "capabilities": {
+                                "displayName": "Put your actions here"
+                            },
+                            "argument": "Foo Bar"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

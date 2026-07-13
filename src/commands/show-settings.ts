@@ -78,6 +78,12 @@ export class ShowSettingsCommand extends CommandBase {
                 // Allow scripts to run inside the settings webview.
                 enableScripts: true,
 
+                // Allow the component CSS/JS and shared font resources to load.
+                localResourceRoots: [
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
+                ],
+
                 // Keep the webview state alive when the tab is hidden.
                 retainContextWhenHidden: true
             }
@@ -108,6 +114,34 @@ export class ShowSettingsCommand extends CommandBase {
                 // computer's default browser rather than inside VS Code.
                 if (message?.command === 'openExternal' && message.url) {
                     await vscode.env.openExternal(vscode.Uri.parse(message.url));
+                }
+
+                // Let the settings page fill the root manifest sandbox field from a folder picker.
+                if (message?.command === 'browseSandbox') {
+                    const sandboxPath = await Utilities.selectSandboxLocation();
+
+                    if (sandboxPath) {
+                        await panel.webview.postMessage({
+                            command: 'setSandboxPath',
+                            sandboxPath
+                        });
+                    }
+                }
+
+                // Let the settings page fill the root manifest sandbox field from the newest local sandbox.
+                if (message?.command === 'autoDetectSandbox') {
+                    const sandboxPath = Utilities.findLatestSandbox();
+
+                    if (sandboxPath) {
+                        await panel.webview.postMessage({
+                            command: 'setSandboxPath',
+                            sandboxPath
+                        });
+                    } else {
+                        vscode.window.showWarningMessage(
+                            'No G4 Sandbox was auto-detected. Browse manually for the G4 Sandbox.'
+                        );
+                    }
                 }
 
                 // Handle settings save messages posted from the webview.
@@ -159,12 +193,23 @@ export class ShowSettingsCommand extends CommandBase {
     // Builds the settings webview HTML and injects the font URI into it.
     private static async setHtml(panel: vscode.WebviewPanel, context: vscode.ExtensionContext): Promise<string> {
 
-        // Get the URI for the Inter font included in the extension resources.
-        const fontUri = panel.webview.asWebviewUri(
+        // Get the URI for the settings component stylesheet.
+        const styleUri = panel.webview.asWebviewUri(
             vscode.Uri.joinPath(
                 context.extensionUri,
-                'fonts',
-                'inter-variable.ttf'
+                'resources.components',
+                'automation-settings',
+                'settings.css'
+            )
+        );
+
+        // Get the URI for the settings component script.
+        const scriptUri = panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                context.extensionUri,
+                'resources.components',
+                'automation-settings',
+                'settings.js'
             )
         );
 
@@ -174,8 +219,8 @@ export class ShowSettingsCommand extends CommandBase {
         // Serialize the manifest to a formatted JSON string for injection into the settings HTML.
         const manifestJson = JSON.stringify(manifest, null, 4);
 
-        // Load the settings HTML template from the extension resources.
-        const html = Utilities.getResource('g4-settings.html');
+        // Load the settings component HTML template from the extension resources.
+        const html = Utilities.getResource('resources.components/automation-settings/settings.html');
 
         // Inject the manifest data and font URI into the HTML template and return it.
         // The manifest is supplied through a replacer function so any literal `$`
@@ -183,6 +228,7 @@ export class ShowSettingsCommand extends CommandBase {
         // replacement token (e.g. `$&` or `$1`).
         return html
             .replace('{{$ settings.data }}', () => manifestJson)
-            .replace('{{$ fonts.uri }}', fontUri.toString());
+            .replace('{{$ component.style.uri }}', styleUri.toString())
+            .replace('{{$ component.script.uri }}', scriptUri.toString());
     }
 }

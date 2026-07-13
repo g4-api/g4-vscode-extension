@@ -1,4 +1,6 @@
 import * as fs from 'node:fs';
+import { randomInt } from 'node:crypto';
+import os = require('os');
 import * as vscode from 'vscode';
 import path = require('path');
 import { LogSettings } from '../logging/logger-base';
@@ -34,6 +36,36 @@ export class Utilities {
     public static assertNullOrUndefined(obj: any): boolean {
         // Delegate to the internal check that safely handles getters and unexpected errors
         return this.assertUndefinedOrNull(obj);
+    }
+
+    /**
+     * Selects a G4 sandbox folder through the VS Code folder picker.
+     *
+     * @remarks
+     * Uses explicit VS Code UI state because sandbox selection requires user interaction owned by
+     * the extension host. Cancellation is treated as a non-error result so callers can preserve
+     * their current sandbox value.
+     *
+     * @returns The selected sandbox folder path, or undefined when the dialog is cancelled.
+     */
+    public static async selectSandboxLocation(): Promise<string | undefined> {
+        // Open a single-folder picker so the user can choose the sandbox root.
+        const selection = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select G4 Sandbox'
+        });
+
+        // Treat cancellation as an empty result rather than an error.
+        const isSandboxSelectionEmpty = !selection || selection.length === 0;
+
+        if (isSandboxSelectionEmpty) {
+            return undefined;
+        }
+
+        // Use fsPath so callers receive a native path on every platform.
+        return selection[0].fsPath;
     }
 
     /**
@@ -112,6 +144,62 @@ export class Utilities {
     }
 
     /**
+     * Finds the newest installed G4 sandbox folder for the current OS, or undefined when none exists.
+     *
+     * @remarks
+     * Compute-only. Windows searches C:\g4-sandbox-* and C:\g4-sandbox\g4-sandbox-*; other
+     * platforms search the same layout under /opt. Missing roots are ignored. "Newest" is the
+     * highest folder name using a numeric-aware compare.
+     *
+     * @returns The full path of the newest sandbox folder, or undefined.
+     */
+    public static findLatestSandbox(): string | undefined {
+        // Resolve the platform root that hosts the sandbox folders.
+        const isWindows = os.platform() === 'win32';
+        const windowsRoot = path.win32.parse('C:/').root;
+        const root = isWindows ? windowsRoot : '/opt';
+
+        // The two candidate layouts: directly under the root, and nested under a g4-sandbox folder.
+        const searchDirectories = [
+            root,
+            path.join(root, 'g4-sandbox')
+        ];
+
+        // Collect every versioned sandbox folder found across the candidate layouts.
+        const candidates: string[] = [];
+
+        for (const directory of searchDirectories) {
+            let entries: fs.Dirent[] = [];
+
+            try {
+                entries = fs.readdirSync(directory, { withFileTypes: true });
+            } catch {
+                // Directory missing or unreadable; skip it.
+                continue;
+            }
+
+            for (const entry of entries) {
+                // Match versioned sandbox folders only (g4-sandbox-<something>).
+                if (entry.isDirectory() && /^g4-sandbox-.+/i.test(entry.name)) {
+                    candidates.push(path.join(directory, entry.name));
+                }
+            }
+        }
+
+        // Nothing found on this machine.
+        if (candidates.length === 0) {
+            return undefined;
+        }
+
+        // Pick the newest by folder name (numeric-aware), so the highest version wins.
+        candidates.sort((a, b) =>
+            path.basename(b).localeCompare(path.basename(a), undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        return candidates[0];
+    }
+
+    /**
      * Recursively retrieves all file paths under the specified directory.
      *
      * @param directory - The root directory path to start searching from.
@@ -166,9 +254,8 @@ export class Utilities {
         // Accumulates matching file paths
         const list: string[] = [];
 
-        // Regex to extract the base file name (word characters) immediately before '.json'
-        // The negative lookbehind (?!\\) ensures we don't match backslashes
-        const patternToExtractName = /(?!\\)\w+(?=\.json)/;
+        // Store the requested base names once so each discovered file has a bounded lookup.
+        const targetNames = new Set(arrayOfNames);
 
         /**
          * Helper function that walks the directory tree recursively.
@@ -186,14 +273,13 @@ export class Utilities {
                     getFilesFromDirectory(filePath);
 
                 } else {
-                    // If it's a file, attempt to match its base name against each target name
-                    for (const name of arrayOfNames) {
-                        const matches = patternToExtractName.exec(filePath);
+                    // Use path parsing instead of regex so file-name extraction stays linear.
+                    const isJsonFile = path.extname(filePath) === '.json';
+                    const fileName = path.basename(filePath, '.json');
 
-                        // If regex finds a base name and it matches one in our list, record the path
-                        if (matches !== null && matches[0] === name) {
-                            list.push(filePath);
-                        }
+                    // Record only JSON files whose base names match the requested names.
+                    if (isJsonFile && targetNames.has(fileName)) {
+                        list.push(filePath);
                     }
                 }
             }
@@ -207,7 +293,7 @@ export class Utilities {
     }
 
     /**
-     * Retrieves a flat, alphabetically sorted list of folders (A–Z) followed by files (A–Z)
+     * Retrieves a flat, alphabetically sorted list of folders (A-Z) followed by files (A-Z)
      * from the specified directory, with optional exclusion and inclusion filters.
      *
      * @param folderPath     - Absolute path of the directory to scan.
@@ -329,7 +415,7 @@ export class Utilities {
             return '';
         }
 
-        // Otherwise, return the document’s text content
+        // Otherwise, return the document's text content
         return editor.document.getText();
     }
 
@@ -338,7 +424,7 @@ export class Utilities {
      *
      * @param resourceName - The filename of the resource to load (e.g., `"config.json"`).
      * 
-     * @returns The file contents as a UTF‑8 string, or an empty string if the resource cannot be read.
+     * @returns The file contents as a UTF-8 string, or an empty string if the resource cannot be read.
      */
     public static getResource(resourceName: string): string {
         // Delegate to the private resolver which handles file lookup and error swallowing
@@ -379,7 +465,7 @@ export class Utilities {
      *          with any leading backslash removed for Windows-style URIs.
      */
     public static getSystemFolderPath(folder: 'bots' | 'configurations' | 'environments' | 'models' | 'templates' | 'resources' | 'tests'): string {
-        // Attempt to get the first workspace folder’s file system path
+        // Attempt to get the first workspace folder's file system path
         let workspace = vscode.workspace.workspaceFolders
             ?.map(f => f.uri.path)[0];
 
@@ -389,7 +475,7 @@ export class Utilities {
         // Construct the target folder path inside the workspace
         const systemFolderPath = path.join(workspace, folder);
 
-        // On Windows, VSCode URI paths may begin with a leading backslash (e.g., "\C:\…")
+        // On Windows, VSCode URI paths may begin with a leading backslash (e.g., "\C:\...")
         // Strip it off to produce a valid file system path
         return systemFolderPath.startsWith('\\')
             ? systemFolderPath.substring(1)
@@ -405,7 +491,7 @@ export class Utilities {
      * @returns The resolved folder path, with any leading backslash removed for Windows paths.
      */
     public static getSystemUtilityFolderPath(folder: 'build' | 'docs' | 'scripts'): string {
-        // Retrieve the first workspace folder’s file system path (if any)
+        // Retrieve the first workspace folder's file system path (if any)
         let workspace = vscode.workspace.workspaceFolders
             ?.map(f => f.uri.path)[0];
 
@@ -416,7 +502,7 @@ export class Utilities {
         // and into the specified utility folder (e.g., "../build")
         const targetPath = path.join(workspace, '..', folder);
 
-        // On Windows, VSCode URIs may start with a leading backslash (e.g., "\C:\…")
+        // On Windows, VSCode URIs may start with a leading backslash (e.g., "\C:\...")
         // Remove it to form a valid file system path
         return targetPath.startsWith('\\')
             ? targetPath.substring(1)
@@ -426,8 +512,8 @@ export class Utilities {
     /**
      * Generates a timestamp string in the format `DD/MM/YY, HH:MM:SS.mmm`.
      *
-     * @returns A formatted timestamp using the 'en-GB' locale with two‑digit date/time components
-     *          and three‑digit milliseconds appended after a dot.
+     * @returns A formatted timestamp using the 'en-GB' locale with two-digit date/time components
+     *          and three-digit milliseconds appended after a dot.
      */
     public static getTimestamp(): string {
         // Create a new Date instance representing the current date and time
@@ -435,13 +521,13 @@ export class Utilities {
 
         // Define formatting options for day, month, year, hour, minute, and second
         const options: Intl.DateTimeFormatOptions = {
-            year: '2-digit',   // two‑digit year (e.g., "25")
-            month: '2-digit',  // two‑digit month (e.g., "07" for July)
-            day: '2-digit',    // two‑digit day of month (e.g., "21")
-            hour: '2-digit',   // two‑digit hour (24‑hour clock)
-            minute: '2-digit', // two‑digit minute
-            second: '2-digit', // two‑digit second
-            hour12: false      // use 24‑hour clock rather than AM/PM
+            year: '2-digit',   // two-digit year (e.g., "25")
+            month: '2-digit',  // two-digit month (e.g., "07" for July)
+            day: '2-digit',    // two-digit day of month (e.g., "21")
+            hour: '2-digit',   // two-digit hour (24-hour clock)
+            minute: '2-digit', // two-digit minute
+            second: '2-digit', // two-digit second
+            hour12: false      // use 24-hour clock rather than AM/PM
         };
 
         // Format date/time according to 'en-GB' locale (produces "DD/MM/YY, HH:MM:SS")
@@ -466,18 +552,18 @@ export class Utilities {
      */
     public static newRandomString(length: number): string {
         // Define the character set from which random characters will be chosen
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const allowedCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
         // Initialize an empty result string
         let result = '';
 
         // Loop 'length' times to build the string
         for (let i = 0; i < length; i++) {
-            // Pick a random index within the 'chars' string
-            const randomIndex = Math.floor(Math.random() * chars.length);
+            // Pick a crypto-backed random index so generated identifiers stay safe if reused.
+            const randomIndex = randomInt(allowedCharacters.length);
 
             // Append the randomly selected character to the result
-            result += chars.charAt(randomIndex);
+            result += allowedCharacters.charAt(randomIndex);
         }
 
         // Return the completed random string
@@ -621,7 +707,7 @@ export class Utilities {
         excludeFolders: string[] = [],
         includeFiles: string[] = []): string[] {
 
-        // Helper: sort an array of names alphabetically (A–Z)
+        // Helper: sort an array of names alphabetically (A-Z)
         const sortByName = (list: string[]) => {
             return list.sort((n1: string, n2: string) => {
                 if (n1 > n2) {
@@ -705,7 +791,7 @@ export class Utilities {
     }
 
     /**
-     * Retrieves the G4 server configuration from the workspace’s project manifest.
+     * Retrieves the G4 server configuration from the workspace's project manifest.
      *
      * @returns The `ServerConfiguration` defined under the `G4Server` key in the manifest,
      *          or `undefined` if no manifest or configuration is present.
@@ -719,7 +805,7 @@ export class Utilities {
     }
 
     /**
-     * Resolves and loads the project’s manifest file from the current workspace.
+     * Resolves and loads the project's manifest file from the current workspace.
      *
      * @param getDefault - If true (default), falls back to the base manifest when no workspace manifest is found or readable.
      *                     If false, returns `undefined` instead of the default manifest.
@@ -727,7 +813,7 @@ export class Utilities {
      * @returns The parsed manifest object, or `undefined` if `getDefault` is false and no valid manifest is found.
      */
     private static resolveProjectManifest(getDefault: boolean = true): any {
-        // Attempt to get the first workspace folder’s file system path
+        // Attempt to get the first workspace folder's file system path
         let workspace = vscode.workspace.workspaceFolders
             ?.map(folder => folder.uri.path)[0];
 
@@ -741,13 +827,13 @@ export class Utilities {
             ? path.join(workspace, 'manifest.json')
             : path.join(workspace, 'src', 'manifest.json');
 
-        // On Windows URIs, remove leading backslash if present (e.g., '\C:\…')
+        // On Windows URIs, remove leading backslash if present (e.g., '\C:\...')
         manifest = manifest.startsWith('\\')
             ? manifest.substring(1)
             : manifest;
 
         try {
-            // Read manifest file synchronously as UTF‑8 text
+            // Read manifest file synchronously as UTF-8 text
             const data = fs.readFileSync(manifest, 'utf8');
 
             // Parse JSON and return the resulting object
@@ -766,22 +852,13 @@ export class Utilities {
     }
 
     /**
-     * Loads and parses the base project manifest file.
+     * Loads the base project manifest from the in-code global defaults.
      *
-     * @returns The parsed JSON object from `base-manifest.json`, or throws if the file content is invalid JSON.
+     * @returns The base manifest object used when no workspace manifest exists.
      */
     private static newProjectManifest(): any {
-        // Read the raw JSON string from the resources directory
-        const manifest = this.resolveResource('base-manifest.json');
-
-        // If the manifest is empty, return base manifest
-        if (!manifest) {
-            return Global.BASE_MANIFEST;
-        }
-
-        // Parse the JSON string into an object and return
-        // An error will be thrown here if the JSON is malformed
-        return JSON.parse(manifest);
+        // Return a clone so callers cannot mutate the shared global constant.
+        return structuredClone(Global.BASE_MANIFEST);
     }
 
     /**
@@ -789,17 +866,17 @@ export class Utilities {
      *
      * @param resourceName - The filename of the resource to load (e.g., `"config.json"`).
      * 
-     * @returns The file’s contents as a UTF‑8 string, or an empty string if the file cannot be found or read.
+     * @returns The file's contents as a UTF-8 string, or an empty string if the file cannot be found or read.
      */
     private static resolveResource(resourceName: string): string {
         try {
-            // Determine the project root by moving two levels up from this file’s directory
+            // Determine the project root by moving two levels up from this file's directory
             const directoryPath = path.resolve(__dirname, '..');
 
-            // Build the absolute path to the resource file under the `resources` folder
-            const filePath = path.join(directoryPath, 'resources', resourceName);
+            // Resolve namespaced resources first, with legacy flat resources as a fallback.
+            const filePath = this.resolveResourcePath(directoryPath, resourceName);
 
-            // Synchronously read the file as UTF‑8 text and return its contents
+            // Synchronously read the file as UTF-8 text and return its contents
             return fs.readFileSync(filePath, 'utf8');
         } catch (error: any) {
             // If any error occurs (e.g., file not found, permission denied), log the error message
@@ -808,5 +885,32 @@ export class Utilities {
 
         // Return an empty string when the resource cannot be resolved
         return '';
+    }
+
+    /**
+     * Resolves a resource path from the extension root.
+     *
+     * @param extensionPath - The extension root path.
+     * @param resourceName - A namespaced resource path or legacy flat resource name.
+     *
+     * @returns The first existing candidate path, or the namespaced candidate for error reporting.
+     */
+    private static resolveResourcePath(extensionPath: string, resourceName: string): string {
+        // Normalize separators so callers can pass web-style resource paths.
+        const normalizedResourceName = resourceName.replace(/[\\/]+/g, path.sep);
+
+        // Prefer the new shallow namespaced resource folders, then support old flat resources.
+        const candidatePaths = [
+            path.join(extensionPath, normalizedResourceName),
+            path.join(extensionPath, 'resources', normalizedResourceName)
+        ];
+
+        for (const candidatePath of candidatePaths) {
+            if (fs.existsSync(candidatePath)) {
+                return candidatePath;
+            }
+        }
+
+        return candidatePaths[0];
     }
 }

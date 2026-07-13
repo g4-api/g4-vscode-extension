@@ -297,7 +297,7 @@ export class ShowWorkflowCommand extends CommandBase {
 
     /**
      * Returns the HTML `<script>` block to inject into the WebView.
-     * This script wires up drag‐and‐drop file import and messaging
+     * This script wires up drag-and-drop file import and messaging
      * between the WebView and the VS Code extension host.
      *
      * @returns {string} The HTML/JS shim as a string.
@@ -330,10 +330,66 @@ export class ShowWorkflowCommand extends CommandBase {
                 }
             });
 
-            // Notify the extension that the webview is ready to receive messages
+            /**
+             * Resolves once the workflow designer is genuinely ready to accept a definition.
+             *
+             * The '.sqd-root-start-stop' node only exists after the designer has been created
+             * and the global 'setDefinition' helper has been wired up, so both are used as the
+             * readiness signal. Unlike a one-shot 'waitForElement', this poller never rejects and
+             * keeps checking across the full budget, so it tolerates slow manifest/resource loads
+             * instead of silently dropping the ready signal.
+             *
+             * @param timeout  - Maximum time to wait, in milliseconds.
+             * @param interval - Delay between readiness checks, in milliseconds.
+             * @returns A promise that resolves to true when the designer is ready, otherwise false.
+             */
+            const waitForDesigner = (timeout = 30000, interval = 100) => new Promise(resolve => {
+                const startTime = Date.now();
+                const timer = setInterval(() => {
+                    // 'setDefinition' is a global-scope binding, so guard the probe defensively.
+                    let isReady = false;
+                    try {
+                        isReady = typeof setDefinition === 'function'
+                            && document.querySelector('.sqd-root-start-stop') !== null;
+                    } catch {
+                        isReady = false;
+                    }
+
+                    // Resolve when ready, or once the wait budget has been exhausted.
+                    if (isReady || (Date.now() - startTime) >= timeout) {
+                        clearInterval(timer);
+                        resolve(isReady);
+                    }
+                }, interval);
+            });
+
+            /**
+             * Applies a workflow definition to the designer and resets the viewport.
+             *
+             * @param definition - The parsed workflow definition to render.
+             */
+            const applyDefinition = (definition) => {
+                // Observe the workspace so 'resetView' can recenter once the canvas repaints.
+                const workspaceElement = document.querySelector('.sqd-workspace');
+                const workspaceObserver = new Observer(workspaceElement);
+
+                // Render the definition and reset the viewport, returning on any failure.
+                try {
+                    setDefinition(definition);
+                    resetView(workspaceObserver);
+                } catch (applyErr) {
+                    return;
+                }
+            };
+
+            // Notify the extension only once the designer can actually accept a definition.
             window.addEventListener('DOMContentLoaded', () => {
-                Utilities.waitForElement('.sqd-root-start-stop', 5000).then(() => {
-                    vscode.postMessage({ type: 'webview:ready' });
+                waitForDesigner().then(isReady => {
+                    if (isReady) {
+                        vscode.postMessage({ type: 'webview:ready' });
+                    } else {
+                        console.warn('Workflow designer was not ready in time; ready signal skipped.');
+                    }
                 });
             });
 
@@ -341,25 +397,15 @@ export class ShowWorkflowCommand extends CommandBase {
             window.addEventListener('message', event => {
                 // Extract the message type from the event data
                 const type = event.data?.type;
-                
+
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
                     return;
                 }
 
-                // Set the definition in the workspace
-                // This assumes you have a function setDefinition to handle the incoming data
+                // Parse the incoming definition and render it.
                 const definition = JSON.parse(event.data?.payload?.content || '{}');
-
-                // Set observer for the workspace element
-                const workspaceElement = document.querySelector('.sqd-workspace');
-                const workspaceObserver = new Observer(workspaceElement);
-                
-                // Set the definition in the workspace based on the received message
-                setDefinition(definition);
-
-                // Reset the view to set the portview
-                resetView(workspaceObserver);
+                applyDefinition(definition);
             });
         </script>`;
     }
@@ -647,14 +693,14 @@ export class ShowWorkflowCommand extends CommandBase {
 
             /**
              * Detects and patches the main HTML entry point for the embedded workflow editor.
-             * Replaces the default CSS filename with a VS Code–specific stylesheet, then writes
+             * Replaces the default CSS filename with a VS Code-specific stylesheet, then writes
              * the modified HTML to disk.
              */
             if (resource === 'views/canvas.html') {
                 // Read the fetched HTML content as a UTF-8 string
                 let htmlText = await res.text();
 
-                // Swap out the blueprint CSS filename for the VS Code–optimized version
+                // Swap out the blueprint CSS filename for the VS Code-optimized version
                 htmlText = htmlText.replaceAll(
                     'designer-blueprint-parameters-g4.css',
                     'designer-blueprint-parameters-vscode.css'
@@ -712,61 +758,272 @@ export class ShowWorkflowCommand extends CommandBase {
      * @returns The HTML string with updated resource URLs suitable for the Webview.
      */
     private static setHtml(panel: vscode.WebviewPanel, storageDir: string, html: string): string {
-        // Replace <link> tags that reference local CSS or other resources
-        html = html.replaceAll(
-            /<link\s+([^>]*?)href="([^"]+)"([^>]*)>/g,
-            (match, before, href, after) => {
-                // Skip external or data URIs
-                if (href.startsWith('http') || href.startsWith('data:')) {
-                    return match;
-                }
+        // Rewrite stylesheet references with a linear tag scanner to avoid regex backtracking.
+        html = this.setHtmlResourceUris({
+            attributeName: 'href',
+            html,
+            panel,
+            storageDir,
+            tagName: 'link'
+        });
 
-                // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, 'views', href));
-                const webviewUri = panel.webview.asWebviewUri(absPath);
+        // Rewrite script references through the same bounded scanner.
+        html = this.setHtmlResourceUris({
+            attributeName: 'src',
+            html,
+            panel,
+            storageDir,
+            tagName: 'script'
+        });
 
-                // Return the tag with the updated href pointing to the Webview URI
-                return `<link ${before}href="${webviewUri}"${after}>`;
-            }
-        );
-
-        // Replace <script> tags that reference local JS files
-        html = html.replaceAll(
-            /<script\s+([^>]*?)src="([^"]+)"([^>]*)>/g,
-            (match, before, src, after) => {
-                // Skip external or data URIs
-                if (src.startsWith('http') || src.startsWith('data:')) {
-                    return match;
-                }
-
-                // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, 'views', src));
-                const webviewUri = panel.webview.asWebviewUri(absPath);
-
-                // Return the tag with the updated src pointing to the Webview URI
-                return `<script ${before}src="${webviewUri}"${after}>`;
-            }
-        );
-
-        // Replace <img> tags that reference local image files
-        html = html.replaceAll(
-            /<img\s+([^>]*?)src="([^"]+)"([^>]*)>/g,
-            (match, before, src, after) => {
-                // Skip external or data URIs
-                if (src.startsWith('http') || src.startsWith('data:')) {
-                    return match;
-                }
-
-                // Build a file URI and then convert it to a Webview URI
-                const absPath = vscode.Uri.file(path.join(storageDir, 'views', src));
-                const webviewUri = panel.webview.asWebviewUri(absPath);
-
-                // Return the tag with the updated src pointing to the Webview URI
-                return `<img ${before}src="${webviewUri}"${after}>`;
-            }
-        );
+        // Rewrite image references through the same bounded scanner.
+        html = this.setHtmlResourceUris({
+            attributeName: 'src',
+            html,
+            panel,
+            storageDir,
+            tagName: 'img'
+        });
 
         // Return the transformed HTML ready for the Webview
         return html;
+    }
+
+    /**
+     * Rewrites one resource attribute on matching HTML tags using a linear scanner.
+     *
+     * @remarks
+     * This intentionally avoids broad HTML regexes because static analysis flags those patterns
+     * for super-linear backtracking risk on malformed markup.
+     *
+     * @param options - The tag, attribute, webview, and HTML values needed for the rewrite.
+     * @returns HTML with local resource attributes converted to VS Code webview URIs.
+     */
+    private static setHtmlResourceUris(options: {
+        attributeName: string;
+        html: string;
+        panel: vscode.WebviewPanel;
+        storageDir: string;
+        tagName: string;
+    }): string {
+        // Keep a lowercase copy only for searching; all emitted text comes from the original HTML.
+        const lowerHtml = options.html.toLowerCase();
+        const tagPrefix = `<${options.tagName.toLowerCase()}`;
+        let output = '';
+        let searchIndex = 0;
+
+        while (searchIndex < options.html.length) {
+            // Find the next requested tag name without regex so scanning remains linear.
+            const tagStart = lowerHtml.indexOf(tagPrefix, searchIndex);
+
+            if (tagStart < 0) {
+                output += options.html.substring(searchIndex);
+                break;
+            }
+
+            // Copy all unchanged text before the candidate tag.
+            output += options.html.substring(searchIndex, tagStart);
+
+            // Treat partial names such as <linker> as ordinary text.
+            const boundaryIndex = tagStart + tagPrefix.length;
+            const boundaryCharacter = options.html.charAt(boundaryIndex);
+            const isTagNameComplete = this.testHtmlTagBoundary(boundaryCharacter);
+
+            if (!isTagNameComplete) {
+                output += options.html.substring(tagStart, boundaryIndex);
+                searchIndex = boundaryIndex;
+                continue;
+            }
+
+            // Extract the candidate tag; malformed trailing HTML is copied unchanged.
+            const tagEnd = options.html.indexOf('>', boundaryIndex);
+
+            if (tagEnd < 0) {
+                output += options.html.substring(tagStart);
+                break;
+            }
+
+            // Rewrite only the selected attribute value and preserve every other character.
+            const tagText = options.html.substring(tagStart, tagEnd + 1);
+            output += this.setHtmlTagResourceUri({
+                attributeName: options.attributeName,
+                panel: options.panel,
+                storageDir: options.storageDir,
+                tagText
+            });
+
+            searchIndex = tagEnd + 1;
+        }
+
+        return output;
+    }
+
+    /**
+     * Rewrites a local resource attribute inside one already-isolated HTML tag.
+     *
+     * @param options - The single tag and resource-location context.
+     * @returns The original tag when no local resource exists, otherwise the rewritten tag.
+     */
+    private static setHtmlTagResourceUri(options: {
+        attributeName: string;
+        panel: vscode.WebviewPanel;
+        storageDir: string;
+        tagText: string;
+    }): string {
+        // Locate a quoted resource attribute while preserving the original tag formatting.
+        const valueRange = this.getHtmlAttributeValueRange(options.tagText, options.attributeName);
+
+        if (!valueRange) {
+            return options.tagText;
+        }
+
+        const resourcePath = options.tagText.substring(valueRange.start, valueRange.end);
+
+        // External, protocol-relative, and data URIs are already valid inside the webview.
+        if (this.testExternalOrDataUri(resourcePath)) {
+            return options.tagText;
+        }
+
+        // Convert the local resource path to a VS Code webview URI.
+        const absolutePath = vscode.Uri.file(path.join(options.storageDir, 'views', resourcePath));
+        const webviewUri = `${options.panel.webview.asWebviewUri(absolutePath)}`;
+
+        // Replace only the attribute value so tag structure and other attributes remain untouched.
+        return options.tagText.substring(0, valueRange.start) +
+            webviewUri +
+            options.tagText.substring(valueRange.end);
+    }
+
+    /**
+     * Finds the value span for a quoted HTML attribute without using a regex.
+     *
+     * @param tagText - The tag text to inspect.
+     * @param attributeName - Attribute name to locate.
+     * @returns Start and end offsets for the attribute value, or undefined when absent.
+     */
+    private static getHtmlAttributeValueRange(tagText: string, attributeName: string): { start: number; end: number } | undefined {
+        // Search case-insensitively while returning offsets into the original tag text.
+        const lowerTagText = tagText.toLowerCase();
+        const lowerAttributeName = attributeName.toLowerCase();
+        let searchIndex = 0;
+
+        while (searchIndex < tagText.length) {
+            const attributeStart = lowerTagText.indexOf(lowerAttributeName, searchIndex);
+
+            if (attributeStart < 0) {
+                return undefined;
+            }
+
+            const isAttributeBoundary = this.testHtmlAttributeBoundary(tagText.charAt(attributeStart - 1));
+
+            if (!isAttributeBoundary) {
+                searchIndex = attributeStart + lowerAttributeName.length;
+                continue;
+            }
+
+            // Allow ordinary spacing around the equals sign.
+            let valueIndex = attributeStart + lowerAttributeName.length;
+            valueIndex = this.skipHtmlWhitespace(tagText, valueIndex);
+
+            if (tagText.charAt(valueIndex) !== '=') {
+                searchIndex = valueIndex;
+                continue;
+            }
+
+            valueIndex = this.skipHtmlWhitespace(tagText, valueIndex + 1);
+
+            const quote = tagText.charAt(valueIndex);
+            const isQuotedValue = quote === '"' || quote === "'";
+
+            if (!isQuotedValue) {
+                searchIndex = valueIndex + 1;
+                continue;
+            }
+
+            const valueStart = valueIndex + 1;
+            const valueEnd = tagText.indexOf(quote, valueStart);
+
+            if (valueEnd < 0) {
+                return undefined;
+            }
+
+            return {
+                end: valueEnd,
+                start: valueStart
+            };
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Skips HTML whitespace characters from a known offset.
+     *
+     * @param text - Text being scanned.
+     * @param startIndex - Offset where whitespace skipping starts.
+     * @returns First offset that is not HTML whitespace.
+     */
+    private static skipHtmlWhitespace(text: string, startIndex: number): number {
+        let index = startIndex;
+
+        while (index < text.length && this.testHtmlWhitespace(text.charAt(index))) {
+            index++;
+        }
+
+        return index;
+    }
+
+    /**
+     * Tests whether a character can end a tag name.
+     *
+     * @param character - Character immediately after the requested tag name.
+     * @returns True when the candidate is a complete tag name.
+     */
+    private static testHtmlTagBoundary(character: string): boolean {
+        return character === '' ||
+            character === '>' ||
+            this.testHtmlWhitespace(character);
+    }
+
+    /**
+     * Tests whether a character can precede an HTML attribute name.
+     *
+     * @param character - Character immediately before the candidate attribute.
+     * @returns True when the candidate starts at an attribute boundary.
+     */
+    private static testHtmlAttributeBoundary(character: string): boolean {
+        return character === '' ||
+            character === '<' ||
+            this.testHtmlWhitespace(character);
+    }
+
+    /**
+     * Tests whether a resource URI should not be rewritten for the webview.
+     *
+     * @param uri - Resource URI from an HTML attribute.
+     * @returns True for already-external, protocol-relative, anchor, and data URIs.
+     */
+    private static testExternalOrDataUri(uri: string): boolean {
+        const lowerUri = uri.toLowerCase();
+
+        return lowerUri.startsWith('http://') ||
+            lowerUri.startsWith('https://') ||
+            lowerUri.startsWith('data:') ||
+            lowerUri.startsWith('//') ||
+            lowerUri.startsWith('#');
+    }
+
+    /**
+     * Tests whether a character is HTML whitespace.
+     *
+     * @param character - Character to inspect.
+     * @returns True when the character is one of the HTML whitespace characters.
+     */
+    private static testHtmlWhitespace(character: string): boolean {
+        return character === ' ' ||
+            character === '\n' ||
+            character === '\r' ||
+            character === '\t' ||
+            character === '\f';
     }
 }

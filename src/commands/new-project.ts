@@ -65,31 +65,98 @@ export class NewProjectCommand extends CommandBase {
         };
 
         // Show the folder picker dialog to the user
-        vscode.window.showOpenDialog(dialogOptions).then(folderUri => {
-            // If the user canceled the dialog, folderUri will be undefined
-            if (!folderUri || folderUri.length === 0) {
-                return;
-            }
+        const folderUri = await vscode.window.showOpenDialog(dialogOptions);
 
-            // Create the project folder structure
-            NewProjectCommand.newProjectFolder(folderUri);
+        // If the user canceled the dialog, folderUri will be undefined
+        if (!folderUri || folderUri.length === 0) {
+            return;
+        }
 
-            // Generate the initial project manifest file (e.g. package.json or equivalent)
-            NewProjectCommand.newProjectManifest(folderUri, this._logger);
+        // After the location is chosen, resolve the G4 sandbox location (auto-detect / browse /
+        // skip). A skipped or cancelled selection returns undefined, and the base files keep
+        // their default paths.
+        const sandboxPath = await NewProjectCommand.resolveSandboxLocation();
 
-            // Add sample content under the project
-            NewProjectCommand.newSampleBot(folderUri, this._logger);
+        // Create the project folder structure
+        NewProjectCommand.newProjectFolder(folderUri);
 
-            // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
-            NewProjectCommand.newDocumentation(folderUri);
+        // Generate the initial project manifest file, recording the sandbox path when provided
+        const manifest = NewProjectCommand.newProjectManifest(folderUri, this._logger, sandboxPath);
 
-            // Finally, open the newly created project folder in the editor
-            NewProjectCommand.openFolder(folderUri);
-        });
+        // Create VS Code tool configuration files that agent and MCP clients expect.
+        NewProjectCommand.newProjectConfigurationFiles(folderUri, manifest, this._logger);
+
+        // Seed the base.bots folder with the chrome/uia automation base files, rewriting the
+        // chrome paths to the selected sandbox when one was provided
+        NewProjectCommand.newBaseBots(folderUri, this._logger, sandboxPath);
+
+        // Seed the base.templates folder with a schema-safe generic template manifest.
+        NewProjectCommand.newBaseTemplates(folderUri, this._logger);
+
+        // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
+        NewProjectCommand.newDocumentation(folderUri);
+
+        // Finally, open the newly created project folder in the editor
+        NewProjectCommand.openFolder(folderUri);
     }
 
     /**
-     * Creates the standard project folder structure under the user‑selected path.
+     * Prompts for the G4 sandbox location via a QuickPick offering auto-detect, browse, or skip.
+     *
+     * @remarks
+     * Owns the sandbox selection interaction. Auto-detect falls back to Browse when nothing is
+     * found; Skip and cancellation both return undefined so project creation proceeds with the
+     * base files' default paths.
+     *
+     * @returns The selected sandbox folder path, or undefined when skipped/cancelled.
+     */
+    private static async resolveSandboxLocation(): Promise<string | undefined> {
+        // The three actions offered to the user.
+        const autoDetectItem: vscode.QuickPickItem = {
+            label: '$(search) Auto-detect latest G4 sandbox',
+            detail: 'Find the newest g4-sandbox-* folder automatically.'
+        };
+        const browseItem: vscode.QuickPickItem = {
+            label: '$(folder-opened) Browse for G4 sandbox folder...',
+            detail: 'Select the sandbox folder manually.'
+        };
+        const skipItem: vscode.QuickPickItem = {
+            label: '$(circle-slash) Skip',
+            detail: 'Do not set a sandbox; keep the base files\' default paths.'
+        };
+
+        // Ask the user how to provide the sandbox location.
+        const choice = await vscode.window.showQuickPick(
+            [autoDetectItem, browseItem, skipItem],
+            {
+                title: 'G4 Sandbox Location',
+                placeHolder: 'Choose how to set the G4 sandbox location for this project'
+            }
+        );
+
+        // Cancelled (Esc) or Skip: no sandbox is applied.
+        if (!choice || choice === skipItem) {
+            return undefined;
+        }
+
+        // Auto-detect: use the newest sandbox; fall back to Browse when none is found.
+        if (choice === autoDetectItem) {
+            const detected = Utilities.findLatestSandbox();
+
+            if (detected) {
+                vscode.window.showInformationMessage(`G4 sandbox detected: ${detected}`);
+                return detected;
+            }
+
+            vscode.window.showWarningMessage('No G4 sandbox was auto-detected. Please browse to it.');
+        }
+
+        // Browse (chosen directly, or as the auto-detect fallback).
+        return Utilities.selectSandboxLocation();
+    }
+
+    /**
+     * Creates the standard project folder structure under the user-selected path.
      *
      * @param userPath - The URI or path selected by the user for the new project.
      */
@@ -102,25 +169,22 @@ export class NewProjectCommand extends CommandBase {
         // - Documentation (docs)
         // - Build outputs (build)
         // - Custom scripts (scripts)
-        // - Source code (src) with organized subfolders for configurations, environments, models, plugins, tests, and resources
+        // - Source code (src) with organized subfolders for environments, templates, bots, and resources
         const folders = [
-            path.join(projectPath, '.github'),
             path.join(projectPath, 'docs'),
             path.join(projectPath, 'docs', 'examples'),
             path.join(projectPath, 'build'),
             path.join(projectPath, 'scripts'),
-            path.join(projectPath, 'src', '.prompts'),
-            path.join(projectPath, 'src', 'configurations'),
+            path.join(projectPath, 'src', '.agents'),
+            path.join(projectPath, 'src', '.claude'),
+            path.join(projectPath, 'src', '.github'),
+            path.join(projectPath, 'src', '.vscode'),
             path.join(projectPath, 'src', 'environments'),
-            path.join(projectPath, 'src', 'models'),
-            path.join(projectPath, 'src', 'models', 'json'),
-            path.join(projectPath, 'src', 'models', 'markdown'),
+            path.join(projectPath, 'src', 'base.bots'),
+            path.join(projectPath, 'src', 'base.templates'),
             path.join(projectPath, 'src', 'templates'),
-            path.join(projectPath, 'src', 'templates', 'examples'),
             path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots'),
-            path.join(projectPath, 'src', isTestProject ? 'tests' : 'bots', 'examples'),
-            path.join(projectPath, 'src', 'resources'),
-            path.join(projectPath, 'src', 'resources', 'examples')
+            path.join(projectPath, 'src', 'resources')
         ];
 
         // Iterate over each intended folder path...
@@ -133,13 +197,56 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Generates a Manifest.json file in the project's src folder based on the extension’s package manifest.
+     * Creates VS Code workspace configuration files for tool integrations in a new project.
+     *
+     * @remarks
+     * Owns source-level configuration files. The MCP file is derived from the generated
+     * manifest so GitHub Copilot connects to the same G4 server as the project.
      *
      * @param userPath - The URI or path selected by the user for the new project.
+     * @param manifest - The generated project manifest used to derive MCP server settings.
+     * @param logger - Optional logger for reporting file-writing errors.
      */
-    private static newProjectManifest(userPath: any, logger?: Logger) {
+    private static newProjectConfigurationFiles(userPath: any, manifest: any, logger?: Logger): void {
+        // Resolve the project root once so all generated configuration files stay aligned.
+        const projectPath = this.getPath(userPath);
+        const vscodeConfigurationPath = path.join(projectPath, 'src', '.vscode');
+        const mcpContent = this.newMcpConfigurationContent(manifest);
+
+        // VS Code MCP configuration consumed by built-in Copilot tooling.
+        this.writeFile({
+            directoryPath: vscodeConfigurationPath,
+            fileName: 'mcp.json',
+            content: mcpContent,
+            logger: logger
+        });
+    }
+
+    /**
+     * Generates a Manifest.json file in the project's src folder based on the extension's package manifest.
+     *
+     * @param userPath - The URI or path selected by the user for the new project.
+     * @param logger - Optional logger for reporting file-writing errors.
+     * @param sandboxPath - The selected sandbox folder path, or undefined to keep default paths.
+     *
+     * @returns The manifest object written to disk so related generated files can reuse it.
+     */
+    private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string): any {
+        // Clone the base manifest so the shared constant is never mutated, then record the
+        // selected G4 sandbox path when one was provided.
+        const manifest = structuredClone(Global.BASE_MANIFEST);
+
+        if (sandboxPath) {
+            manifest.sandbox = sandboxPath;
+        }
+
+        // Keep the manifest Chrome recorder aligned with the generated chrome base bot, including
+        // sandbox-adjusted binary paths when a sandbox was selected.
+        const chromeBaseContent = this.newChromeBaseContent(sandboxPath);
+        this.setChromeRecorderDriverParameters(manifest, chromeBaseContent);
+
         // Convert the manifest object to a formatted JSON string with tabs for readability
-        const content = JSON.stringify(Global.BASE_MANIFEST, null, '\t');
+        const content = JSON.stringify(manifest, null, '\t');
 
         // Determine the target directory: <projectRoot>/src
         const projectPath = path.join(this.getPath(userPath), 'src');
@@ -151,6 +258,176 @@ export class NewProjectCommand extends CommandBase {
             content: content,
             logger: logger
         });
+
+        // Return the same manifest used for manifest.json so follow-up generated files stay aligned.
+        return manifest;
+    }
+
+    /**
+     * Creates the VS Code MCP configuration content from the generated project manifest.
+     *
+     * @remarks
+     * Compute-only. The generated MCP server URL intentionally follows the G4 Hub MCP endpoint
+     * contract while reusing the manifest's configured protocol, host, and port.
+     *
+     * @param manifest - The generated project manifest containing the G4 server endpoint.
+     * @returns Formatted JSON content for the VS Code `mcp.json` file.
+     */
+    private static newMcpConfigurationContent(manifest: any): string {
+        // Normalize each endpoint field so the generated URL does not inherit surrounding spaces.
+        const schema = `${manifest?.g4Server?.schema ?? ''}`.trim();
+        const host = `${manifest?.g4Server?.host ?? ''}`.trim();
+        const port = `${manifest?.g4Server?.port ?? ''}`.trim();
+
+        // Compose the MCP endpoint from manifest values and the fixed G4 MCP route.
+        const mcpConfiguration = {
+            servers: {
+                'g4-engine': {
+                    type: 'http',
+                    url: `${schema}://${host}:${port}/api/v4/g4/mcp`
+                }
+            },
+            inputs: []
+        };
+
+        // Format generated JSON with the project's tab indentation convention.
+        return JSON.stringify(mcpConfiguration, null, '\t');
+    }
+
+    /**
+     * Seeds the base.bots folder with the chrome and uia automation base files.
+     *
+     * @remarks
+     * When a sandbox path is provided, the chrome file's browser binary and driver binaries are
+     * rewritten to point at that sandbox; the uia file (which targets a localhost hub, not a
+     * sandbox path) is copied unchanged.
+     *
+     * @param userPath    The URI(s) returned from the folder picker (project root).
+     * @param logger      Logger for reporting any file-writing errors.
+     * @param sandboxPath The selected sandbox folder path, or undefined to keep default paths.
+     */
+    private static newBaseBots(userPath: any, logger: Logger, sandboxPath?: string): void {
+        // Resolve the target base.bots folder under the project's src directory.
+        const baseBotsPath = path.join(this.getPath(userPath), 'src', 'base.bots');
+
+        // Chrome base: optionally rewrite its sandbox paths before writing.
+        this.writeFile({
+            directoryPath: baseBotsPath,
+            fileName: 'chrome-automation-base.json',
+            content: this.newChromeBaseContent(sandboxPath),
+            logger: logger
+        });
+
+        // Uia base: copied verbatim (it targets a localhost hub, not a sandbox path).
+        this.writeFile({
+            directoryPath: baseBotsPath,
+            fileName: 'uia-automation-base.json',
+            content: Utilities.getResource('resources.base/uia-automation-base.json'),
+            logger: logger
+        });
+    }
+
+    /**
+     * Seeds the base.templates folder with the generic schema-safe template.
+     *
+     * @param userPath The URI(s) returned from the folder picker (project root).
+     * @param logger Logger for reporting any file-writing errors.
+     */
+    private static newBaseTemplates(userPath: any, logger: Logger): void {
+        // Resolve the target base.templates folder under the project's src directory.
+        const baseTemplatesPath = path.join(this.getPath(userPath), 'src', 'base.templates');
+
+        // Copy the bundled base template so new projects start with a valid template manifest.
+        this.writeFile({
+            directoryPath: baseTemplatesPath,
+            fileName: 'template-base.json',
+            content: Utilities.getResource('resources.base/template-base.json'),
+            logger: logger
+        });
+    }
+
+    /**
+     * Returns the chrome-automation-base.json content, rewriting the Chrome binary and driver
+     * paths to the given sandbox when provided.
+     *
+     * @remarks
+     * Compute-only. Falls back to the resource as-is on skip or when the resource cannot be
+     * parsed, so project creation always succeeds.
+     *
+     * @param sandboxPath The selected sandbox folder path, or undefined to keep default paths.
+     * @returns The chrome base file content to write.
+     */
+    private static newChromeBaseContent(sandboxPath?: string): string {
+        // Load the chrome base file from extension resources.
+        const raw = Utilities.getResource('resources.base/chrome-automation-base.json');
+
+        // No sandbox selected: keep the default paths.
+        if (!sandboxPath) {
+            return raw;
+        }
+
+        try {
+            // Point the Chrome binary and driver at the selected sandbox, preserving the known
+            // sub-paths (browsers/chrome/chrome.exe and drivers/chrome).
+            const chrome = JSON.parse(raw);
+            const chromeOptions = chrome?.driverParameters?.capabilities?.alwaysMatch?.['goog:chromeOptions'];
+
+            if (chromeOptions) {
+                chromeOptions.binary = path.join(sandboxPath, 'browsers', 'chrome', 'chrome.exe');
+            }
+
+            if (chrome?.driverParameters) {
+                chrome.driverParameters.driverBinaries = path.join(sandboxPath, 'drivers', 'chrome');
+            }
+
+            return JSON.stringify(chrome, null, '\t');
+        } catch {
+            // Malformed resource: fall back to the raw content so project creation still succeeds.
+            return raw;
+        }
+    }
+
+    /**
+     * Copies the generated Chrome base driver parameters into the matching manifest recorder.
+     *
+     * @remarks
+     * Compute-only except for mutating the provided manifest clone. The Chrome base content is
+     * used as the source of truth so recorder sandbox paths stay identical to the base bot file.
+     *
+     * @param manifest - The generated project manifest clone to update before writing.
+     * @param chromeBaseContent - The generated chrome-automation-base.json content.
+     */
+    private static setChromeRecorderDriverParameters(manifest: any, chromeBaseContent: string): void {
+        try {
+            // Parse the generated Chrome base content so the recorder receives the same object
+            // that is written under base.bots.
+            const chromeBase = JSON.parse(chromeBaseContent);
+            const chromeDriverParameters = chromeBase?.driverParameters;
+
+            if (!chromeDriverParameters) {
+                return;
+            }
+
+            // Find the Chrome recorder by driver name, matching the new-project manifest contract.
+            const recorders = manifest?.settings?.recorderSettings?.recorders;
+
+            if (!Array.isArray(recorders)) {
+                return;
+            }
+
+            const chromeRecorder = recorders.find(
+                (recorder: any) => recorder?.driverParameters?.driver === 'ChromeDriver'
+            );
+
+            if (!chromeRecorder) {
+                return;
+            }
+
+            // Deep-clone the driver parameters so later mutations cannot couple the two objects.
+            chromeRecorder.driverParameters = structuredClone(chromeDriverParameters);
+        } catch {
+            // Malformed Chrome base content should not block project creation.
+        }
     }
 
     /**
@@ -171,7 +448,7 @@ export class NewProjectCommand extends CommandBase {
         const documentsContent = [
             {
                 // Load the bundled G4 manifest configuration guide from extension resources.
-                content: Utilities.getResource('g4-manifest-configuration-guide.md'),
+                content: Utilities.getResource('resources.docs/g4-manifest-configuration-guide.md'),
 
                 // Keep the original markdown file name when writing it to the project.
                 fileName: 'G4 Manifest Configuration Guide.md',
@@ -194,36 +471,6 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Writes a sample bot definition file into the project’s examples directory.
-     * 
-     * @param userPath      The URI(s) returned from the folder picker, used to determine the project root.
-     * @param logger        Logger instance to report any file‐writing errors.
-     * @param isTestProject When true, writes into "tests/examples"; otherwise into "bots/examples".
-     */
-    private static newSampleBot(userPath: any, logger: Logger, isTestProject: boolean = false): void {
-        // Load the default demo bot content from extension resources
-        const contentBasic = Utilities.getResource('demo-bot.json');
-
-        // Determine the target examples path:
-        // - If this is a test project, use "<root>/src/tests/examples"
-        // - Otherwise, use "<root>/src/bots/examples"
-        const examplesPath = path.join(
-            this.getPath(userPath),
-            'src',
-            isTestProject ? 'tests' : 'bots',
-            'examples'
-        );
-
-        // Write the sample bot file "find-something-on-bing.g4" into the examples folder
-        this.writeFile({
-            directoryPath: examplesPath,
-            fileName: 'find-something-on-bing.json',
-            content: contentBasic,
-            logger: logger
-        });
-    }
-
-    /**
      * Opens the project's "src" folder in VS Code.
      *
      * @param userPath - The URI or path selected by the user for the project root.
@@ -232,7 +479,7 @@ export class NewProjectCommand extends CommandBase {
         // Convert the provided URI or object into a file system path string
         let projectPath = this.getPath(userPath);
 
-        // On Windows, if the path starts with a leading slash (e.g. "/C:/…"), strip it off
+        // On Windows, if the path starts with a leading slash (e.g. "/C:/..."), strip it off
         projectPath = os.platform() === 'win32' && projectPath.startsWith('/')
             ? projectPath.substring(1, projectPath.length)
             : projectPath;
@@ -245,7 +492,7 @@ export class NewProjectCommand extends CommandBase {
         // Create a file URI pointing to the "src" directory inside the project
         const uri = vscode.Uri.file(path.join(projectPath, 'src'));
 
-        // Use VS Code’s built-in command to open the folder in the workspace
+        // Use VS Code's built-in command to open the folder in the workspace
         vscode.commands.executeCommand('vscode.openFolder', uri);
     }
 
@@ -277,22 +524,22 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Extracts and normalizes a file-system path from the array returned by VS Code’s open dialog.
+     * Extracts and normalizes a file-system path from the array returned by VS Code's open dialog.
      *
      * @param userPath - The array of URIs selected by the user (from showOpenDialog).
      * 
      * @returns The normalized file system path. On Windows, leading slashes are removed
-     *          and forward‐slashes are converted to backslashes; on other platforms, the
+     *          and forward-slashes are converted to backslashes; on other platforms, the
      *          path is returned unchanged.
      */
     private static getPath(userPath: any): string {
         // start with an empty path in case nothing is selected
         let path = '';
 
-        // if the user selected at least one folder/file, take the first URI’s path
+        // if the user selected at least one folder/file, take the first URI's path
         path = userPath?.[0]?.path ?? '';
 
-        // on Windows, remove a leading slash (e.g. "/C:/…") and convert "/" to "\"
+        // on Windows, remove a leading slash (e.g. "/C:/...") and convert "/" to "\"
         if (os.platform() === 'win32') {
             return path.replaceAll('/', '\\').substring(1, path.length);
         }

@@ -81,10 +81,15 @@ export class ShowReportCommand extends CommandBase {
 
             // Open the report in the first editor column.
             vscode.ViewColumn.One,
-
             {
                 // Allow scripts to run inside the report webview.
                 enableScripts: true,
+
+                // Allow the component CSS/JS and shared font resources to load.
+                localResourceRoots: [
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
+                ],
 
                 // Keep the webview state alive when the tab is hidden.
                 retainContextWhenHidden: true
@@ -250,17 +255,28 @@ export class ShowReportCommand extends CommandBase {
             reportData = content;
         }
 
-        // Get the URI for the Inter font included in the extension resources.
-        const fontUri = panel.webview.asWebviewUri(
+        // Get the URI for the report component stylesheet.
+        const styleUri = panel.webview.asWebviewUri(
             vscode.Uri.joinPath(
                 context.extensionUri,
-                'fonts',
-                'inter-variable.ttf'
+                'resources.components',
+                'automation-report',
+                'automation-report.css'
             )
         );
 
-        // Load the report HTML template from the extension resources.
-        const html = Utilities.getResource('g4-report.html');
+        // Get the URI for the report component script.
+        const scriptUri = panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                context.extensionUri,
+                'resources.components',
+                'automation-report',
+                'automation-report.js'
+            )
+        );
+
+        // Load the report component HTML template from the extension resources.
+        const html = Utilities.getResource('resources.components/automation-report/automation-report.html');
 
         // Decode the Base64 report payload into UTF-8 text.
         reportData = Utilities.convertFromBase64(reportData);
@@ -268,6 +284,7 @@ export class ShowReportCommand extends CommandBase {
         // Inject the report data and font URI into the HTML template and return it.
         return html
             .replace('{{$ report.data }}', reportData)
-            .replace('{{$ fonts.uri }}', fontUri.toString());
+            .replace('{{$ component.style.uri }}', styleUri.toString())
+            .replace('{{$ component.script.uri }}', scriptUri.toString());
     }
 }

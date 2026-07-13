@@ -20,7 +20,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	private static readonly _manifest: any = Utilities.getManifest();
 
 	/** 
-	 * The active webview instance — assigned once the view is resolved.
+	 * The active webview instance - assigned once the view is resolved.
 	 * Used to send messages and updates to the front-end (via `postMessage`).
 	 */
 	private _view?: vscode.WebviewView;
@@ -32,8 +32,14 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	private _timer?: NodeJS.Timeout;
 
 	/**
+	 * Memory-only sandbox override used by the recorder panel.
+	 * Starts from the manifest value but is never written back to manifest.json.
+	 */
+	private _useSandboxOverride: boolean;
+
+	/**
 	 * Internal list of all known server statuses.
-	 * Each element tracks one server’s health, name, and connection reference.
+	 * Each element tracks one server's health, name, and connection reference.
 	 */
 	private readonly _serversStatus: ServerStatus[];
 
@@ -41,7 +47,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * Creates a new instance of the recorder view provider.
 	 *
 	 * @param _context - The VS Code extension context (used for lifecycle, paths, etc.)
-	 * @param _recorderConnections - A map of server names → EventCaptureService instances.
+	 * @param _recorderConnections - A map of server names -> EventCaptureService instances.
 	 */
 	constructor(
 		private readonly _context: vscode.ExtensionContext,
@@ -49,6 +55,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	) {
 		// Initialize the internal status array based on currently active connections.
 		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recorderConnections);
+
+		// Seed the panel-only override from the manifest so the first start matches saved settings.
+		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		this._useSandboxOverride = settings?.useSandbox === true;
 	}
 
 	/**
@@ -58,7 +68,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * by registering it under a defined view type (`VIEW_TYPE`). Once registered,
 	 * VS Code can instantiate and manage the webview as part of the UI.
 	 *
-	 * The `retainContextWhenHidden` option ensures that the webview’s state
+	 * The `retainContextWhenHidden` option ensures that the webview's state
 	 * (scripts, DOM, and data) is preserved even when the panel is hidden,
 	 * improving user experience by avoiding reloads.
 	 */
@@ -122,7 +132,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		const servers = this._serversStatus.map(service => ({
 			name: service.name,
 			url: service.url,
-			ok: service.ok
+			ok: service.ok,
+			driver: service.driver,
+			suspended: service.service?.isSuspended ?? false
 		}));
 
 		// Send an initial message to the webview to populate server data
@@ -130,6 +142,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			type: 'servers:init',
 			payload: {
 				enabled: enabled,
+				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
 		});
@@ -149,7 +162,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * can be safely garbage collected.
 	 */
 	public dispose() {
-		// Stop the periodic heartbeat if it’s still running
+		// Stop the periodic heartbeat if it's still running
 		if (this._timer) {
 			clearInterval(this._timer); // Cancel the repeating interval
 			this._timer = undefined;    // Clear the reference for GC
@@ -188,6 +201,20 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						}
 					}
 
+					@keyframes bulbPulseSuspended {
+						0% {
+							box-shadow: 0 0 0px #e0a316;
+						}
+
+						50% {
+							box-shadow: 0 0 6px #e0a316;
+						}
+
+						100% {
+							box-shadow: 0 0 0px #e0a316;
+						}
+					}
+
 					@keyframes spinnerRotate {
 						from {
 							transform: rotate(0deg);
@@ -198,7 +225,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					@media (prefers-reduced-motion: reduce) {
-						.bulb.on {
+						.bulb.on,
+						.bulb.suspended {
 							animation: none;
 						}
 					}
@@ -231,8 +259,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.bulb {
-						width: 10px;
-						height: 10px;
+						width: 8px;
+						height: 8px;
+						flex: 0 0 auto;
 						border-radius: 50%;
 						border: 1px solid var(--vscode-editorGroup-border);
 						background: #c33;
@@ -245,6 +274,13 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						will-change: box-shadow;
 					}
 
+					.bulb.suspended {
+						animation: bulbPulseSuspended 1.2s ease-in-out infinite;
+						background: #e0a316;
+						box-shadow: 0 0 6px #e0a316;
+						will-change: box-shadow;
+					}
+
 					.control-btn {
 						display: flex;
 						align-items: center;
@@ -253,8 +289,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.controls {
-						align-items: center;
+						align-items: flex-start;
 						display: flex;
+						flex-direction: column;
 						gap: 8px;
 						margin-bottom: 12px;
 					}
@@ -263,10 +300,29 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						display: flex;
 						align-items: center;
 						gap: 8px;
+						flex: 1 1 auto;
+						min-width: 0;
+					}
+
+					.meta {
+						display: flex;
+						flex-direction: column;
+						min-width: 0;
 					}
 
 					.name {
 						font-weight: 600;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						white-space: nowrap;
+					}
+
+					.driver {
+						font-size: 0.8rem;
+						opacity: 0.7;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						white-space: nowrap;
 					}
 
 					.panel {
@@ -282,15 +338,100 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					}
 
 					.refresh {
+						display: flex;
+						align-items: center;
+						justify-content: center;
 						background: transparent;
 						color: var(--vscode-textLink-foreground);
 						border: 1px solid var(--vscode-editorGroup-border);
-						padding: 4px 8px;
+						padding: 4px;
 						border-radius: var(--border-radius);
+						flex: 0 0 auto;
 					}
 
 					.refresh:hover {
 						background: rgba(127, 127, 127, 0.1);
+					}
+
+					.suspend-btn {
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						background: transparent;
+						color: var(--vscode-textLink-foreground);
+						border: 1px solid var(--vscode-editorGroup-border);
+						padding: 4px;
+						border-radius: var(--border-radius);
+						flex: 0 0 auto;
+						cursor: pointer;
+					}
+
+					.suspend-btn:hover:not(:disabled) {
+						background: rgba(127, 127, 127, 0.1);
+					}
+
+					.suspend-btn:disabled {
+						opacity: 0.4;
+						cursor: not-allowed;
+					}
+
+					.switch {
+						background-color: var(--vscode-panel-border);
+						border-radius: 9px;
+						height: 18px;
+						position: relative;
+						transition: background-color .15s ease;
+						width: 34px;
+					}
+
+					.switch::after {
+						background-color: var(--vscode-editor-background);
+						border-radius: 50%;
+						content: '';
+						height: 14px;
+						left: 2px;
+						position: absolute;
+						top: 2px;
+						transition: transform .15s ease;
+						width: 14px;
+					}
+
+					.toggle {
+						align-items: center;
+						cursor: pointer;
+						display: inline-flex;
+						gap: 10px;
+					}
+
+					.toggle input {
+						height: 0;
+						opacity: 0;
+						position: absolute;
+						width: 0;
+					}
+
+					.toggle input:checked + .switch {
+						background-color: var(--vscode-testing-iconPassed, #22c55e);
+					}
+
+					.toggle input:checked + .switch::after {
+						transform: translateX(16px);
+					}
+
+					.toggle-hint {
+						color: var(--vscode-descriptionForeground);
+						font-size: 11px;
+					}
+
+					.toggle-label {
+						font-size: 12px;
+						font-weight: 600;
+					}
+
+					.toggle-text {
+						display: flex;
+						flex-direction: column;
+						gap: 2px;
 					}
 
 					.row {
@@ -302,7 +443,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					.server {
 						display: flex;
 						align-items: center;
-						justify-content: space-between;
+						gap: 8px;
 						padding: 6px 0;
 						border-top: 1px solid var(--vscode-editorGroup-border);
 					}
@@ -314,6 +455,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					.small {
 						font-size: 0.85rem;
 						opacity: .8;
+						overflow-wrap: anywhere;
 					}
 
 					.spinner {
@@ -343,33 +485,44 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						text-overflow: ellipsis;
 						overflow: hidden;
 						white-space: nowrap;
-						max-width: 240px;
+						flex: 0 1 auto;
+						min-width: 0;
 					}
 				</style>
 			</head>
 
 			<body data-g4-recorder-view="true">
 				<div class="controls">
-					<button id="btnToggle" class="control-btn" title="Start (identical behavior to VS Code debug Start)"
-						aria-label="Start" data-state="stopped">
+					<button id="btnToggle" class="control-btn"
+						title="Start recording - connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders)."
+						aria-label="Start recording" data-state="stopped">
 						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">
 							<path
 								d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z" />
 						</svg>
 						<span>Start</span>
 					</button>
+					<label class="toggle" title="Use sandbox recorder services for the next start.">
+						<input type="checkbox" id="useSandboxToggle" aria-label="Use Sandbox Recorders" />
+						<span class="switch"></span>
+						<span class="toggle-text">
+							<span class="toggle-label">Use Sandbox</span>
+							<span class="toggle-hint">Applies only to future starts.</span>
+						</span>
+					</label>
 				</div>
 
 				<div class="panel">
 					<div class="top">
 						<h3>Servers</h3>
-						<button class="refresh control-btn" id="btnRefresh" title="Refresh" aria-label="Refresh">
+						<button class="refresh" id="btnRefresh"
+							title="Refresh recorder status - re-check the connection to each recorder server and update the indicators."
+							aria-label="Refresh recorder status">
 							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20"
 								class="svg-inline-secondary">
 								<path
 									d="M552 256L408 256C398.3 256 389.5 250.2 385.8 241.2C382.1 232.2 384.1 221.9 391 215L437.7 168.3C362.4 109.7 253.4 115 184.2 184.2C109.2 259.2 109.2 380.7 184.2 455.7C259.2 530.7 380.7 530.7 455.7 455.7C463.9 447.5 471.2 438.8 477.6 429.6C487.7 415.1 507.7 411.6 522.2 421.7C536.7 431.8 540.2 451.8 530.1 466.3C521.6 478.5 511.9 490.1 501 501C401 601 238.9 601 139 501C39.1 401 39 239 139 139C233.3 44.7 382.7 39.4 483.3 122.8L535 71C541.9 64.1 552.2 62.1 561.2 65.8C570.2 69.5 576 78.3 576 88L576 232C576 245.3 565.3 256 552 256z" />
 							</svg>
-							<span>Refresh</span>
 						</button>
 					</div>
 
@@ -382,6 +535,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					const serversElement = document.getElementById('servers');
 					const footerElement = document.getElementById('footer');
 					const btnToggle = document.getElementById('btnToggle');
+					const useSandboxToggle = document.getElementById('useSandboxToggle');
+					let useSandbox = false;
 
 					// Inline SVGs (using normal strings)
 					var PLAY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
@@ -396,12 +551,21 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						'<path d="M286.7 96.1C291.7 113 282.1 130.9 265.2 135.9C185.9 159.5 128.1 233 128.1 320C128.1 426 214.1 512 320.1 512C426.1 512 512.1 426 512.1 320C512.1 233.1 454.3 159.6 375 135.9C358.1 130.9 348.4 113 353.5 96.1C358.6 79.2 376.4 69.5 393.3 74.6C498.9 106.1 576 204 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320C64 204 141.1 106.1 246.9 74.6C263.8 69.6 281.7 79.2 286.7 96.1z"/>' +
 						'</svg>';
 
+					// Per-recorder suspend/resume icons (link-colored, sized to the compact row button).
+					var SUSPEND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="svg-inline-secondary">' +
+						'<path d="M176 96C149.5 96 128 117.5 128 144L128 496C128 522.5 149.5 544 176 544L240 544C266.5 544 288 522.5 288 496L288 144C288 117.5 266.5 96 240 96L176 96zM400 96C373.5 96 352 117.5 352 144L352 496C352 522.5 373.5 544 400 544L464 544C490.5 544 512 522.5 512 496L512 144C512 117.5 490.5 96 464 96L400 96z"/>' +
+						'</svg>';
+
+					var RESUME_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="16" height="16" class="svg-inline-secondary">' +
+						'<path d="M187.2 100.9C174.8 94.1 159.8 94.4 147.6 101.6C135.4 108.8 128 121.9 128 136L128 504C128 518.1 135.5 531.2 147.6 538.4C159.7 545.6 174.8 545.9 187.2 539.1L523.2 355.1C536 348.1 544 334.6 544 320C544 305.4 536 291.9 523.2 284.9L187.2 100.9z"/>' +
+						'</svg>';
+
 					function setToggleState(running) {
 						btnToggle.dataset.state = running ? 'running' : 'stopped';
 						btnToggle.title = running
-							? 'Stop'
-							: 'Start';
-						btnToggle.setAttribute('aria-label', running ? 'Stop' : 'Start');
+							? 'Stop recording - end capture, close any recorder browsers, and open the recorded workflow.'
+							: 'Start recording - connect to the recorder servers and capture UI actions (launches the browser for Chromium recorders).';
+						btnToggle.setAttribute('aria-label', running ? 'Stop recording' : 'Start recording');
 						btnToggle.innerHTML = (running ? STOP_SVG : PLAY_SVG) + '<span>' + (running ? 'Stop' : 'Start') + '</span>';
 					}
 
@@ -418,10 +582,15 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 								setToggleState(false);
 							}, 5000);
 						} else {
-							vscode.postMessage({ type: 'recorder:start' });
+							vscode.postMessage({ type: 'recorder:start', useSandbox: useSandbox });
 							vscode.postMessage({ type: 'recorder:refresh' });
 							setToggleState(true);
 						}
+					});
+
+					useSandboxToggle.addEventListener('change', function () {
+						useSandbox = useSandboxToggle.checked === true;
+						vscode.postMessage({ type: 'recorder:useSandbox', useSandbox: useSandbox });
 					});
 
 					document.getElementById('btnRefresh').addEventListener('click', function () {
@@ -431,6 +600,11 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					function render(serversData) {
 						const servers = serversData.servers || [];
 						serversElement.innerHTML = '';
+
+						if (serversData.useSandbox !== undefined) {
+							useSandbox = serversData.useSandbox === true;
+							useSandboxToggle.checked = useSandbox;
+						}
 						
 						if(!serversData.enabled) {
 							document.querySelector("#btnToggle")?.remove();
@@ -464,13 +638,25 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							left.className = 'left';
 
 							const bulb = document.createElement('span');
-							bulb.className = 'bulb' + (server.ok ? ' on' : '');
+							// Disconnected -> red (no class); connected + suspended -> amber; connected + active -> green.
+							bulb.className = 'bulb' + (server.ok ? (server.suspended ? ' suspended' : ' on') : '');
 							left.appendChild(bulb);
+
+							const meta = document.createElement('div');
+							meta.className = 'meta';
 
 							const name = document.createElement('span');
 							name.className = 'name';
 							name.textContent = server.name;
-							left.appendChild(name);
+							meta.appendChild(name);
+
+							const driver = document.createElement('span');
+							driver.className = 'driver';
+							driver.textContent = server.driver;
+							driver.title = server.driver;
+							meta.appendChild(driver);
+
+							left.appendChild(meta);
 							row.appendChild(left);
 
 							const url = document.createElement('a');
@@ -480,6 +666,28 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							url.href = server.url + '/swagger';
 							url.target = '_blank';
 							row.appendChild(url);
+
+							// Per-recorder suspend/resume: shows the suspend icon while active and the play
+							// icon while suspended. Disabled until the recorder is connected, since
+							// suspending an idle recorder has no effect.
+							const isSuspended = !!server.suspended;
+							const suspendBtn = document.createElement('button');
+							suspendBtn.className = 'suspend-btn';
+							suspendBtn.disabled = !server.ok;
+							suspendBtn.innerHTML = isSuspended ? RESUME_SVG : SUSPEND_SVG;
+							suspendBtn.title = server.ok
+								? (isSuspended
+									? 'Resume this recorder - continue capturing events.'
+									: 'Suspend this recorder - stop capturing events (the hub connection stays open).')
+								: 'Start the recorder to enable suspend.';
+							suspendBtn.setAttribute('aria-label', isSuspended ? 'Resume this recorder' : 'Suspend this recorder');
+							suspendBtn.addEventListener('click', function () {
+								vscode.postMessage({
+									type: isSuspended ? 'recorder:resume' : 'recorder:suspend',
+									url: server.url
+								});
+							});
+							row.appendChild(suspendBtn);
 
 							serversElement.appendChild(row);
 						}
@@ -518,7 +726,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		switch (message?.type) {
 			case 'recorder:start': {
 				// Trigger VS Code command to start the recorder process
-				await vscode.commands.executeCommand('Start-Recorder');
+				await vscode.commands.executeCommand('Start-Recorder', {
+					useSandbox: message.useSandbox === true
+				});
 				break;
 			}
 
@@ -530,6 +740,31 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 			case 'recorder:refresh': {
 				// Manually trigger a server status refresh from the webview
+				this.testServers(serversStatus);
+				break;
+			}
+
+			case 'recorder:suspend':
+			case 'recorder:resume': {
+				// Toggle buffering for the targeted recorder (identified by its base URL). The hub
+				// connection stays open; suspending only drops incoming events until resumed.
+				const service = this._recorderConnections.get(message.url);
+				if (service) {
+					if (message.type === 'recorder:suspend') {
+						service.suspend();
+					} else {
+						service.resume();
+					}
+				}
+
+				// Reflect the new suspended state immediately instead of waiting for the heartbeat tick.
+				this.testServers(serversStatus);
+				break;
+			}
+
+			case 'recorder:useSandbox': {
+				// Store only the panel override; settings remain unchanged until edited in the settings page.
+				this._useSandboxOverride = message.useSandbox === true;
 				this.testServers(serversStatus);
 				break;
 			}
@@ -567,7 +802,8 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				name: `Recorder (${id})`,
 				ok: service.connection?.state === 'Connected',
 				service,
-				url: connection
+				url: connection,
+				driver: service.options?.driverParameters?.driver || 'Unknown'
 			});
 		}
 
@@ -602,7 +838,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		// Iterate through each server in the provided list
 		for (const status of serversStatus) {
 
-			// Determine if the server’s connection is currently active
+			// Determine if the server's connection is currently active
 			const ok = status.service?.connection?.state === 'Connected';
 
 			// Update the status object fields
@@ -621,7 +857,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		const servers = updates.map(service => ({
 			name: service.name,
 			url: service.url,
-			ok: service.ok
+			ok: service.ok,
+			driver: service.driver,
+			suspended: service.service?.isSuspended ?? false
 		}));
 
 		// Broadcast the updated server statuses back to the webview
@@ -629,6 +867,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			type: 'servers:update',
 			payload: {
 				enabled: enabled,
+				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
 		});
@@ -648,20 +887,20 @@ type ServerStatus = {
 
 	/** 
 	 * Timestamp (in milliseconds since epoch) of the last successful health check.
-	 * Optional — may be undefined if the server has never been checked or initialized.
+	 * Optional - may be undefined if the server has never been checked or initialized.
 	 */
 	lastChecked?: number;
 
 	/** 
 	 * Human-readable name of the server.
-	 * Displayed in the UI and used for quick identification (e.g., “G4 API”, “Recorder Service”).
+	 * Displayed in the UI and used for quick identification (e.g., "G4 API", "Recorder Service").
 	 */
 	name: string;
 
 	/** 
 	 * Indicates whether the server is reachable and healthy.
-	 * true  → server responded successfully to health check.
-	 * false → server is unreachable or returned an error.
+	 * true  -> server responded successfully to health check.
+	 * false -> server is unreachable or returned an error.
 	 */
 	ok: boolean;
 
@@ -671,9 +910,15 @@ type ServerStatus = {
 	 */
 	service: EventCaptureService | undefined;
 
-	/** 
+	/**
 	 * Base URL of the server.
 	 * Used for direct navigation (e.g., to Swagger docs) and network operations.
 	 */
 	url: string;
+
+	/**
+	 * The raw driver name from the recorder's configuration (e.g., "ChromeDriver",
+	 * "UiaDriver"), shown under the recorder name in the panel.
+	 */
+	driver: string;
 };

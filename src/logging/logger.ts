@@ -106,7 +106,7 @@ export interface Logger {
 /**
  * Defines the available severity levels for log messages.
  *
- * The order of verbosity (lowest → highest) is:
+ * The order of verbosity (lowest -> highest) is:
  *   none < trace < debug < information < warning < error < fatal
  */
 export type LogLevel =
