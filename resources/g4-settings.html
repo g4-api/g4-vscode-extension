@@ -136,6 +136,24 @@
             margin-bottom: 0
         }
 
+        .connection-row {
+            grid-template-columns: minmax(150px, .8fr) minmax(260px, 1.4fr) minmax(88px, 116px) auto
+        }
+
+        .connection-action {
+            align-self: end
+        }
+
+        .connection-action .btn {
+            height: 30px;
+            white-space: nowrap
+        }
+
+        .section-status {
+            min-height: 18px;
+            margin-top: 12px
+        }
+
         .field-label {
             font-size: 12px;
             font-weight: 600
@@ -724,6 +742,76 @@
         // Refresh icon used by the "reload driver list" button.
         const SVG_REFRESH = `
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M129.9 292.5C143.2 199.5 223.3 128 320 128C373 128 421 149.5 455.8 184.2C456 184.4 456.2 184.6 456.4 184.8L464 192L416.1 192C398.4 192 384.1 206.3 384.1 224C384.1 241.7 398.4 256 416.1 256L544.1 256C561.8 256 576.1 241.7 576.1 224L576.1 96C576.1 78.3 561.8 64 544.1 64C526.4 64 512.1 78.3 512.1 96L512.1 149.4L500.8 138.7C454.5 92.6 390.5 64 320 64C191 64 84.3 159.4 66.6 283.5C64.1 301 76.2 317.2 93.7 319.7C111.2 322.2 127.4 310 129.9 292.6zM573.4 356.5C575.9 339 563.7 322.8 546.3 320.3C528.9 317.8 512.6 330 510.1 347.4C496.8 440.4 416.7 511.9 320 511.9C267 511.9 219 490.4 184.2 455.7C184 455.5 183.8 455.3 183.6 455.1L176 447.9L223.9 447.9C241.6 447.9 255.9 433.6 255.9 415.9C255.9 398.2 241.6 383.9 223.9 383.9L96 384C87.5 384 79.3 387.4 73.3 393.5C67.3 399.6 63.9 407.7 64 416.3L65 543.3C65.1 561 79.6 575.2 97.3 575C115 574.8 129.2 560.4 129 542.7L128.6 491.2L139.3 501.3C185.6 547.4 249.5 576 320 576C449 576 555.7 480.6 573.4 356.5z"/></svg>`;
+
+        // Shared bottom status line metadata for every settings section.
+        globalThis.SECTION_STATUS = {
+            connection: {
+                elementId: 'connection-section-status',
+                testId: 'connection-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            license: {
+                elementId: 'license-section-status',
+                testId: 'license-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            driver: {
+                elementId: 'driver-section-status',
+                testId: 'driver-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            run: {
+                elementId: 'run-section-status',
+                testId: 'run-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            logging: {
+                elementId: 'logging-section-status',
+                testId: 'logging-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            reports: {
+                elementId: 'reports-section-status',
+                testId: 'reports-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            response: {
+                elementId: 'response-section-status',
+                testId: 'response-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            screenshots: {
+                elementId: 'screenshots-section-status',
+                testId: 'screenshots-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            plugins: {
+                elementId: 'plugins-section-status',
+                testId: 'plugins-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            mcp: {
+                elementId: 'mcp-section-status',
+                testId: 'mcp-section-status-message',
+                message: '',
+                statusClassName: ''
+            },
+            recorders: {
+                elementId: 'recorders-section-status',
+                testId: 'recorders-section-status-message',
+                message: '',
+                statusClassName: ''
+            }
+        };
     </script>
 
     <script id="src-defaults">
@@ -1236,18 +1324,30 @@
          *
          * Behavior:
          * - Spins the clicked button while the request is in flight.
+         * - Writes section status only when the refresh was user-triggered.
          * - Reads each manifest's `key` and stores them as the driver list.
-         * - Falls back to the static list on any failure.
+         * - Falls back to the static list on failures or empty responses.
          * - Re-renders the driver and recorder sections so the selects update.
          *
          * @param {HTMLButtonElement} [button] - The clicked "refresh" button, if any.
+         * @param {string} [sectionId] - The section that should receive user-triggered status.
          */
-        async function updateDrivers(button) {
+        async function updateDrivers(button, sectionId) {
+            // Page-load refreshes pass no section id and stay silent by design.
+            const isUserRefresh = !!button && !!sectionId;
+            let statusMessage = 'Could not refresh driver list. Using the built-in driver list.';
+            let statusClassName = 'status-err';
+
             // Spin the clicked button while the request is in flight. No manual
             // cleanup needed — the section re-render below rebuilds the button.
             if (button) {
                 button.disabled = true;
                 button.classList.add('is-busy');
+            }
+
+            // User-triggered refreshes report progress at the section bottom.
+            if (isUserRefresh) {
+                setSectionStatus(sectionId, 'Refreshing driver list...');
             }
 
             try {
@@ -1259,13 +1359,27 @@
 
                 // Keep only the valid string `key` from each returned manifest.
                 const data = await response.json();
-                globalThis.DRIVERS = Array.isArray(data)
+                const driverKeys = Array.isArray(data)
                     ? data.map(manifest => manifest && manifest.key).filter(key => typeof key === 'string' && key)
                     : [];
+
+                if (!driverKeys.length) {
+                    throw new Error('No driver manifests returned');
+                }
+
+                // Store the fetched keys and prepare a success status for user-triggered refreshes.
+                globalThis.DRIVERS = driverKeys;
+                statusMessage = 'Driver list refreshed.';
+                statusClassName = 'status-ok';
             } catch (error) {
                 // On any failure, drop back to the static fallback list.
                 console.warn('Could not fetch driver manifests:', error);
                 globalThis.DRIVERS = null;
+            }
+
+            // Persist the final status before re-render so the rebuilt section keeps it.
+            if (isUserRefresh) {
+                setSectionStatus(sectionId, statusMessage, statusClassName);
             }
 
             // Refresh the driver selects in place, preserving collapse/scroll.
@@ -1300,26 +1414,17 @@
          * Behavior:
          * - Disables the button and spins its icon while the request is in flight.
          * - Reports "Connected" on success and "Could not connect" on failure.
-         * - The button label stays "Test connection" throughout.
+         * - The button label stays "Test Connection" throughout.
          *
          * @param {HTMLButtonElement} button - The clicked Test connection button.
          */
         async function testConnection(button) {
-            // Resolve the status element and a helper that updates its text/class.
-            const status = document.getElementById('test-conn-status');
-            const setStatus = (message, cls) => {
-                if (status) {
-                    status.className = 'field-hint' + (cls ? ' ' + cls : '');
-                    status.textContent = message;
-                }
-            };
-
             // Disable + spin the button while the request is in flight.
             if (button) {
                 button.disabled = true;
                 button.classList.add('is-busy');
             }
-            setStatus('Testing…');
+            setSectionStatus('connection', 'Testing...');
 
             try {
                 // Ping the engine and treat any non-OK status as a failure.
@@ -1327,11 +1432,11 @@
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
-                setStatus('Connected', 'status-ok');
+                setSectionStatus('connection', 'Connected', 'status-ok');
             } catch (error) {
                 // Report a friendly failure message and log the detail.
                 console.warn('Connection test failed:', error);
-                setStatus('Could not connect', 'status-err');
+                setSectionStatus('connection', 'Could not connect', 'status-err');
             } finally {
                 // Always restore the button regardless of the outcome.
                 if (button) {
@@ -1382,21 +1487,14 @@
          * - On any failure, leaves the field untouched and points at the manual link.
          */
         async function getDevelopmentLicense() {
-            // Resolve the button and status element, plus a status-text helper.
+            // Resolve the button that owns the in-flight fetch state.
             const button = document.getElementById('fetch-token-btn');
-            const status = document.getElementById('fetch-token-status');
-
-            const setStatus = message => {
-                if (status) {
-                    status.textContent = message;
-                }
-            };
 
             // Disable the button and show progress while the request is in flight.
             if (button) {
                 button.disabled = true;
             }
-            setStatus('Fetching the latest free token…');
+            setSectionStatus('license', 'Fetching the latest free token...');
 
             try {
                 // Fetch the README and treat any non-OK status as a failure.
@@ -1419,11 +1517,11 @@
                 }
 
                 // Tell the user the token was added and how to apply it.
-                setStatus('Free token added. Click Save to apply it.');
+                setSectionStatus('license', 'Free token added. Click Save to apply it.', 'status-ok');
             } catch (error) {
                 // Report a friendly failure message and log the detail.
                 console.warn('Could not fetch development license:', error);
-                setStatus('Couldn’t reach GitHub — grab the token manually from the link below, then paste it here.');
+                setSectionStatus('license', 'Could not reach GitHub. Grab the token manually from the link below, then paste it here.', 'status-err');
             } finally {
                 // Always restore the button regardless of the outcome.
                 if (button) {
@@ -1453,9 +1551,171 @@
             // Outside the host, let the browser follow the link normally.
             return true;
         }
+
+        /**
+         * Requests sandbox auto-detection from the extension host.
+         *
+         * Behavior:
+         * - Uses the host so filesystem access stays outside the webview sandbox.
+         * - Leaves the current field value unchanged until the host returns a path.
+         */
+        function findSandboxFolder() {
+            // The webview cannot inspect the local filesystem directly.
+            if (!globalThis.VSCODE) {
+                setSectionStatus('connection', 'Auto-detect is available only inside VS Code.');
+                return;
+            }
+
+            // Ask the host to find the newest sandbox folder.
+            globalThis.VSCODE.postMessage({ command: 'autoDetectSandbox' });
+        }
+
+        /**
+         * Applies a sandbox path returned by the extension host.
+         *
+         * @param {string} sandboxPath - The selected or detected sandbox path.
+         */
+        function setSandboxPath(sandboxPath) {
+            // Store the selected path in the root manifest sandbox field.
+            setPath(globalThis.STATE, 'sandbox', sandboxPath);
+
+            // Reflect the host-selected value in the visible editable input.
+            const input = document.getElementById('inp-sandbox');
+            if (input) {
+                input.value = sandboxPath;
+            }
+
+            // Tell the user the value is staged and still follows normal Save behavior.
+            setSectionStatus('connection', 'Sandbox path set. Click Save to apply it.', 'status-ok');
+        }
+
+        /**
+         * Requests a sandbox folder picker from the extension host.
+         *
+         * Behavior:
+         * - Uses the host folder picker so the webview never needs filesystem permissions.
+         * - Leaves the current field value unchanged when the picker is cancelled.
+         */
+        function selectSandboxFolder() {
+            // The webview cannot open a native folder picker directly.
+            if (!globalThis.VSCODE) {
+                setSectionStatus('connection', 'Browse is available only inside VS Code.');
+                return;
+            }
+
+            // Ask the host to open a folder picker.
+            globalThis.VSCODE.postMessage({ command: 'browseSandbox' });
+        }
+
+        /**
+         * Handles messages returned by the extension host.
+         *
+         * @param {MessageEvent} event - The webview message event.
+         */
+        function onHostMessage(event) {
+            // Only sandbox path messages are handled by this page-level listener.
+            const message = event.data;
+
+            if (message?.command !== 'setSandboxPath' || !message.sandboxPath) {
+                return;
+            }
+
+            setSandboxPath(message.sandboxPath);
+        }
+
+        // Listen for host responses to sandbox browse/auto-detect requests.
+        window.addEventListener('message', onHostMessage);
     </script>
 
     <script id="src-controls">
+        /**
+         * Resolves status metadata for a section id.
+         *
+         * @remarks
+         * The registry is shared by the renderer and runtime status updates so
+         * every section uses one predictable bottom status line.
+         *
+         * @param {string} sectionId - The section id to resolve.
+         * @returns {{elementId:string,testId:string}|null} The status metadata, or null when unknown.
+         */
+        function getSectionStatus(sectionId) {
+            // Read through the shared registry so future sections only need one entry.
+            const sectionStatus = globalThis.SECTION_STATUS?.[sectionId];
+
+            if (!sectionStatus) {
+                return null;
+            }
+
+            return sectionStatus;
+        }
+
+        /**
+         * Writes a status message to a section's single bottom status line.
+         *
+         * @remarks
+         * Mutates only the DOM element owned by the section status registry. This
+         * keeps status placement consistent even when controls move inside a section.
+         *
+         * @param {string} sectionId - The owning section id.
+         * @param {string} message - The status text to show.
+         * @param {string} [statusClassName] - Optional visual state class.
+         */
+        function setSectionStatus(sectionId, message, statusClassName) {
+            // Missing sections can happen during early script loading or after a re-render.
+            const sectionStatus = getSectionStatus(sectionId);
+
+            if (!sectionStatus) {
+                return;
+            }
+
+            // Store the latest status in the registry so section re-renders can hydrate it.
+            sectionStatus.message = String(message ?? '');
+            sectionStatus.statusClassName = statusClassName || '';
+
+            const statusElement = document.getElementById(sectionStatus.elementId);
+
+            if (!statusElement) {
+                return;
+            }
+
+            // Replace the status class as a complete state update so stale success/error
+            // classes cannot survive the next message.
+            statusElement.className = 'field-hint section-status';
+
+            if (statusClassName) {
+                statusElement.classList.add(statusClassName);
+            }
+
+            statusElement.textContent = message;
+        }
+
+        /**
+         * Renders the shared bottom status line for a settings section.
+         *
+         * @param {string} sectionId - The owning section id.
+         * @returns {string} HTML markup for the section status line.
+         */
+        function writeSectionStatus(sectionId) {
+            // Sections without registry entries intentionally render no status line.
+            const sectionStatus = getSectionStatus(sectionId);
+
+            if (!sectionStatus) {
+                return '';
+            }
+
+            // Rehydrate the status line from the shared registry after section re-renders.
+            const statusClassName = sectionStatus.statusClassName
+                ? ' ' + sectionStatus.statusClassName
+                : '';
+            const statusMessage = sectionStatus.message || '';
+
+            return `
+                    <div id="${clearString(sectionStatus.elementId)}"
+                         class="field-hint section-status${clearString(statusClassName)}"
+                         data-test-id="${clearString(sectionStatus.testId)}"
+                         aria-live="polite">${clearString(statusMessage)}</div>`;
+        }
+
         /**
          * Renders a collapsible settings section shell.
          *
@@ -1477,6 +1737,7 @@
             const descHtml = desc
                 ? `<div class="section-desc">${clearString(desc)}</div>`
                 : '';
+            const statusHtml = writeSectionStatus(id);
 
             // Render the section shell with a collapsible header and body.
             return `
@@ -1486,7 +1747,7 @@
                     ${clearString(title)}
                 </div>
                 <div class="section-body" id="sec-${id}" ${open ? '' : 'style="display:none"'}>
-                    ${descHtml}${body}
+                    ${descHtml}${body}${statusHtml}
                 </div>
             </div>`;
         }
@@ -1569,6 +1830,97 @@
                 ${hintHtml}
                 ${control}
                 ${errHtml}
+            </div>`;
+        }
+
+        /**
+         * Renders a numeric port input while preserving the manifest value as a string.
+         *
+         * @remarks
+         * Uses explicit state handling because manifest port fields are string values even though
+         * the UI should behave like the other numeric controls.
+         *
+         * @param {object} options - Control options.
+         * @param {string} options.path - Dotted state path the port control binds to.
+         * @param {string} options.label - Human-friendly field label.
+         * @param {string} [options.hint] - Optional helper text shown under the label.
+         * @returns {string} HTML markup for the port field.
+         */
+        function writePort({ path, label, hint }) {
+            // Resolve the current string value and stable element ids.
+            const value = getPath(globalThis.STATE, path);
+            const slug = path.replace(/[^a-z0-9]/gi, '-');
+            const inputId = 'inp-' + slug;
+            const hintHtml = hint ? `<div class="field-hint">${clearString(hint)}</div>` : '';
+
+            // Render the number input with the themed steppers used by other numeric fields.
+            return `
+            <div class="field field-port">
+                <label class="field-label">${clearString(label)}</label>
+                ${hintHtml}
+                <div class="num-wrap">
+                    <input type="number"
+                           id="${inputId}"
+                           title="${clearString(label)}"
+                           data-test-id="${slug}-port-input"
+                           aria-label="${clearString(label)}"
+                           oninput="setControlValue('${path}', this.value)"
+                           value="${clearString(value ?? '')}" />
+                    <div class="num-steppers">
+                        <button type="button"
+                                class="num-step"
+                                data-test-id="${slug}-port-increase-button"
+                                aria-label="Increase ${clearString(label)}"
+                                onclick="setPortNumberStep('${path}', '${inputId}', 1)"
+                                tabindex="-1">${SVG_CARET_UP}</button>
+                        <button type="button"
+                                class="num-step"
+                                data-test-id="${slug}-port-decrease-button"
+                                aria-label="Decrease ${clearString(label)}"
+                                onclick="setPortNumberStep('${path}', '${inputId}', -1)"
+                                tabindex="-1">${SVG_CARET_DOWN}</button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        /**
+         * Renders the root manifest sandbox field with host-backed browse and auto-detect actions.
+         *
+         * @returns {string} HTML markup for the sandbox field.
+         */
+        function writeSandboxField() {
+            // Resolve the root sandbox field from the working manifest state.
+            const value = getPath(globalThis.STATE, 'sandbox') ?? '';
+
+            // Render an editable path field plus host-backed actions.
+            return `
+            <div class="field">
+                <label class="field-label" for="inp-sandbox">G4 Sandbox</label>
+                <div class="field-hint">Local G4 sandbox folder used for bundled browsers and drivers.</div>
+                <div class="input-wrap">
+                    <input type="text"
+                           id="inp-sandbox"
+                           title="G4 Sandbox Folder"
+                           data-test-id="g4-sandbox-path-input"
+                           aria-label="G4 Sandbox Folder"
+                           oninput="setControlValue('sandbox', this.value)"
+                           value="${clearString(value)}" />
+                    <button type="button"
+                            id="browse-sandbox-button"
+                            class="btn btn-ghost btn-sm"
+                            title="Browse for G4 Sandbox"
+                            data-test-id="browse-g4-sandbox-button"
+                            aria-label="Browse for G4 Sandbox"
+                            onclick="selectSandboxFolder()">Browse</button>
+                    <button type="button"
+                            id="auto-detect-sandbox-button"
+                            class="btn btn-ghost btn-sm"
+                            title="Auto-Detect Latest G4 Sandbox"
+                            data-test-id="auto-detect-g4-sandbox-button"
+                            aria-label="Auto-Detect Latest G4 Sandbox"
+                            onclick="findSandboxFolder()">Auto-Detect</button>
+                </div>
             </div>`;
         }
 
@@ -1737,7 +2089,7 @@
                     <textarea id="${taId}" class="mono" style="min-height:${rows * 18}px"
                         oninput="setJsonValue('${path}', this.value, '${errId}')">${clearString(text)}</textarea>
                     <button type="button" class="btn btn-ghost btn-sm json-format-btn"
-                        title="Check &amp; format JSON" onclick="formatJson('${taId}', '${path}', '${errId}')">Format</button>
+                        title="Check &amp; Format JSON" onclick="formatJson('${taId}', '${path}', '${errId}')">Format</button>
                 </div>
                 <div class="field-error" id="${errId}"></div>
             </div>`;
@@ -1824,8 +2176,8 @@
                 ${hintHtml}
                 <select onchange="setCredentialsType('${path}', this.value)">
                     <option value="none" ${type === 'none' ? 'selected' : ''}>None</option>
-                    <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (username &amp; password)</option>
-                    <option value="bearer" ${type === 'bearer' ? 'selected' : ''}>Bearer (token)</option>
+                    <option value="basic" ${type === 'basic' ? 'selected' : ''}>Basic (Username &amp; Password)</option>
+                    <option value="bearer" ${type === 'bearer' ? 'selected' : ''}>Bearer (Token)</option>
                 </select>
             </div>`;
 
@@ -1881,9 +2233,10 @@
          * - Renders the driver service URL/path and the alwaysMatch capabilities JSON.
          *
          * @param {string} base - Dotted state path to the driverParameters object.
+         * @param {string} sectionId - The section that owns refresh status for this editor.
          * @returns {string} HTML markup for the driver-parameters controls.
          */
-        function writeDriverParameters(base) {
+        function writeDriverParameters(base, sectionId) {
             // Resolve the saved driver value and build its dropdown options.
             const driverValue = getPath(globalThis.STATE, `${base}.driver`);
             const driverOptions = getDriverChoices(driverValue)
@@ -1898,13 +2251,17 @@
                     <div class="field-hint">The technology used to drive the browser or app. Fetched from the engine.</div>
                     <div class="input-wrap">
                         <select onchange="setControlValue('${base}.driver', this.value)">${driverOptions}</select>
-                        <button type="button" class="btn btn-ghost btn-sm icon-btn" title="Refresh driver list"
-                            onclick="updateDrivers(this)">${SVG_REFRESH}</button>
+                        <button type="button"
+                                class="btn btn-ghost btn-sm icon-btn"
+                                title="Refresh Driver List"
+                                data-test-id="${clearString(sectionId)}-refresh-driver-list-button"
+                                aria-label="Refresh Driver List"
+                                onclick="updateDrivers(this, '${clearString(sectionId)}')">${SVG_REFRESH}</button>
                     </div>
                 </div>
                 ${writeText({
                 path: `${base}.driverBinaries`,
-                label: 'Driver service URL or path',
+                label: 'Driver Service URL or Path',
                 hint: 'A Selenium hub URL, or a local folder holding the driver (common in sandbox setups).'
             })}
             </div>
@@ -1924,34 +2281,38 @@
          * @returns {string} HTML markup for the section.
          */
         function writeConnectionSection() {
-            // Build the protocol/host/port row plus the Test connection control.
+            // Build the protocol/host/port row with the Test Connection control aligned at the end.
             const body = `
-            <div class="field-row">
+            <div class="field-row connection-row">
                 ${writeSelect({
                 path: 'g4Server.schema',
                 label: 'Protocol',
                 hint: 'Use HTTPS only if your engine sits behind a secure proxy.',
                 choices: [
-                    { value: 'http', text: 'HTTP (default)' },
-                    { value: 'https', text: 'HTTPS (secure)' }
+                    { value: 'http', text: 'HTTP (Default)' },
+                    { value: 'https', text: 'HTTPS (Secure)' }
                 ]
             })}
                 ${writeText({
                 path: 'g4Server.host',
-                label: 'Engine address',
+                label: 'Engine Address',
                 hint: 'The computer running G4. "localhost" means this machine.'
             })}
-                ${writeText({
+                ${writePort({
                 path: 'g4Server.port',
                 label: 'Port',
                 hint: 'The network port G4 listens on (default 9944).'
             })}
+                <div class="field connection-action">
+                    <button type="button"
+                            id="test-conn-btn"
+                            class="btn btn-ghost btn-sm spin-btn"
+                            data-test-id="test-g4-connection-button"
+                            onclick="testConnection(this)"><span class="btn-label">Test Connection</span><span class="btn-spinner">${SVG_REFRESH}</span></button>
+                </div>
             </div>
-            <div class="add-row" style="display:flex;align-items:center;gap:8px">
-                <button type="button" class="btn btn-ghost btn-sm spin-btn" id="test-conn-btn"
-                    onclick="testConnection(this)"><span class="btn-label">Test connection</span><span class="btn-spinner">${SVG_REFRESH}</span></button>
-                <span class="field-hint" id="test-conn-status"></span>
-            </div>`;
+            ${writeSandboxField()}
+            `;
 
             // Wrap the body in the collapsible section shell.
             return writeSection({
@@ -1981,15 +2342,14 @@
             </p>
             <div class="add-row" style="margin-top:0;margin-bottom:4px">
                 <button type="button" class="btn btn-ghost btn-sm" id="fetch-token-btn"
-                    onclick="getDevelopmentLicense()">Fetch free token automatically</button>
-                <span class="field-hint" id="fetch-token-status" style="margin-left:8px"></span>
+                    onclick="getDevelopmentLicense()">Fetch Free Token Automatically</button>
             </div>
             <div class="field-hint" style="margin-bottom:16px">
                 Downloads the latest free token from GitHub and fills it in below — no copy/paste needed (requires internet access).
             </div>
             ${writeSecret({
                 path: 'authentication.token',
-                label: 'License token',
+                label: 'License Token',
                 hint: 'Your private key for the engine. Treat it like a password — never share or post it.'
             })}
             <div class="note">Tip: keep this on one line, with no spaces or line breaks. If you start seeing "unauthorized" errors, your token may have expired.</div>`;
@@ -2010,7 +2370,7 @@
          */
         function writeDriverSection() {
             // Reuse the shared driver-parameters editor for the default driver.
-            const body = writeDriverParameters('driverParameters');
+            const body = writeDriverParameters('driverParameters', 'driver');
 
             // Wrap the body in the collapsible section shell.
             return writeSection({
@@ -2034,21 +2394,21 @@
             <div class="field-row">
                 ${writeText({
                 path: 'settings.automationSettings.loadTimeout',
-                label: 'Page load timeout',
+                label: 'Page Load Timeout',
                 suffix: '(milliseconds)',
                 type: 'number',
                 hint: 'How long to wait for a page/screen to finish loading. 60000 = 1 minute.'
             })}
                 ${writeText({
                 path: 'settings.automationSettings.searchTimeout',
-                label: 'Find element timeout',
+                label: 'Find Element Timeout',
                 suffix: '(milliseconds)',
                 type: 'number',
                 hint: 'How long to look for a button/field before giving up. 15000 = 15 seconds.'
             })}
                 ${writeText({
                 path: 'settings.automationSettings.maxParallel',
-                label: 'Parallel workflows',
+                label: 'Parallel Workflows',
                 type: 'number',
                 min: 1,
                 hint: 'How many workflows run at once. Every flow is isolated in its own sandbox, so raising this is safe — and recommended for data-driven runs. 1 = one at a time (minimum).'
@@ -2056,12 +2416,12 @@
             </div>
             ${writeToggle({
                 path: 'settings.automationSettings.returnFlatResponse',
-                label: 'Include simple results',
+                label: 'Include Simple Results',
                 hint: 'A flat, easy-to-read view of the results.'
             })}
             ${writeToggle({
                 path: 'settings.automationSettings.returnStructuredResponse',
-                label: 'Include detailed results',
+                label: 'Include Detailed Results',
                 hint: 'A rich, nested view with step trees, timings, and errors.'
             })}`;
 
@@ -2084,44 +2444,44 @@
             const body = `
             ${writeToggle({
                 path: 'settings.clientLogConfiguration.agentLogConfiguration.enabled',
-                label: 'Show live progress',
+                label: 'Show Live Progress',
                 hint: 'Stream log messages while a run is in progress.'
             })}
             <div class="field-row">
                 ${writeText({
                 path: 'settings.clientLogConfiguration.agentLogConfiguration.interval',
-                label: 'Update frequency',
+                label: 'Update Frequency',
                 suffix: '(milliseconds)',
                 type: 'number',
                 hint: 'How often new log lines are pushed. Raise it on slow networks.'
             })}
                 ${writeSelect({
                 path: 'settings.clientLogConfiguration.logLevel',
-                label: 'Detail level',
+                label: 'Detail Level',
                 hint: '"Information" is a good everyday default.',
                 choices: [
-                    { value: 'error', text: 'Errors only' },
+                    { value: 'error', text: 'Errors Only' },
                     { value: 'warning', text: 'Warnings' },
-                    { value: 'information', text: 'Information (default)' },
-                    { value: 'debug', text: 'Debug (noisy)' },
-                    { value: 'trace', text: 'Trace (very noisy)' }
+                    { value: 'information', text: 'Information (Default)' },
+                    { value: 'debug', text: 'Debug (Noisy)' },
+                    { value: 'trace', text: 'Trace (Very Noisy)' }
                 ]
             })}
             </div>
             <div class="field-row">
                 ${writeSelect({
                 path: 'settings.clientLogConfiguration.sourceOptions.filter',
-                label: 'Source filter mode',
+                label: 'Source Filter Mode',
                 hint: '"Include" shows only listed sources; "Exclude" hides them.',
                 choices: [
-                    { value: 'include', text: 'Only show listed sources' },
-                    { value: 'exclude', text: 'Hide listed sources' }
+                    { value: 'include', text: 'Only Show Listed Sources' },
+                    { value: 'exclude', text: 'Hide Listed Sources' }
                 ]
             })}
             </div>
             ${writeListLines({
                 path: 'settings.clientLogConfiguration.sourceOptions.sources',
-                label: 'Sources (one per line)',
+                label: 'Sources (One per Line)',
                 hint: 'Leave empty for the default set. If logs go silent, switch the mode above to "Hide" with this empty.'
             })}`;
 
@@ -2144,17 +2504,17 @@
             const body = `
             ${writeToggle({
                 path: 'settings.clientReportSettings.saveReports',
-                label: 'Save a report after each run',
+                label: 'Save a Report After Each Run',
                 hint: 'Writes an HTML report to disk.'
             })}
             ${writeToggle({
                 path: 'settings.clientReportSettings.autoView',
-                label: 'Open the report automatically',
+                label: 'Open the Report Automatically',
                 hint: 'Turn off for headless/CI runs where nobody is watching.'
             })}
             ${writeText({
                 path: 'settings.clientReportSettings.reportsFolder',
-                label: 'Reports folder',
+                label: 'Reports Folder',
                 hint: 'A "reports" subfolder is created here. "." means a reports folder next to where G4 runs.'
             })}`;
 
@@ -2177,17 +2537,17 @@
             const body = `
             ${writeToggle({
                 path: 'settings.environmentsSettings.returnEnvironments',
-                label: 'Include environment values',
+                label: 'Include Environment Values',
                 hint: 'The variables/configuration used during the run. May contain secrets.'
             })}
             ${writeToggle({
                 path: 'settings.exceptionsSettings.returnExceptions',
-                label: 'Include error details',
+                label: 'Include Error Details',
                 hint: 'Error type, message, and stack trace — useful for debugging.'
             })}
             ${writeToggle({
                 path: 'settings.performancePointsSettings.returnPerformancePoints',
-                label: 'Include performance timings',
+                label: 'Include Performance Timings',
                 hint: 'How long named checkpoints took. Low cost; keep on to track performance.'
             })}`;
 
@@ -2210,22 +2570,22 @@
             const body = `
             ${writeToggle({
                 path: 'settings.screenshotsSettings.returnScreenshots',
-                label: 'Capture screenshots',
+                label: 'Capture Screenshots',
                 hint: 'Off means no screenshots — the smallest, fastest runs.'
             })}
             ${writeToggle({
                 path: 'settings.screenshotsSettings.onExceptionOnly',
-                label: 'Only when something fails',
+                label: 'Only When Something Fails',
                 hint: 'Cheap forensic mode: capture a picture only on errors.'
             })}
             ${writeToggle({
                 path: 'settings.screenshotsSettings.convertToBase64',
-                label: 'Embed images in the response',
+                label: 'Embed Images in the Response',
                 hint: 'Makes responses much larger. Off keeps images as separate files.'
             })}
             ${writeText({
                 path: 'settings.screenshotsSettings.outputFolder',
-                label: 'Screenshots folder',
+                label: 'Screenshots Folder',
                 hint: 'Where image files are written when not embedded.'
             })}`;
 
@@ -2307,7 +2667,7 @@
                 hint: 'Optional HTTP headers sent with each request.',
                 keyPlaceholder: 'Header',
                 valuePlaceholder: 'Value',
-                addLabel: 'Add header',
+                addLabel: 'Add Header',
                 emptyText: 'No headers.'
             })}
                 ${writeCredentials({
@@ -2341,7 +2701,7 @@
             const body = `
             ${writeToggle({
                 path: 'settings.pluginsSettings.forceRuleReference',
-                label: 'Rebuild rules at the start of every run',
+                label: 'Rebuild Rules at the Start of Every Run',
                 hint: 'Recommended on. Keeps each run consistent with the current state.'
             })}
             ${writeCapabilitiesNote()}
@@ -2349,7 +2709,7 @@
             <div class="field-hint" style="margin-bottom:10px">Load extra plugins from remote repositories at startup. Leave empty to use built-in plugins only.</div>
             <div class="card-list">${cards}</div>
             <div class="add-row">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="addRepository()">+ Add repository</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addRepository()">+ Add Repository</button>
             </div>`;
 
             // Wrap the body in the collapsible section shell.
@@ -2394,39 +2754,39 @@
                 <div class="field-row">
                     ${writeText({
                 path: labelPath,
-                label: 'Friendly name',
+                label: 'Friendly Name',
                 hint: 'A readable name for this machine (e.g. accounting-pc).'
             })}
                     ${writeText({
                 path: `${base}.host`,
-                label: 'Recorder host',
+                label: 'Recorder Host',
                 hint: 'The machine running the recorder service.'
             })}
-                    ${writeText({
+                    ${writePort({
                 path: `${base}.port`,
-                label: 'Recorder port',
+                label: 'Recorder Port',
                 hint: 'Default 9955.'
             })}
                 </div>
-                <div class="subhdr">Driver parameters</div>
-                ${writeDriverParameters(`${base}.driverParameters`)}
-                <div class="subhdr">Pacing between actions</div>
+                <div class="subhdr">Driver Parameters</div>
+                ${writeDriverParameters(`${base}.driverParameters`, 'recorders')}
+                <div class="subhdr">Pacing Between Actions</div>
                 ${writeToggle({
                 path: `${base}.thinkTimeSettings.enabled`,
-                label: 'Pause like a human between actions',
+                label: 'Pause Like a Human Between Actions',
                 hint: 'Off replays as fast as possible.'
             })}
                 <div class="field-row">
                     ${writeText({
                 path: `${base}.thinkTimeSettings.minThinkTime`,
-                label: 'Shortest pause',
+                label: 'Shortest Pause',
                 suffix: '(milliseconds)',
                 type: 'number',
                 hint: 'Pauses shorter than this are bumped up to it.'
             })}
                     ${writeText({
                 path: `${base}.thinkTimeSettings.maxThinkTime`,
-                label: 'Longest pause',
+                label: 'Longest Pause',
                 suffix: '(milliseconds)',
                 type: 'number',
                 hint: 'A cap. Set equal to "shortest" for a constant pause.'
@@ -2458,12 +2818,12 @@
             const body = `
             ${writeToggle({
                 path: 'settings.recorderSettings.enabled',
-                label: 'Enable desktop recording',
+                label: 'Enable Desktop Recording',
                 hint: 'Master switch for all recorders below.'
             })}
             <div class="card-list">${cards}</div>
             <div class="add-row">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="addRecorder()">+ Add machine</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addRecorder()">+ Add Machine</button>
             </div>`;
 
             // Wrap the body in the collapsible section shell.
@@ -2506,12 +2866,12 @@
                         oninput="setControlValue('${base}.command', this.value)" />
                 </div>
                 <div class="field">
-                    <label class="field-label">Arguments (one per line)</label>
+                    <label class="field-label">Arguments (One per Line)</label>
                     <textarea oninput="setListValue('${base}.args', this.value)">${clearString(args)}</textarea>
                 </div>
                 ${writeText({
                 path: `${base}.workingDirectory`,
-                label: 'Working directory',
+                label: 'Working Directory',
                 hint: 'Folder the server process runs in. Optional.'
             })}`;
 
@@ -2533,16 +2893,16 @@
                     hint: 'Optional HTTP headers sent with each request.',
                     keyPlaceholder: 'Header',
                     valuePlaceholder: 'Value',
-                    addLabel: 'Add header',
+                    addLabel: 'Add Header',
                     emptyText: 'No headers.'
                 })
                 : writeKeyValue({
                     path: `${base}.env`,
-                    label: 'Environment variables',
+                    label: 'Environment Variables',
                     hint: 'Passed to the server process.',
                     keyPlaceholder: 'NAME',
                     valuePlaceholder: 'value',
-                    addLabel: 'Add variable',
+                    addLabel: 'Add Variable',
                     emptyText: 'No environment variables.'
                 });
 
@@ -2565,7 +2925,7 @@
                         <label class="field-label">Type</label>
                         <div class="field-hint">How G4 connects to the server.</div>
                         <select onchange="setServerType('${clearString(name)}', this.value)">
-                            <option value="stdio" ${type === 'stdio' ? 'selected' : ''}>Local process (stdio)</option>
+                            <option value="stdio" ${type === 'stdio' ? 'selected' : ''}>Local Process (stdio)</option>
                             <option value="http" ${type === 'http' ? 'selected' : ''}>Remote (HTTP)</option>
                             <option value="sse" ${type === 'sse' ? 'selected' : ''}>Remote (SSE)</option>
                         </select>
@@ -2610,7 +2970,7 @@
             <div class="field-hint" style="margin-bottom:10px">Connect external MCP servers — their tools appear in the G4 plugin catalog.</div>
             <div class="card-list">${cards}</div>
             <div class="add-row">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="addServer()">+ Add MCP server</button>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addServer()">+ Add MCP Server</button>
             </div>`;
 
             // Wrap the body in the collapsible section shell.
@@ -2750,6 +3110,37 @@
             if (input) {
                 input.value = next;
             }
+        }
+
+        /**
+         * Steps a port field while keeping the stored manifest value as text.
+         *
+         * @remarks
+         * Compute-only except for writing the new value into page state and the visible input.
+         * Ports are displayed with numeric controls but serialized as strings for manifest
+         * compatibility.
+         *
+         * @param {string} path - The dotted state path to adjust.
+         * @param {string} inputId - Id of the bound port input.
+         * @param {number} direction - +1 to increment, -1 to decrement.
+         */
+        function setPortNumberStep(path, inputId, direction) {
+            // Read the current port as a number only for stepping.
+            const current = Number(getPath(globalThis.STATE, path));
+            const next = (Number.isFinite(current) ? current : 0) + direction;
+            const nextText = String(next);
+
+            // Store the stepped port as text so the saved manifest keeps the original contract.
+            setPath(globalThis.STATE, path, nextText);
+
+            // Reflect the stepped value in the visible input.
+            const input = document.getElementById(inputId);
+
+            if (!input) {
+                return;
+            }
+
+            input.value = nextText;
         }
 
         /**
@@ -3192,6 +3583,45 @@
         }
 
         /**
+         * Converts every manifest property named `port` to a string before saving.
+         *
+         * @remarks
+         * Mutates the manifest clone created for serialization. The UI renders port fields as
+         * numeric controls, but the manifest contract stores port values as strings.
+         *
+         * @param {*} value - The manifest branch to normalize.
+         */
+        function convertManifestPortsToText(value) {
+            // Scalars cannot contain nested port fields.
+            const isNonObjectValue = !value || typeof value !== 'object';
+
+            if (isNonObjectValue) {
+                return;
+            }
+
+            // Arrays may hold recorder or server objects, so normalize each item.
+            if (Array.isArray(value)) {
+                for (const item of value) {
+                    convertManifestPortsToText(item);
+                }
+
+                return;
+            }
+
+            // Plain objects are scanned for port leaves and nested objects.
+            for (const [key, propertyValue] of Object.entries(value)) {
+                const isPortValue = key === 'port' && propertyValue != null;
+
+                if (isPortValue) {
+                    value[key] = String(propertyValue);
+                    continue;
+                }
+
+                convertManifestPortsToText(propertyValue);
+            }
+        }
+
+        /**
          * Builds a clean manifest object from the current state.
          *
          * Behavior:
@@ -3204,6 +3634,17 @@
         function newManifest() {
             // Start from a deep copy of the working state.
             const manifest = copyValue(globalThis.STATE);
+
+            // Treat an empty sandbox textbox as "not configured" and omit the root field.
+            const sandbox = String(manifest.sandbox ?? '').trim();
+            if (sandbox) {
+                manifest.sandbox = sandbox;
+            } else {
+                delete manifest.sandbox;
+            }
+
+            // Port fields render as number inputs but must be saved as manifest strings.
+            convertManifestPortsToText(manifest);
 
             // Safety net: never send a parallelism below 1, even if state drifts.
             const parallel = Number(manifest.settings.automationSettings.maxParallel);
@@ -3403,7 +3844,7 @@
             document.getElementById('g4-actionbar').innerHTML = `
             <div class="actionbar">
                 <button type="button" class="btn" onclick="save()">Save</button>
-                <button type="button" class="btn btn-ghost" onclick="resetDefaults()">Reset to defaults</button>
+                <button type="button" class="btn btn-ghost" onclick="resetDefaults()">Reset to Defaults</button>
                 <span class="spacer"></span>
                 <span class="save-note" id="save-note">Settings sent.</span>
             </div>`;

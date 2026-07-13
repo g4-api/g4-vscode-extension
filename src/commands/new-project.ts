@@ -80,6 +80,9 @@ export class NewProjectCommand extends CommandBase {
         // Create the project folder structure
         NewProjectCommand.newProjectFolder(folderUri);
 
+        // Create root-level tool configuration files that agent and MCP clients expect.
+        NewProjectCommand.newProjectConfigurationFiles(folderUri, this._logger);
+
         // Generate the initial project manifest file, recording the sandbox path when provided
         NewProjectCommand.newProjectManifest(folderUri, this._logger, sandboxPath);
 
@@ -138,7 +141,7 @@ export class NewProjectCommand extends CommandBase {
 
         // Auto-detect: use the newest sandbox; fall back to Browse when none is found.
         if (choice === autoDetectItem) {
-            const detected = NewProjectCommand.findLatestSandbox();
+            const detected = Utilities.findLatestSandbox();
 
             if (detected) {
                 vscode.window.showInformationMessage(`G4 sandbox detected: ${detected}`);
@@ -149,86 +152,7 @@ export class NewProjectCommand extends CommandBase {
         }
 
         // Browse (chosen directly, or as the auto-detect fallback).
-        return NewProjectCommand.browseSandboxLocation();
-    }
-
-    /**
-     * Opens a folder dialog to select the G4 sandbox folder.
-     *
-     * @returns The selected folder path, or undefined when the dialog is cancelled.
-     */
-    private static async browseSandboxLocation(): Promise<string | undefined> {
-        // Prompt for a single folder, labelled for the sandbox selection.
-        const selection = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            openLabel: 'Select G4 Sandbox'
-        });
-
-        // Cancelled: no sandbox is applied.
-        if (!selection || selection.length === 0) {
-            return undefined;
-        }
-
-        return this.getPath(selection);
-    }
-
-    /**
-     * Finds the newest installed G4 sandbox folder for the current OS, or undefined when none
-     * exists.
-     *
-     * @remarks
-     * Compute-only. Windows searches C:\g4-sandbox-* and C:\g4-sandbox\g4-sandbox-*; other
-     * platforms search the same layout under /opt. Missing roots are ignored. "Newest" is the
-     * highest folder name using a numeric-aware compare, so a versioned name such as
-     * g4-sandbox-v2026.06.24.71 wins.
-     *
-     * @returns The full path of the newest sandbox folder, or undefined.
-     */
-    private static findLatestSandbox(): string | undefined {
-        // Resolve the platform root that hosts the sandbox folders.
-        const isWindows = os.platform() === 'win32';
-        const root = isWindows ? 'C:\\' : '/opt';
-
-        // The two candidate layouts: directly under the root, and nested under a g4-sandbox folder.
-        const searchDirectories = [
-            root,
-            path.join(root, 'g4-sandbox')
-        ];
-
-        // Collect every versioned sandbox folder found across the candidate layouts.
-        const candidates: string[] = [];
-
-        for (const directory of searchDirectories) {
-            let entries: fs.Dirent[] = [];
-
-            try {
-                entries = fs.readdirSync(directory, { withFileTypes: true });
-            } catch {
-                // Directory missing or unreadable; skip it.
-                continue;
-            }
-
-            for (const entry of entries) {
-                // Match versioned sandbox folders only (g4-sandbox-<something>).
-                if (entry.isDirectory() && /^g4-sandbox-.+/i.test(entry.name)) {
-                    candidates.push(path.join(directory, entry.name));
-                }
-            }
-        }
-
-        // Nothing found on this machine.
-        if (candidates.length === 0) {
-            return undefined;
-        }
-
-        // Pick the newest by folder name (numeric-aware), so the highest version wins.
-        candidates.sort((a, b) =>
-            path.basename(b).localeCompare(path.basename(a), undefined, { numeric: true, sensitivity: 'base' })
-        );
-
-        return candidates[0];
+        return Utilities.selectSandboxLocation();
     }
 
     /**
@@ -247,12 +171,15 @@ export class NewProjectCommand extends CommandBase {
         // - Custom scripts (scripts)
         // - Source code (src) with organized subfolders for configurations, environments, models, plugins, tests, and resources
         const folders = [
-            path.join(projectPath, '.github'),
             path.join(projectPath, 'docs'),
             path.join(projectPath, 'docs', 'examples'),
             path.join(projectPath, 'build'),
             path.join(projectPath, 'scripts'),
+            path.join(projectPath, 'src', '.agents', 'skills'),
+            path.join(projectPath, 'src', '.claude', 'skills'),
+            path.join(projectPath, 'src', '.github'),
             path.join(projectPath, 'src', '.prompts'),
+            path.join(projectPath, 'src', '.vscode'),
             path.join(projectPath, 'src', 'configurations'),
             path.join(projectPath, 'src', 'environments'),
             path.join(projectPath, 'src', 'base.bots'),
@@ -275,9 +202,44 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
+     * Creates root-level configuration files for tool integrations in a new project.
+     *
+     * @remarks
+     * Owns root and source-level configuration files. The required parent folders are created
+     * by newProjectFolder() before this method runs, and the files intentionally start as empty
+     * JSON objects so users can opt into their preferred MCP/client settings.
+     *
+     * @param userPath - The URI or path selected by the user for the new project.
+     * @param logger - Optional logger for reporting file-writing errors.
+     */
+    private static newProjectConfigurationFiles(userPath: any, logger?: Logger): void {
+        // Resolve the project root once so root and nested configuration files stay aligned.
+        const projectPath = this.getPath(userPath);
+        const emptyJsonContent = JSON.stringify({}, null, '\t');
+
+        // Root MCP configuration consumed by agent tooling.
+        this.writeFile({
+            directoryPath: projectPath,
+            fileName: '.mcp.json',
+            content: emptyJsonContent,
+            logger: logger
+        });
+
+        // VS Code-specific MSP configuration under the source workspace settings folder.
+        this.writeFile({
+            directoryPath: path.join(projectPath, 'src', '.vscode'),
+            fileName: 'msp.json',
+            content: emptyJsonContent,
+            logger: logger
+        });
+    }
+
+    /**
      * Generates a Manifest.json file in the project's src folder based on the extension’s package manifest.
      *
      * @param userPath - The URI or path selected by the user for the new project.
+     * @param logger - Optional logger for reporting file-writing errors.
+     * @param sandboxPath - The selected sandbox folder path, or undefined to keep default paths.
      */
     private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string) {
         // Clone the base manifest so the shared constant is never mutated, then record the
@@ -287,6 +249,11 @@ export class NewProjectCommand extends CommandBase {
         if (sandboxPath) {
             manifest.sandbox = sandboxPath;
         }
+
+        // Keep the manifest Chrome recorder aligned with the generated chrome base bot, including
+        // sandbox-adjusted binary paths when a sandbox was selected.
+        const chromeBaseContent = this.newChromeBaseContent(sandboxPath);
+        this.setChromeRecorderDriverParameters(manifest, chromeBaseContent);
 
         // Convert the manifest object to a formatted JSON string with tabs for readability
         const content = JSON.stringify(manifest, null, '\t');
@@ -374,6 +341,49 @@ export class NewProjectCommand extends CommandBase {
         } catch {
             // Malformed resource: fall back to the raw content so project creation still succeeds.
             return raw;
+        }
+    }
+
+    /**
+     * Copies the generated Chrome base driver parameters into the matching manifest recorder.
+     *
+     * @remarks
+     * Compute-only except for mutating the provided manifest clone. The Chrome base content is
+     * used as the source of truth so recorder sandbox paths stay identical to the base bot file.
+     *
+     * @param manifest - The generated project manifest clone to update before writing.
+     * @param chromeBaseContent - The generated chrome-automation-base.json content.
+     */
+    private static setChromeRecorderDriverParameters(manifest: any, chromeBaseContent: string): void {
+        try {
+            // Parse the generated Chrome base content so the recorder receives the same object
+            // that is written under base.bots.
+            const chromeBase = JSON.parse(chromeBaseContent);
+            const chromeDriverParameters = chromeBase?.driverParameters;
+
+            if (!chromeDriverParameters) {
+                return;
+            }
+
+            // Find the Chrome recorder by driver name, matching the new-project manifest contract.
+            const recorders = manifest?.settings?.recorderSettings?.recorders;
+
+            if (!Array.isArray(recorders)) {
+                return;
+            }
+
+            const chromeRecorder = recorders.find(
+                (recorder: any) => recorder?.driverParameters?.driver === 'ChromeDriver'
+            );
+
+            if (!chromeRecorder) {
+                return;
+            }
+
+            // Deep-clone the driver parameters so later mutations cannot couple the two objects.
+            chromeRecorder.driverParameters = JSON.parse(JSON.stringify(chromeDriverParameters));
+        } catch {
+            // Malformed Chrome base content should not block project creation.
         }
     }
 

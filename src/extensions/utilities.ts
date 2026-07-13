@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import os = require('os');
 import * as vscode from 'vscode';
 import path = require('path');
 import { LogSettings } from '../logging/logger-base';
@@ -34,6 +35,36 @@ export class Utilities {
     public static assertNullOrUndefined(obj: any): boolean {
         // Delegate to the internal check that safely handles getters and unexpected errors
         return this.assertUndefinedOrNull(obj);
+    }
+
+    /**
+     * Selects a G4 sandbox folder through the VS Code folder picker.
+     *
+     * @remarks
+     * Uses explicit VS Code UI state because sandbox selection requires user interaction owned by
+     * the extension host. Cancellation is treated as a non-error result so callers can preserve
+     * their current sandbox value.
+     *
+     * @returns The selected sandbox folder path, or undefined when the dialog is cancelled.
+     */
+    public static async selectSandboxLocation(): Promise<string | undefined> {
+        // Open a single-folder picker so the user can choose the sandbox root.
+        const selection = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: 'Select G4 Sandbox'
+        });
+
+        // Treat cancellation as an empty result rather than an error.
+        const isSandboxSelectionEmpty = !selection || selection.length === 0;
+
+        if (isSandboxSelectionEmpty) {
+            return undefined;
+        }
+
+        // Use fsPath so callers receive a native path on every platform.
+        return selection[0].fsPath;
     }
 
     /**
@@ -109,6 +140,61 @@ export class Utilities {
                 cells: []
             };
         }
+    }
+
+    /**
+     * Finds the newest installed G4 sandbox folder for the current OS, or undefined when none exists.
+     *
+     * @remarks
+     * Compute-only. Windows searches C:\g4-sandbox-* and C:\g4-sandbox\g4-sandbox-*; other
+     * platforms search the same layout under /opt. Missing roots are ignored. "Newest" is the
+     * highest folder name using a numeric-aware compare.
+     *
+     * @returns The full path of the newest sandbox folder, or undefined.
+     */
+    public static findLatestSandbox(): string | undefined {
+        // Resolve the platform root that hosts the sandbox folders.
+        const isWindows = os.platform() === 'win32';
+        const root = isWindows ? 'C:\\' : '/opt';
+
+        // The two candidate layouts: directly under the root, and nested under a g4-sandbox folder.
+        const searchDirectories = [
+            root,
+            path.join(root, 'g4-sandbox')
+        ];
+
+        // Collect every versioned sandbox folder found across the candidate layouts.
+        const candidates: string[] = [];
+
+        for (const directory of searchDirectories) {
+            let entries: fs.Dirent[] = [];
+
+            try {
+                entries = fs.readdirSync(directory, { withFileTypes: true });
+            } catch {
+                // Directory missing or unreadable; skip it.
+                continue;
+            }
+
+            for (const entry of entries) {
+                // Match versioned sandbox folders only (g4-sandbox-<something>).
+                if (entry.isDirectory() && /^g4-sandbox-.+/i.test(entry.name)) {
+                    candidates.push(path.join(directory, entry.name));
+                }
+            }
+        }
+
+        // Nothing found on this machine.
+        if (candidates.length === 0) {
+            return undefined;
+        }
+
+        // Pick the newest by folder name (numeric-aware), so the highest version wins.
+        candidates.sort((a, b) =>
+            path.basename(b).localeCompare(path.basename(a), undefined, { numeric: true, sensitivity: 'base' })
+        );
+
+        return candidates[0];
     }
 
     /**

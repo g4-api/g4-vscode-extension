@@ -110,6 +110,34 @@ export class ShowSettingsCommand extends CommandBase {
                     await vscode.env.openExternal(vscode.Uri.parse(message.url));
                 }
 
+                // Let the settings page fill the root manifest sandbox field from a folder picker.
+                if (message?.command === 'browseSandbox') {
+                    const sandboxPath = await Utilities.selectSandboxLocation();
+
+                    if (sandboxPath) {
+                        await panel.webview.postMessage({
+                            command: 'setSandboxPath',
+                            sandboxPath
+                        });
+                    }
+                }
+
+                // Let the settings page fill the root manifest sandbox field from the newest local sandbox.
+                if (message?.command === 'autoDetectSandbox') {
+                    const sandboxPath = Utilities.findLatestSandbox();
+
+                    if (sandboxPath) {
+                        await panel.webview.postMessage({
+                            command: 'setSandboxPath',
+                            sandboxPath
+                        });
+                    } else {
+                        vscode.window.showWarningMessage(
+                            'No G4 Sandbox was auto-detected. Browse manually for the G4 Sandbox.'
+                        );
+                    }
+                }
+
                 // Handle settings save messages posted from the webview.
                 if (message?.command === 'saveSettings' && message.manifest !== undefined) {
                     // A save needs an open workspace to resolve the manifest path.
