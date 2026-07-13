@@ -198,7 +198,7 @@ export class ShowSettingsCommand extends CommandBase {
             vscode.Uri.joinPath(
                 context.extensionUri,
                 'resources.components',
-                'settings',
+                'automation-settings',
                 'settings.css'
             )
         );
@@ -208,7 +208,7 @@ export class ShowSettingsCommand extends CommandBase {
             vscode.Uri.joinPath(
                 context.extensionUri,
                 'resources.components',
-                'settings',
+                'automation-settings',
                 'settings.js'
             )
         );
@@ -220,7 +220,7 @@ export class ShowSettingsCommand extends CommandBase {
         const manifestJson = JSON.stringify(manifest, null, 4);
 
         // Load the settings component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/settings/settings.html');
+        const html = Utilities.getResource('resources.components/automation-settings/settings.html');
 
         // Inject the manifest data and font URI into the HTML template and return it.
         // The manifest is supplied through a replacer function so any literal `$`
