@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import { randomInt } from 'node:crypto';
 import os = require('os');
 import * as vscode from 'vscode';
 import path = require('path');
@@ -253,9 +254,8 @@ export class Utilities {
         // Accumulates matching file paths
         const list: string[] = [];
 
-        // Regex to extract the base file name (word characters) immediately before '.json'
-        // The negative lookbehind (?!\\) ensures we don't match backslashes
-        const patternToExtractName = /(?!\\)\w+(?=\.json)/;
+        // Store the requested base names once so each discovered file has a bounded lookup.
+        const targetNames = new Set(arrayOfNames);
 
         /**
          * Helper function that walks the directory tree recursively.
@@ -273,14 +273,13 @@ export class Utilities {
                     getFilesFromDirectory(filePath);
 
                 } else {
-                    // If it's a file, attempt to match its base name against each target name
-                    for (const name of arrayOfNames) {
-                        const matches = patternToExtractName.exec(filePath);
+                    // Use path parsing instead of regex so file-name extraction stays linear.
+                    const isJsonFile = path.extname(filePath) === '.json';
+                    const fileName = path.basename(filePath, '.json');
 
-                        // If regex finds a base name and it matches one in our list, record the path
-                        if (matches !== null && matches[0] === name) {
-                            list.push(filePath);
-                        }
+                    // Record only JSON files whose base names match the requested names.
+                    if (isJsonFile && targetNames.has(fileName)) {
+                        list.push(filePath);
                     }
                 }
             }
@@ -553,18 +552,18 @@ export class Utilities {
      */
     public static newRandomString(length: number): string {
         // Define the character set from which random characters will be chosen
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        const allowedCharacters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
         // Initialize an empty result string
         let result = '';
 
         // Loop 'length' times to build the string
         for (let i = 0; i < length; i++) {
-            // Pick a random index within the 'chars' string
-            const randomIndex = Math.floor(Math.random() * chars.length);
+            // Pick a crypto-backed random index so generated identifiers stay safe if reused.
+            const randomIndex = randomInt(allowedCharacters.length);
 
             // Append the randomly selected character to the result
-            result += chars.charAt(randomIndex);
+            result += allowedCharacters.charAt(randomIndex);
         }
 
         // Return the completed random string
@@ -859,7 +858,7 @@ export class Utilities {
      */
     private static newProjectManifest(): any {
         // Return a clone so callers cannot mutate the shared global constant.
-        return JSON.parse(JSON.stringify(Global.BASE_MANIFEST));
+        return structuredClone(Global.BASE_MANIFEST);
     }
 
     /**

@@ -232,7 +232,7 @@ export class NewProjectCommand extends CommandBase {
     private static newProjectManifest(userPath: any, logger?: Logger, sandboxPath?: string): any {
         // Clone the base manifest so the shared constant is never mutated, then record the
         // selected G4 sandbox path when one was provided.
-        const manifest = JSON.parse(JSON.stringify(Global.BASE_MANIFEST));
+        const manifest = structuredClone(Global.BASE_MANIFEST);
 
         if (sandboxPath) {
             manifest.sandbox = sandboxPath;
@@ -403,7 +403,7 @@ export class NewProjectCommand extends CommandBase {
             }
 
             // Deep-clone the driver parameters so later mutations cannot couple the two objects.
-            chromeRecorder.driverParameters = JSON.parse(JSON.stringify(chromeDriverParameters));
+            chromeRecorder.driverParameters = structuredClone(chromeDriverParameters);
         } catch {
             // Malformed Chrome base content should not block project creation.
         }
