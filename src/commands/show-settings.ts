@@ -165,6 +165,11 @@ export class ShowSettingsCommand extends CommandBase {
 
                         // Confirm the save to the user.
                         vscode.window.showInformationMessage('G4 settings saved.');
+
+                        // Hot-apply the saved settings so features like the recorders pick up the
+                        // change without a window reload (Apply-Settings also handles reload-only
+                        // sections and an in-progress recording).
+                        await vscode.commands.executeCommand('Apply-Settings');
                     } catch (error: any) {
                         // Surface any write failure (permissions, disk, etc.).
                         vscode.window.showErrorMessage(`Could not save G4 settings: ${error?.message ?? error}`);

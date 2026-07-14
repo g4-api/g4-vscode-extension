@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
+import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
 import { Logger } from '../logging/logger';
 
 /**
@@ -221,6 +221,17 @@ export class EventCaptureService {
         // Chromium recorders are identified by a ChromeDriver-style driver value.
         const driver = this._options.driverParameters?.driver ?? '';
         return /chrome/i.test(driver);
+    }
+
+    /**
+     * Indicates whether this service's hub connection is currently connected.
+     *
+     * @remarks
+     * Used to tell whether a recording session is live — for example, before rebuilding recorder
+     * connections when settings are applied, so an in-progress session is not silently dropped.
+     */
+    public get isConnected(): boolean {
+        return this._connection.state === HubConnectionState.Connected;
     }
 
     /**

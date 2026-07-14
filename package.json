@@ -46,6 +46,11 @@
                 "title": "Open Settings Editor"
             },
             {
+                "command": "Apply-Settings",
+                "category": "G4",
+                "title": "Apply Settings"
+            },
+            {
                 "command": "Open-Bot-As-Json",
                 "category": "G4",
                 "title": "Open as JSON"

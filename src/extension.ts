@@ -18,12 +18,18 @@ import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
 import { G4HubService, G4ProjectManifest } from './services/g4-hub-service';
+import { G4SettingsService } from './services/g4-settings-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
 
 // Function to initialize connection to the backend hub.
 const captureConnections = new Map<string, EventCaptureService>();
+
+// The recorder command and view instances, captured during registration so the settings service
+// can hot-apply recorder changes (rebuild connections, re-render the panel) without a reload.
+let recorderCommand: StartRecorderCommand | undefined;
+let recorderViewProvider: G4RecorderViewProvider | undefined;
 
 /**
  * Entry point for the VS Code extension.
@@ -61,6 +67,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Register language or notebook providers such as completion, hover and serializers.
     registerProviders(options);
+
+    // Register the settings service and Apply-Settings command after the recorder command and
+    // view exist, so hot-apply can rebuild and re-render them without a window reload.
+    registerSettingsService(context);
 
     // Initialize the base URI used to communicate with the backend hub or services.
     // This typically resolves configuration, environment and connection parameters.
@@ -157,17 +167,18 @@ const registerCommands = (options: {
     // Command to fetch or update templates used for new automation workflows.
     new UpdateTemplateCommand(options.context, options.baseUri).register();
 
-    // Initialize the recorder command, which handles UI event recording.
-    const startRecorderCommand = new StartRecorderCommand(
+    // Initialize the recorder command, which handles UI event recording. Captured in a module
+    // field so the settings service can rebuild its connections when settings are applied.
+    recorderCommand = new StartRecorderCommand(
         options.context,
         options.eventsCaptureOptions || []
     );
 
     // Retrieve recorder connections from the command instance.
-    const connections = startRecorderCommand.connections;
+    const connections = recorderCommand.connections;
 
     // Register the StartRecorderCommand with VS Code.
-    startRecorderCommand.register();
+    recorderCommand.register();
 
     // Store each recorder connection in the global captureConnections map
     // for later use by the StopRecorderCommand.
@@ -220,9 +231,11 @@ const registerProviders = (options: {
     // Register the main G4 webview provider that powers the extension's UI panel.
     new G4WebviewViewProvider(options.context).register();
 
-    // Register the recorder view provider that displays captured UI events
-    // and communicates with the associated EventCaptureService instances.
-    new G4RecorderViewProvider(options.context, options.recorderConnections).register();
+    // Register the recorder view provider that displays captured UI events and communicates with
+    // the associated EventCaptureService instances. Captured in a module field so the settings
+    // service can re-render it when settings are applied.
+    recorderViewProvider = new G4RecorderViewProvider(options.context, options.recorderConnections);
+    recorderViewProvider.register();
 
     // Register the documents tree provider that displays workspace or
     // project-related documents in the Explorer sidebar.
@@ -230,6 +243,48 @@ const registerProviders = (options: {
 
     // Register the custom workflow editor for G4 bot workflow files.
     new G4WorkflowCustomEditorProvider(options.context, options.baseUri).register();
+};
+
+/**
+ * Registers the settings service and the `Apply-Settings` command.
+ *
+ * @remarks
+ * Wired after commands and providers so the recorder command and view instances captured during
+ * their registration are available. The command lets the user hot-apply settings on demand from
+ * the Command Palette; the settings webview invokes the same command after a save.
+ *
+ * @param context - The extension context used to register the command disposable.
+ */
+const registerSettingsService = (context: vscode.ExtensionContext): void => {
+    // Copy the module fields into locals so their non-undefined type narrows for the service.
+    const startRecorderCommand = recorderCommand;
+    const recorderView = recorderViewProvider;
+
+    // The recorder subsystems must exist before the settings service can hot-apply their changes.
+    if (startRecorderCommand === undefined) {
+        return;
+    }
+
+    if (recorderView === undefined) {
+        return;
+    }
+
+    // Build the service over the live recorder subsystems and the shared connection pool.
+    const settingsService = new G4SettingsService({
+        startRecorderCommand,
+        recorderView,
+        recorderConnections: captureConnections
+    });
+
+    // Register Apply-Settings so a manual palette call, or a settings save, hot-applies the
+    // on-disk manifest without a window reload.
+    const disposable = vscode.commands.registerCommand(
+        'Apply-Settings',
+        async () => {
+            await settingsService.updateSettings();
+        });
+
+    context.subscriptions.push(disposable);
 };
 
 /**

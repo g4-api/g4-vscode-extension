@@ -27,9 +27,6 @@ export abstract class CommandBase {
     /** Base endpoint URL for API calls (defaults to localhost). */
     public endpoint: string = 'http://localhost:9944';
 
-    /** The extension's manifest data (package.json). */
-    public manifest: any;
-
     /** Model used when creating or updating a TextMate language definition. */
     public createModel: TmLanguageCreateModel;
 
@@ -54,11 +51,20 @@ export abstract class CommandBase {
         // retain the extension context for command registration and disposables
         this.context = context;
 
-        // load extension manifest (package.json) for metadata or versioning
-        this.manifest = Utilities.getManifest();
-
         // assign provided create model or initialize with an empty object
         this.createModel = createModel ?? {};
+    }
+
+    /**
+     * The global project manifest snapshot.
+     *
+     * @remarks
+     * Delegates to the shared Utilities cache so every command reads one manifest object instead
+     * of caching its own copy at construction; this lets Apply Settings refresh the manifest so
+     * commands observe new settings without a window reload.
+     */
+    public get manifest(): any {
+        return Utilities.getManifest();
     }
 
     /**

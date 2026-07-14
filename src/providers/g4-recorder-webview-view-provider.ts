@@ -16,10 +16,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	/** Unique view type ID registered in package.json (`contributes.views`). */
 	public static readonly VIEW_TYPE = 'g4RecorderView';
 
-	/** Cached reference to the extension manifest (package.json contents). */
-	private static readonly _manifest: any = Utilities.getManifest();
-
-	/** 
+	/**
 	 * The active webview instance - assigned once the view is resolved.
 	 * Used to send messages and updates to the front-end (via `postMessage`).
 	 */
@@ -57,7 +54,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recorderConnections);
 
 		// Seed the panel-only override from the manifest so the first start matches saved settings.
-		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		const settings = Utilities.getManifest()?.settings?.recorderSettings;
 		this._useSandboxOverride = settings?.useSandbox === true;
 	}
 
@@ -86,6 +83,31 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 		// Ensure that the registration is properly disposed of when the extension deactivates
 		this._context.subscriptions.push(disposable);
+	}
+
+	/**
+	 * Re-reads recorder settings and re-renders the view after settings are applied.
+	 *
+	 * @remarks
+	 * Called by the settings applier so the recorder panel reflects manifest changes (enabled
+	 * recorders, endpoints, sandbox flag) without a window reload. Rebuilds the server-status list
+	 * from the current connection pool and, when the view is live, re-renders its HTML.
+	 */
+	public updateView(): void {
+		// Rebuild the status list from the current (possibly rebuilt) connection pool, mutating the
+		// existing array in place so the message handlers keep their reference.
+		const servers = G4RecorderViewProvider.resolveServers(this._recorderConnections);
+		this._serversStatus.length = 0;
+		this._serversStatus.push(...servers);
+
+		// Re-seed the panel-only sandbox override from the refreshed manifest.
+		const settings = Utilities.getManifest()?.settings?.recorderSettings;
+		this._useSandboxOverride = settings?.useSandbox === true;
+
+		// Re-render the webview when it is live so the new recorder list and status are shown.
+		if (this._view) {
+			this._view.webview.html = this.getHtml();
+		}
 	}
 
 	/**
@@ -125,7 +147,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		);
 
 		// Extract recorder settings from the manifest to determine if the recorder is enabled
-		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		const settings = Utilities.getManifest()?.settings?.recorderSettings;
 		const enabled = settings?.enabled ?? true;
 
 		// Prepare the initial server status payload to send to the webview
@@ -850,7 +872,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		}
 
 		// Extract recorder settings from the manifest to determine if the recorder is enabled
-		const settings = G4RecorderViewProvider._manifest?.settings?.recorderSettings;
+		const settings = Utilities.getManifest()?.settings?.recorderSettings;
 		const enabled = settings?.enabled ?? true;
 
 		// Map the updated statuses to a simplified format for the webview

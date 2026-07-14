@@ -7,7 +7,7 @@
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
-import { EventCaptureService, EventCaptureOptions } from '../clients/g4-signalr-client';
+import { EventCaptureService, EventCaptureMode } from '../clients/g4-signalr-client';
 import { G4RecorderSandboxService } from '../services/g4-recorder-sandbox-service';
 import { Utilities } from '../extensions/utilities';
 
@@ -38,7 +38,7 @@ export class StartRecorderCommand extends CommandBase {
      */
     constructor(
         private readonly _context: vscode.ExtensionContext,
-        private readonly _options: EventCaptureOptions[],
+        private _options: ReturnType<typeof Utilities.resolveEventsCaptureOptions>,
     ) {
         // Initialize base CommandBase members (logger factory, context, etc.)
         super(_context);
@@ -49,24 +49,8 @@ export class StartRecorderCommand extends CommandBase {
         // Command identifier as used in package.json and when invoking via commands.executeCommand.
         this.command = 'Start-Recorder';
 
-        // Instantiate one EventCaptureService per endpoint and store in the pool.
-        for (const option of this._options) {
-            
-            if(!option.enabled) {
-                this._logger.information('Skipping disabled recorder endpoint: ' + option.baseUrl);
-                continue;
-            }
-
-            // Inject the context and logger, which are not provided by the manifest-derived
-            // options, so the service can log and access extension lifecycle resources without
-            // throwing on undefined members.
-            const captureService = new EventCaptureService({
-                ...option,
-                context: this._context,
-                logger: this._logger
-            });
-            this._connections.set(option.baseUrl, captureService);
-        }
+        // Build one capture service per enabled endpoint into the shared connection pool.
+        this.setConnections(this._options);
     }
 
     /**
@@ -74,6 +58,55 @@ export class StartRecorderCommand extends CommandBase {
      */
     public get connections(): Map<string, EventCaptureService> {
         return this._connections;
+    }
+
+    /**
+     * Whether a recording session is currently active.
+     *
+     * @remarks
+     * True when at least one capture connection is live on its hub. The settings applier reads
+     * this to decide whether rebuilding connections would interrupt an in-progress recording.
+     */
+    public get isRecording(): boolean {
+        // A session is active while any capture connection is connected to its hub.
+        for (const service of this._connections.values()) {
+            if (service.isConnected) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Rebuilds the recorder connection pool from a fresh set of endpoint options.
+     *
+     * @remarks
+     * Owns the connection-pool lifecycle when recorder settings change: it closes and drops every
+     * current capture service, then rebuilds the pool from the new options so enabling, disabling,
+     * or re-pointing a recorder takes effect without a window reload. The pool Map is mutated in
+     * place so other holders (Stop-Recorder, the recorder view) keep observing the live set.
+     *
+     * @param options The new recorder endpoint options (from the refreshed manifest).
+     * @returns A promise that resolves once the old connections are closed and the pool rebuilt.
+     */
+    public async updateConnections(options: ReturnType<typeof Utilities.resolveEventsCaptureOptions>): Promise<void> {
+        // Close every current capture service before dropping it so no socket is left dangling.
+        for (const service of this._connections.values()) {
+            try {
+                await service.stopBrowser();
+                await service.disconnect();
+            } catch {
+                // Ignore teardown failures; a failed close must not block the rebuild.
+            }
+        }
+
+        // Drop the closed services and record the new options as the active configuration.
+        this._connections.clear();
+        this._options = options;
+
+        // Rebuild the pool from the new options so the next start uses the updated endpoints.
+        this.setConnections(options);
     }
 
     /**
@@ -139,6 +172,38 @@ export class StartRecorderCommand extends CommandBase {
                 const message = error instanceof Error ? error.message : String(error);
                 this._logger.error(`Failed to launch browser for endpoint ${endpoint}: ${message}`);
             }
+        }
+    }
+
+    /**
+     * Builds one capture service per enabled endpoint into the shared connection pool.
+     *
+     * @remarks
+     * Store-only helper shared by the constructor and updateConnections(). Disabled endpoints are
+     * skipped so no idle connection is opened for them. The extension context and logger are
+     * injected because the manifest-derived options do not carry them.
+     *
+     * @param options The recorder endpoint options to build services from.
+     */
+    private setConnections(options: ReturnType<typeof Utilities.resolveEventsCaptureOptions>): void {
+        for (const option of options) {
+            // Skip endpoints the user disabled so no idle connection is opened for them.
+            if (!option.enabled) {
+                this._logger.information('Skipping disabled recorder endpoint: ' + option.baseUrl);
+                continue;
+            }
+
+            // Inject the context and logger, which the manifest-derived options do not carry, so
+            // the service can log and access extension lifecycle resources. The manifest stores
+            // mode as a free string, so narrow it to the EventCaptureMode the service expects.
+            const captureService = new EventCaptureService({
+                ...option,
+                mode: option.mode as EventCaptureMode,
+                context: this._context,
+                logger: this._logger
+            });
+
+            this._connections.set(option.baseUrl, captureService);
         }
     }
 
