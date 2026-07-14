@@ -142,7 +142,7 @@ globalThis.DEFAULTS = {
             "recorders": [
                 {
                     "enabled": true,
-                    "mode": "user32",
+                    "mode": "standard",
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -169,7 +169,7 @@ globalThis.DEFAULTS = {
                 },
                 {
                     "enabled": false,
-                    "mode": "user32",
+                    "mode": "standard",
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -224,6 +224,16 @@ globalThis.DEFAULTS = {
 // dots or colons (for example the WebDriver key "uia:options").
 const KEY_OPEN = '{{';
 const KEY_CLOSE = '}}';
+
+// Recorder capture modes supported by EventCaptureService.
+const RECORDER_MODE_CHOICES = [
+    { value: 'standard', text: 'Standard' },
+    { value: 'user32', text: 'User32' },
+    { value: 'coordinate', text: 'Coordinate' }
+];
+
+// Tooltip shown on the per-recorder mode dropdown.
+const RECORDER_MODE_TITLE = 'This value only applies to UIA recorders and is ignored by other recorders.';
 
 // The VS Code webview bridge. Acquired once; guarded so the page also
 // renders correctly when opened outside the extension host.
@@ -814,6 +824,9 @@ function newManifest() {
     // Start from a deep copy of the working state.
     const manifest = copyValue(globalThis.STATE);
 
+    // Recorder mode only applies to UIA recorders; force all other recorders to the safe baseline.
+    setRecorderModes(manifest.settings?.recorderSettings?.recorders);
+
     // Treat an empty sandbox textbox as "not configured" and omit the root field.
     const sandbox = String(manifest.sandbox ?? '').trim();
     if (sandbox) {
@@ -1182,6 +1195,15 @@ function setControlValue(options) {
 
     // Write the coerced value into state.
     setPath(globalThis.STATE, path, value);
+
+    // Recorder mode only applies to UIA; changing a recorder driver may disable and reset the mode.
+    const isRecorderDriverPath = path.startsWith('settings.recorderSettings.recorders.') &&
+        path.endsWith('.driverParameters.driver');
+
+    if (isRecorderDriverPath) {
+        setRecorderModes(globalThis.STATE.settings?.recorderSettings?.recorders);
+        updateSection('recorders');
+    }
 }
 
 /**
@@ -2552,6 +2574,46 @@ function writePort({ path, label, hint }) {
 }
 
 /**
+ * Normalizes recorder modes so non-UIA recorders are always saved as standard mode.
+ *
+ * @param {Array<object>|null|undefined} recorders - Recorder entries to normalize in place.
+ */
+function setRecorderModes(recorders) {
+    // Ignore missing or malformed recorder lists; callers may pass partial manifests.
+    if (!Array.isArray(recorders)) {
+        return;
+    }
+
+    // Apply the mode contract to every recorder before rendering or saving.
+    for (const recorder of recorders) {
+        const driver = recorder?.driverParameters?.driver;
+        const isUiaRecorder = testUiaRecorderDriver(driver);
+
+        if (!isUiaRecorder) {
+            recorder.mode = 'standard';
+            continue;
+        }
+
+        const isKnownMode = RECORDER_MODE_CHOICES.some(choice => choice.value === recorder.mode);
+
+        if (!isKnownMode) {
+            recorder.mode = 'standard';
+        }
+    }
+}
+
+/**
+ * Tests whether a recorder driver is UIA.
+ *
+ * @param {string|undefined} driver - Recorder driver value from the manifest.
+ * @returns {boolean} True when the driver is UiaDriver.
+ */
+function testUiaRecorderDriver(driver) {
+    // Match the manifest driver contract exactly so other recorder families keep standard mode.
+    return driver === 'UiaDriver';
+}
+
+/**
  * Builds one editable recorder ("machine") card.
  *
  * Behavior:
@@ -2567,6 +2629,16 @@ function writeRecorderCard(recorder, index) {
     const base = `settings.recorderSettings.recorders.${index}`;
     const labelPath = `${base}.driverParameters.capabilities.alwaysMatch.${convertToEscapedKey('uia:options')}.label`;
     const label = recorder?.driverParameters?.capabilities?.alwaysMatch?.['uia:options']?.label || `machine-${index + 1}`;
+    const modePath = `${base}.mode`;
+    const modeValue = recorder?.mode || 'standard';
+    const isUiaRecorder = testUiaRecorderDriver(recorder?.driverParameters?.driver);
+    const modeDisabledAttribute = isUiaRecorder ? '' : ' disabled';
+    const modeOptions = RECORDER_MODE_CHOICES
+        .map(choice => `
+            <option value="${getEscapedText(choice.value)}" ${choice.value === modeValue ? 'selected' : ''}>
+                ${getEscapedText(choice.text)}
+            </option>`)
+        .join('');
 
     // Render the card header, identity row, driver parameters, and pacing controls.
     return `
@@ -2597,6 +2669,15 @@ function writeRecorderCard(recorder, index) {
         label: 'Recorder Port',
         hint: 'Default 9955.'
     })}
+            <div class="field">
+                <label class="field-label">Mode</label>
+                <div class="field-hint">Capture strategy for UIA recorders.</div>
+                <select title="${getEscapedText(RECORDER_MODE_TITLE)}"
+                        aria-label="Recorder Mode"
+                        onchange="setControlValue({ path: '${modePath}', rawValue: this.value })"${modeDisabledAttribute}>
+                    ${modeOptions}
+                </select>
+            </div>
         </div>
         <div class="subhdr">Driver Parameters</div>
         ${writeDriverParameters(`${base}.driverParameters`, 'recorders')}
@@ -2639,6 +2720,9 @@ function writeRecordersSection() {
     // Resolve the configured recorders.
     const recorders = getPath(globalThis.STATE, 'settings.recorderSettings.recorders') || [];
 
+    // Ensure non-UIA recorders cannot retain a non-standard mode from an older manifest edit.
+    setRecorderModes(recorders);
+
     // Render one recorder card per entry, or an empty-state note.
     const cards = recorders.length
         ? recorders.map((recorder, index) => writeRecorderCard(recorder, index)).join('')
@@ -2664,7 +2748,7 @@ function writeRecordersSection() {
     // Wrap the body in the collapsible section shell.
     return writeSection({
         id: 'recorders',
-        title: 'Desktop Recorders',
+        title: 'Automation Recorders',
         desc: 'Watch a user click through a desktop app and turn it into a replayable workflow.',
         body
     });
