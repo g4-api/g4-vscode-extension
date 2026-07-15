@@ -178,8 +178,9 @@ export class StopRecorderCommand extends CommandBase {
         const automationDriver = isSingleJob
             ? (initialConnection.options.driverParameters || {})
             : { driver: 'NoDriver', driverBinaries: '.' };
+        const manifest = this.manifest;
         const automation = StopRecorderCommand.newAutomation(
-            this.manifest,
+            manifest,
             StopRecorderCommand.confirmDriverBinaries(automationDriver)
         );
 
@@ -203,6 +204,18 @@ export class StopRecorderCommand extends CommandBase {
             });
 
             automation.stages[0].jobs.push(job);
+        }
+
+        // Finalize the completed definition with a detached authentication snapshot so later
+        // manifest refreshes cannot mutate the workflow already sent to the editor.
+        const manifestAuthentication = manifest.authentication;
+        const isAuthenticationObject =
+            manifestAuthentication !== null &&
+            typeof manifestAuthentication === 'object' &&
+            !Array.isArray(manifestAuthentication);
+
+        if (isAuthenticationObject) {
+            automation.authentication = structuredClone(manifestAuthentication);
         }
 
         return automation;
@@ -489,22 +502,19 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
-     * Creates a new Automation definition object that represents a complete
-     * executable automation workflow.
+     * Creates the schema-compatible automation shell that receives recorded jobs and a final
+     * authentication snapshot before being returned to the workflow editor.
      */
     private static newAutomation(manifest: any, driverParameters: any): any {
-        // Extract the authentication token if available; fallback to an empty string.
-        const token = manifest.authentication?.token || "";
-
         // Extract runtime or environment settings, or default to an empty object.
         const settings = manifest.settings || {};
 
         // Construct and return a standardized automation definition object.
         return {
-            // Authentication block ensures that execution contexts can securely
-            // interact with the G4 Engine or remote services.
+            // Keep the shell schema-compatible until the completed definition receives the
+            // manifest's detached authentication snapshot.
             authentication: {
-                token: token
+                token: ""
             },
 
             // Parameters that define how and where the automation will execute
