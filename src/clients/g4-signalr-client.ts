@@ -289,25 +289,34 @@ export class EventCaptureService {
      *
      * Once disconnected:
      * - The underlying connection is stopped, preventing new events.
-     * - The user is notified via a VS Code information message.
      * - Any errors during shutdown are logged for troubleshooting.
      *
-     * @returns A promise that resolves when the connection has been stopped.
+     * @remarks
+     * Cleanup is intentionally UI-neutral because this method is shared by user-initiated Stop
+     * and internal settings hot-load teardown. Callers decide whether the transition warrants a
+     * notification. Connecting and reconnecting services are still stopped even though only a
+     * previously connected service returns true.
+     *
+     * @returns True when the service was connected immediately before it was stopped.
      */
-    public async disconnect(): Promise<void> {
+    public async disconnect(): Promise<boolean> {
+        // Snapshot the user-visible connection state before cleanup so callers can distinguish an
+        // actual connected-to-disconnected transition from an already-red service teardown.
+        const isConnectedBeforeStop = this.isConnected;
+
         try {
-            // Stop the active SignalR connection.
+            // Always stop the SignalR client so connecting or reconnecting attempts cannot survive
+            // an internal rebuild, even though they do not count as a live recorder connection.
             await this._connection.stop();
 
-            // Notify the user that the connection was closed by request.
-            showTemporaryInformationMessage(
-                'Disconnected from G4 events capture hub.'
-            );
-        } catch (err: any) {
+            return isConnectedBeforeStop;
+        } catch (error: any) {
             // Log details if the connection could not be stopped gracefully.
             this._options.logger.error(
-                `Failed to disconnect from G4 events capture hub: ${err?.message || err}`
+                `Failed to disconnect from G4 events capture hub: ${error?.message || error}`
             );
+
+            return false;
         }
     }
 

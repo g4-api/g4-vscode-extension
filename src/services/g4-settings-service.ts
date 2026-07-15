@@ -65,9 +65,9 @@ export class G4SettingsService {
      *
      * @remarks
      * Owns the apply flow: it guards an in-progress recording, refreshes the global manifest
-     * snapshot, rebuilds the recorder subsystem, and prompts for a window reload only when a
-     * change touches a section that is cached at activation. Safe to run from the Save action or
-     * the Apply Settings command.
+     * snapshot, rebuilds the recorder subsystem only when its settings changed, and prompts for a
+     * window reload only when a change touches a section that is cached at activation. Safe to run
+     * from the Save action or the Apply Settings command.
      *
      * @returns A promise that resolves once the settings have been applied (or the user cancels).
      */
@@ -90,8 +90,15 @@ export class G4SettingsService {
         // Refresh the global snapshot so every getManifest() consumer sees the new values.
         const currentManifest = Utilities.updateManifest();
 
-        // Rebuild the recorder connections and re-render the recorder panel from the new settings.
-        await this.updateRecorders();
+        // Avoid tearing down recorder services when the save touched only unrelated settings.
+        const isRecorderSettingsChanged = !G4SettingsService.testDeepEqual(
+            previousManifest?.settings?.recorderSettings,
+            currentManifest?.settings?.recorderSettings);
+
+        if (isRecorderSettingsChanged) {
+            // Rebuild connections and re-render the panel only when its source settings changed.
+            await this.updateRecorders();
+        }
 
         // Sections cached at activation cannot be re-initialized live; offer a reload for those.
         const isReloadRequired = G4SettingsService.testReloadRequired(previousManifest, currentManifest);
