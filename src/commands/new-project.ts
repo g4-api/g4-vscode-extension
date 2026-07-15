@@ -242,7 +242,15 @@ export class NewProjectCommand extends CommandBase {
         // Keep the manifest Chrome recorder aligned with the generated chrome base bot, including
         // sandbox-adjusted binary paths when a sandbox was selected.
         const chromeBaseContent = this.newChromeBaseContent(sandboxPath);
-        this.setChromeRecorderDriverParameters(manifest, chromeBaseContent);
+        this.setRecorderDriverParameters(manifest, chromeBaseContent);
+
+        // A selected sandbox supplies the local UIA driver server, so keep the UIA recorder and
+        // generated UIA base bot on the same sandbox-relative driver path. When sandbox selection
+        // is skipped, preserve the manifest's existing grid endpoint instead.
+        if (sandboxPath) {
+            const uiaBaseContent = this.newUiaBaseContent(sandboxPath);
+            this.setRecorderDriverParameters(manifest, uiaBaseContent);
+        }
 
         // Convert the manifest object to a formatted JSON string with tabs for readability
         const content = JSON.stringify(manifest, null, '\t');
@@ -297,9 +305,9 @@ export class NewProjectCommand extends CommandBase {
      * Seeds the base.bots folder with the chrome and uia automation base files.
      *
      * @remarks
-     * When a sandbox path is provided, the chrome file's browser binary and driver binaries are
-     * rewritten to point at that sandbox; the uia file (which targets a localhost hub, not a
-     * sandbox path) is copied unchanged.
+     * When a sandbox path is provided, the Chrome browser and driver paths are rewritten to point
+     * at that sandbox, and the UIA driver path is rewritten to its bundled driver-server folder.
+     * Without a sandbox, both bundled resources retain their default paths.
      *
      * @param userPath    The URI(s) returned from the folder picker (project root).
      * @param logger      Logger for reporting any file-writing errors.
@@ -317,11 +325,11 @@ export class NewProjectCommand extends CommandBase {
             logger: logger
         });
 
-        // Uia base: copied verbatim (it targets a localhost hub, not a sandbox path).
+        // UIA base: optionally point its driver binaries at the selected sandbox's driver server.
         this.writeFile({
             directoryPath: baseBotsPath,
             fileName: 'uia-automation-base.json',
-            content: Utilities.getResource('resources.base/uia-automation-base.json'),
+            content: this.newUiaBaseContent(sandboxPath),
             logger: logger
         });
     }
@@ -387,45 +395,93 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Copies the generated Chrome base driver parameters into the matching manifest recorder.
+     * Returns the uia-automation-base.json content, rewriting the UIA driver binaries path to the
+     * given sandbox when provided.
      *
      * @remarks
-     * Compute-only except for mutating the provided manifest clone. The Chrome base content is
-     * used as the source of truth so recorder sandbox paths stay identical to the base bot file.
+     * Compute-only. Falls back to the resource as-is on skip or when the resource cannot be
+     * parsed, so project creation always succeeds.
+     *
+     * @param sandboxPath The selected sandbox folder path, or undefined to keep the default path.
+     * @returns The UIA base file content to write.
+     */
+    private static newUiaBaseContent(sandboxPath?: string): string {
+        // Load the UIA base file from extension resources.
+        const raw = Utilities.getResource('resources.base/uia-automation-base.json');
+
+        // No sandbox selected: keep the resource's default driver service endpoint.
+        if (!sandboxPath) {
+            return raw;
+        }
+
+        try {
+            // Point UIA at the driver server bundled under the selected sandbox.
+            const uia = JSON.parse(raw);
+
+            if (uia?.driverParameters) {
+                uia.driverParameters.driverBinaries = path.join(
+                    sandboxPath,
+                    'drivers',
+                    'uia-driver-server'
+                );
+            }
+
+            return JSON.stringify(uia, null, '\t');
+        } catch {
+            // Malformed resource: fall back to the raw content so project creation still succeeds.
+            return raw;
+        }
+    }
+
+    /**
+     * Copies generated base-bot driver parameters into the matching manifest recorder.
+     *
+     * @remarks
+     * Compute-only except for mutating the provided manifest clone. The base-bot content is used
+     * as the source of truth so recorder sandbox paths stay identical to generated base files.
      *
      * @param manifest - The generated project manifest clone to update before writing.
-     * @param chromeBaseContent - The generated chrome-automation-base.json content.
+     * @param baseContent - The generated automation base content for the recorder's driver.
      */
-    private static setChromeRecorderDriverParameters(manifest: any, chromeBaseContent: string): void {
+    private static setRecorderDriverParameters(manifest: any, baseContent: string): void {
         try {
-            // Parse the generated Chrome base content so the recorder receives the same object
-            // that is written under base.bots.
-            const chromeBase = JSON.parse(chromeBaseContent);
-            const chromeDriverParameters = chromeBase?.driverParameters;
+            // Parse the generated base content so the recorder receives the same parameters that
+            // are written under base.bots.
+            const automationBase = JSON.parse(baseContent);
+            const baseDriverParameters = automationBase?.driverParameters;
 
-            if (!chromeDriverParameters) {
+            if (!baseDriverParameters) {
                 return;
             }
 
-            // Find the Chrome recorder by driver name, matching the new-project manifest contract.
+            // Resolve the driver identity from the generated base instead of depending on recorder
+            // array order, which users may customize later.
+            const driverName = baseDriverParameters.driver;
+            const isDriverNameAvailable = typeof driverName === 'string' && driverName.length > 0;
+
+            if (!isDriverNameAvailable) {
+                return;
+            }
+
+            // Find the recorder whose driver matches the generated base-bot driver.
             const recorders = manifest?.settings?.recorderSettings?.recorders;
 
             if (!Array.isArray(recorders)) {
                 return;
             }
 
-            const chromeRecorder = recorders.find(
-                (recorder: any) => recorder?.driverParameters?.driver === 'ChromeDriver'
+            const matchingRecorder = recorders.find(
+                (recorder: any) => recorder?.driverParameters?.driver === driverName
             );
 
-            if (!chromeRecorder) {
+            if (!matchingRecorder) {
                 return;
             }
 
             // Deep-clone the driver parameters so later mutations cannot couple the two objects.
-            chromeRecorder.driverParameters = structuredClone(chromeDriverParameters);
+            matchingRecorder.driverParameters = structuredClone(baseDriverParameters);
         } catch {
-            // Malformed Chrome base content should not block project creation.
+            // Malformed base content should not block project creation.
         }
     }
 

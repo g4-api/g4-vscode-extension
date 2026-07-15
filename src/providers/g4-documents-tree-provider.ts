@@ -249,10 +249,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
     private static getPlugins(cache: any, type: string): { plugins: any, templates: any } {
         // Convert a raw plugin entry into a VS Code `TreeItem`.
         const convertToTreeItem = (plugin: any) => {
-            // Build a readable label: remove one '-' then add spaces before capitals; trim; fallback text.
-            const label =
-                plugin?.manifest?.key.replaceAll('-', '').replaceAll(/([A-Z])/g, ' $1').trim() ??
-                'Unknown Plugin';
+            // Build a readable label only when the entry actually carries a manifest key
+            // (remove '-' then add spaces before capitals; trim). Guarding the type here
+            // avoids calling string methods on an undefined key, which would throw and
+            // break the whole tree instead of degrading to a safe fallback.
+            const key = plugin?.manifest?.key;
+            const label = typeof key === 'string'
+                ? key.replaceAll('-', '').replaceAll(/([A-Z])/g, ' $1').trim()
+                : 'Unknown Plugin';
 
             // Create the tree item and allow an attached `data` payload for downstream use.
             const item = new TreeItem(label) as TreeItem & { data?: any };
@@ -304,6 +308,16 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
         // Build plugin items (non-templates)
         const bucket = cache[type];
+
+        // Guard: a bucket must be an object of plugin entries. If it is anything else,
+        // there is nothing meaningful to enumerate.
+        if (!bucket || typeof bucket !== 'object') {
+            return {
+                plugins: [],
+                templates: []
+            };
+        }
+
         const plugins = Object
             .values(bucket)
             .filter((i: any) => String(i?.manifest?.source).toUpperCase() !== 'TEMPLATE')
@@ -324,6 +338,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
     // Builds the top-level plugin-type nodes from the provided cache.
     private static getPluginsTypes(cache: any): (vscode.TreeItem & { data?: any })[] {
+        // Guard: only a plain object maps plugin types -> plugins. Anything else
+        // (undefined, an array, a raw string, etc.) means the cache is unavailable or
+        // malformed. Contribute no plugin roots so the view falls back to the docs items
+        // instead of rendering numeric keys with "Unknown Plugin" children.
+        if (!cache || typeof cache !== 'object' || Array.isArray(cache)) {
+            return [];
+        }
+
         // Convert each cache key into a TreeItem root node
         const roots = Object.keys(cache).map((key) => {
             // Human-friendly label: insert spaces before capitals and trim

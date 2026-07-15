@@ -97,7 +97,7 @@ The driver each recorder uses to *talk to* the target while watching the user. T
 
 - **`uia:options.label`** — a friendly name for a UIA target (used in reports); change it to something like `accounting-pc`.
 - **`goog:chromeOptions.binary`** — the Chrome executable to launch; the sandbox fills this in for you.
-- **`driverBinaries`** — the driver service URL. The UIA driver server often listens on `5555` (`http://localhost:5555/wd/hub`); a Selenium hub on `4444`.
+- **`driverBinaries`** — the driver service URL or local driver folder. A sandbox-backed UIA recorder uses `<sandbox>\drivers\uia-driver-server`; the UIA driver server often listens on `5555` (`http://localhost:5555/wd/hub`), while a Selenium hub commonly uses `4444`.
 
 > **⚠️ Pitfall:** Double backslashes in Windows paths inside JSON (`C:\\g4-sandbox\\...`) — a single backslash is an escape character and will break the file.
 

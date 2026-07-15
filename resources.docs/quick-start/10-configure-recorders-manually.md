@@ -54,7 +54,7 @@ Add or edit a machine with these values:
 | **Recorder Port** | `9955` |
 | **Mode** | default (e.g. `User32`) |
 | **Driver** | `UiaDriver` |
-| **Driver Service URL or Path** | `http://localhost:5555/wd/hub` (direct) or `http://localhost:4444/wd/hub` (grid) |
+| **Driver Service URL or Path** | `<sandbox>\drivers\uia-driver-server` (local), `http://localhost:5555/wd/hub` (direct), or `http://localhost:4444/wd/hub` (grid) |
 
 **Capabilities (alwaysMatch):**
 

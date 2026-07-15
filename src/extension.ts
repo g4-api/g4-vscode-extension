@@ -337,6 +337,15 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             // Store the connected G4 hub base URL globally for later use.
             Global.baseHubUrl = baseUri;
 
+            // The G4 cache is now populated. Rebuild the documentation tree so its
+            // plugin-type nodes (and docs) render against the connected engine. Guarded
+            // so a not-yet-registered command can never fail the connection flow.
+            try {
+                await vscode.commands.executeCommand('Update-Documents');
+            } catch {
+                // Ignore: the documents view/command may not be registered yet.
+            }
+
             // Return the configured base URI after a successful connection.
             return baseUri;
         } catch {
