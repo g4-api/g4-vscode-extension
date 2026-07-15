@@ -178,7 +178,11 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         const onDidCollapseElement = tree.onDidCollapseElement(e => setFolderIcon(e.element, false));
         const onDidChangeSelection = tree.onDidChangeSelection(e => {
             const selected = e.selection[0] as (TreeItem & { data?: any }) | undefined;
-            if (selected?.data?.document) {
+            const isMarkdownDocumentSelected =
+                selected?.resourceUri !== undefined ||
+                selected?.data?.document !== undefined;
+
+            if (isMarkdownDocumentSelected) {
                 DocumentsTreeProvider.openMarkdownPreview(tree, selected);
             }
         });
@@ -462,6 +466,10 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                 const labelWithoutExtension = lastDot > 0 ? name.substring(0, lastDot) : name;
                 const file = new TreeItem(labelWithoutExtension) as TreeItem & { data?: any };
                 file.iconPath = new vscode.ThemeIcon('markdown');
+
+                // Retain the physical URI so Markdown resolves relative links and images from the
+                // file's real directory instead of the virtual plugin-document scheme.
+                file.resourceUri = childUri;
                 file.data = {
                     // Full URI string -> unique across folders even when filenames collide.
                     key: childUri.toString(),
@@ -490,13 +498,21 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         });
     }
 
-    // Open a Markdown preview for the selected tree item using an **in-memory** virtual document.
+    // Open physical documentation by its file URI and use an in-memory document only for content
+    // that does not have a filesystem source, such as plugin documentation returned by the server.
     private static async openMarkdownPreview(
         tree: vscode.TreeView<vscode.TreeItem>,
         item: vscode.TreeItem & { data?: any }
     ): Promise<void> {
         // Resolve the node: prefer the explicit item, otherwise use the current tree selection.
         const node = item ?? (tree.selection[0]);
+
+        // Preview filesystem documentation from its real location so VS Code can resolve all
+        // relative Markdown navigation and image paths without custom URI translation.
+        if (node?.resourceUri !== undefined) {
+            await vscode.commands.executeCommand('markdown.showPreviewToSide', node.resourceUri);
+            return;
+        }
 
         // Extract the Markdown content (expected to be a string under node.data.document).
         const content = node?.data?.document as string | undefined;
