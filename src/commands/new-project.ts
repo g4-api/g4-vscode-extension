@@ -511,7 +511,7 @@ export class NewProjectCommand extends CommandBase {
 
         // Copy each learning-path folder so the index's relative links work inside the
         // generated project (fully self-contained and portable).
-        const learningPaths = ['quick-start', 'configure-manifest'];
+        const learningPaths = ['Quick Start', 'Configure Manifest'];
 
         for (const learningPath of learningPaths) {
             try {
