@@ -1,5 +1,13 @@
 import * as vscode from 'vscode';
-import { HubConnection, HubConnectionBuilder, HubConnectionState } from '@microsoft/signalr';
+
+import {
+    HubConnection,
+    HubConnectionBuilder,
+    HubConnectionState
+} from '@microsoft/signalr';
+
+import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+
 import { Logger } from '../logging/logger';
 
 /**
@@ -142,7 +150,7 @@ export class NotificationService {
             await this._connection.stop();
 
             // Notify the user that the connection was closed successfully
-            vscode.window.showInformationMessage(
+            showTemporaryInformationMessage(
                 'Disconnected from G4 notifications hub.'
             );
         } catch (err: any) {
@@ -292,7 +300,7 @@ export class EventCaptureService {
             await this._connection.stop();
 
             // Notify the user that the connection was closed by request.
-            vscode.window.showInformationMessage(
+            showTemporaryInformationMessage(
                 'Disconnected from G4 events capture hub.'
             );
         } catch (err: any) {

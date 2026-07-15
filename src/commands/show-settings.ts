@@ -5,7 +5,10 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+
 import { CommandBase } from './command-base';
+
+import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 
 /**
@@ -164,7 +167,7 @@ export class ShowSettingsCommand extends CommandBase {
                         await fs.writeFile(manifestUri, json + '\n', 'utf8');
 
                         // Confirm the save to the user.
-                        vscode.window.showInformationMessage('G4 settings saved.');
+                        showTemporaryInformationMessage('G4 settings saved.');
 
                         // Hot-apply the saved settings so features like the recorders pick up the
                         // change without a window reload (Apply-Settings also handles reload-only

@@ -6,10 +6,15 @@ import fs = require('fs');
 import os = require('os');
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+
 import { CommandBase } from './command-base';
-import { Logger } from '../logging/logger';
+
 import { Global } from '../constants/global';
+
+import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
+
+import { Logger } from '../logging/logger';
 
 /**
  * Command to create a new project structure in VS Code.
@@ -144,7 +149,7 @@ export class NewProjectCommand extends CommandBase {
             const detected = Utilities.findLatestSandbox();
 
             if (detected) {
-                vscode.window.showInformationMessage(`G4 sandbox detected: ${detected}`);
+                showTemporaryInformationMessage(`G4 sandbox detected: ${detected}`);
                 return detected;
             }
 
