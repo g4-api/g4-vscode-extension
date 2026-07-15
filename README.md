@@ -10,14 +10,15 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Key Capabilities](#key-capabilities)
-3. [Setup](#setup)
-4. [Quick Start](#quick-start)
-5. [How It Works](#how-it-works)
-6. [Why VS Code](#why-vs-code)
-7. [Project Structure](#project-structure)
-8. [Advanced Configuration: `manifest.json`](#advanced-configuration-manifestjson)
-9. [Requirements](#requirements)
+2. [Documentation](#documentation)
+3. [Key Capabilities](#key-capabilities)
+4. [Setup](#setup)
+5. [Quick Start](#quick-start)
+6. [How It Works](#how-it-works)
+7. [Why VS Code](#why-vs-code)
+8. [Project Structure](#project-structure)
+9. [Advanced Configuration: `manifest.json`](#advanced-configuration-manifestjson)
+10. [Requirements](#requirements)
 
 ---
 
@@ -30,6 +31,15 @@ Powered by the **Sequential Workflow Designer**, this extension allows you to **
 You can drag & drop automation assets **directly from the VS Code workspace** into the workflow canvas, combining code, configuration, AI, and orchestration in a single place.
 
 This turns VS Code into a **full automation and orchestration IDE**.
+
+---
+
+## Documentation
+
+New here? Two guided **learning paths** take you from zero to productive — each a self-contained folder of numbered modules under [`resources.docs/`](resources.docs):
+
+* 📗 **[Quick Start](resources.docs/quick-start/README.md)** — deploy the sandbox, install the extension, and build and record your first automation, click by click.
+* 📘 **[Configure `manifest.json`](resources.docs/configure-manifest/README.md)** — every runtime setting explained: what it does, when to change it, and copy-paste recipes.
 
 ---
 
@@ -103,6 +113,10 @@ The **Visual Sequential Workflow Designer** opens inside VS Code.
 ---
 
 ## Quick Start
+
+> 📗 **New to G4?** For the full, step-by-step walkthrough — from installing the sandbox to running and recording your first automation — follow the **[Quick Start learning path](resources.docs/quick-start/README.md)**.
+
+A quick recap once you're set up:
 
 1. Open the **G4 Workflow Editor**
 2. In the VS Code **Explorer**, locate automation files
@@ -182,143 +196,11 @@ The G4 project structure is **alphabetically ordered**, exactly as it appears in
 
 ## Advanced Configuration: `manifest.json`
 
-The `manifest.json` file is the **central runtime configuration** for a G4 project.
+The `manifest.json` file is the **central runtime configuration** for a G4 project — it controls connectivity, drivers, automation behavior, recorders, diagnostics, and artifacts.
 
-It controls connectivity, drivers, automation behavior, recorders, diagnostics, and artifacts.
+📘 **For the full, up-to-date walkthrough — every setting explained, what it does, when to change it, safe-editing rules, and copy-paste recipes — follow the [Configure `manifest.json` learning path](resources.docs/configure-manifest/README.md).**
 
-### G4 Server Connection
-
-```json
-"g4Server": {
-  "schema": "http",
-  "host": "localhost",
-  "port": "9944"
-}
-```
-
-Supports local, remote, clustered, or air-gapped deployments.
-
----
-
-### Authentication
-
-```json
-"authentication": {
-  "token": ""
-}
-```
-
-Typically injected via `.env` or CI secrets.
-
----
-
-### Driver Parameters
-
-```json
-"driverParameters": {
-  "driver": "ChromeDriver",
-  "driverBinaries": "http://localhost:4444/wd/hub"
-}
-```
-
-Defines default execution drivers and remote hubs.
-
----
-
-### Automation Settings
-
-```json
-"automationSettings": {
-  "loadTimeout": 60000,
-  "maxParallel": 1,
-  "returnFlatResponse": true,
-  "returnStructuredResponse": true,
-  "searchTimeout": 15000
-}
-```
-
-Controls execution limits, parallelism, and response formats.
-
----
-
-### Client Logging
-
-Controls client-side and agent logging behavior. Part of `settings`.
-
-```json
-"clientLogConfiguration": {
-  "agentLogConfiguration": {
-    "enabled": true,
-    "interval": 1000
-  },
-  "logLevel": "information",
-  "sourceOptions": {
-    "filter": "include",
-    "sources": []
-  }
-}
-```
-
----
-
-### Recorder Settings
-
-Supports local or distributed recording.
-
-```json
-{
-    "recorderSettings": {
-        "enabled": true,
-        "recorders": [
-            {
-                "mode": "user32",
-                "schema": "http",
-                "host": "localhost",
-                "port": "9955",
-                "driverParameters": {
-                    "capabilities": {
-                        "alwaysMatch": {
-                            "browserName": "Uia",
-                            "uia:options": {
-                                "label": "machine-a"
-                            }
-                        }
-                    },
-                    "driver": "UiaDriver",
-                    "driverBinaries": "http://localhost:5555/wd/hub",
-                    "firstMatch": [
-                        {}
-                    ]
-                },
-                "thinkTimeSettings": {
-                    "enabled": true,
-                    "maxThinkTime": 2000,
-                    "minThinkTime": 2000
-                }
-            },
-            ...
-        ]
-    }
-}
-```
-
-Includes machine labeling, think-time simulation, and remote drivers.
-
----
-
-### Diagnostics & Artifacts
-
-* Exception handling
-* Performance metrics
-* Screenshot capture
-
-Used for debugging, CI pipelines, and analytics.
-
----
-
-### When to Modify `manifest.json`
-
-Customize this file when:
+Customize `manifest.json` when:
 
 * Connecting to remote or clustered G4 backends
 * Enabling recorders or distributed execution
