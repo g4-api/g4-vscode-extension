@@ -93,8 +93,8 @@ export class NewProjectCommand extends CommandBase {
         // Seed the base.templates folder with a schema-safe generic template manifest.
         NewProjectCommand.newBaseTemplates(folderUri, this._logger);
 
-        // Create the documentation files for the project (e.g. configuration guides, README templates, etc.)
-        NewProjectCommand.newDocumentation(folderUri);
+        // Copy the learning-path index and its self-contained path folders into the project's docs.
+        NewProjectCommand.newDocumentation(folderUri, this._logger);
 
         // Finally, open the newly created project folder in the editor
         NewProjectCommand.openFolder(folderUri);
@@ -172,7 +172,6 @@ export class NewProjectCommand extends CommandBase {
         // - Source code (src) with organized subfolders for environments, templates, bots, and resources
         const folders = [
             path.join(projectPath, 'docs'),
-            path.join(projectPath, 'docs', 'examples'),
             path.join(projectPath, 'build'),
             path.join(projectPath, 'scripts'),
             path.join(projectPath, 'src', '.agents'),
@@ -431,42 +430,42 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Creates the default documentation files for a new G4 workspace/project.
+     * Creates the default documentation for a new G4 workspace/project.
      *
-     * This method copies bundled documentation resources from the extension package
-     * into the user's generated project structure. Currently, it creates the `docs`
-     * folder and writes the G4 manifest configuration guide into it.
+     * @remarks
+     * Writes the learning-path index (`G4 Learning Paths.md`) into the project's
+     * `docs` folder, then recursively copies each self-contained learning-path folder
+     * (e.g. `quick-start`, `configure-manifest`) alongside it so the index's relative
+     * links resolve offline. A copy failure is logged but never blocks project creation.
      *
-     * @param userPath The root user/project path where the documentation folder should be created.
+     * @param userPath - The root user/project path where the documentation folder is created.
+     * @param logger   - Optional logger for reporting copy/write errors.
      */
-    private static newDocumentation(userPath: any): void {
-        // Build the list of documentation files that should be created.
-        // Each entry defines:
-        // - content: the embedded resource content loaded from the extension
-        // - fileName: the output file name
-        // - folderPath: the target directory where the file will be written
-        const documentsContent = [
-            {
-                // Load the bundled G4 manifest configuration guide from extension resources.
-                content: Utilities.getResource('resources.docs/g4-manifest-configuration-guide.md'),
+    private static newDocumentation(userPath: any, logger?: Logger): void {
+        // Resolve the project's docs folder (created earlier by newProjectFolder).
+        const documentationPath = path.join(this.getPath(userPath), 'docs');
 
-                // Keep the original markdown file name when writing it to the project.
-                fileName: 'G4 Manifest Configuration Guide.md',
+        // Write the learning-path index under a friendly, human-readable file name.
+        this.writeFile({
+            directoryPath: documentationPath,
+            fileName: 'G4 Learning Paths.md',
+            content: Utilities.getResource('resources.docs/g4-learning.md'),
+            logger: logger
+        });
 
-                // Place all generated documentation files under the project "docs" folder.
-                folderPath: path.join(this.getPath(userPath), 'docs')
+        // Copy each learning-path folder so the index's relative links work inside the
+        // generated project (fully self-contained and portable).
+        const learningPaths = ['quick-start', 'configure-manifest'];
+
+        for (const learningPath of learningPaths) {
+            try {
+                const source = Utilities.getResourcePath(`resources.docs/${learningPath}`);
+                const destination = path.join(documentationPath, learningPath);
+                fs.cpSync(source, destination, { recursive: true });
+            } catch (error: any) {
+                // A copy failure should never block project creation.
+                logger?.error(error.message, error);
             }
-        ];
-
-        // Write each documentation file to its target folder.
-        // The writeFile helper is responsible for creating the directory if needed
-        // and then writing the file content to disk.
-        for (const document of documentsContent) {
-            this.writeFile({
-                directoryPath: document.folderPath,
-                fileName: document.fileName,
-                content: document.content
-            });
         }
     }
 

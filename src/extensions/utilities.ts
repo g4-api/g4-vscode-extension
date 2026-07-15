@@ -464,6 +464,27 @@ export class Utilities {
     }
 
     /**
+     * Resolves the absolute filesystem path of a bundled extension resource without
+     * reading it, mirroring {@link Utilities.getResource}'s lookup.
+     *
+     * @remarks
+     * Useful for copying an entire resource folder (e.g. the learning-path docs) into
+     * a generated project. Returns the namespaced candidate path even when it does not
+     * exist, so callers can surface a clear error.
+     *
+     * @param resourceName - A namespaced resource path (e.g., `"resources.docs/quick-start"`).
+     *
+     * @returns The absolute path to the resource file or folder.
+     */
+    public static getResourcePath(resourceName: string): string {
+        // Determine the extension root the same way resolveResource does.
+        const directoryPath = path.resolve(__dirname, '..');
+
+        // Reuse the shared resolver so path lookup stays consistent with getResource.
+        return this.resolveResourcePath(directoryPath, resourceName);
+    }
+
+    /**
      * Retrieves the full G4 server endpoint URL from the project manifest.
      *
      * @returns The endpoint URL in the format `<schema>://<host>:<port>`,
