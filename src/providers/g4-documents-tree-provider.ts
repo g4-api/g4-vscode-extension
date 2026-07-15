@@ -84,14 +84,15 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         const options = { location: { viewId: "g4Documentations" } };
 
         // Build and return the root items under a progress UI.
-        return vscode.window.withProgress(options, () => {
-            return new Promise<TreeItem[]>((resolve) => {
-                // Build the root nodes (this function returns a Promise<TreeItem[]>).
-                const data = DocumentsTreeProvider.getTreeItems();
-
-                // Resolve with the result; resolving with a promise is OK (promise adoption).
-                resolve(data);
-            });
+        return vscode.window.withProgress(options, async () => {
+            try {
+                // Await here so any failure surfaces as an empty tree rather than a
+                // rejected promise, which would leave the view permanently blank.
+                return await DocumentsTreeProvider.getTreeItems();
+            } catch {
+                // Degrade gracefully; a later refresh (e.g. on connect) can repopulate.
+                return [];
+            }
         });
     }
 
@@ -385,22 +386,30 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             return [];
         }
 
-        // Resolve the expected documentation folder location.
-        // The docs folder is expected to be a sibling of the first workspace folder:
-        // <first-workspace-folder>/../docs
-        const docsUri = vscode.Uri.joinPath(folders[0].uri, '..', 'docs');
+        // Resolve the documentation folder. It may sit next to the opened workspace
+        // (when 'src' is opened, docs is its sibling: <workspace>/../docs) or directly
+        // inside it (when the project root is opened: <workspace>/docs). Try both so
+        // documentation loads regardless of which folder the user opened.
+        const candidates = [
+            vscode.Uri.joinPath(folders[0].uri, '..', 'docs'),
+            vscode.Uri.joinPath(folders[0].uri, 'docs')
+        ];
 
-        // Check whether the docs folder exists.
-        // If it does not exist, fail silently and contribute no items to the tree.
-        try {
-            await vscode.workspace.fs.stat(docsUri);
-        } catch {
-            return [];
+        for (const docsUri of candidates) {
+            // Skip candidates that do not exist; fail silently and try the next one.
+            try {
+                await vscode.workspace.fs.stat(docsUri);
+            } catch {
+                continue;
+            }
+
+            // Return the top-level items directly - each will sit at the tree root
+            // alongside the plugin-type roots, with no enclosing Documentation node.
+            return await this.buildDocsTree(docsUri);
         }
 
-        // Return the top-level items directly - each will sit at the tree root
-        // alongside the plugin-type roots, with no enclosing Documentation node.
-        return await this.buildDocsTree(docsUri);
+        // No docs folder found next to or inside the workspace.
+        return [];
     }
 
     // Recursively builds TreeItems for Markdown files under `folderUri`.
