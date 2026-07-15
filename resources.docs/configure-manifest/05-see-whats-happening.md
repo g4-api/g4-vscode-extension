@@ -32,7 +32,7 @@ In this module, you will:
 
 **What it is** — controls how often the engine pushes log batches to the client. When `enabled: true`, every `interval` milliseconds G4 ships any new log lines. With `enabled: false`, lines are buffered and only available at the end.
 
-**When to use it**
+**When to use it:**
 
 - **Keep enabled** for normal use — you'll see progress live.
 - **Increase `interval`** (e.g., `5000`) on slow networks or when log volume is overwhelming.
@@ -46,7 +46,7 @@ In this module, you will:
 
 **What it is** — the verbosity of log messages. Levels run from quietest to noisiest: `error` < `warning` < `information` < `debug` < `trace`.
 
-**When to use it**
+**When to use it:**
 
 - **`information`** — default, good for everyday runs.
 - **`warning`** or **`error`** — production runs where you only want to see problems.
@@ -72,7 +72,7 @@ In this module, you will:
 }
 ```
 
-**When to use it**
+**When to use it:**
 
 - Use **`include`** with a small list to focus on one area while debugging.
 - Use **`exclude`** to silence a chatty plugin you don't care about.

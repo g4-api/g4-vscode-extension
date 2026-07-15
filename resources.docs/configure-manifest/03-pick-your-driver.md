@@ -24,14 +24,14 @@ In this module, you will:
 }
 ```
 
-**How to configure**
+**How to configure:**
 
 - `driver` — the driver name (`ChromeDriver`, `EdgeDriver`, `FirefoxDriver`, `UiaDriver`, and so on).
 - `driverBinaries` — where the driver service lives: a **Selenium hub URL** (typically `:4444/wd/hub`), **a local driver folder** (for example a sandbox's `drivers\chrome`), or `.`.
 
 > **📝 Note:** This top-level `driverParameters` is the **default** fallback. The real per-automation browser/driver — including the browser `binary` and launch `args` — lives in your **base bot files** (and the workflow editor), which the sandbox fills in for you. A freshly created project may even start as `driver: "SimulatorDriver"` with `driverBinaries: "."` until you point it at a real driver.
 
-**When to use it**
+**When to use it:**
 
 - **Default Chrome via local Selenium** — most users keep `ChromeDriver` + `http://localhost:4444/wd/hub`.
 - **Switch to Edge or Firefox** if your target app only behaves correctly in that browser.

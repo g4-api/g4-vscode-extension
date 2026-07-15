@@ -63,7 +63,7 @@ In this module, you will:
 }
 ```
 
-**When to use it**
+**When to use it:**
 
 - You already run MCP servers and want those capabilities inside G4 workflows.
 - You want G4 to reach a third-party system (Jira, Slack, a database, a CRM) without building a custom plugin — if an MCP server exists, you can adopt it instantly.

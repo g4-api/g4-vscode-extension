@@ -25,13 +25,13 @@ In this module, you will:
 }
 ```
 
-**How to configure**
+**How to configure:**
 
 - `schema` — `"http"` or `"https"`.
 - `host` — hostname or IP address.
 - `port` — the port the engine listens on (default `9944`).
 
-**When to use it**
+**When to use it:**
 
 - **Default (`localhost:9944`)** — G4 runs on your own machine.
 - **Change `host`** when the engine runs on a different server (a shared automation host or a Docker container).
@@ -55,7 +55,7 @@ In this module, you will:
 
 **How to configure** — paste the token you were issued, on a single line, between the quotes. The `username` and `password` fields support alternate authentication schemes and are normally left `null`; a standard license uses `token`.
 
-**When to use it**
+**When to use it:**
 
 - You'll set this once during initial setup and rarely touch it again.
 - Update it when you receive a new token (license renewal, plan change).

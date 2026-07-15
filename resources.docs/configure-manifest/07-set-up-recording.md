@@ -28,7 +28,7 @@ In this module, you will:
 - **`useSandbox`** — when `true`, G4 **auto-starts the bundled recorder services from your sandbox** for you (this is the manifest form of the **Use Sandbox** toggle in the recorder panel). Set it `false` when you run the recorder service yourself, locally or on another machine.
 - **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA** recorder and a **Chromium** recorder.
 
-**When to use multiple recorders**
+**When to use multiple recorders:**
 
 - You record across multiple machines (machine-a is your main desktop, machine-b a secondary VM).
 - You want different settings per machine (e.g., longer think time on a slow VM).
@@ -49,7 +49,7 @@ Where each recorder listens, and how it captures input.
 - **`mode`** — the capture strategy. `standard` is the default; `user32` uses Windows native UI events (physical mouse, keyboard, window messages) and is a good, broadly compatible choice for desktop apps.
 - **`schema` / `host` / `port`** — where the recorder service listens. `localhost:9955` is the default UIA recorder; the Chromium recorder uses `9956`.
 
-**When to use it**
+**When to use it:**
 
 - **Defaults** for single-machine setups.
 - **Change `host`** when the recorder runs on a different machine than the engine.
@@ -119,7 +119,7 @@ How G4 records the **pauses between user actions**. This is the most commonly mi
 - `minThinkTime` is the **floor**. Pauses shorter than this are bumped up to it.
 - `enabled: false` means think time isn't recorded at all — replays go as fast as the driver can fire actions.
 
-**When to use it**
+**When to use it:**
 
 - **`enabled: true`** with a range (like `min 3000` / `max 10000`) when the target app needs human-paced interaction (animations, modal transitions, server round-trips).
 - **`enabled: false`** for speed runs where the app handles fast input fine.

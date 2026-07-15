@@ -30,7 +30,7 @@ In this module, you will:
 - `reportsFolder` — the **parent path** under which a `reports/` subfolder is created. So `"."` writes the report under **`./reports/`**, not directly into `.`.
 - `autoView: true` — opens the report in your default browser when the run finishes.
 
-**When to use it**
+**When to use it:**
 
 - **Defaults** suit most desktop users who want to see results immediately.
 - **`autoView: false`** in headless/CI runs — nobody is at the screen, and opening a browser may fail.
@@ -59,7 +59,7 @@ In this module, you will:
 - `onExceptionOnly: true` — only capture when something goes wrong (cheap forensic mode).
 - `outputFolder` — where screenshot files are written when not embedded.
 
-**When to use it**
+**When to use it:**
 
 - **All `false`** — no screenshots; smallest, fastest runs.
 - **`onExceptionOnly: true` + `returnScreenshots: true`** — great for production: low overhead, but a picture when something fails.

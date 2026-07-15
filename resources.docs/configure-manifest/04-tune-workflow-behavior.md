@@ -28,7 +28,7 @@ In this module, you will:
 
 **What it is** — the maximum time (milliseconds) G4 waits for a page or screen to finish loading before failing the step with a timeout.
 
-**When to use it**
+**When to use it:**
 
 - **60000 (1 minute)** is a safe default for most web apps.
 - **Raise it** (e.g., `120000`) for slow internal apps, heavy dashboards, or congested networks.
@@ -42,7 +42,7 @@ In this module, you will:
 
 **What it is** — the maximum time (milliseconds) G4 spends looking for an element (a button, a field) before failing with "element not found".
 
-**When to use it**
+**When to use it:**
 
 - **15000 (15 s)** is a good default.
 - **Raise it** for apps with very lazy or animated UIs.
@@ -56,7 +56,7 @@ In this module, you will:
 
 **What it is** — how many workflows this engine runs at the same time. `1` means strictly one at a time; higher numbers run several concurrently.
 
-**When to use it**
+**When to use it:**
 
 - **Keep `1`** when workflows share resources (the same browser session, desktop, or file).
 - **Raise it** (e.g., `4`) for isolated runs you want to finish faster — but only if your driver setup supports parallel sessions (like a Selenium Grid).
@@ -72,7 +72,7 @@ In this module, you will:
 - `returnFlatResponse: true` — include a flat, simple key/value view.
 - `returnStructuredResponse: true` — include a rich, nested view with step trees, timings, and errors.
 
-**When to use them**
+**When to use them:**
 
 - **Keep both `true`** unless your consumer specifically wants only one shape — being generous costs almost nothing.
 - **Turn one off** only if you're hitting payload-size limits in your client.
