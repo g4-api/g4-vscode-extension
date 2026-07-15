@@ -514,18 +514,42 @@ export class NewProjectCommand extends CommandBase {
             logger: logger
         });
 
-        // Copy each learning-path folder so the index's relative links work inside the
-        // generated project (fully self-contained and portable).
-        const learningPaths = ['Quick Start', 'Configure Manifest'];
+        // Preserve the packaged directory slugs in the generated project because the Markdown
+        // index uses these exact relative paths.
+        const learningPathDirectoryNames = ['quick-start', 'configure-manifest'];
 
-        for (const learningPath of learningPaths) {
+        for (const learningPathDirectoryName of learningPathDirectoryNames) {
+            const sourceDirectoryPath = Utilities.getResourcePath(
+                `resources.docs/${learningPathDirectoryName}`
+            );
+            const destinationDirectoryPath = path.join(
+                documentationPath,
+                learningPathDirectoryName
+            );
+
+            // Report an actionable error when packaging omitted a referenced learning path while
+            // allowing the rest of project creation to continue.
+            if (!fs.existsSync(sourceDirectoryPath)) {
+                logger?.error(
+                    `Documentation source folder does not exist: ${sourceDirectoryPath}. ` +
+                    `Expected destination: ${destinationDirectoryPath}.`
+                );
+                continue;
+            }
+
             try {
-                const source = Utilities.getResourcePath(`resources.docs/${learningPath}`);
-                const destination = path.join(documentationPath, learningPath);
-                fs.cpSync(source, destination, { recursive: true });
-            } catch (error: any) {
-                // A copy failure should never block project creation.
-                logger?.error(error.message, error);
+                fs.cpSync(sourceDirectoryPath, destinationDirectoryPath, { recursive: true });
+            } catch (error: unknown) {
+                // Include both sides of the copy operation so packaging and permission failures
+                // can be diagnosed without reproducing the project creation flow.
+                const copyError = error instanceof Error
+                    ? error
+                    : new Error(String(error));
+                const errorMessage =
+                    `Failed to copy documentation from ${sourceDirectoryPath} ` +
+                    `to ${destinationDirectoryPath}: ${copyError.message}`;
+
+                logger?.error(errorMessage, undefined, copyError);
             }
         }
     }
