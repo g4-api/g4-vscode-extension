@@ -4,9 +4,7 @@
 
 [![Build, Pack & Release G4™ VSCode Extension](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml)
 
-![Marketplace](https://img.shields.io/visual-studio-marketplace/v/g4-api.g4-engine-client)
-![Installs](https://img.shields.io/visual-studio-marketplace/i/g4-api.g4-engine-client)
-![Rating](https://img.shields.io/visual-studio-marketplace/r/g4-api.g4-engine-client)
+[![VS Marketplace](https://img.shields.io/badge/VS%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=g4-api.g4-engine-client)
 ![License](https://img.shields.io/github/license/g4-api/g4-vscode-extension)
 
 ---
@@ -15,7 +13,7 @@
 
 **G4 Engine** turns Visual Studio Code into a full automation and orchestration IDE.
 
-G4 is a plugin-based automation engine that runs controlled workflows across **web browsers, desktop applications, APIs, and internal tools** — and those workflows can be driven by **people, CI/CD schedules, or AI agents**. This extension brings the **Sequential Workflow Designer** straight into your editor: you build automations by **dragging and dropping** building blocks onto a canvas, connect them, and run them — no code required. When you *do* want code, it's right there too, next to Git, terminals, and your favorite AI assistants.
+G4 is a plugin-based automation engine that runs controlled workflows across **web browsers, desktop applications, APIs, and internal tools** — and those workflows can be driven by **people, CI/CD schedules, or AI agents**. This extension brings the **[Sequential Workflow Designer](https://github.com/nocode-js/sequential-workflow-designer)** straight into your editor: you build automations by **dragging and dropping** building blocks onto a canvas, connect them, and run them — no code required. When you *do* want code, it's right there too, next to Git, terminals, and your favorite AI assistants.
 
 **What you can automate:** fill in and submit web forms, drive line-of-business desktop apps, call APIs, move data between systems — or record a person clicking through a task once and replay it on demand.
 
@@ -62,7 +60,7 @@ Two guided **learning paths** take you from zero to productive — each a self-c
 
 ## Key Capabilities
 
-* **Visual Sequential Workflow Designer** — full drag-and-drop workflow editing on a live canvas inside VS Code, with real-time rendering. No external browser or standalone app.
+* **Visual [Sequential Workflow Designer](https://github.com/nocode-js/sequential-workflow-designer)** — full drag-and-drop workflow editing on a live canvas inside VS Code, with real-time rendering. No external browser or standalone app.
 * **Workspace-native drag & drop** — drag automation files straight from the VS Code Explorer onto the canvas; workflows stay tightly coupled to your project files.
 * **Record and replay** — capture a user clicking through a desktop or browser session and turn it into a workflow you can run again.
 * **Native VS Code integration** — Command Palette commands, a dedicated Activity Bar tools panel, and a status-bar indicator for the live G4 connection.
@@ -85,7 +83,7 @@ G4 doesn't replace your editor — it **turns it into an automation IDE**.
 
 ## How It Works
 
-The extension embeds the **Sequential Workflow Designer** using native VS Code APIs and talks to the G4 engine over HTTP:
+The workflow canvas is powered by the **[Sequential Workflow Designer](https://github.com/nocode-js/sequential-workflow-designer)** and embedded in VS Code using native webview APIs. The extension talks to the G4 engine over HTTP:
 
 * **Tree providers** surface G4 assets from your workspace.
 * **Webview views** host the workflow editor and recorder UI.
