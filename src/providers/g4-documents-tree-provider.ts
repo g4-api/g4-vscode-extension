@@ -84,14 +84,15 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         const options = { location: { viewId: "g4Documentations" } };
 
         // Build and return the root items under a progress UI.
-        return vscode.window.withProgress(options, () => {
-            return new Promise<TreeItem[]>((resolve) => {
-                // Build the root nodes (this function returns a Promise<TreeItem[]>).
-                const data = DocumentsTreeProvider.getTreeItems();
-
-                // Resolve with the result; resolving with a promise is OK (promise adoption).
-                resolve(data);
-            });
+        return vscode.window.withProgress(options, async () => {
+            try {
+                // Await here so any failure surfaces as an empty tree rather than a
+                // rejected promise, which would leave the view permanently blank.
+                return await DocumentsTreeProvider.getTreeItems();
+            } catch {
+                // Degrade gracefully; a later refresh (e.g. on connect) can repopulate.
+                return [];
+            }
         });
     }
 
@@ -177,7 +178,11 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         const onDidCollapseElement = tree.onDidCollapseElement(e => setFolderIcon(e.element, false));
         const onDidChangeSelection = tree.onDidChangeSelection(e => {
             const selected = e.selection[0] as (TreeItem & { data?: any }) | undefined;
-            if (selected?.data?.document) {
+            const isMarkdownDocumentSelected =
+                selected?.resourceUri !== undefined ||
+                selected?.data?.document !== undefined;
+
+            if (isMarkdownDocumentSelected) {
                 DocumentsTreeProvider.openMarkdownPreview(tree, selected);
             }
         });
@@ -249,10 +254,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
     private static getPlugins(cache: any, type: string): { plugins: any, templates: any } {
         // Convert a raw plugin entry into a VS Code `TreeItem`.
         const convertToTreeItem = (plugin: any) => {
-            // Build a readable label: remove one '-' then add spaces before capitals; trim; fallback text.
-            const label =
-                plugin?.manifest?.key.replaceAll('-', '').replaceAll(/([A-Z])/g, ' $1').trim() ??
-                'Unknown Plugin';
+            // Build a readable label only when the entry actually carries a manifest key
+            // (remove '-' then add spaces before capitals; trim). Guarding the type here
+            // avoids calling string methods on an undefined key, which would throw and
+            // break the whole tree instead of degrading to a safe fallback.
+            const key = plugin?.manifest?.key;
+            const label = typeof key === 'string'
+                ? key.replaceAll('-', '').replaceAll(/([A-Z])/g, ' $1').trim()
+                : 'Unknown Plugin';
 
             // Create the tree item and allow an attached `data` payload for downstream use.
             const item = new TreeItem(label) as TreeItem & { data?: any };
@@ -304,6 +313,16 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
         // Build plugin items (non-templates)
         const bucket = cache[type];
+
+        // Guard: a bucket must be an object of plugin entries. If it is anything else,
+        // there is nothing meaningful to enumerate.
+        if (!bucket || typeof bucket !== 'object') {
+            return {
+                plugins: [],
+                templates: []
+            };
+        }
+
         const plugins = Object
             .values(bucket)
             .filter((i: any) => String(i?.manifest?.source).toUpperCase() !== 'TEMPLATE')
@@ -324,6 +343,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
     // Builds the top-level plugin-type nodes from the provided cache.
     private static getPluginsTypes(cache: any): (vscode.TreeItem & { data?: any })[] {
+        // Guard: only a plain object maps plugin types -> plugins. Anything else
+        // (undefined, an array, a raw string, etc.) means the cache is unavailable or
+        // malformed. Contribute no plugin roots so the view falls back to the docs items
+        // instead of rendering numeric keys with "Unknown Plugin" children.
+        if (!cache || typeof cache !== 'object' || Array.isArray(cache)) {
+            return [];
+        }
+
         // Convert each cache key into a TreeItem root node
         const roots = Object.keys(cache).map((key) => {
             // Human-friendly label: insert spaces before capitals and trim
@@ -363,22 +390,30 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             return [];
         }
 
-        // Resolve the expected documentation folder location.
-        // The docs folder is expected to be a sibling of the first workspace folder:
-        // <first-workspace-folder>/../docs
-        const docsUri = vscode.Uri.joinPath(folders[0].uri, '..', 'docs');
+        // Resolve the documentation folder. It may sit next to the opened workspace
+        // (when 'src' is opened, docs is its sibling: <workspace>/../docs) or directly
+        // inside it (when the project root is opened: <workspace>/docs). Try both so
+        // documentation loads regardless of which folder the user opened.
+        const candidates = [
+            vscode.Uri.joinPath(folders[0].uri, '..', 'docs'),
+            vscode.Uri.joinPath(folders[0].uri, 'docs')
+        ];
 
-        // Check whether the docs folder exists.
-        // If it does not exist, fail silently and contribute no items to the tree.
-        try {
-            await vscode.workspace.fs.stat(docsUri);
-        } catch {
-            return [];
+        for (const docsUri of candidates) {
+            // Skip candidates that do not exist; fail silently and try the next one.
+            try {
+                await vscode.workspace.fs.stat(docsUri);
+            } catch {
+                continue;
+            }
+
+            // Return the top-level items directly - each will sit at the tree root
+            // alongside the plugin-type roots, with no enclosing Documentation node.
+            return await this.buildDocsTree(docsUri);
         }
 
-        // Return the top-level items directly - each will sit at the tree root
-        // alongside the plugin-type roots, with no enclosing Documentation node.
-        return await this.buildDocsTree(docsUri);
+        // No docs folder found next to or inside the workspace.
+        return [];
     }
 
     // Recursively builds TreeItems for Markdown files under `folderUri`.
@@ -431,6 +466,10 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                 const labelWithoutExtension = lastDot > 0 ? name.substring(0, lastDot) : name;
                 const file = new TreeItem(labelWithoutExtension) as TreeItem & { data?: any };
                 file.iconPath = new vscode.ThemeIcon('markdown');
+
+                // Retain the physical URI so Markdown resolves relative links and images from the
+                // file's real directory instead of the virtual plugin-document scheme.
+                file.resourceUri = childUri;
                 file.data = {
                     // Full URI string -> unique across folders even when filenames collide.
                     key: childUri.toString(),
@@ -459,13 +498,21 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         });
     }
 
-    // Open a Markdown preview for the selected tree item using an **in-memory** virtual document.
+    // Open physical documentation by its file URI and use an in-memory document only for content
+    // that does not have a filesystem source, such as plugin documentation returned by the server.
     private static async openMarkdownPreview(
         tree: vscode.TreeView<vscode.TreeItem>,
         item: vscode.TreeItem & { data?: any }
     ): Promise<void> {
         // Resolve the node: prefer the explicit item, otherwise use the current tree selection.
         const node = item ?? (tree.selection[0]);
+
+        // Preview filesystem documentation from its real location so VS Code can resolve all
+        // relative Markdown navigation and image paths without custom URI translation.
+        if (node?.resourceUri !== undefined) {
+            await vscode.commands.executeCommand('markdown.showPreviewToSide', node.resourceUri);
+            return;
+        }
 
         // Extract the Markdown content (expected to be a string under node.data.document).
         const content = node?.data?.document as string | undefined;

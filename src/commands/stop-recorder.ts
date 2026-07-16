@@ -5,10 +5,15 @@
  * VS Code command API reference: https://code.visualstudio.com/api/references/commands
  */
 import * as vscode from 'vscode';
-import { CommandBase } from './command-base';
-import { Logger } from '../logging/logger';
+
 import { EventCaptureService } from '../clients/g4-signalr-client';
+
+import { CommandBase } from './command-base';
 import { ShowWorkflowCommand } from './show-workflow';
+
+import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+
+import { Logger } from '../logging/logger';
 
 export class StopRecorderCommand extends CommandBase {
     // Mapping of keyboard event keys to supported identifiers.
@@ -173,8 +178,9 @@ export class StopRecorderCommand extends CommandBase {
         const automationDriver = isSingleJob
             ? (initialConnection.options.driverParameters || {})
             : { driver: 'NoDriver', driverBinaries: '.' };
+        const manifest = this.manifest;
         const automation = StopRecorderCommand.newAutomation(
-            this.manifest,
+            manifest,
             StopRecorderCommand.confirmDriverBinaries(automationDriver)
         );
 
@@ -198,6 +204,18 @@ export class StopRecorderCommand extends CommandBase {
             });
 
             automation.stages[0].jobs.push(job);
+        }
+
+        // Finalize the completed definition with a detached authentication snapshot so later
+        // manifest refreshes cannot mutate the workflow already sent to the editor.
+        const manifestAuthentication = manifest.authentication;
+        const isAuthenticationObject =
+            manifestAuthentication !== null &&
+            typeof manifestAuthentication === 'object' &&
+            !Array.isArray(manifestAuthentication);
+
+        if (isAuthenticationObject) {
+            automation.authentication = structuredClone(manifestAuthentication);
         }
 
         return automation;
@@ -341,19 +359,38 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
-     * Stops each recorder's browser (chromium only) and closes its connection, swallowing errors so
-     * one failing recorder never blocks the others. Run after the workflow is shown so a slow stop
-     * cannot delay the canvas.
+     * Stops each recorder's browser and connection, then reports one user-facing notification only
+     * when at least one recorder was connected before cleanup.
+     *
+     * @remarks
+     * Run after the workflow is shown so a slow stop cannot delay the canvas. Errors are swallowed
+     * per recorder so one failing service never blocks the others. Aggregating the transition
+     * results prevents one notification per recorder and suppresses false notices for red services.
+     *
+     * @param connections - Recorder services included in the user-initiated Stop operation.
+     * @returns A promise that resolves after every recorder has been given a chance to stop.
      */
     private static async stopRecorderConnections(connections: Map<string, EventCaptureService>): Promise<void> {
+        // Track real connected-to-disconnected transitions across the full recorder pool so the
+        // user receives one summary instead of duplicate per-service notifications.
+        let isAnyConnectionDisconnected = false;
+
         for (const service of connections.values()) {
             try {
                 await service.stopBrowser();
-                await service.disconnect();
-            }
-            catch {
+                const isConnectionDisconnected = await service.disconnect();
+
+                if (isConnectionDisconnected) {
+                    isAnyConnectionDisconnected = true;
+                }
+            } catch {
                 // Ignore errors during browser stop / disconnect.
             }
+        }
+
+        // Notify only for an actual user-visible transition; already-red services remain silent.
+        if (isAnyConnectionDisconnected) {
+            showTemporaryInformationMessage('Disconnected from G4 event capture services.');
         }
     }
 
@@ -465,22 +502,19 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
-     * Creates a new Automation definition object that represents a complete
-     * executable automation workflow.
+     * Creates the schema-compatible automation shell that receives recorded jobs and a final
+     * authentication snapshot before being returned to the workflow editor.
      */
     private static newAutomation(manifest: any, driverParameters: any): any {
-        // Extract the authentication token if available; fallback to an empty string.
-        const token = manifest.authentication?.token || "";
-
         // Extract runtime or environment settings, or default to an empty object.
         const settings = manifest.settings || {};
 
         // Construct and return a standardized automation definition object.
         return {
-            // Authentication block ensures that execution contexts can securely
-            // interact with the G4 Engine or remote services.
+            // Keep the shell schema-compatible until the completed definition receives the
+            // manifest's detached authentication snapshot.
             authentication: {
-                token: token
+                token: ""
             },
 
             // Parameters that define how and where the automation will execute

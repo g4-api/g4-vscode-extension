@@ -8,6 +8,17 @@ import { Global } from '../constants/global';
 
 export class Utilities {
     /**
+     * Cached global project-manifest snapshot shared by every consumer.
+     *
+     * @remarks
+     * Module-level mutable state is required here so the whole extension reads one manifest
+     * object instead of many local copies. It is loaded on first getManifest() access and
+     * replaced only by updateManifest() when settings are applied, so a manual edit to
+     * manifest.json does not take effect until an explicit apply.
+     */
+    private static _manifest: any;
+
+    /**
      * Checks whether a given string is valid JSON.
      *
      * @param str - The string to validate as JSON.
@@ -369,11 +380,32 @@ export class Utilities {
      *          otherwise the default base manifest object.
      */
     public static getManifest(): any {
-        // Delegate to resolveProjectManifest, which handles:
-        //  1. Locating the workspace manifest file (with or without src folder)
-        //  2. Reading and parsing the JSON
-        //  3. Falling back to the base manifest if getDefault is true (default behavior)
-        return this.resolveProjectManifest();
+        // Load the global snapshot on first access; later reads return the same cached object so
+        // every consumer shares one manifest. updateManifest() replaces it when settings change.
+        const isManifestLoaded = this._manifest !== null && this._manifest !== undefined;
+
+        if (!isManifestLoaded) {
+            this._manifest = this.resolveProjectManifest();
+        }
+
+        return this._manifest;
+    }
+
+    /**
+     * Re-reads the project manifest from disk and replaces the global snapshot.
+     *
+     * @remarks
+     * Called when settings are applied (settings save / Apply Settings) so every consumer of
+     * getManifest() observes the new values without a window reload. Owns the shared snapshot
+     * state and returns the refreshed manifest for convenience.
+     *
+     * @returns The refreshed manifest object.
+     */
+    public static updateManifest(): any {
+        // Re-read the workspace manifest and replace the cached snapshot in place.
+        this._manifest = this.resolveProjectManifest();
+
+        return this._manifest;
     }
 
     /**
@@ -429,6 +461,27 @@ export class Utilities {
     public static getResource(resourceName: string): string {
         // Delegate to the private resolver which handles file lookup and error swallowing
         return this.resolveResource(resourceName);
+    }
+
+    /**
+     * Resolves the absolute filesystem path of a bundled extension resource without
+     * reading it, mirroring {@link Utilities.getResource}'s lookup.
+     *
+     * @remarks
+     * Useful for copying an entire resource folder (e.g. the learning-path docs) into
+     * a generated project. Returns the namespaced candidate path even when it does not
+     * exist, so callers can surface a clear error.
+     *
+     * @param resourceName - A namespaced resource path (e.g., `"resources.docs/quick-start"`).
+     *
+     * @returns The absolute path to the resource file or folder.
+     */
+    public static getResourcePath(resourceName: string): string {
+        // Determine the extension root the same way resolveResource does.
+        const directoryPath = path.resolve(__dirname, '..');
+
+        // Reuse the shared resolver so path lookup stays consistent with getResource.
+        return this.resolveResourcePath(directoryPath, resourceName);
     }
 
     /**
@@ -585,6 +638,7 @@ export class Utilities {
         baseUrl: string,
         mode: string,
         driverParameters: any,
+        enabled: boolean,
         thinkTimeSettings: any
     }[] {
         // Load the project manifest (contains metadata and configurations for this project)

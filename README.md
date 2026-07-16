@@ -1,5 +1,7 @@
 # G4 Engine – Visual Sequential Workflow for VS Code
 
+**Design, run, and record automations visually — right inside VS Code.**
+
 [![Build, Pack & Release G4™ VSCode Extension](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml/badge.svg)](https://github.com/g4-api/g4-vscode-extension/actions/workflows/pipeline.yaml)
 
 ![Marketplace](https://img.shields.io/visual-studio-marketplace/v/g4-api.g4-engine-client)
@@ -7,328 +9,128 @@
 ![Rating](https://img.shields.io/visual-studio-marketplace/r/g4-api.g4-engine-client)
 ![License](https://img.shields.io/github/license/g4-api/g4-vscode-extension)
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Key Capabilities](#key-capabilities)
-3. [Setup](#setup)
-4. [Quick Start](#quick-start)
-5. [How It Works](#how-it-works)
-6. [Why VS Code](#why-vs-code)
-7. [Project Structure](#project-structure)
-8. [Advanced Configuration: `manifest.json`](#advanced-configuration-manifestjson)
-9. [Requirements](#requirements)
-
 ---
 
 ## Overview
 
-**G4 Engine – VS Code Extension** brings the **complete visual sequential workflow experience** directly into Visual Studio Code.
+**G4 Engine** turns Visual Studio Code into a full automation and orchestration IDE.
 
-Powered by the **Sequential Workflow Designer**, this extension allows you to **design, edit, and run automation workflows visually**, without leaving your editor.
+G4 is a plugin-based automation engine that runs controlled workflows across **web browsers, desktop applications, APIs, and internal tools** — and those workflows can be driven by **people, CI/CD schedules, or AI agents**. This extension brings the **Sequential Workflow Designer** straight into your editor: you build automations by **dragging and dropping** building blocks onto a canvas, connect them, and run them — no code required. When you *do* want code, it's right there too, next to Git, terminals, and your favorite AI assistants.
 
-You can drag & drop automation assets **directly from the VS Code workspace** into the workflow canvas, combining code, configuration, AI, and orchestration in a single place.
-
-This turns VS Code into a **full automation and orchestration IDE**.
+**What you can automate:** fill in and submit web forms, drive line-of-business desktop apps, call APIs, move data between systems — or record a person clicking through a task once and replay it on demand.
 
 ---
 
-## Key Capabilities
+## Get Started
 
-* **Visual Sequential Workflow Designer**
+### Option 1 — Deploy the G4 sandbox (recommended)
 
-  * Full drag & drop workflow editing inside VS Code
-  * Real-time rendering and updates
-  * No external browser or standalone app
+One command installs everything you need — the engine, the tools, browser drivers, and a preconfigured copy of VS Code:
 
-* **Workspace-Native Drag & Drop**
+**Windows (PowerShell):**
 
-  * Drag automation files directly from the VS Code Explorer
-  * Supports multi-select and standard VS Code drag behavior
-  * Tight coupling between workflows and project files
+```powershell
+irm https://raw.githubusercontent.com/g4-api/g4-sandbox/main/install-g4-sandbox.ps1 | iex
+```
 
-* **Native VS Code Integration**
+**Linux:**
 
-  * Commands via Command Palette
-  * Status bar G4 connection indicator
-  * Dedicated Activity Bar (tools panel) integration
+```bash
+curl -fsSL https://raw.githubusercontent.com/g4-api/g4-sandbox/main/install-g4-sandbox.sh | bash
+```
 
-* **Extensible & AI-Ready**
+### Option 2 — Install the extension only
 
-  * Works seamlessly with Copilot and other AI extensions
-  * Integrates with Git, CI/CD tools, terminals, and debuggers
-
----
-
-## Setup
-
-### 1. Install the Extension
-
-Install from the VS Code Marketplace or from a `.vsix` file:
+Already have VS Code and a G4 backend? Install **G4 Engine Client** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=g4-api.g4-engine-client), or from a packaged `.vsix`:
 
 ```bash
 code --install-extension g4-engine-client.vsix
 ```
 
----
-
-### 2. Create a New G4 Project
-
-Open the **Command Palette** and run:
-
-```none
-G4: Create New Project
-```
-
-This initializes the required G4 project structure in your workspace.
+👉 **New to G4?** The **[Quick Start](resources.docs/quick-start/README.md)** walks you from zero to your first running automation, click by click.
 
 ---
 
-### 3. Verify G4 Connection
+## Documentation
 
-Check the **VS Code status bar**:
+Two guided **learning paths** take you from zero to productive — each a self-contained folder of numbered modules:
 
-* A visible **G4 status indicator** confirms the backend is connected
-* If disconnected, ensure the G4 backend is running and reachable
-
----
-
-### 4. Open the G4 Workflow Editor
-
-1. Click the **G4 icon** in the **Activity Bar** (left-side panel)
-2. Select **“Open G4 Workflow Editor”**
-
-The **Visual Sequential Workflow Designer** opens inside VS Code.
+* 📗 **[Quick Start](resources.docs/quick-start/README.md)** — deploy the sandbox, install the extension, and build and record your first automation, click by click.
+* 📘 **[Configure `manifest.json`](resources.docs/configure-manifest/README.md)** — every runtime setting explained: what it does, when to change it, and copy-paste recipes.
 
 ---
 
-## Quick Start
+## Key Capabilities
 
-1. Open the **G4 Workflow Editor**
-2. In the VS Code **Explorer**, locate automation files
-3. **Drag & drop files directly onto the workflow canvas**
-
-   * Use the standard **VS Code Shift-drag trick** when needed
-4. Visually connect steps and configure them
-5. Save and run the workflow using G4 commands
-
-Everything happens **inside VS Code**, with full workspace awareness.
-
----
-
-## How It Works
-
-The extension embeds the **Sequential Workflow Designer** using native VS Code APIs:
-
-* **Tree Providers** expose G4 assets in the workspace
-* **WebView Views** host the workflow editor and recorder UI
-* **Commands** manage project creation, workflow loading, and execution
-* **Status Bar Integration** reflects live connection state
-
-This ensures performance, stability, and a first-class VS Code experience.
+* **Visual Sequential Workflow Designer** — full drag-and-drop workflow editing on a live canvas inside VS Code, with real-time rendering. No external browser or standalone app.
+* **Workspace-native drag & drop** — drag automation files straight from the VS Code Explorer onto the canvas; workflows stay tightly coupled to your project files.
+* **Record and replay** — capture a user clicking through a desktop or browser session and turn it into a workflow you can run again.
+* **Native VS Code integration** — Command Palette commands, a dedicated Activity Bar tools panel, and a status-bar indicator for the live G4 connection.
+* **Extensible & AI-ready** — works alongside Copilot and other AI extensions, and turns **MCP servers' tools into G4 plugins** automatically.
 
 ---
 
 ## Why VS Code
 
-By running inside VS Code, G4 Engine automatically gains:
+By running inside VS Code, G4 Engine inherits an ecosystem you already trust:
 
-* AI assistance (Copilot, Chat, and custom AI extensions)
-* Git and source control integrations
-* CI/CD tooling and terminals
+* AI assistance — Copilot, Chat, and custom AI extensions
+* Git and source control
+* CI/CD tooling, terminals, and debuggers
 * Familiar shortcuts, theming, and layouts
-* A massive extension ecosystem
 
-G4 doesn’t replace your editor — it **turns it into an automation IDE**.
+G4 doesn't replace your editor — it **turns it into an automation IDE**.
+
+---
+
+## How It Works
+
+The extension embeds the **Sequential Workflow Designer** using native VS Code APIs and talks to the G4 engine over HTTP:
+
+* **Tree providers** surface G4 assets from your workspace.
+* **Webview views** host the workflow editor and recorder UI.
+* **Commands** manage project creation, workflow loading, and execution.
+* **Status-bar integration** reflects the live engine connection.
+
+The result is performance, stability, and a first-class VS Code experience.
 
 ---
 
 ## Project Structure
 
-The G4 project structure is **alphabetically ordered**, exactly as it appears in VS Code:
+Running **G4: Create a New G4 Project** scaffolds the layout below and opens the **`src/`** folder as your workspace:
 
 ```none
-.
-├── .github/
-│   └── instructions/
-│       ├── copilot-new-bot.instructions.md
-│       └── copilot-new-flow.instructions.md
-├── .vscode/
-│   └── mcp.json
-├── bots/
-├── configurations/
-├── environments/
-├── models/
-├── prompts/
-├── resources/
-├── templates/
-├── workflows/
-├── .env
-└── manifest.json
+<project-root>/
+├── build/                              # build outputs
+├── docs/
+│   ├── examples/
+│   └── G4 Manifest Configuration Guide.md
+├── scripts/                            # custom scripts
+└── src/                                # opened as the VS Code workspace
+    ├── .agents/
+    ├── .claude/
+    ├── .github/
+    ├── .vscode/
+    │   └── mcp.json                    # MCP endpoint for Copilot / AI tools
+    ├── base.bots/
+    │   ├── chrome-automation-base.json
+    │   └── uia-automation-base.json
+    ├── base.templates/
+    │   └── template-base.json
+    ├── bots/                           # your automations
+    ├── environments/
+    ├── resources/
+    ├── templates/
+    └── manifest.json                   # project runtime configuration
 ```
 
-### Notes
-
-* **`.github/instructions`**
-  Copilot instruction files that guide AI-assisted creation of bots and workflows.
-
-* **`.vscode/mcp.json`**
-  MCP / Copilot integration configuration for VS Code.
-
-* **Domain folders** (`bots`, `workflows`, `models`, etc.)
-  First-class G4 concepts, directly usable from the workflow designer via drag & drop.
-
----
-
-## Advanced Configuration: `manifest.json`
-
-The `manifest.json` file is the **central runtime configuration** for a G4 project.
-
-It controls connectivity, drivers, automation behavior, recorders, diagnostics, and artifacts.
-
-### G4 Server Connection
-
-```json
-"g4Server": {
-  "schema": "http",
-  "host": "localhost",
-  "port": "9944"
-}
-```
-
-Supports local, remote, clustered, or air-gapped deployments.
-
----
-
-### Authentication
-
-```json
-"authentication": {
-  "token": ""
-}
-```
-
-Typically injected via `.env` or CI secrets.
-
----
-
-### Driver Parameters
-
-```json
-"driverParameters": {
-  "driver": "ChromeDriver",
-  "driverBinaries": "http://localhost:4444/wd/hub"
-}
-```
-
-Defines default execution drivers and remote hubs.
-
----
-
-### Automation Settings
-
-```json
-"automationSettings": {
-  "loadTimeout": 60000,
-  "maxParallel": 1,
-  "returnFlatResponse": true,
-  "returnStructuredResponse": true,
-  "searchTimeout": 15000
-}
-```
-
-Controls execution limits, parallelism, and response formats.
-
----
-
-### Client Logging
-
-Controls client-side and agent logging behavior. Part of `settings`.
-
-```json
-"clientLogConfiguration": {
-  "agentLogConfiguration": {
-    "enabled": true,
-    "interval": 1000
-  },
-  "logLevel": "information",
-  "sourceOptions": {
-    "filter": "include",
-    "sources": []
-  }
-}
-```
-
----
-
-### Recorder Settings
-
-Supports local or distributed recording.
-
-```json
-{
-    "recorderSettings": {
-        "enabled": true,
-        "recorders": [
-            {
-                "mode": "user32",
-                "schema": "http",
-                "host": "localhost",
-                "port": "9955",
-                "driverParameters": {
-                    "capabilities": {
-                        "alwaysMatch": {
-                            "browserName": "Uia",
-                            "uia:options": {
-                                "label": "machine-a"
-                            }
-                        }
-                    },
-                    "driver": "UiaDriver",
-                    "driverBinaries": "http://localhost:5555/wd/hub",
-                    "firstMatch": [
-                        {}
-                    ]
-                },
-                "thinkTimeSettings": {
-                    "enabled": true,
-                    "maxThinkTime": 2000,
-                    "minThinkTime": 2000
-                }
-            },
-            ...
-        ]
-    }
-}
-```
-
-Includes machine labeling, think-time simulation, and remote drivers.
-
----
-
-### Diagnostics & Artifacts
-
-* Exception handling
-* Performance metrics
-* Screenshot capture
-
-Used for debugging, CI pipelines, and analytics.
-
----
-
-### When to Modify `manifest.json`
-
-Customize this file when:
-
-* Connecting to remote or clustered G4 backends
-* Enabling recorders or distributed execution
-* Running in CI/CD pipelines
-* Operating in offline or air-gapped environments
+> **📘 Configuration:** `manifest.json` is the project's runtime configuration — connectivity, drivers, run behavior, recorders, and more. See the [Configure `manifest.json`](resources.docs/configure-manifest/README.md) learning path for every setting.
 
 ---
 
 ## Requirements
 
 * **Visual Studio Code** `^1.105.0`
-* Node.js (for extension development/build)
-* A compatible **G4 Engine backend** (local or remote)
+* A compatible **G4 Engine backend** — local (via the sandbox) or remote
+* Node.js — only for extension development/build

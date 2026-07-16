@@ -84,8 +84,20 @@ export class ShowWorkflowCommand extends CommandBase {
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
-        // Download and patch all integration resources into the storage directory
-        await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir);
+        // Cache the webapp resources before rendering. The panel is already open but blank while the
+        // files download, so surface a built-in VS Code progress notification to signal the wait.
+        // The in-webview spinner then takes over once the HTML is assigned at the end of this method.
+        await vscode.window.withProgress(
+            {
+                cancellable: false,
+                location: vscode.ProgressLocation.Notification,
+                title: 'Opening G4 Workflow editor…'
+            },
+            async (progress) => {
+                // Download and patch all integration resources into the storage directory.
+                await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir, progress);
+            }
+        );
 
         // Path to the main HTML entry point of the web application
         const indexPath = path.join(storageDir, 'views', 'canvas.html');
@@ -645,10 +657,15 @@ export class ShowWorkflowCommand extends CommandBase {
      *
      * @param baseUrl     The root URL of the G4 API server (e.g., "http://localhost:9944").
      * @param storageDir  The local directory path where resources should be saved.
-     * 
+     * @param progress    Optional VS Code progress reporter advanced once per cached resource.
+     *
      * @throws Error if any HTTP request fails.
      */
-    private static async resolveResources(baseUrl: string, storageDir: string): Promise<void> {
+    private static async resolveResources(
+        baseUrl: string,
+        storageDir: string,
+        progress?: vscode.Progress<{ increment?: number; message?: string }>
+    ): Promise<void> {
         // Ensure the target directory exists (creates parent folders as needed)
         await fs.mkdir(storageDir, { recursive: true });
 
@@ -674,8 +691,20 @@ export class ShowWorkflowCommand extends CommandBase {
             throw new Error(`Invalid resource list response from ${baseUrl}/api/v4/g4/integration/files`);
         }
 
+        // Advance the progress notification in even steps across every resource so it climbs as files
+        // are cached instead of jumping from empty to full only when the download completes.
+        const incrementPerResource = resources.length > 0
+            ? 100 / resources.length
+            : 0;
+
         // Iterate through each resource path returned by the server
         for (const resource of resources) {
+            // Report this resource before fetching it so the notification reflects current work.
+            progress?.report({
+                increment: incrementPerResource,
+                message: path.basename(resource)
+            });
+
             // Construct the full URL and local file path for this resource
             const url = `${baseUrl}/${resource}`;
             const filePath = path.join(storageDir, resource);
