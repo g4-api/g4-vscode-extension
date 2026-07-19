@@ -478,6 +478,12 @@ export interface EventCaptureOptions {
     /** Operating mode for the event resolution (default: 'standard'). */
     mode?: EventCaptureMode;
 
+    /** Optional script run by the extension after this recorder stops (never part of the automation). */
+    postScript?: any;
+
+    /** Optional script run by the extension before this recorder starts (never part of the automation). */
+    preScript?: any;
+
     /** Setting to handle think time between events. */
     thinkTimeSettings?: any;
 }

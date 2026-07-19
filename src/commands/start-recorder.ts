@@ -9,6 +9,7 @@ import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { EventCaptureService, EventCaptureMode } from '../clients/g4-signalr-client';
 import { G4RecorderSandboxService } from '../services/g4-recorder-sandbox-service';
+import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
 import { Utilities } from '../extensions/utilities';
 
 /**
@@ -137,10 +138,19 @@ export class StartRecorderCommand extends CommandBase {
         // Start sandboxed recorder processes before SignalR connects when the user enabled sandbox mode.
         await this.startSandboxRecordersWhenRequired(commandOptions);
 
+        // Run each recorder's pre-script before connecting. A pre-script that runs and fails aborts
+        // that recorder's start; its endpoint is skipped below so it never connects or launches.
+        const skippedEndpoints = await this.runPreScripts();
+
         // Build an array of start promises so we can await them collectively.
         const starts: Promise<void>[] = [];
 
         for (const [endpoint, service] of this._connections) {
+            // Skip recorders whose pre-script failed; they must not connect this session.
+            if (skippedEndpoints.has(endpoint)) {
+                continue;
+            }
+
             try {
                 this._logger.information(`Starting recorder for endpoint: ${endpoint}`);
 
@@ -166,6 +176,11 @@ export class StartRecorderCommand extends CommandBase {
         // (startBrowser is a no-op for passive UIA recorders). This is decoupled from the
         // connection promises so a post-connect issue on one service cannot skip the launches.
         for (const [endpoint, service] of this._connections) {
+            // A recorder skipped by a failed pre-script never connected, so never launch its browser.
+            if (skippedEndpoints.has(endpoint)) {
+                continue;
+            }
+
             try {
                 await service.startBrowser();
             } catch (error: unknown) {
@@ -173,6 +188,47 @@ export class StartRecorderCommand extends CommandBase {
                 this._logger.error(`Failed to launch browser for endpoint ${endpoint}: ${message}`);
             }
         }
+    }
+
+    /**
+     * Runs the pre-script for every pooled recorder and reports which endpoints must be skipped.
+     *
+     * @remarks
+     * Blocking and abort-on-failure: each recorder's pre-script is awaited, and a script that runs
+     * and fails (non-zero exit or timeout) marks its endpoint for skipping so that recorder does not
+     * connect or launch. A disabled or empty pre-script is a no-op that never skips. Failures are
+     * isolated per recorder, so one failed pre-script never blocks the others from starting.
+     *
+     * @returns The set of endpoint base URLs whose pre-script failed and must not start.
+     */
+    private async runPreScripts(): Promise<Set<string>> {
+        // Endpoints whose pre-script failed; the start/launch loops skip these.
+        const skippedEndpoints = new Set<string>();
+
+        for (const [endpoint, service] of this._connections) {
+            const options = service.options;
+
+            // Run the pre-script and wait for its outcome before touching the connection.
+            const result = await G4RecorderScriptService.runRecorderScript({
+                phase: 'pre',
+                configuration: options.preScript,
+                baseUrl: options.baseUrl,
+                mode: options.mode,
+                driverParameters: options.driverParameters,
+                logger: this._logger
+            });
+
+            // Only an executed-and-failed pre-script aborts the recorder; a skipped one does nothing.
+            if (result.isExecuted && !result.isSuccess) {
+                skippedEndpoints.add(endpoint);
+
+                const warning = `Pre-script failed for recorder ${endpoint}; this recorder will not start.`;
+                this._logger.warning(warning);
+                vscode.window.showWarningMessage(warning);
+            }
+        }
+
+        return skippedEndpoints;
     }
 
     /**

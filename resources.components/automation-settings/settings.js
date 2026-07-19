@@ -165,6 +165,16 @@ globalThis.DEFAULTS = {
                         "enabled": true,
                         "maxThinkTime": 2000,
                         "minThinkTime": 2000
+                    },
+                    "preScript": {
+                        "enabled": false,
+                        "shell": "powershell",
+                        "script": ""
+                    },
+                    "postScript": {
+                        "enabled": false,
+                        "shell": "powershell",
+                        "script": ""
                     }
                 },
                 {
@@ -192,6 +202,16 @@ globalThis.DEFAULTS = {
                         "enabled": false,
                         "maxThinkTime": 2000,
                         "minThinkTime": 2000
+                    },
+                    "preScript": {
+                        "enabled": false,
+                        "shell": "powershell",
+                        "script": ""
+                    },
+                    "postScript": {
+                        "enabled": false,
+                        "shell": "powershell",
+                        "script": ""
                     }
                 }
             ]
@@ -230,6 +250,15 @@ const RECORDER_MODE_CHOICES = [
     { value: 'standard', text: 'Standard' },
     { value: 'user32', text: 'User32' },
     { value: 'coordinate', text: 'Coordinate' }
+];
+
+// Interpreters offered for a recorder's pre/post scripts. Values must match the shells the
+// extension's recorder script runner supports.
+const RECORDER_SHELL_CHOICES = [
+    { value: 'powershell', text: 'PowerShell (Windows)' },
+    { value: 'pwsh', text: 'PowerShell 7 (pwsh)' },
+    { value: 'bash', text: 'Bash' },
+    { value: 'cmd', text: 'Command Prompt (cmd)' }
 ];
 
 // Tooltip shown on the per-recorder mode dropdown.
@@ -2703,6 +2732,42 @@ function writeRecorderCard(recorder, index) {
         hint: 'A cap. Set equal to "shortest" for a constant pause.'
     })}
         </div>
+        <div class="subhdr">Pre-Recording Script</div>
+        ${writeToggle({
+        path: `${base}.preScript.enabled`,
+        label: 'Run a Script Before Recording Starts',
+        hint: 'Runs once on this machine before capture begins. It stays in the recorder and never becomes part of the automation.'
+    })}
+        ${writeSelect({
+        path: `${base}.preScript.shell`,
+        label: 'Shell',
+        choices: RECORDER_SHELL_CHOICES,
+        hint: 'Interpreter used to run the pre-recording script.'
+    })}
+        ${writeTextarea({
+        path: `${base}.preScript.script`,
+        label: 'Script',
+        placeholder: '# runs before recording starts',
+        hint: 'Inline script. A non-zero exit (or timeout) aborts this recorder’s start.'
+    })}
+        <div class="subhdr">Post-Recording Script</div>
+        ${writeToggle({
+        path: `${base}.postScript.enabled`,
+        label: 'Run a Script After Recording Stops',
+        hint: 'Runs once on this machine after capture ends. It stays in the recorder and never becomes part of the automation.'
+    })}
+        ${writeSelect({
+        path: `${base}.postScript.shell`,
+        label: 'Shell',
+        choices: RECORDER_SHELL_CHOICES,
+        hint: 'Interpreter used to run the post-recording script.'
+    })}
+        ${writeTextarea({
+        path: `${base}.postScript.script`,
+        label: 'Script',
+        placeholder: '# runs after recording stops',
+        hint: 'Inline script. Failures are reported but do not block teardown.'
+    })}
     </div>`;
 }
 
@@ -3159,6 +3224,38 @@ function writeSelect({ path, label, choices, hint }) {
         <label class="field-label">${getEscapedText(label)}</label>
         ${hintHtml}
         <select onchange="setControlValue({ path: '${path}', rawValue: this.value })">${optionsHtml}</select>
+    </div>`;
+}
+
+/**
+ * Renders a multiline text area bound to a state path.
+ *
+ * Behavior:
+ * - Reads the current value from state at `path`.
+ * - Writes every keystroke back through setControlValue as a plain string.
+ *
+ * @param {object} options - Control options.
+ * @param {string} options.path - Dotted state path the control binds to.
+ * @param {string} options.label - Human-friendly field label.
+ * @param {string} [options.hint] - Optional helper text shown under the label.
+ * @param {string} [options.placeholder] - Optional placeholder text.
+ * @param {number} [options.rows=4] - Visible row count for the text area.
+ * @returns {string} HTML markup for the text area field.
+ */
+function writeTextarea({ path, label, hint, placeholder, rows = 4 }) {
+    // Resolve the current value and the optional hint/placeholder markup.
+    const value = getPath(globalThis.STATE, path);
+    const hintHtml = hint ? `<div class="field-hint">${getEscapedText(hint)}</div>` : '';
+    const placeholderAttribute = placeholder ? ` placeholder="${getEscapedText(placeholder)}"` : '';
+
+    // Render the labeled text area wired to setControlValue on every input. The value is escaped so
+    // script characters like < and & render as literal text inside the element.
+    return `
+    <div class="field">
+        <label class="field-label">${getEscapedText(label)}</label>
+        ${hintHtml}
+        <textarea class="mono" rows="${rows}" spellcheck="false"${placeholderAttribute}
+            oninput="setControlValue({ path: '${path}', rawValue: this.value })">${getEscapedText(value ?? '')}</textarea>
     </div>`;
 }
 

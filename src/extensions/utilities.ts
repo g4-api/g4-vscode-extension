@@ -639,7 +639,9 @@ export class Utilities {
         mode: string,
         driverParameters: any,
         enabled: boolean,
-        thinkTimeSettings: any
+        thinkTimeSettings: any,
+        preScript: { enabled: boolean, shell: string, script: string },
+        postScript: { enabled: boolean, shell: string, script: string }
     }[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
@@ -658,7 +660,9 @@ export class Utilities {
             mode: string,
             driverParameters: any,
             thinkTimeSettings: any,
-            enabled: boolean
+            enabled: boolean,
+            preScript: { enabled: boolean, shell: string, script: string },
+            postScript: { enabled: boolean, shell: string, script: string }
         }[] = [];
 
         // Iterate through each item in the recorders array
@@ -667,7 +671,9 @@ export class Utilities {
             const url = `${item.schema}://${item.host}:${item.port}`;
 
 
-            // Add the constructed URL and driver parameters to the endpoints list
+            // Add the constructed URL and driver parameters to the endpoints list. The pre/post
+            // scripts are normalized here (with safe defaults for older manifests) so the recorder
+            // start/stop commands can run them without re-reading the manifest.
             endpoints.push({
                 baseUrl: url,
                 driverParameters: item.driverParameters,
@@ -677,6 +683,16 @@ export class Utilities {
                     enabled: item.thinkTimeSettings?.enabled ?? false,
                     minThinkTime: item.thinkTimeSettings?.minThinkTime ?? 0,
                     maxThinkTime: item.thinkTimeSettings?.maxThinkTime ?? 0
+                },
+                preScript: {
+                    enabled: item.preScript?.enabled ?? false,
+                    shell: item.preScript?.shell ?? 'powershell',
+                    script: item.preScript?.script ?? ''
+                },
+                postScript: {
+                    enabled: item.postScript?.enabled ?? false,
+                    shell: item.postScript?.shell ?? 'powershell',
+                    script: item.postScript?.script ?? ''
                 }
             });
         }

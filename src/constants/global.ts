@@ -76,6 +76,16 @@ export class Global {
                             "enabled": true,
                             "maxThinkTime": 10000,
                             "minThinkTime": 3000
+                        },
+                        "preScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": ""
+                        },
+                        "postScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": ""
                         }
                     },
                     {
@@ -106,6 +116,16 @@ export class Global {
                             "enabled": false,
                             "maxThinkTime": 10000,
                             "minThinkTime": 3000
+                        },
+                        "preScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": ""
+                        },
+                        "postScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": ""
                         }
                     }
                 ]

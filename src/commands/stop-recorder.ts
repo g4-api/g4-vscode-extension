@@ -11,6 +11,7 @@ import { EventCaptureService } from '../clients/g4-signalr-client';
 import { CommandBase } from './command-base';
 import { ShowWorkflowCommand } from './show-workflow';
 
+import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 
 import { Logger } from '../logging/logger';
@@ -385,6 +386,22 @@ export class StopRecorderCommand extends CommandBase {
                 }
             } catch {
                 // Ignore errors during browser stop / disconnect.
+            }
+
+            // Run this recorder's post-script after teardown. Failures are surfaced but never block
+            // the remaining recorders, since the recorder has already stopped and cannot be undone.
+            const options = service.options;
+            const result = await G4RecorderScriptService.runRecorderScript({
+                phase: 'post',
+                configuration: options.postScript,
+                baseUrl: options.baseUrl,
+                mode: options.mode,
+                driverParameters: options.driverParameters,
+                logger: options.logger
+            });
+
+            if (result.isExecuted && !result.isSuccess) {
+                vscode.window.showWarningMessage(`Post-script failed for recorder ${options.baseUrl}. See the G4 log for details.`);
             }
         }
 
