@@ -898,6 +898,15 @@ function newManifest() {
  * @param {MessageEvent} event - The webview message event.
  */
 function onHostMessage(event) {
+    // Verify the message came from the webview host itself, not an embedded cross-origin frame,
+    // before trusting its data. The host delivers with this frame's own origin; an empty origin is
+    // also allowed because some host deliveries carry no origin value.
+    const isTrustedOrigin = event.origin === window.origin || event.origin === '';
+
+    if (!isTrustedOrigin) {
+        return;
+    }
+
     // Only sandbox path messages are handled by this page-level listener.
     const message = event.data;
 

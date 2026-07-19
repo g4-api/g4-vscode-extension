@@ -139,9 +139,26 @@ export class StartRecorderCommand extends CommandBase {
         await this.startSandboxRecordersWhenRequired(commandOptions);
 
         // Run each recorder's pre-script before connecting. A pre-script that runs and fails aborts
-        // that recorder's start; its endpoint is skipped below so it never connects or launches.
+        // that recorder's start; its endpoint is skipped so it never connects or launches.
         const skippedEndpoints = await this.runPreScripts();
 
+        // Connect the surviving recorders, then launch their browsers. Both stages are extracted so
+        // this entry point stays a readable, linear sequence.
+        await this.startConnections(skippedEndpoints);
+        await this.startBrowsers(skippedEndpoints);
+    }
+
+    /**
+     * Connects every recorder that survived its pre-script, running the connects concurrently.
+     *
+     * @remarks
+     * Recorders in the skip set never connect this session. Each connect is isolated in its own
+     * try/catch so one bad endpoint cannot abort the others, and all connects are awaited together
+     * so browser launches only begin once the connections have settled.
+     *
+     * @param skippedEndpoints Endpoints whose pre-script failed and must not start.
+     */
+    private async startConnections(skippedEndpoints: Set<string>): Promise<void> {
         // Build an array of start promises so we can await them collectively.
         const starts: Promise<void>[] = [];
 
@@ -171,10 +188,19 @@ export class StartRecorderCommand extends CommandBase {
         // Await all connection attempts to settle before launching browsers. allSettled is used
         // so one recorder failing to connect does not skip the launch for the others.
         await Promise.allSettled(starts);
+    }
 
-        // Launch the browser for each chromium recorder now that connections are established
-        // (startBrowser is a no-op for passive UIA recorders). This is decoupled from the
-        // connection promises so a post-connect issue on one service cannot skip the launches.
+    /**
+     * Launches the browser for every connected chromium recorder that survived its pre-script.
+     *
+     * @remarks
+     * startBrowser is a no-op for passive UIA recorders. This is decoupled from the connect stage so
+     * a post-connect issue on one service cannot skip the launches for the others, and skip-set
+     * recorders (which never connected) are never launched.
+     *
+     * @param skippedEndpoints Endpoints whose pre-script failed and must not start.
+     */
+    private async startBrowsers(skippedEndpoints: Set<string>): Promise<void> {
         for (const [endpoint, service] of this._connections) {
             // A recorder skipped by a failed pre-script never connected, so never launch its browser.
             if (skippedEndpoints.has(endpoint)) {
