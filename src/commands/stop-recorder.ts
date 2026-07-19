@@ -470,6 +470,77 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
+     * Resolves the user-facing name of a recorded interaction from its element chain.
+     *
+     * @remarks
+     * Walks from the target element outward through its ancestors and returns the first node whose
+     * `name` is a non-empty string, verbatim (the recorder already normalizes it). Returns an empty
+     * string when no node in the chain exposes a name. Path orientation differs by recorder, so the
+     * caller states whether the target element is first.
+     *
+     * @param path - The recorded element chain; each node may carry a user-facing `name`.
+     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false when it is
+     *                        last (UIA).
+     * @returns The first non-empty node name from the target outward, or an empty string.
+     */
+    private static getUserFacingName(path: any[] | undefined, isTargetFirst: boolean): string {
+        // No chain means there is nothing to label.
+        if (!Array.isArray(path) || path.length === 0) {
+            return '';
+        }
+
+        // Orient the walk so the target element is visited first regardless of recorder ordering.
+        const orderedPath = isTargetFirst ? path : [...path].reverse();
+
+        // Return the first node (target, then nearest ancestor) that exposes a non-empty name. The
+        // emptiness check trims only to decide presence; the returned value stays verbatim.
+        for (const node of orderedPath) {
+            const name = node?.name;
+            const isNamePresent = typeof name === 'string' && name.trim().length > 0;
+
+            if (isNamePresent) {
+                return name;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Attaches the recorded element's user-facing name to an element-targeted rule.
+     *
+     * @remarks
+     * Sets `capabilities.elementName` (recorder-owned; the designer appends it to the step label)
+     * only when the rule targets an element and a name resolves from the chain. Value-only actions
+     * (no `onElement`) and elements with no name are left unchanged, and an existing name is never
+     * overwritten. The name is attached verbatim.
+     *
+     * @param rule - The rule being built; mutated in place when a name is attached.
+     * @param path - The recorded element chain for the interaction.
+     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false for UIA.
+     */
+    private static setRecordedElementName(rule: any, path: any[] | undefined, isTargetFirst: boolean): void {
+        // Only element-targeted actions get a name; value-only actions stay exactly as they are.
+        if (!rule?.onElement) {
+            return;
+        }
+
+        // Resolve the element's user-facing name; keep the rule unchanged when the chain has none.
+        const elementName = StopRecorderCommand.getUserFacingName(path, isTargetFirst);
+
+        if (elementName.length === 0) {
+            return;
+        }
+
+        // Preserve any existing capabilities, and never overwrite a name that is already present.
+        rule.capabilities = rule.capabilities || {};
+
+        if (!rule.capabilities.elementName) {
+            rule.capabilities.elementName = elementName;
+        }
+    }
+
+    /**
      * Determines which EventCaptureService instance captured the earliest event
      * based on the timestamps of items in their internal buffers.
      *
@@ -650,6 +721,10 @@ export class StopRecorderCommand extends CommandBase {
                 }
                 break;
         }
+
+        // Attach the recorded element's user-facing name (the Chromium chain is target-first) so the
+        // designer can label the step; a no-element or unnamed action is left unchanged.
+        StopRecorderCommand.setRecordedElementName(rule, model?.chain?.path, true);
 
         return rule;
     }
@@ -833,8 +908,8 @@ export class StopRecorderCommand extends CommandBase {
             const parameter = isKeyboard ? 'Key' : 'Keys';
             const pluginName = isKeyboard ? keyboardAction : keysAction;
 
-            // Build and return the normalized action object with locator and timestamp context
-            return {
+            // Build the normalized action object with locator and timestamp context.
+            const rule: any = {
                 $type: 'Action',
                 pluginName: pluginName,
                 onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
@@ -843,6 +918,11 @@ export class StopRecorderCommand extends CommandBase {
                     timestamp: event?.value?.timestamp
                 }
             };
+
+            // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
+            StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
+
+            return rule;
         };
 
         // Holds any additional rules that may be produced while parsing the sequence,
@@ -946,18 +1026,23 @@ export class StopRecorderCommand extends CommandBase {
             ? includeKeyboardEventMap.get(key)
             : null;
 
-        // Construct and return the standardized action rule
+        // Construct the standardized action rule.
+        const rule: any = {
+            $type: 'Action',
+            pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
+            onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
+            argument: '{{$ --Key:' + resolved + '}}',
+            context: {
+                timestamp: event?.value?.timestamp
+            }
+        };
+
+        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
+        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
+
         return {
             resolved: resolved,
-            rule: {
-                $type: 'Action',
-                pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
-                onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-                argument: '{{$ --Key:' + resolved + '}}',
-                context: {
-                    timestamp: event?.value?.timestamp
-                }
-            }
+            rule: rule
         };
     }
 
@@ -998,6 +1083,10 @@ export class StopRecorderCommand extends CommandBase {
             rule.onElement = undefined;
             rule.argument = `{{$ --X:${event?.value?.value?.x} --Y:${event?.value?.value?.y}}}`;
         }
+
+        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the step
+        // label; skipped in coordinate mode (no onElement) and when the element has no name.
+        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
 
         // Return a normalized action object suitable for automation execution
         return rule;
