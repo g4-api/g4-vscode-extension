@@ -188,6 +188,7 @@ export class StopRecorderCommand extends CommandBase {
         // Precompute the last group index per endpoint (only the final job closes its browser) and
         // track the launch job index per endpoint (later jobs mount it via "Job(N)").
         const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
+        const firstIndexByBaseUrl = StopRecorderCommand.newFirstIndexByBaseUrl(groups);
         const launchJobByBaseUrl = new Map<string, number>();
 
         // Convert each group into a job and attach it to the automation.
@@ -201,7 +202,8 @@ export class StopRecorderCommand extends CommandBase {
                 isSingleJob,
                 connection,
                 launchJobByBaseUrl,
-                lastIndexByBaseUrl
+                lastIndexByBaseUrl,
+                firstIndexByBaseUrl
             });
 
             automation.stages[0].jobs.push(job);
@@ -237,6 +239,144 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
+     * Maps each recorder endpoint to the index of the FIRST group that uses it, so the recorder's
+     * pre-script is attached only to its launch job (a browser reused by a later job keeps its
+     * pre-script on the first job that opened it).
+     */
+    private static newFirstIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
+        const firstIndexByBaseUrl = new Map<string, number>();
+
+        for (let i = 0; i < groups.length; i++) {
+            const baseUrl = groups[i].baseUrl || '';
+
+            // Record only the first occurrence so a reused browser keeps its launch (first) index.
+            if (!firstIndexByBaseUrl.has(baseUrl)) {
+                firstIndexByBaseUrl.set(baseUrl, i);
+            }
+        }
+
+        return firstIndexByBaseUrl;
+    }
+
+    /**
+     * Attaches the recorder's opt-in pre/post scripts to a job as InvokeScript actions.
+     *
+     * @remarks
+     * Runs only for scripts the user flagged with "Add to Automation Flow". The pre-script is
+     * prepended as the job's first action (its launch job); the post-script is inserted immediately
+     * before the job's CloseBrowser (its last job). Scripts that are empty, unflagged, or contain
+     * characters the `{{$ --ScriptBlock:...}}` macro cannot carry are skipped (the settings UI
+     * already surfaces the unsafe-character case). The job's rules array is mutated in place.
+     *
+     * @param job - The recorded job whose rules are augmented.
+     * @param options - The recorder connection and this job's first/last-for-browser flags.
+     */
+    private static setRecordedScripts(job: any, options: {
+        connection: EventCaptureService | undefined,
+        isFirstForBrowser: boolean,
+        isLastForBrowser: boolean
+    }): void {
+        const { connection, isFirstForBrowser, isLastForBrowser } = options;
+        const captureOptions = connection?.options;
+
+        // Prepend the pre-script as the first action of the recorder's launch job.
+        if (isFirstForBrowser) {
+            const preRule = StopRecorderCommand.newInvokeScriptRule('pre', captureOptions?.preScript);
+
+            if (preRule) {
+                job.rules.unshift(preRule);
+            }
+        }
+
+        // Insert the post-script immediately before CloseBrowser on the recorder's last job.
+        if (isLastForBrowser) {
+            const postRule = StopRecorderCommand.newInvokeScriptRule('post', captureOptions?.postScript);
+
+            if (postRule) {
+                const closeIndex = StopRecorderCommand.getCloseBrowserIndex(job.rules);
+                const insertIndex = closeIndex >= 0 ? closeIndex : job.rules.length;
+                job.rules.splice(insertIndex, 0, postRule);
+            }
+        }
+    }
+
+    /**
+     * Builds an InvokeScript action from a recorder script, or null when it must not be injected.
+     *
+     * @remarks
+     * Returns null when the script is not opted into the automation flow, is empty, or contains
+     * characters that cannot be embedded in the `{{$ --ScriptBlock:...}}` macro (base64 is not yet
+     * supported). Newlines are escaped to the two-character sequence so multi-line scripts survive
+     * the macro. The shell is informational only (InvokeScript runs in the driver session) and is
+     * shown in the display name.
+     *
+     * @param phase - Whether this is the 'pre' or 'post' recording script.
+     * @param scriptConfig - The recorder's script configuration.
+     * @returns The InvokeScript rule, or null when the script must be skipped.
+     */
+    private static newInvokeScriptRule(phase: 'pre' | 'post', scriptConfig: any): any {
+        // Only inject scripts the user explicitly added to the automation flow.
+        if (scriptConfig?.addToAutomationFlow !== true) {
+            return null;
+        }
+
+        // Skip empty scripts; there is nothing to run.
+        const script = typeof scriptConfig?.script === 'string' ? scriptConfig.script : '';
+
+        if (script.trim().length === 0) {
+            return null;
+        }
+
+        // Escape newlines so a multi-line script survives the single-line macro value.
+        const scriptBlock = script.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
+
+        // Skip scripts the macro cannot carry safely; the settings UI already surfaces this case.
+        // TODO: emit a base64 ScriptBlock once InvokeScript supports decoding, to lift this limit.
+        if (!StopRecorderCommand.testAutomationSafeScript(scriptBlock)) {
+            return null;
+        }
+
+        // Compose a readable label carrying the phase and the (informational) shell.
+        const phaseLabel = phase === 'pre' ? 'Pre-Recording Script' : 'Post-Recording Script';
+        const shell = typeof scriptConfig?.shell === 'string' ? scriptConfig.shell : '';
+        const displayName = shell.length > 0 ? `${phaseLabel} (${shell})` : phaseLabel;
+
+        return {
+            $type: 'Action',
+            pluginName: 'InvokeScript',
+            argument: `{{$ --ScriptBlock:${scriptBlock}}}`,
+            capabilities: {
+                displayName: displayName
+            }
+        };
+    }
+
+    /**
+     * Returns the index of the job's CloseBrowser action, or -1 when it has none.
+     */
+    private static getCloseBrowserIndex(rules: any[]): number {
+        return rules.findIndex(rule => rule?.pluginName === 'CloseBrowser');
+    }
+
+    /**
+     * Tests whether a script can be safely embedded in a `{{$ --ScriptBlock:...}}` macro value.
+     *
+     * @remarks
+     * The macro closes on `}}`, opens a nested expression on `{{`, and splits arguments on a
+     * whitespace-delimited `--<word>`; a script containing any of those cannot be carried until
+     * base64 encoding is supported. Newlines are already escaped by the caller and are safe.
+     *
+     * @param scriptBlock - The newline-escaped script value.
+     * @returns True when the value is safe to embed, otherwise false.
+     */
+    private static testAutomationSafeScript(scriptBlock: string): boolean {
+        const isBraceUnsafe = scriptBlock.includes('}}') || scriptBlock.includes('{{');
+        const isArgumentUnsafe = /\s--[\w/,.$*]/.test(scriptBlock);
+
+        return !isBraceUnsafe && !isArgumentUnsafe;
+    }
+
+    /**
      * Builds one recorded-actions job from a grouped buffer of events, wiring its id, think-time
      * settings, CloseBrowser placement (only the last job for a browser), the event-to-rule mapping
      * (chromium vs UIA), and its driver parameters.
@@ -247,9 +387,10 @@ export class StopRecorderCommand extends CommandBase {
         isSingleJob: boolean,
         connection: EventCaptureService | undefined,
         launchJobByBaseUrl: Map<string, number>,
-        lastIndexByBaseUrl: Map<string, number>
+        lastIndexByBaseUrl: Map<string, number>,
+        firstIndexByBaseUrl: Map<string, number>
     }): any {
-        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl } = options;
+        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl, firstIndexByBaseUrl } = options;
 
         const baseUrl = group.baseUrl || '';
         const mode = connection?.options?.mode || 'standard';
@@ -288,6 +429,16 @@ export class StopRecorderCommand extends CommandBase {
             baseUrl,
             jobIndex: index + 1,
             launchJobByBaseUrl
+        });
+
+        // Attach the recorder's opt-in pre/post scripts: the pre-script on its launch (first) job,
+        // the post-script before CloseBrowser on its last job.
+        const isFirstForBrowser = firstIndexByBaseUrl.get(baseUrl) === index;
+
+        StopRecorderCommand.setRecordedScripts(job, {
+            connection,
+            isFirstForBrowser,
+            isLastForBrowser
         });
 
         return job;

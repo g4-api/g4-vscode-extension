@@ -80,12 +80,14 @@ export class Global {
                         "preScript": {
                             "enabled": false,
                             "shell": "powershell",
-                            "script": ""
+                            "script": "",
+                            "addToAutomationFlow": false
                         },
                         "postScript": {
                             "enabled": false,
                             "shell": "powershell",
-                            "script": ""
+                            "script": "",
+                            "addToAutomationFlow": false
                         }
                     },
                     {
@@ -120,12 +122,14 @@ export class Global {
                         "preScript": {
                             "enabled": false,
                             "shell": "powershell",
-                            "script": ""
+                            "script": "",
+                            "addToAutomationFlow": false
                         },
                         "postScript": {
                             "enabled": false,
                             "shell": "powershell",
-                            "script": ""
+                            "script": "",
+                            "addToAutomationFlow": false
                         }
                     }
                 ]

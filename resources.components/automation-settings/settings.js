@@ -169,12 +169,14 @@ globalThis.DEFAULTS = {
                     "preScript": {
                         "enabled": false,
                         "shell": "powershell",
-                        "script": ""
+                        "script": "",
+                        "addToAutomationFlow": false
                     },
                     "postScript": {
                         "enabled": false,
                         "shell": "powershell",
-                        "script": ""
+                        "script": "",
+                        "addToAutomationFlow": false
                     }
                 },
                 {
@@ -206,12 +208,14 @@ globalThis.DEFAULTS = {
                     "preScript": {
                         "enabled": false,
                         "shell": "powershell",
-                        "script": ""
+                        "script": "",
+                        "addToAutomationFlow": false
                     },
                     "postScript": {
                         "enabled": false,
                         "shell": "powershell",
-                        "script": ""
+                        "script": "",
+                        "addToAutomationFlow": false
                     }
                 }
             ]
@@ -2652,6 +2656,61 @@ function testUiaRecorderDriver(driver) {
 }
 
 /**
+ * Returns a reason when a recorder script cannot be added to the automation flow, or '' when safe.
+ *
+ * Behavior:
+ * - Newlines are safe (escaped to \n when the script is injected as an InvokeScript action).
+ * - Flags the sequences the {{$ --ScriptBlock:...}} macro cannot carry: }} closes it, {{ opens a
+ *   nested expression, and a whitespace-delimited --<word> starts a new argument.
+ *
+ * @param {string} script - The inline recorder script.
+ * @returns {string} A human-readable reason, or an empty string when the script is safe.
+ */
+function getUnsafeScriptReason(script) {
+    // Only strings can be inspected; treat anything else as empty (and therefore safe).
+    const text = typeof script === 'string' ? script : '';
+
+    // Detect the macro-breaking sequences.
+    const isBraceUnsafe = text.includes('}}') || text.includes('{{');
+    const isArgumentUnsafe = /\s--[\w/,.$*]/.test(text);
+
+    if (!isBraceUnsafe && !isArgumentUnsafe) {
+        return '';
+    }
+
+    return 'Contains characters (}} {{ or " --") that can\'t be added to the automation flow yet; this script will not be injected.';
+}
+
+/**
+ * Refreshes the inline unsafe-character notice for one recorder script field.
+ *
+ * Behavior:
+ * - Surfaces a reason only when the script is flagged "Add to Automation Flow" and is unsafe.
+ * - Clears the notice otherwise.
+ *
+ * @param {number} index - The recorder index in the recorders array.
+ * @param {string} phase - Either 'preScript' or 'postScript'.
+ */
+function updateRecorderScriptError(index, phase) {
+    // Resolve the notice element rendered next to the script field; nothing to do without it.
+    const errorElement = document.getElementById(`err-${phase}-${index}`);
+
+    if (!errorElement) {
+        return;
+    }
+
+    // Read the current script configuration for this recorder.
+    const base = `settings.recorderSettings.recorders.${index}.${phase}`;
+    const scriptConfig = getPath(globalThis.STATE, base) || {};
+
+    // Surface the unsafe-character reason only when the script is opted into the automation flow.
+    const isFlagged = scriptConfig.addToAutomationFlow === true;
+    const reason = isFlagged ? getUnsafeScriptReason(scriptConfig.script) : '';
+
+    errorElement.textContent = reason;
+}
+
+/**
  * Builds one editable recorder ("machine") card.
  *
  * Behavior:
@@ -2678,14 +2737,28 @@ function writeRecorderCard(recorder, index) {
             </option>`)
         .join('');
 
-    // Render the card header, identity row, driver parameters, and pacing controls.
+    // Resolve the header driver suffix and the initial unsafe-character notices.
+    const driver = recorder?.driverParameters?.driver || '';
+    const headerTitle = driver.length > 0 ? `${label} - ${driver}` : label;
+    const isPreFlagged = recorder?.preScript?.addToAutomationFlow === true;
+    const isPostFlagged = recorder?.postScript?.addToAutomationFlow === true;
+    const preScriptReason = isPreFlagged ? getUnsafeScriptReason(recorder?.preScript?.script) : '';
+    const postScriptReason = isPostFlagged ? getUnsafeScriptReason(recorder?.postScript?.script) : '';
+
+    // Render a collapsible card (closed by default). The header shows "<friendly name> - <driver>"
+    // and the Remove button (which stops propagation so removing never toggles the card); the body
+    // holds identity, driver parameters, pacing, and the pre/post script controls.
     return `
     <div class="item-card">
-        <div class="item-card-hdr">
-            <span class="item-card-title">${getEscapedText(label)}</span>
+        <div class="item-card-hdr" style="cursor: pointer;"
+             onclick="updateSectionCollapse('rec-body-${index}','rec-chev-${index}')">
+            <i class="chev" id="rec-chev-${index}">${SVG_CHEVRON}</i>
+            <span class="item-card-title">${getEscapedText(headerTitle)}</span>
             <span class="spacer"></span>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="removeRecorder(${index})">Remove</button>
+            <button type="button" class="btn btn-ghost btn-sm"
+                    onclick="event.stopPropagation(); removeRecorder(${index})">Remove</button>
         </div>
+        <div class="item-card-body is-collapsed" id="rec-body-${index}">
         ${writeToggle({
         path: `${base}.enabled`,
         label: 'Enabled',
@@ -2757,8 +2830,16 @@ function writeRecorderCard(recorder, index) {
         path: `${base}.preScript.script`,
         label: 'Script',
         placeholder: '# runs before recording starts',
-        hint: 'Inline script. A non-zero exit (or timeout) aborts this recorder’s start.'
+        hint: 'Inline script. A non-zero exit (or timeout) aborts this recorder’s start.',
+        extraInput: `updateRecorderScriptError(${index}, 'preScript')`
     })}
+        ${writeToggle({
+        path: `${base}.preScript.addToAutomationFlow`,
+        label: 'Add to Automation Flow',
+        hint: 'Adds this script to the recorded automation as an InvokeScript action (the first action). Only executes on replay for drivers that support this shell.',
+        extraChange: `updateRecorderScriptError(${index}, 'preScript')`
+    })}
+        <div class="field-error" id="err-preScript-${index}">${getEscapedText(preScriptReason)}</div>
         <div class="subhdr">Post-Recording Script</div>
         ${writeToggle({
         path: `${base}.postScript.enabled`,
@@ -2775,8 +2856,17 @@ function writeRecorderCard(recorder, index) {
         path: `${base}.postScript.script`,
         label: 'Script',
         placeholder: '# runs after recording stops',
-        hint: 'Inline script. Failures are reported but do not block teardown.'
+        hint: 'Inline script. Failures are reported but do not block teardown.',
+        extraInput: `updateRecorderScriptError(${index}, 'postScript')`
     })}
+        ${writeToggle({
+        path: `${base}.postScript.addToAutomationFlow`,
+        label: 'Add to Automation Flow',
+        hint: 'Adds this script to the recorded automation as an InvokeScript action (just before Close Browser). Only executes on replay for drivers that support this shell.',
+        extraChange: `updateRecorderScriptError(${index}, 'postScript')`
+    })}
+        <div class="field-error" id="err-postScript-${index}">${getEscapedText(postScriptReason)}</div>
+        </div>
     </div>`;
 }
 
@@ -3251,11 +3341,14 @@ function writeSelect({ path, label, choices, hint }) {
  * @param {number} [options.rows=4] - Visible row count for the text area.
  * @returns {string} HTML markup for the text area field.
  */
-function writeTextarea({ path, label, hint, placeholder, rows = 4 }) {
+function writeTextarea({ path, label, hint, placeholder, rows = 4, extraInput = '' }) {
     // Resolve the current value and the optional hint/placeholder markup.
     const value = getPath(globalThis.STATE, path);
     const hintHtml = hint ? `<div class="field-hint">${getEscapedText(hint)}</div>` : '';
     const placeholderAttribute = placeholder ? ` placeholder="${getEscapedText(placeholder)}"` : '';
+
+    // Append an optional caller statement (for example inline validation) after the value is stored.
+    const extraInputCall = extraInput ? `; ${extraInput}` : '';
 
     // Render the labeled text area wired to setControlValue on every input. The value is escaped so
     // script characters like < and & render as literal text inside the element.
@@ -3264,7 +3357,7 @@ function writeTextarea({ path, label, hint, placeholder, rows = 4 }) {
         <label class="field-label">${getEscapedText(label)}</label>
         ${hintHtml}
         <textarea class="mono" rows="${rows}" spellcheck="false"${placeholderAttribute}
-            oninput="setControlValue({ path: '${path}', rawValue: this.value })">${getEscapedText(value ?? '')}</textarea>
+            oninput="setControlValue({ path: '${path}', rawValue: this.value })${extraInputCall}">${getEscapedText(value ?? '')}</textarea>
     </div>`;
 }
 
@@ -3376,17 +3469,20 @@ function writeText({
  * @param {string} [options.hint] - Optional helper text shown beside the toggle.
  * @returns {string} HTML markup for the toggle.
  */
-function writeToggle({ path, label, hint }) {
+function writeToggle({ path, label, hint, extraChange = '' }) {
     // Resolve the current boolean value and optional hint markup.
     const value = !!getPath(globalThis.STATE, path);
     const hintHtml = hint ? `<div class="toggle-hint">${getEscapedText(hint)}</div>` : '';
+
+    // Append an optional caller statement (for example inline validation) after the value is stored.
+    const extraChangeCall = extraChange ? `; ${extraChange}` : '';
 
     // Render the toggle switch wired to setControlValue as a boolean.
     return `
     <div class="field">
         <label class="toggle">
             <input type="checkbox" ${value ? 'checked' : ''}
-                onchange="setControlValue({ path: '${path}', rawValue: this.checked, kind: 'bool' })" />
+                onchange="setControlValue({ path: '${path}', rawValue: this.checked, kind: 'bool' })${extraChangeCall}" />
             <span class="switch"></span>
             <span class="toggle-text">
                 <span class="toggle-label">${getEscapedText(label)}</span>

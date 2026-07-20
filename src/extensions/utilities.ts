@@ -640,8 +640,8 @@ export class Utilities {
         driverParameters: any,
         enabled: boolean,
         thinkTimeSettings: any,
-        preScript: { enabled: boolean, shell: string, script: string },
-        postScript: { enabled: boolean, shell: string, script: string }
+        preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
+        postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
     }[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
@@ -661,8 +661,8 @@ export class Utilities {
             driverParameters: any,
             thinkTimeSettings: any,
             enabled: boolean,
-            preScript: { enabled: boolean, shell: string, script: string },
-            postScript: { enabled: boolean, shell: string, script: string }
+            preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
+            postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
         }[] = [];
 
         // Iterate through each item in the recorders array
@@ -687,12 +687,14 @@ export class Utilities {
                 preScript: {
                     enabled: item.preScript?.enabled ?? false,
                     shell: item.preScript?.shell ?? 'powershell',
-                    script: item.preScript?.script ?? ''
+                    script: item.preScript?.script ?? '',
+                    addToAutomationFlow: item.preScript?.addToAutomationFlow ?? false
                 },
                 postScript: {
                     enabled: item.postScript?.enabled ?? false,
                     shell: item.postScript?.shell ?? 'powershell',
-                    script: item.postScript?.script ?? ''
+                    script: item.postScript?.script ?? '',
+                    addToAutomationFlow: item.postScript?.addToAutomationFlow ?? false
                 }
             });
         }
