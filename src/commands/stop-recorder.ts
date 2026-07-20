@@ -1164,8 +1164,28 @@ export class StopRecorderCommand extends CommandBase {
         // into a single SendKeys or single-key action.
         const keysBuffer: string[] = [];
 
-        // Seed the buffer with the key from the initial event.
-        keysBuffer.push(event?.value?.value?.key || '');
+        // Classify the initial event the same way later events are handled, so a run that begins
+        // with a special key (Backspace, Enter, Tab, arrows) or a space is not captured as literal
+        // text. Normalize a leading space to a real space first.
+        let initialKey = event?.value?.value?.key || '';
+
+        if (initialKey.match(/^space$/i)) {
+            initialKey = ' ';
+        }
+
+        // A leading special key becomes its own dedicated action; the rest of the buffer is left for
+        // the next run, exactly as a mid-sequence special key ends this run.
+        const initialSpecialKey = StopRecorderCommand.resolveKeyboardKey(mode, event, includeKeyboardEventMap);
+
+        if (initialSpecialKey?.resolved) {
+            return [initialSpecialKey.rule];
+        }
+
+        // Otherwise seed the buffer with the normalized initial character, skipping multi-character
+        // non-special keys just like the loop below does.
+        if (initialKey.length <= 1) {
+            keysBuffer.push(initialKey);
+        }
 
         // Determine whether the current event is still a keyboard event.
         let isKeyboard = event?.value?.type?.match(/keyboard/i);
@@ -1207,23 +1227,19 @@ export class StopRecorderCommand extends CommandBase {
                 // Store the dedicated rule that represents the resolved special key.
                 rules.push(keyboardKey.rule);
 
-                // Decide whether the buffered content represents a single special key or a sequence.
-                const isLength = keysBuffer.length === 1;
-                const isEntry = includeKeyboardEventMap.has(keysBuffer[0].toLowerCase());
-                const isSingleSpecialKey = isLength && isEntry;
+                // Join the characters collected before this special key, if any. The buffer never
+                // holds a special key now (the first event is classified above, and later special
+                // keys end the run here), so the previous single-key workaround is no longer needed.
+                const keys = keysBuffer.filter(i => i !== '').join('');
 
-                // When handling a single special key, use that key directly.
-                // Otherwise, join all buffered keys into a continuous string.
-                const keys = isSingleSpecialKey
-                    ? keysBuffer[0]
-                    : keysBuffer.filter(i => i !== '').join('');
+                // Emit a SendKeys for those characters only when there are any, so a special key with
+                // no preceding characters does not produce an empty --Keys action.
+                const keysRules = keys.length > 0
+                    ? [newKeyboardRule(mode, keys, event, false)]
+                    : [];
 
-                // Create the final rule for the buffered keys and return it together
-                // with any additional rules that were collected.
-                const keysRule = newKeyboardRule(mode, keys, event, isSingleSpecialKey);
-
-                // Return the combined result set.
-                return [keysRule, ...rules];
+                // Return the buffered-characters rule (when present) followed by the special-key rules.
+                return [...keysRules, ...rules];
             }
 
             // For unrecognized keys longer than one character, skip adding them to the buffer.
@@ -1242,11 +1258,14 @@ export class StopRecorderCommand extends CommandBase {
         // No more keyboard events are available. Combine all buffered keys into one string.
         const keys = keysBuffer.filter(i => i !== '').join('');
 
-        // Create a rule that represents the complete key sequence as a single action.
-        const keysRule = newKeyboardRule(mode, keys, event, false);
+        // Emit the SendKeys only when characters were collected, so an all-skipped run does not
+        // produce an empty --Keys action. Any special-key rules gathered are still returned.
+        const keysRules = keys.length > 0
+            ? [newKeyboardRule(mode, keys, event, false)]
+            : [];
 
-        // Return the sequence rule followed by any additional rules that may have been gathered.
-        return [keysRule, ...rules];
+        // Return the sequence rule (when present) followed by any additional rules gathered.
+        return [...keysRules, ...rules];
     }
 
     /**
