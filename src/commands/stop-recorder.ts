@@ -1172,13 +1172,23 @@ export class StopRecorderCommand extends CommandBase {
 
         // Continue reading events from the buffer while they belong to the keyboard category.
         while (isKeyboard) {
-            // Extract the next event from the buffer and normalize it through assertEvent.
-            event = StopRecorderCommand.assertEvent(buffer.shift())?.event;
+            // Stop once the buffer is exhausted. An empty buffer would otherwise spin this loop
+            // forever, because buffer.shift() keeps returning undefined and isKeyboard (updated only
+            // at the bottom of the loop) never flips. This is what hung Stop-Recorder on a keyboard
+            // sequence ending with a trailing character (for example "ab", Backspace, "a").
+            if (buffer.length === 0) {
+                break;
+            }
 
-            // Skip empty slots or invalid events and move on to the next one.
-            if (!event) {
+            // Read the next event; skip non-target events (for example key-down) without discarding
+            // the last valid event, so the trailing key keeps its locator/timestamp for its rule.
+            const nextEvent = StopRecorderCommand.assertEvent(buffer.shift())?.event;
+
+            if (!nextEvent) {
                 continue;
             }
+
+            event = nextEvent;
 
             // Extract the key value from the event payload.
             let key = event?.value?.value?.key || '';
