@@ -11,6 +11,7 @@ import { EventCaptureService } from '../clients/g4-signalr-client';
 import { CommandBase } from './command-base';
 import { ShowWorkflowCommand } from './show-workflow';
 
+import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 
 import { Logger } from '../logging/logger';
@@ -187,6 +188,7 @@ export class StopRecorderCommand extends CommandBase {
         // Precompute the last group index per endpoint (only the final job closes its browser) and
         // track the launch job index per endpoint (later jobs mount it via "Job(N)").
         const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
+        const firstIndexByBaseUrl = StopRecorderCommand.newFirstIndexByBaseUrl(groups);
         const launchJobByBaseUrl = new Map<string, number>();
 
         // Convert each group into a job and attach it to the automation.
@@ -200,7 +202,8 @@ export class StopRecorderCommand extends CommandBase {
                 isSingleJob,
                 connection,
                 launchJobByBaseUrl,
-                lastIndexByBaseUrl
+                lastIndexByBaseUrl,
+                firstIndexByBaseUrl
             });
 
             automation.stages[0].jobs.push(job);
@@ -236,6 +239,144 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
+     * Maps each recorder endpoint to the index of the FIRST group that uses it, so the recorder's
+     * pre-script is attached only to its launch job (a browser reused by a later job keeps its
+     * pre-script on the first job that opened it).
+     */
+    private static newFirstIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
+        const firstIndexByBaseUrl = new Map<string, number>();
+
+        for (let i = 0; i < groups.length; i++) {
+            const baseUrl = groups[i].baseUrl || '';
+
+            // Record only the first occurrence so a reused browser keeps its launch (first) index.
+            if (!firstIndexByBaseUrl.has(baseUrl)) {
+                firstIndexByBaseUrl.set(baseUrl, i);
+            }
+        }
+
+        return firstIndexByBaseUrl;
+    }
+
+    /**
+     * Attaches the recorder's opt-in pre/post scripts to a job as InvokeScript actions.
+     *
+     * @remarks
+     * Runs only for scripts the user flagged with "Add to Automation Flow". The pre-script is
+     * prepended as the job's first action (its launch job); the post-script is inserted immediately
+     * before the job's CloseBrowser (its last job). Scripts that are empty, unflagged, or contain
+     * characters the `{{$ --ScriptBlock:...}}` macro cannot carry are skipped (the settings UI
+     * already surfaces the unsafe-character case). The job's rules array is mutated in place.
+     *
+     * @param job - The recorded job whose rules are augmented.
+     * @param options - The recorder connection and this job's first/last-for-browser flags.
+     */
+    private static setRecordedScripts(job: any, options: {
+        connection: EventCaptureService | undefined,
+        isFirstForBrowser: boolean,
+        isLastForBrowser: boolean
+    }): void {
+        const { connection, isFirstForBrowser, isLastForBrowser } = options;
+        const captureOptions = connection?.options;
+
+        // Prepend the pre-script as the first action of the recorder's launch job.
+        if (isFirstForBrowser) {
+            const preRule = StopRecorderCommand.newInvokeScriptRule('pre', captureOptions?.preScript);
+
+            if (preRule) {
+                job.rules.unshift(preRule);
+            }
+        }
+
+        // Insert the post-script immediately before CloseBrowser on the recorder's last job.
+        if (isLastForBrowser) {
+            const postRule = StopRecorderCommand.newInvokeScriptRule('post', captureOptions?.postScript);
+
+            if (postRule) {
+                const closeIndex = StopRecorderCommand.getCloseBrowserIndex(job.rules);
+                const insertIndex = closeIndex >= 0 ? closeIndex : job.rules.length;
+                job.rules.splice(insertIndex, 0, postRule);
+            }
+        }
+    }
+
+    /**
+     * Builds an InvokeScript action from a recorder script, or null when it must not be injected.
+     *
+     * @remarks
+     * Returns null when the script is not opted into the automation flow, is empty, or contains
+     * characters that cannot be embedded in the `{{$ --ScriptBlock:...}}` macro (base64 is not yet
+     * supported). Newlines are escaped to the two-character sequence so multi-line scripts survive
+     * the macro. The shell is informational only (InvokeScript runs in the driver session) and is
+     * shown in the display name.
+     *
+     * @param phase - Whether this is the 'pre' or 'post' recording script.
+     * @param scriptConfig - The recorder's script configuration.
+     * @returns The InvokeScript rule, or null when the script must be skipped.
+     */
+    private static newInvokeScriptRule(phase: 'pre' | 'post', scriptConfig: any): any {
+        // Only inject scripts the user explicitly added to the automation flow.
+        if (scriptConfig?.addToAutomationFlow !== true) {
+            return null;
+        }
+
+        // Skip empty scripts; there is nothing to run.
+        const script = typeof scriptConfig?.script === 'string' ? scriptConfig.script : '';
+
+        if (script.trim().length === 0) {
+            return null;
+        }
+
+        // Escape newlines so a multi-line script survives the single-line macro value.
+        const scriptBlock = script.replaceAll('\r\n', '\n').replaceAll('\n', String.raw`\n`);
+
+        // Skip scripts the macro cannot carry safely; the settings UI already surfaces this case.
+        // TODO: emit a base64 ScriptBlock once InvokeScript supports decoding, to lift this limit.
+        if (!StopRecorderCommand.testAutomationSafeScript(scriptBlock)) {
+            return null;
+        }
+
+        // Compose a readable label carrying the phase and the (informational) shell.
+        const phaseLabel = phase === 'pre' ? 'Pre-Recording Script' : 'Post-Recording Script';
+        const shell = typeof scriptConfig?.shell === 'string' ? scriptConfig.shell : '';
+        const displayName = shell.length > 0 ? `${phaseLabel} (${shell})` : phaseLabel;
+
+        return {
+            $type: 'Action',
+            pluginName: 'InvokeScript',
+            argument: `{{$ --ScriptBlock:${scriptBlock}}}`,
+            capabilities: {
+                displayName: displayName
+            }
+        };
+    }
+
+    /**
+     * Returns the index of the job's CloseBrowser action, or -1 when it has none.
+     */
+    private static getCloseBrowserIndex(rules: any[]): number {
+        return rules.findIndex(rule => rule?.pluginName === 'CloseBrowser');
+    }
+
+    /**
+     * Tests whether a script can be safely embedded in a `{{$ --ScriptBlock:...}}` macro value.
+     *
+     * @remarks
+     * The macro closes on `}}`, opens a nested expression on `{{`, and splits arguments on a
+     * whitespace-delimited `--<word>`; a script containing any of those cannot be carried until
+     * base64 encoding is supported. Newlines are already escaped by the caller and are safe.
+     *
+     * @param scriptBlock - The newline-escaped script value.
+     * @returns True when the value is safe to embed, otherwise false.
+     */
+    private static testAutomationSafeScript(scriptBlock: string): boolean {
+        const isBraceUnsafe = scriptBlock.includes('}}') || scriptBlock.includes('{{');
+        const isArgumentUnsafe = /\s--[\w/,.$*]/.test(scriptBlock);
+
+        return !isBraceUnsafe && !isArgumentUnsafe;
+    }
+
+    /**
      * Builds one recorded-actions job from a grouped buffer of events, wiring its id, think-time
      * settings, CloseBrowser placement (only the last job for a browser), the event-to-rule mapping
      * (chromium vs UIA), and its driver parameters.
@@ -246,9 +387,10 @@ export class StopRecorderCommand extends CommandBase {
         isSingleJob: boolean,
         connection: EventCaptureService | undefined,
         launchJobByBaseUrl: Map<string, number>,
-        lastIndexByBaseUrl: Map<string, number>
+        lastIndexByBaseUrl: Map<string, number>,
+        firstIndexByBaseUrl: Map<string, number>
     }): any {
-        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl } = options;
+        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl, firstIndexByBaseUrl } = options;
 
         const baseUrl = group.baseUrl || '';
         const mode = connection?.options?.mode || 'standard';
@@ -287,6 +429,16 @@ export class StopRecorderCommand extends CommandBase {
             baseUrl,
             jobIndex: index + 1,
             launchJobByBaseUrl
+        });
+
+        // Attach the recorder's opt-in pre/post scripts: the pre-script on its launch (first) job,
+        // the post-script before CloseBrowser on its last job.
+        const isFirstForBrowser = firstIndexByBaseUrl.get(baseUrl) === index;
+
+        StopRecorderCommand.setRecordedScripts(job, {
+            connection,
+            isFirstForBrowser,
+            isLastForBrowser
         });
 
         return job;
@@ -386,6 +538,22 @@ export class StopRecorderCommand extends CommandBase {
             } catch {
                 // Ignore errors during browser stop / disconnect.
             }
+
+            // Run this recorder's post-script after teardown. Failures are surfaced but never block
+            // the remaining recorders, since the recorder has already stopped and cannot be undone.
+            const options = service.options;
+            const result = await G4RecorderScriptService.runRecorderScript({
+                phase: 'post',
+                configuration: options.postScript,
+                baseUrl: options.baseUrl,
+                mode: options.mode,
+                driverParameters: options.driverParameters,
+                logger: options.logger
+            });
+
+            if (result.isExecuted && !result.isSuccess) {
+                vscode.window.showWarningMessage(`Post-script failed for recorder ${options.baseUrl}. See the G4 log for details.`);
+            }
         }
 
         // Notify only for an actual user-visible transition; already-red services remain silent.
@@ -450,6 +618,77 @@ export class StopRecorderCommand extends CommandBase {
             event,
             locator: resolvedLocator
         };
+    }
+
+    /**
+     * Resolves the user-facing name of a recorded interaction from its element chain.
+     *
+     * @remarks
+     * Walks from the target element outward through its ancestors and returns the first node whose
+     * `name` is a non-empty string, verbatim (the recorder already normalizes it). Returns an empty
+     * string when no node in the chain exposes a name. Path orientation differs by recorder, so the
+     * caller states whether the target element is first.
+     *
+     * @param path - The recorded element chain; each node may carry a user-facing `name`.
+     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false when it is
+     *                        last (UIA).
+     * @returns The first non-empty node name from the target outward, or an empty string.
+     */
+    private static getUserFacingName(path: any[] | undefined, isTargetFirst: boolean): string {
+        // No chain means there is nothing to label.
+        if (!Array.isArray(path) || path.length === 0) {
+            return '';
+        }
+
+        // Orient the walk so the target element is visited first regardless of recorder ordering.
+        const orderedPath = isTargetFirst ? path : [...path].reverse();
+
+        // Return the first node (target, then nearest ancestor) that exposes a non-empty name. The
+        // emptiness check trims only to decide presence; the returned value stays verbatim.
+        for (const node of orderedPath) {
+            const name = node?.name;
+            const isNamePresent = typeof name === 'string' && name.trim().length > 0;
+
+            if (isNamePresent) {
+                return name;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Attaches the recorded element's user-facing name to an element-targeted rule.
+     *
+     * @remarks
+     * Sets `capabilities.elementName` (recorder-owned; the designer appends it to the step label)
+     * only when the rule targets an element and a name resolves from the chain. Value-only actions
+     * (no `onElement`) and elements with no name are left unchanged, and an existing name is never
+     * overwritten. The name is attached verbatim.
+     *
+     * @param rule - The rule being built; mutated in place when a name is attached.
+     * @param path - The recorded element chain for the interaction.
+     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false for UIA.
+     */
+    private static setRecordedElementName(rule: any, path: any[] | undefined, isTargetFirst: boolean): void {
+        // Only element-targeted actions get a name; value-only actions stay exactly as they are.
+        if (!rule?.onElement) {
+            return;
+        }
+
+        // Resolve the element's user-facing name; keep the rule unchanged when the chain has none.
+        const elementName = StopRecorderCommand.getUserFacingName(path, isTargetFirst);
+
+        if (elementName.length === 0) {
+            return;
+        }
+
+        // Preserve any existing capabilities, and never overwrite a name that is already present.
+        rule.capabilities = rule.capabilities || {};
+
+        if (!rule.capabilities.elementName) {
+            rule.capabilities.elementName = elementName;
+        }
     }
 
     /**
@@ -634,6 +873,10 @@ export class StopRecorderCommand extends CommandBase {
                 break;
         }
 
+        // Attach the recorded element's user-facing name (the Chromium chain is target-first) so the
+        // designer can label the step; a no-element or unnamed action is left unchanged.
+        StopRecorderCommand.setRecordedElementName(rule, model?.chain?.path, true);
+
         return rule;
     }
 
@@ -816,8 +1059,8 @@ export class StopRecorderCommand extends CommandBase {
             const parameter = isKeyboard ? 'Key' : 'Keys';
             const pluginName = isKeyboard ? keyboardAction : keysAction;
 
-            // Build and return the normalized action object with locator and timestamp context
-            return {
+            // Build the normalized action object with locator and timestamp context.
+            const rule: any = {
                 $type: 'Action',
                 pluginName: pluginName,
                 onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
@@ -826,6 +1069,11 @@ export class StopRecorderCommand extends CommandBase {
                     timestamp: event?.value?.timestamp
                 }
             };
+
+            // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
+            StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
+
+            return rule;
         };
 
         // Holds any additional rules that may be produced while parsing the sequence,
@@ -929,18 +1177,23 @@ export class StopRecorderCommand extends CommandBase {
             ? includeKeyboardEventMap.get(key)
             : null;
 
-        // Construct and return the standardized action rule
+        // Construct the standardized action rule.
+        const rule: any = {
+            $type: 'Action',
+            pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
+            onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
+            argument: '{{$ --Key:' + resolved + '}}',
+            context: {
+                timestamp: event?.value?.timestamp
+            }
+        };
+
+        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
+        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
+
         return {
             resolved: resolved,
-            rule: {
-                $type: 'Action',
-                pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
-                onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-                argument: '{{$ --Key:' + resolved + '}}',
-                context: {
-                    timestamp: event?.value?.timestamp
-                }
-            }
+            rule: rule
         };
     }
 
@@ -981,6 +1234,10 @@ export class StopRecorderCommand extends CommandBase {
             rule.onElement = undefined;
             rule.argument = `{{$ --X:${event?.value?.value?.x} --Y:${event?.value?.value?.y}}}`;
         }
+
+        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the step
+        // label; skipped in coordinate mode (no onElement) and when the element has no name.
+        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
 
         // Return a normalized action object suitable for automation execution
         return rule;

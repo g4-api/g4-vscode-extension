@@ -6,10 +6,6 @@
     "engines": {
         "vscode": "^1.105.0"
     },
-    "enabledApiProposals": [
-        "treeViewActiveItem",
-        "extensionRuntime"
-    ],
     "publisher": "g4-api",
     "repository": {
         "type": "git",

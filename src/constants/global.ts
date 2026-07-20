@@ -76,6 +76,18 @@ export class Global {
                             "enabled": true,
                             "maxThinkTime": 10000,
                             "minThinkTime": 3000
+                        },
+                        "preScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
+                        },
+                        "postScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
                         }
                     },
                     {
@@ -106,6 +118,18 @@ export class Global {
                             "enabled": false,
                             "maxThinkTime": 10000,
                             "minThinkTime": 3000
+                        },
+                        "preScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
+                        },
+                        "postScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
                         }
                     }
                 ]
