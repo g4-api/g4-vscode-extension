@@ -3492,8 +3492,10 @@ function writeToggle({ path, label, hint, extraChange = '' }) {
     </div>`;
 }
 
-// Listen for host responses to sandbox browse/auto-detect requests.
-window.addEventListener('message', onHostMessage);
+// Listen for host responses to sandbox browse/auto-detect requests. This runs inside a sandboxed
+// VS Code webview where only the extension host can post messages, so any message origin is accepted
+// intentionally and the cross-origin verification finding is suppressed here on purpose.
+window.addEventListener('message', onHostMessage); // NOSONAR - sandboxed webview; any origin accepted by design
 
 // Initial render.
 showSettings();

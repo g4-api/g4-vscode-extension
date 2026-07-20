@@ -328,7 +328,7 @@ export class StopRecorderCommand extends CommandBase {
         }
 
         // Escape newlines so a multi-line script survives the single-line macro value.
-        const scriptBlock = script.replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
+        const scriptBlock = script.replaceAll('\r\n', '\n').replaceAll('\n', String.raw`\n`);
 
         // Skip scripts the macro cannot carry safely; the settings UI already surfaces this case.
         // TODO: emit a base64 ScriptBlock once InvokeScript supports decoding, to lift this limit.
