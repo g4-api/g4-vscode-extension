@@ -1187,19 +1187,12 @@ export class StopRecorderCommand extends CommandBase {
             keysBuffer.push(initialKey);
         }
 
-        // Determine whether the current event is still a keyboard event.
-        let isKeyboard = event?.value?.type?.match(/keyboard/i);
-
-        // Continue reading events from the buffer while they belong to the keyboard category.
-        while (isKeyboard) {
-            // Stop once the buffer is exhausted. An empty buffer would otherwise spin this loop
-            // forever, because buffer.shift() keeps returning undefined and isKeyboard (updated only
-            // at the bottom of the loop) never flips. This is what hung Stop-Recorder on a keyboard
-            // sequence ending with a trailing character (for example "ab", Backspace, "a").
-            if (buffer.length === 0) {
-                break;
-            }
-
+        // Aggregate the following keyboard events. The guard only consumes the next event when it is
+        // a keyboard event: a following mouse click's up event survives assertEvent, so peeking the
+        // type here leaves the click in the buffer for resolveMouseEvent instead of pulling it into
+        // this SendKeys (which would steal its element and swallow the click). The buffer.length check
+        // also keeps an exhausted buffer from spinning the loop.
+        while (buffer.length > 0 && buffer[0]?.value?.type?.match(/keyboard/i)) {
             // Read the next event; skip non-target events (for example key-down) without discarding
             // the last valid event, so the trailing key keeps its locator/timestamp for its rule.
             const nextEvent = StopRecorderCommand.assertEvent(buffer.shift())?.event;
@@ -1250,9 +1243,6 @@ export class StopRecorderCommand extends CommandBase {
 
             // The key is not resolved as a special key, so add it to the sequence buffer.
             keysBuffer.push(key || '');
-
-            // Peek at the next event in the buffer to check if it is still a keyboard event.
-            isKeyboard = buffer?.[0]?.value?.type?.match(/keyboard/i);
         }
 
         // No more keyboard events are available. Combine all buffered keys into one string.
