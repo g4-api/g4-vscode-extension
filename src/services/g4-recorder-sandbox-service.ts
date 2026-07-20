@@ -83,7 +83,9 @@ export class G4RecorderSandboxService {
         const recorderDirectory = this.getWindowsCommandArgument(path.normalize(recorderPaths.recorderDirectory));
         const dotnetPath = this.getWindowsCommandArgument(path.normalize(recorderPaths.dotnetPath));
 
-        return `start ${windowTitle} /D ${recorderDirectory} ${dotnetPath} ${recorderPaths.recorderFileName}`;
+        // `/min` launches the recorder console minimized so it is visible on the taskbar (and can be
+        // restored) without stealing foreground focus from VS Code.
+        return `start ${windowTitle} /min /D ${recorderDirectory} ${dotnetPath} ${recorderPaths.recorderFileName}`;
     }
 
     /**
@@ -228,6 +230,9 @@ export class G4RecorderSandboxService {
             '/c',
             'start',
             '',
+            // `/min` launches the recorder console minimized so it is visible on the taskbar without
+            // stealing foreground focus from VS Code.
+            '/min',
             '/D',
             recorderDirectory,
             dotnetPath,
@@ -394,7 +399,10 @@ export class G4RecorderSandboxService {
                 cwd: recorderPaths.recorderDirectory,
                 detached: true,
                 stdio: 'ignore',
-                windowsHide: false
+                // Hide the transient cmd.exe launcher window so it does not flash into the foreground
+                // and steal focus. The recorder console is created separately by `start /min`, so it
+                // still appears (minimized) regardless of this flag.
+                windowsHide: true
             });
 
             // Observe launcher failure/completion before releasing the process handle.

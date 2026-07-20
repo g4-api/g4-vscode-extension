@@ -134,7 +134,9 @@ export class G4HubService {
         const hubDirectory = this.getWindowsCommandArgument(path.normalize(hubPaths.hubDirectory));
         const dotnetPath = this.getWindowsCommandArgument(path.normalize(hubPaths.dotnetPath));
 
-        return `start ${windowTitle} /D ${hubDirectory} ${dotnetPath} G4.Services.Hub.dll`;
+        // `/min` launches the hub console minimized so it is visible on the taskbar (and can be
+        // restored) without stealing foreground focus from VS Code.
+        return `start ${windowTitle} /min /D ${hubDirectory} ${dotnetPath} G4.Services.Hub.dll`;
     }
 
     /**
@@ -257,6 +259,9 @@ export class G4HubService {
             '/c',
             'start',
             '',
+            // `/min` launches the hub console minimized so it is visible on the taskbar without
+            // stealing foreground focus from VS Code.
+            '/min',
             '/D',
             hubDirectory,
             dotnetPath,
@@ -322,7 +327,10 @@ export class G4HubService {
                 cwd: hubPaths.hubDirectory,
                 detached: true,
                 stdio: 'ignore',
-                windowsHide: false
+                // Hide the transient cmd.exe launcher window so it does not flash into the foreground
+                // and steal focus. The hub console is created separately by `start /min`, so it still
+                // appears (minimized) regardless of this flag.
+                windowsHide: true
             });
 
             // Observe launcher failure/completion before releasing the process handle.
