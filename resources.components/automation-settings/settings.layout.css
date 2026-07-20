@@ -488,6 +488,23 @@
             flex: 1
         }
 
+        /* Machine (recorder) cards are collapsible. Move the card inset onto the body so a collapsed
+           card is just its header, and give the header the same symmetric padding as a section
+           header. align-items:center keeps the chevron/title/Remove balanced; the row height stays
+           proportional to its content rather than being clamped to a fixed value. */
+        .machine-card {
+            padding: 0
+        }
+
+        .machine-card .item-card-hdr {
+            padding: 10px 16px;
+            margin-bottom: 0
+        }
+
+        .machine-card .item-card-body {
+            padding: 14px
+        }
+
         .add-row {
             margin-top: 12px
         }
