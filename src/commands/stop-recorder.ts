@@ -1187,6 +1187,11 @@ export class StopRecorderCommand extends CommandBase {
             keysBuffer.push(initialKey);
         }
 
+        // The event whose element/name/timestamp the buffered-character SendKeys is attributed to. It
+        // tracks the characters, not the special key that may terminate the run, so the SendKeys keeps
+        // the field the characters were typed in. Seeded from the initial event.
+        let keysEvent = event;
+
         // Aggregate the following keyboard events. The guard only consumes the next event when it is
         // a keyboard event: a following mouse click's up event survives assertEvent, so peeking the
         // type here leaves the click in the buffer for resolveMouseEvent instead of pulling it into
@@ -1226,9 +1231,10 @@ export class StopRecorderCommand extends CommandBase {
                 const keys = keysBuffer.filter(i => i !== '').join('');
 
                 // Emit a SendKeys for those characters only when there are any, so a special key with
-                // no preceding characters does not produce an empty --Keys action.
+                // no preceding characters does not produce an empty --Keys action. It is built from
+                // keysEvent (the character keystroke), not this terminating special-key event.
                 const keysRules = keys.length > 0
-                    ? [newKeyboardRule(mode, keys, event, false)]
+                    ? [newKeyboardRule(mode, keys, keysEvent, false)]
                     : [];
 
                 // Return the buffered-characters rule (when present) followed by the special-key rules.
@@ -1241,17 +1247,20 @@ export class StopRecorderCommand extends CommandBase {
                 continue;
             }
 
-            // The key is not resolved as a special key, so add it to the sequence buffer.
+            // The key is not resolved as a special key, so add it to the sequence buffer, and record
+            // its event so the SendKeys is attributed to the character keystroke, not a later special key.
             keysBuffer.push(key || '');
+            keysEvent = event;
         }
 
         // No more keyboard events are available. Combine all buffered keys into one string.
         const keys = keysBuffer.filter(i => i !== '').join('');
 
         // Emit the SendKeys only when characters were collected, so an all-skipped run does not
-        // produce an empty --Keys action. Any special-key rules gathered are still returned.
+        // produce an empty --Keys action. It is built from keysEvent (the character keystroke). Any
+        // special-key rules gathered are still returned.
         const keysRules = keys.length > 0
-            ? [newKeyboardRule(mode, keys, event, false)]
+            ? [newKeyboardRule(mode, keys, keysEvent, false)]
             : [];
 
         // Return the sequence rule (when present) followed by any additional rules gathered.
