@@ -17,6 +17,11 @@ import { showTemporaryInformationMessage } from '../extensions/notification-util
 import { Logger } from '../logging/logger';
 
 export class StopRecorderCommand extends CommandBase {
+    // Alignment emitted with a recorded pointer offset. It must match the origin the recorder
+    // measures the offset from (the element's top-left corner), so the InvokeUser32Click plugin
+    // anchors the offset there instead of its MiddleCenter default.
+    private static readonly _offsetAlignment: string = 'TopLeft';
+
     // Mapping of keyboard event keys to supported identifiers.
     // This map is used to determine which special keys should be
     // emitted as dedicated actions during recording playback.
@@ -395,6 +400,9 @@ export class StopRecorderCommand extends CommandBase {
         const baseUrl = group.baseUrl || '';
         const mode = connection?.options?.mode || 'standard';
 
+        // Whether this recorder opted into carrying the recorded pointer offset on User32 actions.
+        const isOffsetEnabled = connection?.options?.useOffset === true;
+
         // Include the 1-based job index in the id so two browsers that share a machine name (and
         // therefore a display name) still produce unique job ids.
         const id = `recorded-actions-job-${index + 1}-${group.machineName.toLowerCase()}`;
@@ -421,7 +429,8 @@ export class StopRecorderCommand extends CommandBase {
             StopRecorderCommand._includeKeyboardEventMap,
             group,
             isLastForBrowser,
-            isChromium);
+            isChromium,
+            isOffsetEnabled);
 
         StopRecorderCommand.setJobDriverParameters(job, {
             isSingleJob,
@@ -692,6 +701,76 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
+     * Builds the offset argument fragment for a User32 mouse action, or '' when it does not apply.
+     *
+     * @remarks
+     * Pure and deterministic. Offset is a pointer-position concept, so it applies only to User32
+     * capture mode, only when the recorder opted in, and only when the recorded offset is non-zero.
+     * The value is read from the event contract root (`event.value.offset`).
+     *
+     * @param mode - The recorder capture mode.
+     * @param event - The recorded event carrying the offset at `value.offset`.
+     * @param isOffsetEnabled - Whether the recorder's "use offset" option is on.
+     * @returns The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
+     */
+    private static getOffsetArguments(mode: string, event: any, isOffsetEnabled: boolean): string {
+        // Offset is a User32 pointer concept and only applies when the recorder opted in.
+        if (mode !== 'user32' || !isOffsetEnabled) {
+            return '';
+        }
+
+        // Read the recorded offset from the contract root, coercing each axis to a number.
+        const offsetX = Number(event?.value?.offset?.x) || 0;
+        const offsetY = Number(event?.value?.offset?.y) || 0;
+
+        // A zero offset carries no meaning, so nothing is added.
+        const isOffsetPresent = offsetX !== 0 || offsetY !== 0;
+
+        if (!isOffsetPresent) {
+            return '';
+        }
+
+        // Anchor the offset at the element's top-left corner, which is the origin the recorder
+        // measures the offset from. Without this the InvokeUser32Click plugin defaults to
+        // MiddleCenter and applies the offset from the element's center, landing off target.
+        return ` --OffsetX:${offsetX} --OffsetY:${offsetY} --Alignment:${StopRecorderCommand._offsetAlignment}`;
+    }
+
+    /**
+     * Merges an offset argument fragment into a rule's CLI argument macro.
+     *
+     * @remarks
+     * A no-op when the fragment is empty. When the rule has no argument yet (the normal User32
+     * click), a fresh `{{$ ... }}` macro is created; when it already has one, the fragment is spliced
+     * in before the trailing `}}` so existing arguments are preserved.
+     *
+     * @param rule - The rule being built; mutated in place.
+     * @param offsetArguments - The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
+     */
+    private static setOffsetArgument(rule: any, offsetArguments: string): void {
+        // Nothing to add when the offset does not apply.
+        if (offsetArguments.length === 0) {
+            return;
+        }
+
+        // Create a fresh macro when the action has no argument yet (the common User32 click case).
+        const existingArgument = typeof rule.argument === 'string' ? rule.argument : '';
+
+        if (existingArgument.length === 0) {
+            rule.argument = `{{$${offsetArguments}}}`;
+            return;
+        }
+
+        // Splice the offset into an existing macro, before its closing braces, so other arguments
+        // are preserved.
+        const closingIndex = existingArgument.lastIndexOf('}}');
+
+        rule.argument = closingIndex >= 0
+            ? existingArgument.slice(0, closingIndex) + offsetArguments + existingArgument.slice(closingIndex)
+            : existingArgument + offsetArguments;
+    }
+
+    /**
      * Determines which EventCaptureService instance captured the earliest event
      * based on the timestamps of items in their internal buffers.
      *
@@ -890,7 +969,8 @@ export class StopRecorderCommand extends CommandBase {
         includeKeyboardEventMap: Map<string, string>,
         bufferGroup: BufferGroup,
         appendCloseBrowser: boolean = true,
-        isChromium: boolean = false
+        isChromium: boolean = false,
+        isOffsetEnabled: boolean = false
     ): any {
         /**
          * Inserts "think time" delay actions between recorded rules based on the
@@ -992,7 +1072,7 @@ export class StopRecorderCommand extends CommandBase {
 
                 // Mouse events are translated to UI interaction actions
                 if (event?.value?.type?.match(/mouse/gi)) {
-                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event);
+                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event, isOffsetEnabled);
                     job.rules.push(mouseAction);
                     continue;
                 }
@@ -1201,7 +1281,7 @@ export class StopRecorderCommand extends CommandBase {
      * Resolves a recorded mouse event into a standardized action definition
      * compatible with the automation workflow schema.
      */
-    private static resolveMouseEvent(mode: string, event: any): any {
+    private static resolveMouseEvent(mode: string, event: any, isOffsetEnabled: boolean = false): any {
         // Map normalized mouse event types to corresponding plugin command names
         const mouseEventMap: Map<string, string> = new Map<string, string>([
             ['left', (mode === 'standard' ? 'InvokeClick' : 'InvokeUser32Click')],
@@ -1234,6 +1314,10 @@ export class StopRecorderCommand extends CommandBase {
             rule.onElement = undefined;
             rule.argument = `{{$ --X:${event?.value?.value?.x} --Y:${event?.value?.value?.y}}}`;
         }
+
+        // Carry the recorded pointer offset on User32 mouse actions when the recorder opted in and
+        // the offset is non-zero; the element target is preserved and only the argument is extended.
+        StopRecorderCommand.setOffsetArgument(rule, StopRecorderCommand.getOffsetArguments(mode, event, isOffsetEnabled));
 
         // Attach the recorded element's user-facing name (the UIA chain is target-last) for the step
         // label; skipped in coordinate mode (no onElement) and when the element has no name.

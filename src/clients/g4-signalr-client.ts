@@ -486,6 +486,9 @@ export interface EventCaptureOptions {
 
     /** Setting to handle think time between events. */
     thinkTimeSettings?: any;
+
+    /** When true, User32 mouse actions carry the recorded pointer offset (--OffsetX/--OffsetY). */
+    useOffset?: boolean;
 }
 
 /** Type alias for the event capture operating modes. */

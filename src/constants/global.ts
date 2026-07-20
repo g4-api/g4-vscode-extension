@@ -54,6 +54,7 @@ export class Global {
                     {
                         "enabled": true,
                         "mode": "standard",
+                        "useOffset": false,
                         "schema": "http",
                         "host": "localhost",
                         "port": "9955",
@@ -93,6 +94,7 @@ export class Global {
                     {
                         "enabled": true,
                         "mode": "standard",
+                        "useOffset": false,
                         "schema": "http",
                         "host": "localhost",
                         "port": "9956",
