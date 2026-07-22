@@ -143,6 +143,7 @@ globalThis.DEFAULTS = {
                 {
                     "enabled": true,
                     "mode": "standard",
+                    "useOffset": false,
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -182,6 +183,7 @@ globalThis.DEFAULTS = {
                 {
                     "enabled": false,
                     "mode": "standard",
+                    "useOffset": false,
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -2749,7 +2751,7 @@ function writeRecorderCard(recorder, index) {
     // and the Remove button (which stops propagation so removing never toggles the card); the body
     // holds identity, driver parameters, pacing, and the pre/post script controls.
     return `
-    <div class="item-card">
+    <div class="item-card machine-card">
         <div class="item-card-hdr" style="cursor: pointer;"
              onclick="updateSectionCollapse('rec-body-${index}','rec-chev-${index}')">
             <i class="chev" id="rec-chev-${index}">${SVG_CHEVRON}</i>
@@ -2790,6 +2792,11 @@ function writeRecorderCard(recorder, index) {
                 </select>
             </div>
         </div>
+        ${writeToggle({
+        path: `${base}.useOffset`,
+        label: 'Use Offset',
+        hint: 'Adds the recorded pointer offset (--OffsetX/--OffsetY) to mouse actions. Applies to User32 capture mode.'
+    })}
         <div class="subhdr">Driver Parameters</div>
         ${writeDriverParameters(`${base}.driverParameters`, 'recorders')}
         <div class="subhdr">Pacing Between Actions</div>

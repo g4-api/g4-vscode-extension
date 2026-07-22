@@ -640,6 +640,7 @@ export class Utilities {
         driverParameters: any,
         enabled: boolean,
         thinkTimeSettings: any,
+        useOffset: boolean,
         preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
         postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
     }[] {
@@ -661,6 +662,7 @@ export class Utilities {
             driverParameters: any,
             thinkTimeSettings: any,
             enabled: boolean,
+            useOffset: boolean,
             preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
             postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
         }[] = [];
@@ -679,6 +681,7 @@ export class Utilities {
                 driverParameters: item.driverParameters,
                 mode: item.mode || 'standard',
                 enabled: item.enabled ?? false,
+                useOffset: item.useOffset ?? false,
                 thinkTimeSettings: {
                     enabled: item.thinkTimeSettings?.enabled ?? false,
                     minThinkTime: item.thinkTimeSettings?.minThinkTime ?? 0,

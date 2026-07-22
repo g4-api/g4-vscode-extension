@@ -17,42 +17,40 @@ import { showTemporaryInformationMessage } from '../extensions/notification-util
 import { Logger } from '../logging/logger';
 
 export class StopRecorderCommand extends CommandBase {
+    // Alignment emitted with a recorded pointer offset. It must match the origin the recorder
+    // measures the offset from (the element's top-left corner), so the InvokeUser32Click plugin
+    // anchors the offset there instead of its MiddleCenter default.
+    private static readonly _offsetAlignment: string = 'TopLeft';
+
     // Mapping of keyboard event keys to supported identifiers.
     // This map is used to determine which special keys should be
     // emitted as dedicated actions during recording playback.
-    private static readonly _includeKeyboardEventMap: Map<string, string> = new Map<string, string>([
-        ['backspace', 'Backspace'],
-        ['caps lock', 'Caps Lock'],
-        ['delete', 'Delete'],
-        ['down', 'Down'],
-        ['end', 'End'],
-        ['enter', 'Enter'],
-        ['esc', 'Esc'],
-        ['f1', 'F1'],
-        ['f2', 'F2'],
-        ['f3', 'F3'],
-        ['f4', 'F4'],
-        ['f5', 'F5'],
-        ['f6', 'F6'],
-        ['f7', 'F7'],
-        ['f8', 'F8'],
-        ['f9', 'F9'],
-        ['f10', 'F10'],
-        ['f11', 'F11'],
-        ['f12', 'F12'],
-        ['home', 'Home'],
-        ['insert', 'Insert'],
-        ['left', 'Left'],
-        ['num del', 'Num Del'],
-        ['num lock', 'Num Lock'],
-        ['page down', 'Page Down'],
-        ['page up', 'Page Up'],
-        ['pause', 'Pause'],
-        ['prnt scrn', 'Prnt Scrn'],
-        ['right', 'Right'],
-        ['scroll lock', 'Scroll Lock'],
-        ['tab', 'Tab'],
-        ['up', 'Up']
+    // Virtual-key codes for standalone modifier keys (generic and left/right variants, plus the
+    // Windows keys). The recorder captures a lone modifier press/release as its own event, but a
+    // modifier only has execution meaning as part of a chord (handled by the driver's modified-key
+    // path, not a standalone key). Dropping these during assembly keeps the recorded automation free
+    // of no-op key actions. Detection is by virtual-key code so it is independent of the OS key-name
+    // spelling.
+    private static readonly _modifierVirtualKeys: Set<number> = new Set<number>([
+        0x10, // Shift
+        0x11, // Ctrl
+        0x12, // Alt
+        0x5B, // Left Windows
+        0x5C, // Right Windows
+        0xA0, // Left Shift
+        0xA1, // Right Shift
+        0xA2, // Left Ctrl
+        0xA3, // Right Ctrl
+        0xA4, // Left Alt
+        0xA5  // Right Alt
+    ]);
+
+    // Recorder key labels that represent a typed character rather than a discrete key. The recorder
+    // reports these as multi-character words, so they are mapped back to the single character they
+    // produce before the character-versus-discrete-key classification runs. This is a classification
+    // aid only; it does not normalize to the driver's key vocabulary (the G4 plugin owns that).
+    private static readonly _characterKeyAliasMap: Map<string, string> = new Map<string, string>([
+        ['space', ' ']
     ]);
 
     // Dedicated logger for this command instance.
@@ -395,6 +393,9 @@ export class StopRecorderCommand extends CommandBase {
         const baseUrl = group.baseUrl || '';
         const mode = connection?.options?.mode || 'standard';
 
+        // Whether this recorder opted into carrying the recorded pointer offset on User32 actions.
+        const isOffsetEnabled = connection?.options?.useOffset === true;
+
         // Include the 1-based job index in the id so two browsers that share a machine name (and
         // therefore a display name) still produce unique job ids.
         const id = `recorded-actions-job-${index + 1}-${group.machineName.toLowerCase()}`;
@@ -418,10 +419,10 @@ export class StopRecorderCommand extends CommandBase {
         const job = StopRecorderCommand.newJob(
             id,
             mode,
-            StopRecorderCommand._includeKeyboardEventMap,
             group,
             isLastForBrowser,
-            isChromium);
+            isChromium,
+            isOffsetEnabled);
 
         StopRecorderCommand.setJobDriverParameters(job, {
             isSingleJob,
@@ -591,6 +592,13 @@ export class StopRecorderCommand extends CommandBase {
             return null;
         }
 
+        // Skip standalone modifier keys (Shift, Ctrl, Alt, Windows). The recorder captures a lone
+        // modifier press/release as its own event, but a modifier only executes as part of a chord,
+        // so emitting it as a discrete key would add a no-op action to the automation.
+        if (StopRecorderCommand.testStandaloneModifier(event)) {
+            return null;
+        }
+
         // Retrieve the last element in the event's UI path (deepest element)
         const path = event?.value?.chain?.path || [];
         const element = path.at(-1) ?? null;
@@ -689,6 +697,76 @@ export class StopRecorderCommand extends CommandBase {
         if (!rule.capabilities.elementName) {
             rule.capabilities.elementName = elementName;
         }
+    }
+
+    /**
+     * Builds the offset argument fragment for a User32 mouse action, or '' when it does not apply.
+     *
+     * @remarks
+     * Pure and deterministic. Offset is a pointer-position concept, so it applies only to User32
+     * capture mode, only when the recorder opted in, and only when the recorded offset is non-zero.
+     * The value is read from the event contract root (`event.value.offset`).
+     *
+     * @param mode - The recorder capture mode.
+     * @param event - The recorded event carrying the offset at `value.offset`.
+     * @param isOffsetEnabled - Whether the recorder's "use offset" option is on.
+     * @returns The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
+     */
+    private static getOffsetArguments(mode: string, event: any, isOffsetEnabled: boolean): string {
+        // Offset is a User32 pointer concept and only applies when the recorder opted in.
+        if (mode !== 'user32' || !isOffsetEnabled) {
+            return '';
+        }
+
+        // Read the recorded offset from the contract root, coercing each axis to a number.
+        const offsetX = Number(event?.value?.offset?.x) || 0;
+        const offsetY = Number(event?.value?.offset?.y) || 0;
+
+        // A zero offset carries no meaning, so nothing is added.
+        const isOffsetPresent = offsetX !== 0 || offsetY !== 0;
+
+        if (!isOffsetPresent) {
+            return '';
+        }
+
+        // Anchor the offset at the element's top-left corner, which is the origin the recorder
+        // measures the offset from. Without this the InvokeUser32Click plugin defaults to
+        // MiddleCenter and applies the offset from the element's center, landing off target.
+        return ` --OffsetX:${offsetX} --OffsetY:${offsetY} --Alignment:${StopRecorderCommand._offsetAlignment}`;
+    }
+
+    /**
+     * Merges an offset argument fragment into a rule's CLI argument macro.
+     *
+     * @remarks
+     * A no-op when the fragment is empty. When the rule has no argument yet (the normal User32
+     * click), a fresh `{{$ ... }}` macro is created; when it already has one, the fragment is spliced
+     * in before the trailing `}}` so existing arguments are preserved.
+     *
+     * @param rule - The rule being built; mutated in place.
+     * @param offsetArguments - The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
+     */
+    private static setOffsetArgument(rule: any, offsetArguments: string): void {
+        // Nothing to add when the offset does not apply.
+        if (offsetArguments.length === 0) {
+            return;
+        }
+
+        // Create a fresh macro when the action has no argument yet (the common User32 click case).
+        const existingArgument = typeof rule.argument === 'string' ? rule.argument : '';
+
+        if (existingArgument.length === 0) {
+            rule.argument = `{{$${offsetArguments}}}`;
+            return;
+        }
+
+        // Splice the offset into an existing macro, before its closing braces, so other arguments
+        // are preserved.
+        const closingIndex = existingArgument.lastIndexOf('}}');
+
+        rule.argument = closingIndex >= 0
+            ? existingArgument.slice(0, closingIndex) + offsetArguments + existingArgument.slice(closingIndex)
+            : existingArgument + offsetArguments;
     }
 
     /**
@@ -887,10 +965,10 @@ export class StopRecorderCommand extends CommandBase {
     private static newJob(
         id: string,
         mode: string,
-        includeKeyboardEventMap: Map<string, string>,
         bufferGroup: BufferGroup,
         appendCloseBrowser: boolean = true,
-        isChromium: boolean = false
+        isChromium: boolean = false,
+        isOffsetEnabled: boolean = false
     ): any {
         /**
          * Inserts "think time" delay actions between recorded rules based on the
@@ -992,13 +1070,13 @@ export class StopRecorderCommand extends CommandBase {
 
                 // Mouse events are translated to UI interaction actions
                 if (event?.value?.type?.match(/mouse/gi)) {
-                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event);
+                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event, isOffsetEnabled);
                     job.rules.push(mouseAction);
                     continue;
                 }
 
                 // Keyboard sequences are consolidated into a single input action
-                const keyboardActions = StopRecorderCommand.resolveKeyboardEvent(mode, event, includeKeyboardEventMap, buffer);
+                const keyboardActions = StopRecorderCommand.resolveKeyboardEvent(mode, event, buffer);
                 job.rules.push(...keyboardActions);
             }
         }
@@ -1028,15 +1106,15 @@ export class StopRecorderCommand extends CommandBase {
     /**
      * Resolves a sequence of raw keyboard events into one or more normalized action rules.
      *
-     * The method groups consecutive keyboard events into a combined key sequence when possible,
-     * while still allowing special keys that exist in the includeKeyboardEventMap to be emitted
-     * as dedicated actions. It consumes events from the supplied buffer until it reaches a
+     * The method groups consecutive typed characters into a combined keys action, while emitting any
+     * discrete key (a label longer than one character) as its own dedicated action carrying the
+     * recorder's raw key label. Normalization of that label to the driver's key vocabulary is deferred
+     * to the G4 plugin layer. It consumes events from the supplied buffer until it reaches a
      * non-keyboard event or the buffer is exhausted.
      */
     private static resolveKeyboardEvent(
         mode: string,
         event: any,
-        includeKeyboardEventMap: Map<string, string>,
         buffer: any[]
     ): any[] {
         /**
@@ -1076,113 +1154,99 @@ export class StopRecorderCommand extends CommandBase {
             return rule;
         };
 
-        // Holds any additional rules that may be produced while parsing the sequence,
-        // for example special-key actions.
-        const rules: any[] = [];
-
-        // Temporary storage for all sequential key values that will later be combined
-        // into a single SendKeys or single-key action.
+        // Temporary storage for all sequential character values that will later be combined into a
+        // single keys action.
         const keysBuffer: string[] = [];
 
-        // Seed the buffer with the key from the initial event.
-        keysBuffer.push(event?.value?.value?.key || '');
+        // Classify the initial event as a typed character or a discrete key. Word-spelled character
+        // keys (for example "Space") are resolved to their glyph first so a run that begins with one
+        // buffers as text rather than emitting a discrete key.
+        const initialKey = StopRecorderCommand.resolveCharacterKey(event?.value?.value?.key);
+        const isInitialDiscreteKey = initialKey.length > 1;
 
-        // Determine whether the current event is still a keyboard event.
-        let isKeyboard = event?.value?.type?.match(/keyboard/i);
-
-        // Continue reading events from the buffer while they belong to the keyboard category.
-        while (isKeyboard) {
-            // Extract the next event from the buffer and normalize it through assertEvent.
-            event = StopRecorderCommand.assertEvent(buffer.shift())?.event;
-
-            // Skip empty slots or invalid events and move on to the next one.
-            if (!event) {
-                continue;
-            }
-
-            // Extract the key value from the event payload.
-            let key = event?.value?.value?.key || '';
-
-            // TODO: Implement a full key mapping utility.
-            // Temporary handling for the space key until a full key mapping utility is introduced.
-            if (key?.match(/^space$/i)) {
-                key = ' ';
-            }
-
-            // Try to resolve the current event as a special key using the supplied mapping.
-            const keyboardKey = StopRecorderCommand.resolveKeyboardKey(mode, event, includeKeyboardEventMap);
-
-            // If the key is resolved as a special key, handle it accordingly.
-            if (keyboardKey?.resolved) {
-                // Store the dedicated rule that represents the resolved special key.
-                rules.push(keyboardKey.rule);
-
-                // Decide whether the buffered content represents a single special key or a sequence.
-                const isLength = keysBuffer.length === 1;
-                const isEntry = includeKeyboardEventMap.has(keysBuffer[0].toLowerCase());
-                const isSingleSpecialKey = isLength && isEntry;
-
-                // When handling a single special key, use that key directly.
-                // Otherwise, join all buffered keys into a continuous string.
-                const keys = isSingleSpecialKey
-                    ? keysBuffer[0]
-                    : keysBuffer.filter(i => i !== '').join('');
-
-                // Create the final rule for the buffered keys and return it together
-                // with any additional rules that were collected.
-                const keysRule = newKeyboardRule(mode, keys, event, isSingleSpecialKey);
-
-                // Return the combined result set.
-                return [keysRule, ...rules];
-            }
-
-            // For unrecognized keys longer than one character, skip adding them to the buffer.
-            // This prevents invalid entries from polluting the key sequence.
-            if (key.length > 1) {
-                continue;
-            }
-
-            // The key is not resolved as a special key, so add it to the sequence buffer.
-            keysBuffer.push(key || '');
-
-            // Peek at the next event in the buffer to check if it is still a keyboard event.
-            isKeyboard = buffer?.[0]?.value?.type?.match(/keyboard/i);
+        // A leading discrete key becomes its own dedicated action; the rest of the buffer is left for
+        // the next run, exactly as a mid-sequence discrete key ends this run.
+        if (isInitialDiscreteKey) {
+            return [StopRecorderCommand.newDiscreteKeyRule(mode, event)];
         }
 
-        // No more keyboard events are available. Combine all buffered keys into one string.
-        const keys = keysBuffer.filter(i => i !== '').join('');
+        // Otherwise seed the buffer with the resolved initial character.
+        keysBuffer.push(initialKey);
 
-        // Create a rule that represents the complete key sequence as a single action.
-        const keysRule = newKeyboardRule(mode, keys, event, false);
+        // The event whose element/name/timestamp the buffered-character keys action is attributed to.
+        // It tracks the characters, not a discrete key that may terminate the run, so the keys action
+        // keeps the field the characters were typed in. Seeded from the initial event.
+        let keysEvent = event;
 
-        // Return the sequence rule followed by any additional rules that may have been gathered.
-        return [keysRule, ...rules];
+        // Aggregate the following keyboard events. The guard only consumes the next event when it is
+        // a keyboard event: a following mouse click's up event survives assertEvent, so peeking the
+        // type here leaves the click in the buffer for resolveMouseEvent instead of pulling it into
+        // this keys action (which would steal its element and swallow the click). The buffer.length
+        // check also keeps an exhausted buffer from spinning the loop.
+        while (buffer.length > 0 && buffer[0]?.value?.type?.match(/keyboard/i)) {
+            // Read the next event; skip non-target events (for example key-down) without discarding
+            // the last valid event, so the trailing key keeps its locator/timestamp for its rule.
+            const nextEvent = StopRecorderCommand.assertEvent(buffer.shift())?.event;
+
+            if (!nextEvent) {
+                continue;
+            }
+
+            event = nextEvent;
+
+            // Resolve the character form so word-spelled character keys buffer as text, then classify
+            // this event as a typed character or a discrete key.
+            const key = StopRecorderCommand.resolveCharacterKey(event?.value?.value?.key);
+            const isDiscreteKey = key.length > 1;
+
+            // A discrete key ends the current character run: flush any buffered characters as a single
+            // keys action, then append the discrete-key action and finish this run.
+            if (isDiscreteKey) {
+                const bufferedKeys = keysBuffer.filter(i => i !== '').join('');
+
+                const keysRules = bufferedKeys.length > 0
+                    ? [newKeyboardRule(mode, bufferedKeys, keysEvent, false)]
+                    : [];
+
+                return [...keysRules, StopRecorderCommand.newDiscreteKeyRule(mode, event)];
+            }
+
+            // The event is a typed character: add it to the sequence buffer and record its event so
+            // the keys action is attributed to the character keystroke, not a later discrete key.
+            keysBuffer.push(key);
+            keysEvent = event;
+        }
+
+        // No more keyboard events are available. Combine all buffered characters into one keys action,
+        // emitted only when characters were collected so an all-discrete run produces no empty action.
+        const bufferedKeys = keysBuffer.filter(i => i !== '').join('');
+
+        return bufferedKeys.length > 0
+            ? [newKeyboardRule(mode, bufferedKeys, keysEvent, false)]
+            : [];
     }
 
     /**
-     * Resolves a raw keyboard event into a normalized keyboard action rule.
-     * 
-     * This function extracts the logical key name from the event payload, maps it
-     * to a supported identifier (for example, "backspace" becomes "Backspace"), and
-     * constructs a standardized rule object for automation execution. The output is
-     * adjusted according to the given mode so that locator-based or coordinate-based
-     * plugins can be targeted correctly.
+     * Builds a discrete keyboard-key action rule from a recorded key event.
+     *
+     * @remarks
+     * The recorder's raw key label is used verbatim as the --Key argument; translation to the
+     * driver's canonical key vocabulary is deferred to the G4 plugin layer so every client that
+     * authors automations shares one key vocabulary (for example "Num Enter" becomes "Enter" at
+     * execution time). The mode selects the standard or User32 keyboard plugin and whether a
+     * locator is attached.
      */
-    private static resolveKeyboardKey(mode: string, event: any, includeKeyboardEventMap: Map<string, string>): any {
-        // Extract the key from the event payload and normalize its casing
-        const key = event?.value?.value?.key?.toLowerCase() || '';
-
-        // Resolve the key to a known, supported value or null if not found
-        const resolved = includeKeyboardEventMap.has(key)
-            ? includeKeyboardEventMap.get(key)
-            : null;
+    private static newDiscreteKeyRule(mode: string, event: any): any {
+        // Use the recorder's raw key label as the key argument; the G4 plugin normalizes it at
+        // execution time so all clients share one key vocabulary.
+        const rawKey = event?.value?.value?.key || '';
 
         // Construct the standardized action rule.
         const rule: any = {
             $type: 'Action',
             pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
             onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-            argument: '{{$ --Key:' + resolved + '}}',
+            argument: '{{$ --Key:' + rawKey + '}}',
             context: {
                 timestamp: event?.value?.timestamp
             }
@@ -1191,17 +1255,54 @@ export class StopRecorderCommand extends CommandBase {
         // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
         StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
 
-        return {
-            resolved: resolved,
-            rule: rule
-        };
+        return rule;
+    }
+
+    /**
+     * Resolves the character a recorder key label represents, for the character-versus-discrete-key
+     * classification.
+     *
+     * @remarks
+     * Word-spelled character keys (for example "Space") are mapped to the single character they
+     * produce; every other label is returned unchanged. This is a classification aid only and does
+     * not translate to the driver's key vocabulary — the G4 plugin normalizes discrete keys.
+     */
+    private static resolveCharacterKey(rawKey: string): string {
+        // Normalize the lookup to lower case so label casing cannot hide a known character alias.
+        const aliasKey = (rawKey || '').toLowerCase();
+
+        // Map a word-spelled character key to its glyph; otherwise keep the original label verbatim.
+        return StopRecorderCommand._characterKeyAliasMap.get(aliasKey) ?? (rawKey || '');
+    }
+
+    /**
+     * Tests whether a recorded keyboard event is a standalone modifier key press or release.
+     *
+     * @remarks
+     * A lone modifier (Shift, Ctrl, Alt, or a Windows key) has no execution meaning on its own —
+     * modifiers reach the driver only as part of a chord — so such events are dropped during
+     * assembly to avoid emitting no-op key actions. Detection uses the virtual-key code so it is
+     * independent of the operating system's key-name spelling.
+     */
+    private static testStandaloneModifier(event: any): boolean {
+        // Only keyboard events can be modifier keys; anything else is never treated as one.
+        const isKeyboardEvent = /keyboard/i.exec(`${event?.value?.type}`) !== null;
+
+        if (!isKeyboardEvent) {
+            return false;
+        }
+
+        // Compare the captured virtual-key code against the known modifier set.
+        const virtualKey = event?.value?.value?.virtualKey;
+
+        return StopRecorderCommand._modifierVirtualKeys.has(virtualKey);
     }
 
     /**
      * Resolves a recorded mouse event into a standardized action definition
      * compatible with the automation workflow schema.
      */
-    private static resolveMouseEvent(mode: string, event: any): any {
+    private static resolveMouseEvent(mode: string, event: any, isOffsetEnabled: boolean = false): any {
         // Map normalized mouse event types to corresponding plugin command names
         const mouseEventMap: Map<string, string> = new Map<string, string>([
             ['left', (mode === 'standard' ? 'InvokeClick' : 'InvokeUser32Click')],
@@ -1234,6 +1335,10 @@ export class StopRecorderCommand extends CommandBase {
             rule.onElement = undefined;
             rule.argument = `{{$ --X:${event?.value?.value?.x} --Y:${event?.value?.value?.y}}}`;
         }
+
+        // Carry the recorded pointer offset on User32 mouse actions when the recorder opted in and
+        // the offset is non-zero; the element target is preserved and only the argument is extended.
+        StopRecorderCommand.setOffsetArgument(rule, StopRecorderCommand.getOffsetArguments(mode, event, isOffsetEnabled));
 
         // Attach the recorded element's user-facing name (the UIA chain is target-last) for the step
         // label; skipped in coordinate mode (no onElement) and when the element has no name.
