@@ -1286,7 +1286,7 @@ export class StopRecorderCommand extends CommandBase {
      */
     private static testStandaloneModifier(event: any): boolean {
         // Only keyboard events can be modifier keys; anything else is never treated as one.
-        const isKeyboardEvent = `${event?.value?.type}`.match(/keyboard/i) !== null;
+        const isKeyboardEvent = /keyboard/i.exec(`${event?.value?.type}`) !== null;
 
         if (!isKeyboardEvent) {
             return false;
