@@ -12,6 +12,7 @@ import { CommandBase } from './command-base';
 import { ShowWorkflowCommand } from './show-workflow';
 
 import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
+import { G4RecorderSelfIdentityService } from '../services/g4-recorder-self-identity-service';
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 
 import { Logger } from '../logging/logger';
@@ -109,8 +110,16 @@ export class StopRecorderCommand extends CommandBase {
     protected async onInvokeCommand(_?: any): Promise<void> {
         // Snapshot and time-order the buffered events, and resolve the connection used for
         // automation-level defaults, before touching (and closing) the connections.
-        const buffer = StopRecorderCommand.newSortedBuffer(this._connections);
+        const sortedBuffer = StopRecorderCommand.newSortedBuffer(this._connections);
         const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
+
+        // Drop any event whose window belongs to this VS Code instance. The desktop-wide UIA recorder
+        // captures VS Code's own chrome (the recorder panel, the Stop-recording button); VS Code is
+        // only ever automated through the Chromium recorder, so every VS Code window is off-limits to
+        // UIA capture. Filtering here keeps those self-window events out of both the mouse and the
+        // keyboard assemblers.
+        const selfProcessIds = await G4RecorderSelfIdentityService.getSelfProcessIds();
+        const buffer = StopRecorderCommand.rejectSelfWindowEvents(sortedBuffer, selfProcessIds);
 
         // Build and show the workflow BEFORE stopping the browsers so a slow or failing
         // browser-stop can never prevent the recorded workflow from reaching the canvas. The
@@ -146,6 +155,68 @@ export class StopRecorderCommand extends CommandBase {
                 }))
             )
             .sort((a, b) => (a?.value?.timestamp || 0) - (b?.value?.timestamp || 0));
+    }
+
+    /**
+     * Removes recorded events whose window belongs to this VS Code instance.
+     *
+     * @param buffer - The time-ordered recording buffer.
+     * @param selfProcessIds - Process ids that make up this VS Code executable family.
+     * @returns A new buffer with every self-window event removed.
+     *
+     * @remarks
+     * Pure and non-mutating: the input buffer is left untouched. Both the "down" and "up" halves of a
+     * self-window interaction are dropped because the predicate matches each event independently, so
+     * no half-pair survives to confuse the assemblers. Chromium events carry no UIA window chain, so
+     * they never match and pass through unchanged.
+     */
+    private static rejectSelfWindowEvents(buffer: any[], selfProcessIds: Set<number>): any[] {
+        // With no known self process ids there is nothing to exclude; keep the buffer as-is.
+        if (!selfProcessIds || selfProcessIds.size === 0) {
+            return buffer;
+        }
+
+        return buffer.filter(event => !StopRecorderCommand.isSelfWindowEvent(event, selfProcessIds));
+    }
+
+    /**
+     * Determines whether a recorded event targets a window owned by this VS Code instance.
+     *
+     * @param event - A single buffered recording event.
+     * @param selfProcessIds - Process ids that make up this VS Code executable family.
+     * @returns True when the event's window belongs to this VS Code instance.
+     *
+     * @remarks
+     * The recorder reports the owning process id on the top window and on every chain node, so the
+     * primary test is a process-id match — stable across debug and Marketplace installs, unlike the
+     * window title. The title is used only as a fallback for the Extension Development Host window
+     * when process-id resolution produced nothing to match against.
+     */
+    private static isSelfWindowEvent(event: any, selfProcessIds: Set<number>): boolean {
+        const chain = event?.value?.chain;
+
+        // Primary signal: the owning process id of the top-level window the interaction happened in.
+        const topWindowProcessId = Number(chain?.topWindow?.processId);
+
+        if (Number.isInteger(topWindowProcessId) && selfProcessIds.has(topWindowProcessId)) {
+            return true;
+        }
+
+        // Fallback signal: any node in the element chain owned by this VS Code family.
+        const path = Array.isArray(chain?.path) ? chain.path : [];
+        const isSelfOwnedNode = path.some((node: any) => {
+            const nodeProcessId = Number(node?.processId);
+            return Number.isInteger(nodeProcessId) && selfProcessIds.has(nodeProcessId);
+        });
+
+        if (isSelfOwnedNode) {
+            return true;
+        }
+
+        // Last-resort signal for the debug host when no process id matched: the Extension Development
+        // Host window carries that literal in its title, which the locator preserves.
+        const locator = typeof chain?.locator === 'string' ? chain.locator : '';
+        return /Extension Development Host/i.test(locator);
     }
 
     /**
@@ -574,11 +645,8 @@ export class StopRecorderCommand extends CommandBase {
      * Returns `null` if the event does not meet the filtering criteria.
      */
     private static assertEvent(event: any): any {
-        // Skip events generated by the recorder UI itself
-        const isRecorder = event?.value?.chain?.locator?.match(/Extension Development Host/i);
-        if (isRecorder) {
-            return null;
-        }
+        // Self-window events (VS Code's own chrome) are removed from the buffer before assembly by
+        // rejectSelfWindowEvents, so they never reach this classifier.
 
         // Skip processing for "down" events (e.g., keydown, mousedown)
         const isDown = event?.value?.event.match(/down/i);
