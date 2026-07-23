@@ -10,9 +10,7 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--enable-proposed-api",
-				"g4-api.g4-engine-client"
+				"--extensionDevelopmentPath=${workspaceFolder}"
 			],
 			"env": {
 				"NODE_OPTIONS": "--trace-warnings"
