@@ -130,14 +130,14 @@ export class G4RecorderSandboxService {
             normalizedDriver.includes('chromium');
 
         if (isChromiumRecorder) {
-            return 'ChromiumPeek.dll';
+            return 'G4.Recorders.Chromium.dll';
         }
 
         // UIA recorders use the UI Automation recorder process.
         const isUiaRecorder = normalizedDriver.includes('uia');
 
         if (isUiaRecorder) {
-            return 'UiaPeek.dll';
+            return 'G4.Recorders.Uia.dll';
         }
 
         // Unknown drivers cannot be mapped to a sandbox recorder process safely.
@@ -172,19 +172,19 @@ export class G4RecorderSandboxService {
         sandboxPath: string,
         recorderFileName: string
     ): string[] {
-        // Chromium recorder assets are expected in the chromium peek bundle.
-        const chromiumPeekDirectory = path.join(sandboxPath, 'bot-utilities', 'chromium-peek-x64');
+        // Chromium recorder assets are expected in the chromium recorder bundle.
+        const chromiumRecorderDirectory = path.join(sandboxPath, 'bot-utilities', 'chromium-recorder-x64');
 
-        if (recorderFileName !== 'UiaPeek.dll') {
-            return [chromiumPeekDirectory];
+        if (recorderFileName !== 'G4.Recorders.Uia.dll') {
+            return [chromiumRecorderDirectory];
         }
 
-        // Existing Windows sandboxes ship UIA peek under a dedicated folder.
-        const uiaPeekDirectory = path.join(sandboxPath, 'bot-utilities', 'uia-peek-win-x64');
+        // Existing Windows sandboxes ship the UIA recorder under a dedicated folder.
+        const uiaRecorderDirectory = path.join(sandboxPath, 'bot-utilities', 'uia-recorder-win-x64');
 
         return [
-            chromiumPeekDirectory,
-            uiaPeekDirectory
+            chromiumRecorderDirectory,
+            uiaRecorderDirectory
         ];
     }
 
