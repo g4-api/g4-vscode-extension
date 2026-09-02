@@ -17,11 +17,16 @@ import { showTemporaryInformationMessage } from '../extensions/notification-util
 
 import { Logger } from '../logging/logger';
 
+import { Global } from '../constants/global';
+
 export class StopRecorderCommand extends CommandBase {
     // Alignment emitted with a recorded pointer offset. It must match the origin the recorder
     // measures the offset from (the element's top-left corner), so the InvokeUser32Click plugin
     // anchors the offset there instead of its MiddleCenter default.
     private static readonly _offsetAlignment: string = 'TopLeft';
+
+    // Guards the one-time deprecation warning emitted when an event still uses the legacy event-root offset contract.
+    private static _hasWarnedLegacyOffset: boolean = false;
 
     // Mapping of keyboard event keys to supported identifiers.
     // This map is used to determine which special keys should be
@@ -771,12 +776,16 @@ export class StopRecorderCommand extends CommandBase {
      * Builds the offset argument fragment for a User32 mouse action, or '' when it does not apply.
      *
      * @remarks
-     * Pure and deterministic. Offset is a pointer-position concept, so it applies only to User32
-     * capture mode, only when the recorder opted in, and only when the recorded offset is non-zero.
-     * The value is read from the event contract root (`event.value.offset`).
+     * Offset is a pointer-position concept, so it applies only to User32 capture mode, only when the
+     * recorder opted in, and only when the recorded offset is non-zero. The value is read from the chain
+     * the recorder attaches to the event (`event.value.chain.mouseOffset`).
+     *
+     * A deprecated backward-compatibility fallback reads the legacy event-root location (`event.value.offset`)
+     * when the current form yields nothing, emitting a one-time warning. That fallback will be removed in a
+     * future version, at which point this method becomes pure again.
      *
      * @param mode - The recorder capture mode.
-     * @param event - The recorded event carrying the offset at `value.offset`.
+     * @param event - The recorded event carrying the offset at `value.chain.mouseOffset` (legacy: `value.offset`).
      * @param isOffsetEnabled - Whether the recorder's "use offset" option is on.
      * @returns The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
      */
@@ -786,9 +795,23 @@ export class StopRecorderCommand extends CommandBase {
             return '';
         }
 
-        // Read the recorded offset from the contract root, coercing each axis to a number.
-        const offsetX = Number(event?.value?.offset?.x) || 0;
-        const offsetY = Number(event?.value?.offset?.y) || 0;
+        // Read the recorded offset from the chain's mouseOffset, coercing each axis to a number.
+        let offsetX = Number(event?.value?.chain?.mouseOffset?.x) || 0;
+        let offsetY = Number(event?.value?.chain?.mouseOffset?.y) || 0;
+
+        // Backward compatibility: older recorders emitted the offset at the event root (event.value.offset)
+        // instead of on the chain. Fall back to that legacy contract only when the current form yields nothing.
+        // DEPRECATED: this fallback supports older recorders and will be removed in a future version.
+        if (offsetX === 0 && offsetY === 0) {
+            const legacyX = Number(event?.value?.offset?.x) || 0;
+            const legacyY = Number(event?.value?.offset?.y) || 0;
+
+            if (legacyX !== 0 || legacyY !== 0) {
+                StopRecorderCommand.warnLegacyOffsetContract();
+                offsetX = legacyX;
+                offsetY = legacyY;
+            }
+        }
 
         // A zero offset carries no meaning, so nothing is added.
         const isOffsetPresent = offsetX !== 0 || offsetY !== 0;
@@ -801,6 +824,28 @@ export class StopRecorderCommand extends CommandBase {
         // measures the offset from. Without this the InvokeUser32Click plugin defaults to
         // MiddleCenter and applies the offset from the element's center, landing off target.
         return ` --OffsetX:${offsetX} --OffsetY:${offsetY} --Alignment:${StopRecorderCommand._offsetAlignment}`;
+    }
+
+    /**
+     * Emits a one-time deprecation warning when an event supplies the pointer offset through the legacy
+     * event-root contract (`value.offset`) instead of the current chain contract (`value.chain.mouseOffset`).
+     *
+     * @remarks
+     * The fallback that calls this exists only to support older recorders and will be removed in a future
+     * version. The warning is emitted once per session so buffer processing does not repeat it per event.
+     */
+    private static warnLegacyOffsetContract(): void {
+        // Suppress the message after it has been emitted once for this session.
+        if (StopRecorderCommand._hasWarnedLegacyOffset) {
+            return;
+        }
+
+        StopRecorderCommand._hasWarnedLegacyOffset = true;
+
+        Global.logger?.warning(
+            "Recorder event provided the pointer offset at the deprecated 'value.offset' location. This " +
+            "backward-compatibility fallback is deprecated and will be removed in a future version; update the " +
+            "recorder to emit the offset on the chain as 'value.chain.mouseOffset'.");
     }
 
     /**
