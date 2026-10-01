@@ -1,0 +1,432 @@
+/*
+ * Flow publisher layout: structure, sizing, spacing, and text layout only.
+ *
+ * Mirrors the G4 Settings editor (automation-settings.layout.css) value for value, so both pages share
+ * one look; class names carry the flow-publisher- prefix to keep this component isolated. Element
+ * selectors (inputs, textarea) are unprefixed on purpose: the webview document belongs to this
+ * component alone, exactly as in the settings page.
+ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.component-data {
+    display: none;
+    position: absolute;
+    left: -9999px;
+}
+
+.flow-publisher-is-collapsed {
+    display: none;
+}
+
+/* Header */
+.flow-publisher-header {
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.flow-publisher-header-title {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.flow-publisher-header-meta {
+    font-size: 11px;
+    margin-top: 1px;
+}
+
+/* Page column */
+.flow-publisher-main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.flow-publisher-page-spacer {
+    height: 8px;
+}
+
+/* Sections */
+.flow-publisher-section {
+    overflow: hidden;
+}
+
+.flow-publisher-section-hdr {
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.flow-publisher-section-body {
+    padding: 16px;
+}
+
+.flow-publisher-section-desc {
+    font-size: 11px;
+    margin-bottom: 14px;
+}
+
+/* Fields */
+.flow-publisher-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+.flow-publisher-field:last-child {
+    margin-bottom: 0;
+}
+
+.flow-publisher-field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+    /* Align each field's bottom edge so the inputs line up across the row even when one field
+       has an extra line of label/hint text. */
+    align-items: end;
+}
+
+.flow-publisher-field-row:last-child {
+    margin-bottom: 0;
+}
+
+.flow-publisher-field-row .flow-publisher-field {
+    margin-bottom: 0;
+}
+
+.flow-publisher-field-label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.flow-publisher-field-hint {
+    font-size: 11px;
+}
+
+.flow-publisher-field-error {
+    font-size: 11px;
+    min-height: 14px;
+}
+
+/* Settings renders an error line only for fields that have one; an empty line takes no space here. */
+.flow-publisher-field-error:empty {
+    display: none;
+}
+
+/* JSON editors keep their error line, like the settings Capabilities box. */
+.flow-publisher-field-error--reserved:empty {
+    display: block;
+}
+
+.flow-publisher-required-mark {
+    font-weight: 700;
+}
+
+.flow-publisher-key-preview {
+    font-size: 11px;
+    min-height: 16px;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="url"],
+textarea {
+    font-size: 12px;
+    padding: 6px 8px;
+    width: 100%;
+}
+
+/* Single-line controls share one height; textareas keep their own. */
+input[type="text"],
+input[type="url"] {
+    height: 30px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.flow-publisher-json-textarea {
+    min-height: 180px;
+}
+
+/* Toggle switch */
+.flow-publisher-toggle {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 10px;
+}
+
+.flow-publisher-toggle input {
+    position: absolute;
+    width: 0;
+    height: 0;
+}
+
+.flow-publisher-switch {
+    position: relative;
+    width: 34px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.flow-publisher-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+}
+
+.flow-publisher-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.flow-publisher-toggle-label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.flow-publisher-toggle-hint {
+    font-size: 11px;
+}
+
+.flow-publisher-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    margin-bottom: 16px;
+}
+
+/* Icon buttons (same shape as the settings .icon-btn, and placed before the button sizes as
+   there, so .flow-publisher-btn-sm keeps the same padding) */
+.flow-publisher-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.flow-publisher-icon-btn svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+/* In a key/value row the icon button matches the 30px input height. */
+.flow-publisher-kv-row .flow-publisher-icon-btn {
+    align-self: stretch;
+}
+
+/* Buttons */
+.flow-publisher-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+}
+
+.flow-publisher-btn-ghost {
+    font-weight: 500;
+}
+
+.flow-publisher-btn-sm {
+    font-size: 11px;
+    padding: 3px 9px;
+}
+
+/* Action bar */
+.flow-publisher-actionbar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    z-index: 5;
+}
+
+.flow-publisher-actionbar-spacer {
+    flex: 1;
+}
+
+.flow-publisher-save-note {
+    font-size: 11px;
+}
+
+/* Repeatable, collapsible cards (same shape as the settings machine cards) */
+.flow-publisher-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.flow-publisher-item-card-hdr {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+}
+
+.flow-publisher-item-card-title {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.flow-publisher-item-card-spacer {
+    flex: 1;
+}
+
+.flow-publisher-item-card-body {
+    padding: 14px;
+}
+
+.flow-publisher-add-row {
+    margin-top: 12px;
+}
+
+/* Key/value rows */
+.flow-publisher-kv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.flow-publisher-kv-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.flow-publisher-kv-row .flow-publisher-kv-key {
+    flex: 0 0 38%;
+}
+
+.flow-publisher-kv-row .flow-publisher-kv-val {
+    flex: 1;
+}
+
+.flow-publisher-kv-row .flow-publisher-btn {
+    flex-shrink: 0;
+}
+
+/* Notes and banners */
+.flow-publisher-banners {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* No banners: the empty stack must not add a gap above the first section. */
+.flow-publisher-banners:empty {
+    display: none;
+}
+
+.flow-publisher-note {
+    font-size: 11px;
+    padding: 8px 12px;
+    margin-top: 4px;
+}
+
+.flow-publisher-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.flow-publisher-banner-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+/* JSON editor */
+.flow-publisher-json-wrap {
+    position: relative;
+}
+
+.flow-publisher-json-format-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+}
+
+/* Automation preview */
+.flow-publisher-automation-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 11px;
+    margin-bottom: 10px;
+}
+
+.flow-publisher-code {
+    max-height: 320px;
+    padding: 6px 8px;
+    overflow: auto;
+    font-size: 12px;
+    white-space: pre;
+}
+
+/* Chevron */
+.flow-publisher-chev {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flow-publisher-chev .flow-publisher-chev-r {
+    display: block;
+}
+
+.flow-publisher-chev .flow-publisher-chev-d {
+    display: none;
+}
+
+.flow-publisher-chev.flow-publisher-is-open .flow-publisher-chev-r {
+    display: none;
+}
+
+.flow-publisher-chev.flow-publisher-is-open .flow-publisher-chev-d {
+    display: block;
+}

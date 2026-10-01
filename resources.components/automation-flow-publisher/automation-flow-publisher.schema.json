@@ -1,0 +1,196 @@
+{
+    "G4FlowManifestModel": {
+        "required": [
+            "automation",
+            "key"
+        ],
+        "type": "object",
+        "properties": {
+            "aliases": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the aliases associated with the G4™ Plugin.",
+                "nullable": true
+            },
+            "author": {
+                "$ref": "#/components/schemas/PluginAuthorModel"
+            },
+            "automation": {
+                "minLength": 1,
+                "type": "string",
+                "description": "Gets or sets the complete automation that the flow represents, encoded as Base64."
+            },
+            "categories": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the categories associated with the G4™ Plugin.",
+                "nullable": true
+            },
+            "context": {
+                "type": "object",
+                "additionalProperties": {
+                    "nullable": true
+                },
+                "nullable": true
+            },
+            "description": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the description of the G4™ Plugin.",
+                "nullable": true
+            },
+            "key": {
+                "minLength": 1,
+                "type": "string",
+                "description": "Gets the key of the G4™ Plugin."
+            },
+            "namespace": {
+                "type": "string",
+                "description": "Gets or sets the namespace associated with the current plugin manifest.\r\nThis property is typically used to define the logical grouping of related plugins and types.",
+                "nullable": true
+            },
+            "parameters": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/PluginParameterModel"
+                },
+                "description": "Gets or sets the parameters associated with the G4™ Plugin.",
+                "nullable": true
+            },
+            "platforms": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the platforms supported by the G4™ Plugin.",
+                "nullable": true
+            },
+            "pluginType": {
+                "type": "string",
+                "description": "Gets or sets the type of the G4™ Plugin.",
+                "nullable": true
+            },
+            "projectUrl": {
+                "type": "string",
+                "description": "Gets or sets the URL of the project.",
+                "nullable": true
+            },
+            "protocol": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string",
+                    "nullable": true
+                },
+                "description": "Gets or sets the protocol associated with the G4™ Plugin.",
+                "nullable": true
+            },
+            "source": {
+                "type": "string",
+                "description": "Gets or sets the source of the G4™ Plugin.",
+                "nullable": true
+            },
+            "summary": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the summary of the G4™ Plugin.",
+                "nullable": true
+            },
+            "version": {
+                "type": "string",
+                "description": "Gets or sets the manifest version.",
+                "nullable": true
+            }
+        },
+        "additionalProperties": false,
+        "description": "Represents the manifest of a G4™ Flow: a complete, drop-in automation published under a\r\nnamespace-qualified key so clients can discover it and send it for execution as one unit."
+    },
+    "PluginAuthorModel": {
+        "type": "object",
+        "properties": {
+            "link": {
+                "type": "string",
+                "description": "Gets or sets the link associated with the author.",
+                "nullable": true
+            },
+            "name": {
+                "type": "string",
+                "description": "Gets or sets the name of the author.",
+                "nullable": true
+            }
+        },
+        "additionalProperties": false,
+        "description": "Represents the author of a plugin."
+    },
+    "PluginParameterModel": {
+        "type": "object",
+        "properties": {
+            "default": {
+                "type": "string",
+                "description": "Gets or sets the default value of the parameter.",
+                "nullable": true
+            },
+            "dependsOn": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the list of parameters this parameter depends on.",
+                "nullable": true
+            },
+            "description": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                },
+                "description": "Gets or sets the description of the parameter.\r\nEach item in the array represents a line of text, and markdown formatting is supported.",
+                "nullable": true
+            },
+            "displayName": {
+                "type": "string",
+                "description": "Gets or sets the display name associated with the object.",
+                "nullable": true
+            },
+            "mandatory": {
+                "type": "boolean",
+                "description": "Gets or sets a value indicating whether the parameter is mandatory."
+            },
+            "multiple": {
+                "type": "boolean",
+                "description": "Gets or sets a value indicating whether the parameter can accept multiple values."
+            },
+            "name": {
+                "type": "string",
+                "description": "Gets or sets the name of the parameter.",
+                "nullable": true
+            },
+            "stringSyntax": {
+                "type": "string",
+                "description": "Gets or sets optional syntax hints for the string value.",
+                "nullable": true
+            },
+            "values": {
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/PluginParameterModel"
+                },
+                "description": "Gets or sets the list of possible values for the parameter.",
+                "nullable": true
+            },
+            "type": {
+                "type": "string",
+                "description": "Gets or sets the type of the parameter.",
+                "nullable": true
+            }
+        },
+        "additionalProperties": false,
+        "description": "Represents a parameter of a plugin."
+    }
+}

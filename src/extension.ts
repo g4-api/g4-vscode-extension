@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowWorkflowCommand } from './commands/show-workflow';
@@ -9,6 +8,7 @@ import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { Global } from './constants/global';
 import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
+import { UpdateFlowCommand } from './commands/update-flow';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
@@ -120,7 +120,7 @@ const registerCommands = (options: {
         async (uri?: vscode.Uri) => {
             const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 
-            if (!targetUri || !isBotFile(targetUri, ['.g4', '.g4bot'])) {
+            if (!targetUri || !Utilities.testBotFile(targetUri, ['.g4', '.g4bot'])) {
                 vscode.window.showWarningMessage('Select a .g4 or .g4bot file under the bots folder.');
                 return;
             }
@@ -143,7 +143,7 @@ const registerCommands = (options: {
         async (uri?: vscode.Uri) => {
             const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 
-            if (!targetUri || !isBotFile(targetUri, ['.json'], ['bots', 'base.bots'])) {
+            if (!targetUri || !Utilities.testBotFile(targetUri, ['.json'], ['bots', 'base.bots'])) {
                 vscode.window.showWarningMessage('Select a JSON bot file under the bots or base.bots folder.');
                 return;
             }
@@ -167,6 +167,9 @@ const registerCommands = (options: {
     // Command to fetch or update templates used for new automation workflows.
     new UpdateTemplateCommand(options.context, options.baseUri).register();
 
+    // Command to publish bot automations from the workspace bots folder as flows.
+    new UpdateFlowCommand(options.context, options.baseUri).register();
+
     // Initialize the recorder command, which handles UI event recording. Captured in a module
     // field so the settings service can rebuild its connections when settings are applied.
     recorderCommand = new StartRecorderCommand(
@@ -188,35 +191,6 @@ const registerCommands = (options: {
 
     // Command to stop active event recordings and finalize captured data.
     new StopRecorderCommand(options.context, captureConnections).register();
-};
-
-/**
- * Checks whether a URI points to a supported bot file inside one of the given workspace
- * folders (by folder-name segment). Defaults to the 'bots' folder; callers that also accept
- * recorded/base definitions pass additional folder names (for example 'base.bots').
- */
-const isBotFile = (uri: vscode.Uri, extensions: string[], folderNames: string[] = ['bots']): boolean => {
-    if (uri.scheme !== 'file') {
-        return false;
-    }
-
-    const supportedExtensions = new Set(extensions);
-    if (!supportedExtensions.has(path.extname(uri.fsPath).toLowerCase())) {
-        return false;
-    }
-
-    const acceptedFolders = new Set(folderNames.map(name => name.toLowerCase()));
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    return folders.some(folder => {
-        const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-        if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-            return false;
-        }
-
-        return relativePath
-            .split(/[\\/]+/)
-            .some(segment => acceptedFolders.has(segment.toLowerCase()));
-    });
 };
 
 /**

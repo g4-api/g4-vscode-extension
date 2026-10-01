@@ -1,0 +1,216 @@
+/*
+ * Flow publisher visual language: colors, borders, radius, font families, and visual states only.
+ *
+ * Mirrors the G4 Settings editor (automation-settings.visual.css, plus the visual declarations its
+ * layout file carries), through the values in automation-flow-publisher.parameters.css. Rule order
+ * follows settings, so hover and ghost-button cascades resolve exactly as they do there.
+ */
+@font-face {
+    font-family: 'Inter';
+    src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+body {
+    font-family: var(--flow-publisher-font-family);
+    background-color: var(--flow-publisher-background);
+    color: var(--flow-publisher-foreground);
+}
+
+/* Header */
+.flow-publisher-header {
+    background-color: var(--flow-publisher-bar-background);
+    border-bottom: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-header-meta {
+    color: var(--flow-publisher-muted-foreground);
+}
+
+/* Sections */
+.flow-publisher-section {
+    border: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-section-hdr {
+    background-color: var(--flow-publisher-surface-background);
+    border-bottom: 1px solid var(--flow-publisher-border-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+.flow-publisher-section-hdr:has(.flow-publisher-chev:not(.flow-publisher-is-open)) {
+    border-bottom: none;
+}
+
+.flow-publisher-section-desc,
+.flow-publisher-field-hint,
+.flow-publisher-toggle-hint,
+.flow-publisher-save-note,
+.flow-publisher-automation-meta {
+    color: var(--flow-publisher-muted-foreground);
+}
+
+.flow-publisher-field-error,
+.flow-publisher-required-mark,
+.flow-publisher-status-err {
+    color: var(--flow-publisher-error-foreground);
+}
+
+.flow-publisher-status-ok {
+    color: var(--flow-publisher-success-foreground);
+}
+
+.flow-publisher-key-preview {
+    color: var(--flow-publisher-link-foreground);
+}
+
+/* Inputs */
+input[type="text"],
+input[type="url"],
+textarea {
+    font-family: inherit;
+    color: inherit;
+    outline: none;
+    border: var(--flow-publisher-input-border);
+    background-color: var(--flow-publisher-input-background);
+}
+
+textarea,
+.flow-publisher-mono,
+.flow-publisher-code {
+    font-family: var(--flow-publisher-monospace-font-family);
+}
+
+input:focus,
+textarea:focus {
+    border-color: var(--flow-publisher-focus-border-color);
+}
+
+/* Toggle switch */
+.flow-publisher-toggle {
+    cursor: pointer;
+    user-select: none;
+}
+
+.flow-publisher-toggle input {
+    opacity: 0;
+}
+
+.flow-publisher-switch {
+    background-color: var(--flow-publisher-switch-background);
+    border-radius: var(--flow-publisher-switch-radius);
+    transition: var(--flow-publisher-switch-transition);
+}
+
+.flow-publisher-switch::after {
+    background-color: var(--flow-publisher-switch-knob-background);
+    border-radius: 50%;
+    transition: var(--flow-publisher-switch-knob-transition);
+}
+
+.flow-publisher-toggle input:checked + .flow-publisher-switch {
+    background-color: var(--flow-publisher-switch-on-background);
+}
+
+.flow-publisher-toggle input:checked + .flow-publisher-switch::after {
+    transform: var(--flow-publisher-switch-knob-offset);
+}
+
+/* Buttons: ghost buttons inherit the .btn background, exactly as in the settings editor. */
+.flow-publisher-btn {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--flow-publisher-button-radius);
+    background-color: var(--flow-publisher-button-background);
+    color: var(--flow-publisher-button-foreground);
+}
+
+.flow-publisher-btn:hover {
+    background-color: var(--flow-publisher-button-hover-background);
+}
+
+.flow-publisher-btn-ghost {
+    color: var(--flow-publisher-button-ghost-foreground);
+    border: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-btn-ghost:hover {
+    background-color: var(--flow-publisher-hover-background);
+}
+
+.flow-publisher-btn:disabled {
+    opacity: var(--flow-publisher-disabled-opacity);
+    cursor: default;
+}
+
+/* JSON format button: revealed while the editor is hovered or focused. */
+.flow-publisher-json-format-btn {
+    background-color: var(--flow-publisher-format-button-background);
+    opacity: 0;
+    transition: var(--flow-publisher-fade-transition);
+}
+
+.flow-publisher-json-format-btn:hover {
+    background-color: var(--flow-publisher-hover-background);
+}
+
+.flow-publisher-json-wrap:hover .flow-publisher-json-format-btn,
+.flow-publisher-json-wrap:focus-within .flow-publisher-json-format-btn {
+    opacity: 1;
+}
+
+/* Action bar */
+.flow-publisher-actionbar {
+    background-color: var(--flow-publisher-bar-background);
+    border-top: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-save-note {
+    opacity: 0;
+    transition: var(--flow-publisher-note-transition);
+}
+
+.flow-publisher-save-note.flow-publisher-is-shown {
+    opacity: 1;
+}
+
+/* Cards and notes */
+.flow-publisher-item-card {
+    border: 1px solid var(--flow-publisher-border-color);
+    background-color: var(--flow-publisher-surface-background);
+}
+
+.flow-publisher-item-card-hdr {
+    cursor: pointer;
+}
+
+.flow-publisher-note {
+    border: 1px solid var(--flow-publisher-border-color);
+    background-color: var(--flow-publisher-surface-background);
+    color: var(--flow-publisher-muted-foreground);
+}
+
+.flow-publisher-code {
+    border: var(--flow-publisher-input-border);
+    background-color: var(--flow-publisher-input-background);
+}
+
+/* Chevron */
+.flow-publisher-chev {
+    font-style: normal;
+}
+
+/* Links */
+a {
+    color: var(--flow-publisher-link-foreground);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--flow-publisher-link-active-foreground);
+    text-decoration: underline;
+}

@@ -75,6 +75,11 @@
                 "command": "Update-Template",
                 "category": "G4",
                 "title": "Update or Create Template Definitions"
+            },
+            {
+                "command": "Update-Flow",
+                "category": "G4",
+                "title": "Open in Flow Publisher"
             }
         ],
         "grammars": [
@@ -140,13 +145,18 @@
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
-                    "group": "navigation",
+                    "group": "navigation@1",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
-                    "group": "navigation",
+                    "group": "navigation@1",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Update-Flow",
+                    "group": "navigation@2",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
                 },
                 {
                     "command": "Show-Settings",
@@ -161,6 +171,10 @@
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
+                    "when": "false"
+                },
+                {
+                    "command": "Update-Flow",
                     "when": "false"
                 }
             ]

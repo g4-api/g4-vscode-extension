@@ -1,0 +1,606 @@
+/*
+ * Command to publish a bot automation from the workspace "bots" folder to the G4 Hub as a flow.
+ *
+ * RESOURCES:
+ * VS Code command API reference: https://code.visualstudio.com/api/references/commands
+ * Webview API reference: https://code.visualstudio.com/api/extension-guides/webview
+ * Flows endpoint contract: PUT api/v4/g4/flows (G4FlowManifestModel, 204 on success)
+ * Flow schema: swagger/flows/docs.json (components.schemas.G4FlowManifestModel)
+ */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+
+import { CommandBase } from './command-base';
+
+import { G4Client } from '../clients/g4-client';
+
+import { Channels } from '../constants/channels';
+
+import { Utilities } from '../extensions/utilities';
+
+import { Logger } from '../logging/logger';
+
+// Folder of the flow publisher component under resources.components.
+const COMPONENT_FOLDER = 'automation-flow-publisher';
+
+// Placeholder identity: the flows cache identifies a flow by namespace and key, not by id.
+const EMPTY_FLOW_ID = '00000000-0000-0000-0000-000000000000';
+
+// Every published bot defaults to the server's default namespace, where key-only lookups resolve.
+const FLOW_NAMESPACE = 'G4.System';
+
+// Splits a file name or typed key into words: every run of characters that is not a letter or digit.
+// Linear: one negated character class with a single quantifier.
+const KEY_SEPARATOR_PATTERN = /[^\p{L}\p{N}]+/u;
+
+// Manifest fields the form never controls: the host always sets them.
+const HOST_OWNED_FIELDS = ['automation', 'id', 'pluginType', 'source', 'type'];
+
+// Upper bound for the automation preview shown in the form, so huge bots do not bloat the page.
+const PREVIEW_MAXIMUM_CHARACTERS = 20000;
+
+// Default summary text; the form replaces {key} while the user has not edited the summary.
+const SUMMARY_TEMPLATE = 'Runs the {key} bot automation.';
+
+/**
+ * Command that publishes one selected bot file as a flow in the G4 Hub through a webview form.
+ *
+ * @remarks
+ * Flow: right-click a JSON bot under `<workspace>/bots` → "Publish as Flow" (the Explorer menu uses
+ * the same rule as "Open in Workflow Editor", without base.bots) → read and parse the bot → open (or
+ * reveal) the `automation-flow-publisher` component in an editor tab. The host reads the flow schema
+ * from the Hub (falling back to a bundled copy), checks whether the default key already exists, and
+ * injects both into the page. The page sends `lookupFlow` and `publish`; the host owns every Hub call,
+ * builds the manifest (authentication removed, automation Base64-encoded), and answers with
+ * `flowLookup` and `publishResult`. The command is hidden from the Command Palette.
+ */
+export class UpdateFlowCommand extends CommandBase {
+    /** Logger scoped to this command; publish outcomes are written here. */
+    private readonly _logger: Logger;
+
+    /** Hub client used for the schema, lookups, and publishing. */
+    private readonly _client: G4Client;
+
+    /** Open publisher tabs keyed by bot file path, so picking the same bot reveals its tab. */
+    private readonly _panels = new Map<string, vscode.WebviewPanel>();
+
+    /**
+     * Creates the Update-Flow command.
+     *
+     * @param context - VS Code extension context that owns the command registration.
+     * @param baseUri - Base URI of the G4 Hub API.
+     */
+    constructor(context: vscode.ExtensionContext, baseUri: string) {
+        super(context);
+
+        this._logger = this.logger?.newLogger('G4.UpdateFlow');
+        this.command = 'Update-Flow';
+        this._client = new G4Client(baseUri);
+    }
+
+    /**
+     * Registers the 'Update-Flow' command and ties its disposal to the extension lifecycle.
+     */
+    protected async onRegister(): Promise<void> {
+        const disposable = vscode.commands.registerCommand(
+            this.command,
+            async (args: any) => {
+                await this.invokeCommand(args);
+            },
+            this
+        );
+
+        this.context.subscriptions.push(disposable);
+    }
+
+    /**
+     * Opens the publisher tab for the bot file the user right-clicked.
+     *
+     * @remarks
+     * Applies the same rule as "Open in Workflow Editor" (bots folder only, not base.bots), so the
+     * command also refuses a file passed some other way. The bot is read and parsed before the tab
+     * opens, so an invalid file is reported without an empty form. A bot whose tab is already open
+     * has that tab revealed instead of a second one opened.
+     *
+     * @param uri - The bot file from the Explorer context menu; the active editor's file otherwise.
+     */
+    protected async onInvokeCommand(uri?: vscode.Uri): Promise<void> {
+        // Accept only JSON bot files under the bots folder.
+        const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+        if (!targetUri || !Utilities.testBotFile(targetUri, ['.json'], ['bots'])) {
+            vscode.window.showWarningMessage('Select a JSON bot file under the bots folder.');
+            return;
+        }
+
+        // Reveal an open tab for the same bot instead of opening a second one.
+        const botFile = UpdateFlowCommand.newBotFile(targetUri.fsPath);
+        const openPanel = this._panels.get(botFile.filePath);
+
+        if (openPanel) {
+            openPanel.reveal();
+            return;
+        }
+
+        // Read the bot first so an unreadable or invalid file fails before the tab opens.
+        const automation = this.readBotAutomation(botFile);
+
+        if (!automation) {
+            return;
+        }
+
+        await this.openPublisher(botFile, automation);
+    }
+
+    /**
+     * Converts a bot file name (or typed key) into a PascalCase flow key.
+     *
+     * @remarks
+     * Compute-only, and mirrored by the component script. The text is split on every character that
+     * is not a letter or digit; each part gets an upper-case first character and keeps the rest of
+     * its casing, so `google-demo` becomes `GoogleDemo` and `365-chatbot` becomes `365Chatbot`.
+     *
+     * @param fileBaseName - File name without directory or extension, or a key typed by the user.
+     * @returns The PascalCase key, or an empty string when the text has no letters or digits.
+     */
+    public static convertToPascalCase(fileBaseName: string): string {
+        return fileBaseName
+            .split(KEY_SEPARATOR_PATTERN)
+            .filter((part) => part !== '')
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join('');
+    }
+
+    /**
+     * Builds the default form values for a bot.
+     *
+     * @remarks
+     * Compute-only. These are the values the form starts with; the user can change every one.
+     *
+     * @param botFile - Selected bot.
+     * @returns Manifest-shaped default values.
+     */
+    public static newDefaultValues(botFile: BotFile): Record<string, unknown> {
+        return {
+            aliases: [],
+            author: { name: 'G4 VS Code Extension', link: '' },
+            categories: ['Bots'],
+            context: {},
+            description: [`Flow published from bots/${botFile.relativePath} by the G4 VS Code extension.`],
+            key: botFile.key,
+            namespace: FLOW_NAMESPACE,
+            parameters: [],
+            platforms: ['Any'],
+            projectUrl: '',
+            protocol: {},
+            summary: [SUMMARY_TEMPLATE.replace('{key}', botFile.key)],
+            version: '1.0.0'
+        };
+    }
+
+    /**
+     * Builds the flow manifest from the form values and the bot automation.
+     *
+     * @remarks
+     * Compute-only. Form values are applied first, then every host-owned field is set, so the page
+     * can never change the automation, identity, or type. The `authentication` block is removed
+     * before encoding so tokens and credentials are never stored in the Hub. Fields that the schema
+     * does not publish (entity, examples, output parameters, properties) keep fixed empty values.
+     *
+     * @param options - Parsed bot JSON and the values submitted by the form.
+     * @returns A G4FlowManifestModel payload ready for PUT api/v4/g4/flows.
+     */
+    public static newFlowManifest(options: { automation: any; values: Record<string, unknown> }): any {
+        const { automation, values } = options;
+
+        // Drop host-owned fields from the submitted values before merging.
+        const formValues = Object.fromEntries(
+            Object.entries(values ?? {}).filter(([name]) => !HOST_OWNED_FIELDS.includes(name)));
+
+        // Normalize the identity the same way the form does, and default an empty namespace.
+        const key = UpdateFlowCommand.convertToPascalCase(typeof formValues.key === 'string' ? formValues.key : '');
+        const namespaceText = typeof formValues.namespace === 'string' ? formValues.namespace.trim() : '';
+
+        // Drop credentials from a copy so the caller's parsed object is left untouched.
+        const { authentication: _authentication, ...automationWithoutAuthentication } = automation;
+        const encodedAutomation = Buffer
+            .from(JSON.stringify(automationWithoutAuthentication), 'utf8')
+            .toString('base64');
+
+        return {
+            entity: [],
+            examples: [],
+            outputParameters: [],
+            properties: [],
+            ...formValues,
+            automation: encodedAutomation,
+            id: EMPTY_FLOW_ID,
+            key,
+            namespace: namespaceText === '' ? FLOW_NAMESPACE : namespaceText,
+            pluginType: 'Flow',
+            source: 'Flow'
+        };
+    }
+
+    /**
+     * Serializes component data for injection into a textarea without breaking the HTML.
+     *
+     * @remarks
+     * Compute-only. A textarea decodes character references and ends at `</textarea>`, so `<` and
+     * `&` are written as JSON unicode escapes; JSON.parse restores them unchanged.
+     *
+     * @param data - Component data.
+     * @returns HTML-safe JSON text.
+     */
+    private static convertToInjectedJson(data: Record<string, unknown>): string {
+        // Keep the escaped backslashes: String.raw`<` is decoded to '<' by the TypeScript
+        // compiler, which would silently disable this escaping.
+        return JSON.stringify(data)
+            .replaceAll('<', '\\u003c') // NOSONAR
+            .replaceAll('&', '\\u0026'); // NOSONAR
+    }
+
+    /**
+     * Reads the flow schema from the Hub, falling back to the copy bundled with the component.
+     *
+     * @returns The schemas and whether the bundled fallback was used.
+     */
+    private async getFlowSchema(): Promise<{ isSchemaFallback: boolean; schemas: Record<string, any> }> {
+        const schemas = await this._client.getFlowSchema();
+
+        if (schemas) {
+            return { isSchemaFallback: false, schemas };
+        }
+
+        // The Hub is unreachable or does not publish the flows document; use the bundled schema.
+        this._logger.warning('Flow schema not available from the G4 Hub; using the bundled schema.');
+        const bundledText = Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.schema.json`);
+
+        return { isSchemaFallback: true, schemas: JSON.parse(bundledText) };
+    }
+
+    /**
+     * Extracts field errors and a readable message from the Hub's failure text.
+     *
+     * @remarks
+     * Compute-only. The client returns the error body as JSON text (GenericErrorModel/ProblemDetails
+     * with an `errors` map); anything else is shown verbatim.
+     *
+     * @param failure - Failure text returned by G4Client.updateFlow.
+     * @returns The banner message and the errors map for the form.
+     */
+    private static getPublishFailure(failure: string): { fieldErrors: Record<string, unknown>; message: string } {
+        // Parse the problem body; non-JSON failure text (for example a timeout) is shown verbatim.
+        let body: any;
+
+        try {
+            body = JSON.parse(failure);
+        } catch {
+            return { fieldErrors: {}, message: `The Hub rejected the flow: ${failure}` };
+        }
+
+        // Prefer the field messages, then the problem title, then the raw text.
+        const isErrorsMap = body !== null && typeof body?.errors === 'object';
+        const fieldErrors = isErrorsMap ? body.errors : {};
+        const messages = Object.values(fieldErrors)
+            .flat()
+            .filter((message) => typeof message === 'string');
+        const title = typeof body?.title === 'string' ? body.title : failure;
+        const message = messages.length > 0 ? messages.join(' ') : title;
+
+        return { fieldErrors, message: `The Hub rejected the flow: ${message}` };
+    }
+
+    /**
+     * Loads the component HTML and fills its placeholders.
+     *
+     * @param panel - Publisher panel, used to create webview resource URIs.
+     * @param data - Component data for #g4-data.
+     * @returns The final HTML.
+     */
+    private getPublisherHtml(panel: vscode.WebviewPanel, data: Record<string, unknown>): string {
+        const componentUri = vscode.Uri.joinPath(this.context.extensionUri, 'resources.components', COMPONENT_FOLDER);
+        const styleUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(componentUri, `${COMPONENT_FOLDER}.css`));
+        const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(componentUri, `${COMPONENT_FOLDER}.js`));
+        const html = Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.html`);
+
+        // Replacer functions keep any `$` in the data from being read as a replacement pattern.
+        return html
+            .replace('{{$ flow.publisher.data }}', () => UpdateFlowCommand.convertToInjectedJson(data))
+            .replace('{{$ component.style.uri }}', () => styleUri.toString())
+            .replace('{{$ component.script.uri }}', () => scriptUri.toString());
+    }
+
+    /**
+     * Describes a bot file: its path, the path below its `bots` folder, and the default flow key.
+     *
+     * @remarks
+     * Compute-only. The relative path starts after the last `bots` segment so a bot in a subfolder
+     * keeps its subfolder (`examples/find-something.json`), with forward slashes on every platform.
+     *
+     * @param filePath - Absolute path of the bot file.
+     * @returns The bot file description.
+     */
+    private static newBotFile(filePath: string): BotFile {
+        const segments = path.normalize(filePath).split(path.sep);
+        const botsIndex = segments.map((segment) => segment.toLowerCase()).lastIndexOf('bots');
+        const relativeSegments = botsIndex === -1 ? [path.basename(filePath)] : segments.slice(botsIndex + 1);
+        const key = UpdateFlowCommand.convertToPascalCase(path.basename(filePath, path.extname(filePath)));
+
+        return { filePath, key, relativePath: relativeSegments.join('/') };
+    }
+
+    /**
+     * Builds the data injected into the component's #g4-data holder.
+     *
+     * @remarks
+     * Compute-only. The preview shows exactly what will be encoded (authentication removed), capped
+     * at PREVIEW_MAXIMUM_CHARACTERS.
+     *
+     * @param options - Bot, parsed automation, schemas, schema source, and any stored flow.
+     * @returns The component data object.
+     */
+    private static newPublisherData(options: PublisherDataOptions): Record<string, unknown> {
+        const { automation, botFile, existingFlow, isSchemaFallback, schemas } = options;
+
+        // Describe exactly what will be encoded: the automation without its authentication block.
+        const { authentication: _authentication, ...automationWithoutAuthentication } = automation;
+        const previewText = JSON.stringify(automationWithoutAuthentication, null, 4);
+        const isPreviewTruncated = previewText.length > PREVIEW_MAXIMUM_CHARACTERS;
+        const sizeKilobytes = Buffer.byteLength(JSON.stringify(automationWithoutAuthentication), 'utf8') / 1024;
+
+        // Assemble the page data: automation card, defaults, schema, and any stored flow.
+        return {
+            automation: {
+                isAuthenticationRemoved: 'authentication' in automation,
+                previewText: isPreviewTruncated
+                    ? `${previewText.slice(0, PREVIEW_MAXIMUM_CHARACTERS)}\n… (preview truncated)`
+                    : previewText,
+                relativePath: botFile.relativePath,
+                sizeText: `${sizeKilobytes.toFixed(1)} KB`
+            },
+            defaults: UpdateFlowCommand.newDefaultValues(botFile),
+            existingFlow: existingFlow ?? null,
+            isSchemaFallback,
+            schemas,
+            summaryTemplate: SUMMARY_TEMPLATE
+        };
+    }
+
+    /**
+     * Handles one message from a publisher tab.
+     *
+     * @param options - The tab, its bot, the parsed automation, and the message.
+     */
+    private async onPublisherMessage(options: PublisherMessageOptions): Promise<void> {
+        const { message, panel } = options;
+
+        // Existence lookup for the key and namespace currently in the form.
+        if (message?.command === 'lookupFlow') {
+            // Narrow the page's values to text; an empty namespace means the default namespace.
+            const namespaceText = typeof message.namespace === 'string' ? message.namespace.trim() : '';
+            const key = typeof message.key === 'string' ? message.key : '';
+            const flowNamespace = namespaceText === '' ? FLOW_NAMESPACE : namespaceText;
+            const existingFlow = await this._client.getFlow(flowNamespace, key);
+
+            await panel.webview.postMessage({
+                command: 'flowLookup',
+                existingFlow: existingFlow ?? null,
+                requestId: message.requestId
+            });
+            return;
+        }
+
+        if (message?.command === 'publish') {
+            await this.updateFlow(options);
+        }
+    }
+
+    /**
+     * Opens the publisher tab for a bot: reads the schema and any stored flow, injects the data,
+     * and wires the message handler.
+     *
+     * @param botFile - Selected bot.
+     * @param automation - Parsed bot JSON.
+     */
+    private async openPublisher(botFile: BotFile, automation: any): Promise<void> {
+        // Read the schema and the stored flow (if any) behind a progress notification, since the
+        // Hub calls can take up to their timeouts when the Hub is down.
+        const [schemaResult, existingFlow] = await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: `Opening flow publisher for bots/${botFile.relativePath}…` },
+            () => Promise.all([this.getFlowSchema(), this._client.getFlow(FLOW_NAMESPACE, botFile.key)]));
+
+        // Create the tab with access to the component and font resources only.
+        const panel = vscode.window.createWebviewPanel(
+            'g4-flow-publisher',
+            `Publish Flow · ${botFile.key || path.basename(botFile.filePath)}`,
+            vscode.ViewColumn.One,
+            {
+                enableScripts: true,
+                localResourceRoots: [
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
+                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
+                ],
+                retainContextWhenHidden: true
+            }
+        );
+
+        // Track the tab per bot, and forget it when the user closes it.
+        this._panels.set(botFile.filePath, panel);
+        panel.onDidDispose(() => this._panels.delete(botFile.filePath), undefined, this.context.subscriptions);
+
+        // Inject the data and render the component.
+        const data = UpdateFlowCommand.newPublisherData({ automation, botFile, existingFlow, ...schemaResult });
+        panel.webview.html = this.getPublisherHtml(panel, data);
+
+        // Route every page message through one handler.
+        panel.webview.onDidReceiveMessage(
+            (message) => this.onPublisherMessage({ automation, botFile, message, panel }),
+            undefined,
+            this.context.subscriptions
+        );
+    }
+
+    /**
+     * Reads and parses the selected bot file.
+     *
+     * @remarks
+     * Failures are logged and shown as a warning with a log shortcut; the caller simply stops.
+     *
+     * @param botFile - Bot file to read.
+     * @returns The parsed bot object, or `undefined` when the file cannot be used.
+     */
+    private readBotAutomation(botFile: BotFile): any {
+        // Parse the file; unreadable or invalid JSON is reported instead of opened.
+        let automation: any;
+
+        try {
+            automation = JSON.parse(fs.readFileSync(botFile.filePath, 'utf8'));
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : 'the file could not be read or parsed';
+            this.showFailure(`Cannot publish 'bots/${botFile.relativePath}': ${reason}.`);
+            return undefined;
+        }
+
+        // A flow wraps one automation, so the file must hold a single JSON object.
+        const isAutomationObject = automation !== null && typeof automation === 'object' && !Array.isArray(automation);
+
+        if (!isAutomationObject) {
+            this.showFailure(`Cannot publish 'bots/${botFile.relativePath}': the file must contain a single JSON object.`);
+            return undefined;
+        }
+
+        return automation;
+    }
+
+    /**
+     * Logs a failure and shows it as a warning with a shortcut to the log.
+     *
+     * @param message - Failure message.
+     */
+    private showFailure(message: string): void {
+        this._logger.error(message);
+
+        const onSelection = (selection: string | undefined) => {
+            if (selection === 'Show Log') {
+                Channels.extension.show(true);
+            }
+        };
+
+        vscode.window.showWarningMessage(message, 'Show Log').then(onSelection);
+    }
+
+    /**
+     * Publishes the flow submitted by a publisher tab and reports the result back to the tab.
+     *
+     * @remarks
+     * On success the tab stays open, its title follows the published key, and the stored flow is
+     * sent back so the page shows the overwrite notice from then on. On failure the Hub's field
+     * errors are forwarded so the page can mark the matching fields.
+     *
+     * @param options - The tab, its bot, the parsed automation, and the publish message.
+     */
+    private async updateFlow(options: PublisherMessageOptions): Promise<void> {
+        const { automation, botFile, message, panel } = options;
+
+        // Build the manifest from the submitted values; host-owned fields always win.
+        const manifest = UpdateFlowCommand.newFlowManifest({ automation, values: message.values ?? {} });
+        const flowName = `${manifest.namespace}/${manifest.key}`;
+
+        // An empty key after normalization is answered locally; nothing is sent to the Hub.
+        if (manifest.key === '') {
+            await panel.webview.postMessage({
+                command: 'publishResult',
+                fieldErrors: { key: ['Enter at least one letter or digit.'] },
+                isSuccess: false,
+                message: 'The flow key is empty.'
+            });
+            return;
+        }
+
+        // Send the manifest; the client returns the server's failure text when the Hub rejects it.
+        vscode.window.setStatusBarMessage(`$(sync~spin) Updating flow '${flowName}'...`, 5000);
+        const failure = await this._client.updateFlow(manifest);
+
+        if (failure) {
+            const { fieldErrors, message: failureMessage } = UpdateFlowCommand.getPublishFailure(failure);
+            this._logger.error(`Flow '${flowName}' (bots/${botFile.relativePath}) was rejected: ${failure}`);
+            await panel.webview.postMessage({
+                command: 'publishResult',
+                fieldErrors,
+                isSuccess: false,
+                message: failureMessage
+            });
+            return;
+        }
+
+        // Confirm success in the log, status bar, tab title, and the page banner.
+        this._logger.information(`Flow '${flowName}' updated from 'bots/${botFile.relativePath}'.`);
+        vscode.window.setStatusBarMessage(`$(check) Flow '${flowName}' updated.`, 5000);
+        panel.title = `Publish Flow · ${manifest.key}`;
+
+        const existingFlow = await this._client.getFlow(manifest.namespace, manifest.key);
+        await panel.webview.postMessage({
+            command: 'publishResult',
+            existingFlow: existingFlow ?? null,
+            fieldErrors: {},
+            isSuccess: true,
+            message: `Published ${flowName}.`
+        });
+    }
+}
+
+// Contracts are kept after executable code; interfaces precede type aliases, and local dependency
+// chains take priority over A-Z sorting.
+
+/**
+ * Inputs for the component data injected into #g4-data.
+ */
+interface PublisherDataOptions {
+    /** Parsed bot JSON, including any authentication block (removed from the preview). */
+    automation: any;
+
+    /** Selected bot. */
+    botFile: BotFile;
+
+    /** Stored flow for the default key, or undefined when none exists or the Hub is unreachable. */
+    existingFlow: any;
+
+    /** True when the bundled schema is used because the Hub schema was not available. */
+    isSchemaFallback: boolean;
+
+    /** components.schemas from the flows OpenAPI document. */
+    schemas: Record<string, any>;
+}
+
+/**
+ * One message from a publisher tab, with the context needed to answer it.
+ */
+interface PublisherMessageOptions {
+    /** Parsed bot JSON for the tab's bot. */
+    automation: any;
+
+    /** The tab's bot. */
+    botFile: BotFile;
+
+    /** Message posted by the page: lookupFlow or publish. */
+    message: any;
+
+    /** The tab that posted the message. */
+    panel: vscode.WebviewPanel;
+}
+
+/**
+ * One bot file offered for publishing.
+ */
+interface BotFile {
+    /** Absolute path of the bot JSON file. */
+    filePath: string;
+
+    /** Default PascalCase flow key derived from the file name; empty when the name has no letters or digits. */
+    key: string;
+
+    /** Path relative to the bots folder with forward slashes, e.g. `examples/find-something-on-bing.json`. */
+    relativePath: string;
+}

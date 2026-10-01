@@ -1,0 +1,57 @@
+/*
+ * Flow publisher parameters.
+ *
+ * The flow publisher must look like the G4 Settings editor, so every value below resolves to the same
+ * VS Code theme expression the settings component uses. The component keeps its own copy (no shared
+ * stylesheet) so each component stays isolated; keep these in step with automation-settings when the
+ * settings look changes.
+ */
+:root {
+    /* Typography */
+    --flow-publisher-font-family: 'Inter', sans-serif;
+    --flow-publisher-monospace-font-family: 'Consolas', monospace;
+
+    /* Page */
+    --flow-publisher-background: var(--vscode-editor-background);
+    --flow-publisher-foreground: var(--vscode-editor-foreground);
+    --flow-publisher-muted-foreground: var(--vscode-descriptionForeground);
+    --flow-publisher-border-color: var(--vscode-panel-border);
+    --flow-publisher-bar-background: var(--vscode-editorGroupHeader-tabsBackground);
+    --flow-publisher-surface-background: var(--vscode-sideBar-background);
+
+    /* Inputs */
+    --flow-publisher-input-border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+    --flow-publisher-input-background: var(--vscode-input-background, transparent);
+    --flow-publisher-focus-border-color: var(--vscode-focusBorder);
+
+    /* Status */
+    --flow-publisher-error-foreground: var(--vscode-errorForeground);
+    --flow-publisher-success-foreground: var(--vscode-testing-iconPassed, #22c55e);
+
+    /* Toggle switch */
+    --flow-publisher-switch-background: var(--vscode-panel-border);
+    --flow-publisher-switch-knob-background: var(--vscode-editor-background);
+    --flow-publisher-switch-on-background: var(--vscode-testing-iconPassed, #22c55e);
+    --flow-publisher-switch-radius: 9px;
+    --flow-publisher-switch-transition: background-color .15s;
+    --flow-publisher-switch-knob-transition: transform .15s;
+    --flow-publisher-switch-knob-offset: translateX(16px);
+
+    /* Buttons */
+    --flow-publisher-button-background: var(--vscode-button-background);
+    --flow-publisher-button-foreground: var(--vscode-button-foreground);
+    --flow-publisher-button-hover-background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+    --flow-publisher-button-ghost-foreground: var(--vscode-foreground);
+    --flow-publisher-hover-background: var(--vscode-list-hoverBackground);
+    --flow-publisher-button-radius: 2px;
+    --flow-publisher-disabled-opacity: .6;
+
+    /* JSON format button and the action bar note */
+    --flow-publisher-format-button-background: var(--vscode-input-background, var(--vscode-editor-background));
+    --flow-publisher-fade-transition: opacity .15s;
+    --flow-publisher-note-transition: opacity .2s;
+
+    /* Links */
+    --flow-publisher-link-foreground: var(--vscode-textLink-foreground);
+    --flow-publisher-link-active-foreground: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+}

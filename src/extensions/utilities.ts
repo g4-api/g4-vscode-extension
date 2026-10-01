@@ -508,6 +508,54 @@ export class Utilities {
     }
 
     /**
+     * Tests whether a URI points to a supported bot file inside one of the given workspace folders.
+     *
+     * @remarks
+     * Shared by every bot command (Open as JSON, Open in Workflow Editor, Publish as Flow) so the
+     * Explorer menu rules and the command-side checks stay the same. A folder matches by path
+     * segment relative to a workspace folder, so `bots` accepts `bots/x.json` and
+     * `bots/examples/x.json` but not `base.bots/x.json`; callers that also accept recorded/base
+     * definitions pass additional folder names (for example 'base.bots').
+     *
+     * @param uri - Resource to test.
+     * @param extensions - Accepted lower-case file extensions, including the dot (for example '.json').
+     * @param folderNames - Accepted folder names; defaults to 'bots'.
+     * @returns True when the file has an accepted extension and sits under an accepted folder.
+     */
+    public static testBotFile(uri: vscode.Uri, extensions: string[], folderNames: string[] = ['bots']): boolean {
+        // Only local files can be bot files.
+        if (uri.scheme !== 'file') {
+            return false;
+        }
+
+        // The extension must be one of the accepted ones.
+        const supportedExtensions = new Set(extensions);
+
+        if (!supportedExtensions.has(path.extname(uri.fsPath).toLowerCase())) {
+            return false;
+        }
+
+        // Some path segment under a workspace folder must be an accepted folder name.
+        // Separators are runs of forward or back slashes; linear, one character class.
+        const pathSeparatorPattern = /[\\/]+/;
+        const acceptedFolders = new Set(folderNames.map(name => name.toLowerCase()));
+        const folders = vscode.workspace.workspaceFolders ?? [];
+
+        return folders.some(folder => {
+            const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+            const isOutsideFolder = !relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath);
+
+            if (isOutsideFolder) {
+                return false;
+            }
+
+            return relativePath
+                .split(pathSeparatorPattern)
+                .some(segment => acceptedFolders.has(segment.toLowerCase()));
+        });
+    }
+
+    /**
      * Resolves the absolute path to a specified system folder within the current workspace.
      *
      * @param folder - The folder name to resolve. Valid options:

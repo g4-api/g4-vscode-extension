@@ -207,7 +207,7 @@ export class ShowSettingsCommand extends CommandBase {
                 context.extensionUri,
                 'resources.components',
                 'automation-settings',
-                'settings.css'
+                'automation-settings.css'
             )
         );
 
@@ -217,7 +217,7 @@ export class ShowSettingsCommand extends CommandBase {
                 context.extensionUri,
                 'resources.components',
                 'automation-settings',
-                'settings.js'
+                'automation-settings.js'
             )
         );
 
@@ -228,7 +228,7 @@ export class ShowSettingsCommand extends CommandBase {
         const manifestJson = JSON.stringify(manifest, null, 4);
 
         // Load the settings component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/automation-settings/settings.html');
+        const html = Utilities.getResource('resources.components/automation-settings/automation-settings.html');
 
         // Inject the manifest data and font URI into the HTML template and return it.
         // The manifest is supplied through a replacer function so any literal `$`
