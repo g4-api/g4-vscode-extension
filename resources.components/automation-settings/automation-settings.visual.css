@@ -104,12 +104,65 @@
             background-color: var(--vscode-list-hoverBackground)
         }
 
-        .json-format-btn {
+        /* Corner buttons over a text box keep the text box background, like the flow publisher. */
+        .text-tools .btn {
             background-color: var(--vscode-input-background, var(--vscode-editor-background))
         }
 
-        .json-format-btn:hover {
+        .text-tools .btn:hover {
             background-color: var(--vscode-list-hoverBackground)
+        }
+
+        /* Line-number gutter: joined to the left edge of its text box. */
+        .field-line-numbers {
+            color: var(--vscode-descriptionForeground);
+            background-color: var(--vscode-sideBar-background);
+            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+            border-right: none
+        }
+
+        /* Expanded editor */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, .45)
+        }
+
+        .modal {
+            border: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-editor-background);
+            box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, .36))
+        }
+
+        .modal-hdr {
+            background-color: var(--vscode-sideBar-background);
+            border-bottom: 1px solid var(--vscode-panel-border)
+        }
+
+        .line-numbers {
+            color: var(--vscode-descriptionForeground);
+            background-color: var(--vscode-sideBar-background);
+            border-right: 1px solid var(--vscode-panel-border)
+        }
+
+        textarea.expand-textarea {
+            border: none
+        }
+
+        /* Close: a theme-colored circle; the white disc behind it shows through the X. */
+        .modal-close {
+            cursor: pointer;
+            border: none;
+            border-radius: 50%;
+            color: var(--vscode-button-background);
+            background: radial-gradient(circle closest-side, var(--vscode-button-foreground) 0 76%, transparent 78%)
+        }
+
+        .modal-close:hover {
+            color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
+        }
+
+        .modal-close:focus-visible {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 1px
         }
 
         .actionbar {
@@ -120,6 +173,11 @@
         .item-card {
             border: 1px solid var(--vscode-panel-border);
             background-color: var(--vscode-sideBar-background)
+        }
+
+        /* Foldable cards (repositories, MCP servers) fold from their header, like the recorder cards. */
+        .foldable-card .item-card-hdr {
+            cursor: pointer
         }
 
         .note {

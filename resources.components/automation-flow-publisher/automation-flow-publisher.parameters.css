@@ -51,6 +51,19 @@
     --flow-publisher-fade-transition: opacity .15s;
     --flow-publisher-note-transition: opacity .2s;
 
+    /* Corner buttons in text boxes: the right offset clears a vertical scrollbar, and the
+       clearance keeps text out from under two icon buttons. */
+    --flow-publisher-text-tools-right: 20px;
+    --flow-publisher-text-tools-clearance: 100px;
+
+    /* Modals */
+    --flow-publisher-modal-close-size: 30px;
+    --flow-publisher-modal-backdrop: rgba(0, 0, 0, .45);
+    --flow-publisher-modal-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, .36));
+
+    /* Warnings */
+    --flow-publisher-warning-foreground: var(--vscode-editorWarning-foreground, #cca700);
+
     /* Links */
     --flow-publisher-link-foreground: var(--vscode-textLink-foreground);
     --flow-publisher-link-active-foreground: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));

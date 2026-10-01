@@ -18,6 +18,38 @@ const SVG_CARET_DOWN = `
 const SVG_REFRESH = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640"><path fill="currentColor" d="M129.9 292.5C143.2 199.5 223.3 128 320 128C373 128 421 149.5 455.8 184.2C456 184.4 456.2 184.6 456.4 184.8L464 192L416.1 192C398.4 192 384.1 206.3 384.1 224C384.1 241.7 398.4 256 416.1 256L544.1 256C561.8 256 576.1 241.7 576.1 224L576.1 96C576.1 78.3 561.8 64 544.1 64C526.4 64 512.1 78.3 512.1 96L512.1 149.4L500.8 138.7C454.5 92.6 390.5 64 320 64C191 64 84.3 159.4 66.6 283.5C64.1 301 76.2 317.2 93.7 319.7C111.2 322.2 127.4 310 129.9 292.6zM573.4 356.5C575.9 339 563.7 322.8 546.3 320.3C528.9 317.8 512.6 330 510.1 347.4C496.8 440.4 416.7 511.9 320 511.9C267 511.9 219 490.4 184.2 455.7C184 455.5 183.8 455.3 183.6 455.1L176 447.9L223.9 447.9C241.6 447.9 255.9 433.6 255.9 415.9C255.9 398.2 241.6 383.9 223.9 383.9L96 384C87.5 384 79.3 387.4 73.3 393.5C67.3 399.6 63.9 407.7 64 416.3L65 543.3C65.1 561 79.6 575.2 97.3 575C115 574.8 129.2 560.4 129 542.7L128.6 491.2L139.3 501.3C185.6 547.4 249.5 576 320 576C449 576 555.7 480.6 573.4 356.5z"/></svg>`;
 
+// Icon buttons and modal controls. Embedded in this component on purpose (not shared assets);
+// currentColor lets every icon follow the theme like the other settings icons.
+const SVG_ARROW_DOWN = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M297.4 598.6C309.9 611.1 330.2 611.1 342.7 598.6L470.7 470.6C479.9 461.4 482.6 447.7 477.6 435.7C472.6 423.7 460.9 416 448 416L384 416L384 80C384 53.5 362.5 32 336 32L304 32C277.5 32 256 53.5 256 80L256 416L192 416C179.1 416 167.4 423.8 162.4 435.8C157.4 447.8 160.2 461.5 169.4 470.6L297.4 598.6z"/></svg>`;
+
+const SVG_ARROW_UP = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M297.4 41.4C309.9 28.9 330.2 28.9 342.7 41.4L470.7 169.4C479.9 178.6 482.6 192.3 477.6 204.3C472.6 216.3 460.9 224 448 224L384 224L384 560C384 586.5 362.5 608 336 608L304 608C277.5 608 256 586.5 256 560L256 224L192 224C179.1 224 167.4 216.2 162.4 204.2C157.4 192.2 160.2 178.5 169.4 169.4L297.4 41.4z"/></svg>`;
+
+const SVG_CLOSE = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M320 576C461.4 576 576 461.4 576 320C576 178.6 461.4 64 320 64C178.6 64 64 178.6 64 320C64 461.4 178.6 576 320 576zM231 231C240.4 221.6 255.6 221.6 264.9 231L319.9 286L374.9 231C384.3 221.6 399.5 221.6 408.8 231C418.1 240.4 418.2 255.6 408.8 264.9L353.8 319.9L408.8 374.9C418.2 384.3 418.2 399.5 408.8 408.8C399.4 418.1 384.2 418.2 374.9 408.8L319.9 353.8L264.9 408.8C255.5 418.2 240.3 418.2 231 408.8C221.7 399.4 221.6 384.2 231 374.9L286 319.9L231 264.9C221.6 255.5 221.6 240.3 231 231z"/></svg>`;
+
+const SVG_EXPAND = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M128 96C110.3 96 96 110.3 96 128L96 224C96 241.7 110.3 256 128 256C145.7 256 160 241.7 160 224L160 160L224 160C241.7 160 256 145.7 256 128C256 110.3 241.7 96 224 96L128 96zM160 416C160 398.3 145.7 384 128 384C110.3 384 96 398.3 96 416L96 512C96 529.7 110.3 544 128 544L224 544C241.7 544 256 529.7 256 512C256 494.3 241.7 480 224 480L160 480L160 416zM416 96C398.3 96 384 110.3 384 128C384 145.7 398.3 160 416 160L480 160L480 224C480 241.7 494.3 256 512 256C529.7 256 544 241.7 544 224L544 128C544 110.3 529.7 96 512 96L416 96zM544 416C544 398.3 529.7 384 512 384C494.3 384 480 398.3 480 416L480 480L416 480C398.3 480 384 494.3 384 512C384 529.7 398.3 544 416 544L512 544C529.7 544 544 529.7 544 512L544 416z"/></svg>`;
+
+const SVG_EYE = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M320 96C239.2 96 174.5 132.8 127.4 176.6C80.6 220.1 49.3 272 34.4 307.7C31.1 315.6 31.1 324.4 34.4 332.3C49.3 368 80.6 420 127.4 463.4C174.5 507.1 239.2 544 320 544C400.8 544 465.5 507.2 512.6 463.4C559.4 419.9 590.7 368 605.6 332.3C608.9 324.4 608.9 315.6 605.6 307.7C590.7 272 559.4 220 512.6 176.6C465.5 132.9 400.8 96 320 96zM176 320C176 240.5 240.5 176 320 176C399.5 176 464 240.5 464 320C464 399.5 399.5 464 320 464C240.5 464 176 399.5 176 320zM320 256C320 291.3 291.3 320 256 320C244.5 320 233.7 317 224.3 311.6C223.3 322.5 224.2 333.7 227.2 344.8C240.9 396 293.6 426.4 344.8 412.7C396 399 426.4 346.3 412.7 295.1C400.5 249.4 357.2 220.3 311.6 224.3C316.9 233.6 320 244.4 320 256z"/></svg>`;
+
+const SVG_EYE_SLASH = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M73 39.1C63.6 29.7 48.4 29.7 39.1 39.1C29.8 48.5 29.7 63.7 39 73.1L567 601.1C576.4 610.5 591.6 610.5 600.9 601.1C610.2 591.7 610.3 576.5 600.9 567.2L504.5 470.8C507.2 468.4 509.9 466 512.5 463.6C559.3 420.1 590.6 368.2 605.5 332.5C608.8 324.6 608.8 315.8 605.5 307.9C590.6 272.2 559.3 220.2 512.5 176.8C465.4 133.1 400.7 96.2 319.9 96.2C263.1 96.2 214.3 114.4 173.9 140.4L73 39.1zM236.5 202.7C260 185.9 288.9 176 320 176C399.5 176 464 240.5 464 320C464 351.1 454.1 379.9 437.3 403.5L402.6 368.8C415.3 347.4 419.6 321.1 412.7 295.1C399 243.9 346.3 213.5 295.1 227.2C286.5 229.5 278.4 232.9 271.1 237.2L236.4 202.5zM357.3 459.1C345.4 462.3 332.9 464 320 464C240.5 464 176 399.5 176 320C176 307.1 177.7 294.6 180.9 282.7L101.4 203.2C68.8 240 46.4 279 34.5 307.7C31.2 315.6 31.2 324.4 34.5 332.3C49.4 368 80.7 420 127.5 463.4C174.6 507.1 239.3 544 320.1 544C357.4 544 391.3 536.1 421.6 523.4L357.4 459.2z"/></svg>`;
+
+const SVG_FORMAT = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M392.8 65.2C375.8 60.3 358.1 70.2 353.2 87.2L225.2 535.2C220.3 552.2 230.2 569.9 247.2 574.8C264.2 579.7 281.9 569.8 286.8 552.8L414.8 104.8C419.7 87.8 409.8 70.1 392.8 65.2zM457.4 201.3C444.9 213.8 444.9 234.1 457.4 246.6L530.8 320L457.4 393.4C444.9 405.9 444.9 426.2 457.4 438.7C469.9 451.2 490.2 451.2 502.7 438.7L598.7 342.7C611.2 330.2 611.2 309.9 598.7 297.4L502.7 201.4C490.2 188.9 469.9 188.9 457.4 201.4zM182.7 201.3C170.2 188.8 149.9 188.8 137.4 201.3L41.4 297.3C28.9 309.8 28.9 330.1 41.4 342.6L137.4 438.6C149.9 451.1 170.2 451.1 182.7 438.6C195.2 426.1 195.2 405.8 182.7 393.3L109.3 320L182.6 246.6C195.1 234.1 195.1 213.8 182.6 201.3z"/></svg>`;
+
+const SVG_SEARCH = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M480 272C480 317.9 465.1 360.3 440 394.7L566.6 521.4C579.1 533.9 579.1 554.2 566.6 566.7C554.1 579.2 533.8 579.2 521.3 566.7L394.7 440C360.3 465.1 317.9 480 272 480C157.1 480 64 386.9 64 272C64 157.1 157.1 64 272 64C386.9 64 480 157.1 480 272zM272 416C351.5 416 416 351.5 416 272C416 192.5 351.5 128 272 128C192.5 128 128 192.5 128 272C128 351.5 192.5 416 272 416z"/></svg>`;
+
+const SVG_TRASH = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M232.7 69.9C237.1 56.8 249.3 48 263.1 48L377 48C390.8 48 403 56.8 407.4 69.9L416 96L512 96C529.7 96 544 110.3 544 128C544 145.7 529.7 160 512 160L128 160C110.3 160 96 145.7 96 128C96 110.3 110.3 96 128 96L224 96L232.7 69.9zM128 208L512 208L512 512C512 547.3 483.3 576 448 576L192 576C156.7 576 128 547.3 128 512L128 208zM216 272C202.7 272 192 282.7 192 296L192 488C192 501.3 202.7 512 216 512C229.3 512 240 501.3 240 488L240 296C240 282.7 229.3 272 216 272zM320 272C306.7 272 296 282.7 296 296L296 488C296 501.3 306.7 512 320 512C333.3 512 344 501.3 344 488L344 296C344 282.7 333.3 272 320 272zM424 272C410.7 272 400 282.7 400 296L400 488C400 501.3 410.7 512 424 512C437.3 512 448 501.3 448 488L448 296C448 282.7 437.3 272 424 272z"/></svg>`;
+
+// Line breaks in text box content (Windows or Unix). Linear: optional character plus one literal.
+const LINE_BREAK_PATTERN = /\r?\n/;
+
 // Shared bottom status line metadata for every settings section.
 globalThis.SECTION_STATUS = {
     connection: {
@@ -354,6 +386,24 @@ function addEntry(path) {
 }
 
 /**
+ * Adds an empty entry to the list at `path` (one text box per entry) and focuses it.
+ *
+ * @param {string} path - Dotted state path to the string[] list.
+ */
+function addListEntry(path) {
+    // Resolve the current list, append an empty entry, and store it.
+    const existing = getPath(globalThis.STATE, path);
+    const list = Array.isArray(existing) ? existing : [];
+
+    list.push('');
+    setPath(globalThis.STATE, path, list);
+
+    // Re-render the owning section and focus the new row.
+    updateSection(resolveSectionId(path));
+    showItem(document.getElementById('list-' + path.replace(/[^a-z0-9]/gi, '-'))?.lastElementChild);
+}
+
+/**
  * Adds a new desktop recorder seeded from the shipped recorder template.
  *
  * Behavior:
@@ -375,6 +425,7 @@ function addRecorder() {
     // Append the recorder, re-render, and reveal the new card.
     recorders.push(template);
     updateSection('recorders');
+    setCardOpen(`rec-body-${recorders.length - 1}`, true);
     showItem(document.querySelector('#sec-recorders .card-list')?.lastElementChild);
 }
 
@@ -394,6 +445,7 @@ function addRepository() {
     repositories.push({ name: '', url: '', version: 1, timeout: 300, capabilities: {}, headers: {} });
     setPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories', repositories);
     updateSection('plugins');
+    setCardOpen(`repo-body-${repositories.length - 1}`, true);
     showItem(document.querySelector('#sec-plugins .card-list')?.lastElementChild);
 }
 
@@ -420,6 +472,7 @@ function addServer() {
     servers[name] = { type: 'stdio', command: '', args: [] };
     setPath(globalThis.STATE, 'settings.pluginsSettings.servers', servers);
     updateSection('mcp');
+    setCardOpen(`mcp-body-${Object.keys(servers).length - 1}`, true);
     showItem(document.querySelector('#sec-mcp .card-list')?.lastElementChild);
 }
 
@@ -806,6 +859,130 @@ function getSectionStatus(sectionId) {
 }
 
 /**
+ * Moves one entry of the list at `path` up or down, when the target position exists.
+ *
+ * @param {string} path - Dotted state path to the list.
+ * @param {number} index - The entry index to move.
+ * @param {number} offset - -1 to move up, 1 to move down.
+ */
+function moveListEntry(path, index, offset) {
+    const list = getPath(globalThis.STATE, path);
+    const target = index + offset;
+    const isInRange = Array.isArray(list) && target >= 0 && target < list.length;
+
+    if (!isInRange) {
+        return;
+    }
+
+    // Swap the two entries, then re-render the owning section.
+    [list[index], list[target]] = [list[target], list[index]];
+    updateSection(resolveSectionId(path));
+}
+
+/**
+ * Moves a foldable card up or down, so each card keeps its own open/closed state.
+ *
+ * @param {object} options - Move options.
+ * @param {string} options.bodyPrefix - Card body id prefix (e.g. 'rec-body-'); ids end with the position.
+ * @param {number} options.count - Number of cards.
+ * @param {number} options.index - The card position to move.
+ * @param {number} options.offset - -1 to move up, 1 to move down.
+ * @param {function(number, number): void} options.swap - Swaps the two items in state.
+ * @param {string} options.sectionId - The section to re-render.
+ */
+function moveCard({ bodyPrefix, count, index, offset, swap, sectionId }) {
+    const target = index + offset;
+
+    if (target < 0 || target >= count) {
+        return;
+    }
+
+    // Read both cards' open states, swap the items, re-render, then give each state to its card.
+    const isIndexOpen = !document.getElementById(bodyPrefix + index)?.classList.contains('is-collapsed');
+    const isTargetOpen = !document.getElementById(bodyPrefix + target)?.classList.contains('is-collapsed');
+
+    swap(index, target);
+    updateSection(sectionId);
+    setCardOpen(bodyPrefix + target, isIndexOpen);
+    setCardOpen(bodyPrefix + index, isTargetOpen);
+}
+
+/**
+ * Moves a desktop recorder card up or down, keeping each card's open/closed state.
+ *
+ * @param {number} index - The recorder index to move.
+ * @param {number} offset - -1 to move up, 1 to move down.
+ */
+function moveRecorder(index, offset) {
+    const recorders = globalThis.STATE.settings.recorderSettings.recorders;
+
+    moveCard({
+        bodyPrefix: 'rec-body-',
+        count: recorders.length,
+        index,
+        offset,
+        sectionId: 'recorders',
+        swap: (first, second) => {
+            [recorders[first], recorders[second]] = [recorders[second], recorders[first]];
+        }
+    });
+}
+
+/**
+ * Moves an external plugin repository card up or down, keeping each card's open/closed state.
+ *
+ * @param {number} index - The repository index to move.
+ * @param {number} offset - -1 to move up, 1 to move down.
+ */
+function moveRepository(index, offset) {
+    const repositories = getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories');
+
+    if (!Array.isArray(repositories)) {
+        return;
+    }
+
+    moveCard({
+        bodyPrefix: 'repo-body-',
+        count: repositories.length,
+        index,
+        offset,
+        sectionId: 'plugins',
+        swap: (first, second) => {
+            [repositories[first], repositories[second]] = [repositories[second], repositories[first]];
+        }
+    });
+}
+
+/**
+ * Moves an MCP server card up or down by rebuilding the servers map in the new key order.
+ *
+ * @param {string} name - The server key to move.
+ * @param {number} offset - -1 to move up, 1 to move down.
+ */
+function moveServer(name, offset) {
+    const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers') || {};
+    const names = Object.keys(servers);
+    const index = names.indexOf(name);
+
+    if (index === -1) {
+        return;
+    }
+
+    // Swap the two names and rebuild the map in that order.
+    moveCard({
+        bodyPrefix: 'mcp-body-',
+        count: names.length,
+        index,
+        offset,
+        sectionId: 'mcp',
+        swap: (first, second) => {
+            [names[first], names[second]] = [names[second], names[first]];
+            setPath(globalThis.STATE, 'settings.pluginsSettings.servers', Object.fromEntries(names.map((key) => [key, servers[key]])));
+        }
+    });
+}
+
+/**
  * Deep-merges an override object onto a base object, returning the base.
  *
  * Behavior:
@@ -887,6 +1064,22 @@ function newManifest() {
         delete manifest.settings.pluginsSettings.servers;
     }
 
+    // Lists edited as one text box per entry: drop blank entries and surrounding spaces.
+    const getCleanList = (list) => (Array.isArray(list) ? list : [])
+        .map((entry) => String(entry ?? '').trim())
+        .filter(Boolean);
+    const sourceOptions = manifest.settings?.clientLogConfiguration?.sourceOptions;
+
+    if (sourceOptions && Array.isArray(sourceOptions.sources)) {
+        sourceOptions.sources = getCleanList(sourceOptions.sources);
+    }
+
+    for (const server of Object.values(servers ?? {})) {
+        if (Array.isArray(server?.args)) {
+            server.args = getCleanList(server.args);
+        }
+    }
+
     // Mirror the base manifest: an empty repository list is stored as null.
     const repositories = manifest.settings?.pluginsSettings?.externalRepositories;
 
@@ -896,6 +1089,18 @@ function newManifest() {
 
     // Return the cleaned manifest.
     return manifest;
+}
+
+/**
+ * Closes the expanded editor on Escape.
+ *
+ * @param {KeyboardEvent} event - Key event.
+ */
+function onDocumentKeyDown(event) {
+    if (event.key === 'Escape' && document.getElementById('expand-layer')) {
+        event.preventDefault();
+        hideExpandEditor();
+    }
 }
 
 /**
@@ -921,6 +1126,23 @@ function onHostMessage(event) {
     }
 
     setSandboxPath(message.sandboxPath);
+}
+
+/**
+ * Keeps a text box's line numbers aligned while it scrolls. Registered as a capturing listener,
+ * because scroll events do not bubble.
+ *
+ * @param {Event} event - Scroll event.
+ */
+function onTextBoxScroll(event) {
+    const target = event.target;
+    const gutter = target?.dataset?.lineNumbers === undefined
+        ? null
+        : document.getElementById(`${target.id}-line-numbers`);
+
+    if (gutter) {
+        gutter.scrollTop = target.scrollTop;
+    }
 }
 
 /**
@@ -1008,14 +1230,52 @@ function removeEntry(path, key) {
 }
 
 /**
+ * Removes one entry from the list at `path`.
+ *
+ * @param {string} path - Dotted state path to the string[] list.
+ * @param {number} index - The entry index to remove.
+ */
+function removeListEntry(path, index) {
+    // Drop the entry when the list exists, then re-render the owning section.
+    const list = getPath(globalThis.STATE, path);
+
+    if (Array.isArray(list)) {
+        list.splice(index, 1);
+    }
+
+    updateSection(resolveSectionId(path));
+}
+
+/**
  * Removes a desktop recorder by index.
  *
  * @param {number} index - The recorder index to remove.
  */
 function removeRecorder(index) {
-    // Drop the recorder at the index and re-render the section.
-    globalThis.STATE.settings.recorderSettings.recorders.splice(index, 1);
-    updateSection('recorders');
+    // Drop the recorder at the index and re-render the section; the other cards keep their states.
+    const recorders = globalThis.STATE.settings.recorderSettings.recorders;
+
+    removeCard({ bodyPrefix: 'rec-body-', count: recorders.length, index, sectionId: 'recorders', remove: () => recorders.splice(index, 1) });
+}
+
+/**
+ * Removes a foldable card and re-renders its section, so every remaining card keeps its own
+ * open/closed state (a re-render reopens cards by position, which would shift after a removal).
+ *
+ * @param {object} options - Remove options.
+ * @param {string} options.bodyPrefix - Card body id prefix (e.g. 'rec-body-'); ids end with the position.
+ * @param {number} options.count - Number of cards before the removal.
+ * @param {number} options.index - The card position to remove.
+ * @param {function(): void} options.remove - Removes the item from state.
+ * @param {string} options.sectionId - The section to re-render.
+ */
+function removeCard({ bodyPrefix, count, index, remove, sectionId }) {
+    const openStates = Array.from({ length: count }, (_, position) => !document.getElementById(bodyPrefix + position)?.classList.contains('is-collapsed'));
+
+    openStates.splice(index, 1);
+    remove();
+    updateSection(sectionId);
+    openStates.forEach((isOpen, position) => setCardOpen(bodyPrefix + position, isOpen));
 }
 
 /**
@@ -1027,11 +1287,12 @@ function removeRepository(index) {
     // Drop the repository at the index when the list exists, then re-render.
     const repositories = getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories');
 
-    if (Array.isArray(repositories)) {
-        repositories.splice(index, 1);
+    if (!Array.isArray(repositories)) {
+        updateSection('plugins');
+        return;
     }
 
-    updateSection('plugins');
+    removeCard({ bodyPrefix: 'repo-body-', count: repositories.length, index, sectionId: 'plugins', remove: () => repositories.splice(index, 1) });
 }
 
 /**
@@ -1042,10 +1303,15 @@ function removeRepository(index) {
 function removeServer(name) {
     // Delete the server entry when present and re-render the section.
     const servers = getPath(globalThis.STATE, 'settings.pluginsSettings.servers');
-    if (servers) {
-        delete servers[name];
+    const names = Object.keys(servers || {});
+    const index = names.indexOf(name);
+
+    if (index === -1) {
+        updateSection('mcp');
+        return;
     }
-    updateSection('mcp');
+
+    removeCard({ bodyPrefix: 'mcp-body-', count: names.length, index, sectionId: 'mcp', remove: () => delete servers[name] });
 }
 
 /**
@@ -1138,8 +1404,29 @@ function resolveSectionId(path) {
         return 'recorders';
     }
 
+    // Log settings (including the Sources list) belong to the logging section.
+    if (path.startsWith('settings.clientLogConfiguration')) {
+        return 'logging';
+    }
+
     // Unknown owner.
     return null;
+}
+
+/**
+ * Closes the expanded editor and returns focus to the text box it edits.
+ */
+function hideExpandEditor() {
+    const layer = document.getElementById('expand-layer');
+
+    if (!layer) {
+        return;
+    }
+
+    const source = document.getElementById(layer.dataset.targetId);
+
+    layer.remove();
+    source?.focus();
 }
 
 /**
@@ -1151,6 +1438,28 @@ function resolveSectionId(path) {
  * - Briefly shows a "Settings sent" note regardless of host wiring.
  */
 function save() {
+    // Check everything first, so every problem is shown at once: empty required fields get
+    // "Required." (their section and card open), and repeated log sources are marked.
+    const isRequiredMissing = showRequiredErrors();
+    const sourcesPath = 'settings.clientLogConfiguration.sourceOptions.sources';
+    const isSourceRepeated = showListErrors(sourcesPath);
+
+    // Repeated log sources: open the Logging section and say why.
+    if (isSourceRepeated) {
+        const body = document.getElementById('sec-logging');
+
+        if (body?.classList.contains('is-collapsed')) {
+            updateSectionCollapse('sec-logging', 'seci-logging');
+        }
+
+        setSectionStatus('logging', 'Remove the duplicate sources before saving.', 'status-err');
+    }
+
+    // Nothing is saved while any problem remains.
+    if (isRequiredMissing || isSourceRepeated) {
+        return;
+    }
+
     // Build the clean manifest to send.
     const manifest = newManifest();
 
@@ -1313,6 +1622,63 @@ function setError(errorElement, message) {
 }
 
 /**
+ * Opens or closes a foldable card (recorder, repository, MCP server) and turns its chevron.
+ *
+ * @param {string} bodyId - Id of the card body.
+ * @param {boolean} isOpen - The new state.
+ */
+function setCardOpen(bodyId, isOpen) {
+    const body = document.getElementById(bodyId);
+
+    if (!body) {
+        return;
+    }
+
+    body.classList.toggle('is-collapsed', !isOpen);
+    document.getElementById(body.dataset.chevronId)?.classList.toggle('open', isOpen);
+}
+
+/**
+ * Formats the JSON being edited in the expanded editor: formats the text box it edits, then
+ * shows the result (or the error) in the editor.
+ */
+function setExpandedFormat() {
+    const layer = document.getElementById('expand-layer');
+    const source = layer ? document.getElementById(layer.dataset.targetId) : null;
+    const editor = document.getElementById('expand-textarea');
+
+    if (!source || !editor) {
+        return;
+    }
+
+    setFormattedJson(source.id, source.dataset.jsonPath, source.dataset.errorId);
+    editor.value = source.value;
+    showExpandLineNumbers();
+    showExpandError();
+    editor.focus();
+}
+
+/**
+ * Copies the expanded editor's text into the text box it edits, live, through that box's own
+ * input handler (state, validation, line numbers).
+ *
+ * @param {string} value - Editor text.
+ */
+function setExpandedText(value) {
+    const layer = document.getElementById('expand-layer');
+    const source = layer ? document.getElementById(layer.dataset.targetId) : null;
+
+    if (!source) {
+        return;
+    }
+
+    source.value = value;
+    source.dispatchEvent(new Event('input', { bubbles: true }));
+    showExpandLineNumbers();
+    showExpandError();
+}
+
+/**
  * Validates and pretty-prints the JSON in a textarea (4-space indent).
  *
  * Behavior:
@@ -1348,6 +1714,7 @@ function setFormattedJson(textareaId, path, errorElementId) {
         textarea.value = JSON.stringify(parsed, null, 4);
         setPath(globalThis.STATE, path, parsed);
         setError(errorElement, '');
+        showFieldLineNumbers(textarea);
     } catch (error) {
         // Leave invalid JSON untouched and surface the error.
         const message = error instanceof Error
@@ -1405,25 +1772,26 @@ function setJsonValue(path, rawValue, errorElementId) {
 }
 
 /**
- * Handles a multi-line list change, mapping non-empty lines to an array.
+ * Stores one typed entry of the list at `path`, and re-checks duplicates when the list must be
+ * unique.
  *
- * Behavior:
- * - Splits the textarea contents into lines.
- * - Trims each line and drops empty ones.
- * - Writes the resulting array into state at `path`.
- *
- * @param {string} path - The dotted state path (string[]).
- * @param {string} rawValue - The textarea contents.
+ * @param {string} path - Dotted state path to the string[] list.
+ * @param {number} index - The entry index.
+ * @param {string} value - The typed text (kept as typed; blank entries are dropped on save).
+ * @param {boolean} [isUnique=false] - Whether repeated entries are reported.
  */
-function setListValue(path, rawValue) {
-    // Split into trimmed, non-empty lines and store them as an array.
-    const list = String(rawValue || '')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean);
+function setListEntry(path, index, value, isUnique = false) {
+    const list = getPath(globalThis.STATE, path);
 
-    // Write the resulting array into state.
-    setPath(globalThis.STATE, path, list);
+    if (!Array.isArray(list)) {
+        return;
+    }
+
+    list[index] = value;
+
+    if (isUnique) {
+        showListErrors(path);
+    }
 }
 
 /**
@@ -1563,6 +1931,155 @@ function setServerType(name, type) {
 }
 
 /**
+ * Mirrors the JSON error of the text box being edited into the expanded editor's error line.
+ */
+function showExpandError() {
+    const layer = document.getElementById('expand-layer');
+    const source = layer ? document.getElementById(layer.dataset.targetId) : null;
+    const errorElement = document.getElementById('expand-error');
+
+    if (source && errorElement) {
+        errorElement.textContent = document.getElementById(source.dataset.errorId)?.textContent ?? '';
+    }
+}
+
+/**
+ * Opens the expanded editor for one text box: a large centered editor with line numbers whose
+ * typing updates the text box live. A JSON box also gets Format and its error line.
+ *
+ * @param {string} textareaId - Id of the text box to edit.
+ */
+function showExpandEditor(textareaId) {
+    const source = document.getElementById(textareaId);
+
+    if (!source || document.getElementById('expand-layer')) {
+        return;
+    }
+
+    // Title: the field label, prefixed with the card title for a field inside a card.
+    const field = source.closest('.field');
+    const labelText = field?.querySelector('.field-label')?.firstChild?.textContent.trim() || 'Text';
+    const cardTitle = source.closest('.item-card')?.querySelector('.item-card-title')?.textContent.trim();
+    const title = cardTitle ? `${cardTitle} - ${labelText}` : labelText;
+    const isJson = source.dataset.jsonPath !== undefined;
+    const formatHtml = isJson
+        ? writeIconButton({ icon: SVG_FORMAT, label: 'Check & Format JSON', onclick: 'setExpandedFormat()', testId: 'expand-editor-format-button' })
+        : '';
+    const errorHtml = isJson ? '<div class="field-error expand-error" id="expand-error" role="alert"></div>' : '';
+
+    document.getElementById('g4-modal').insertAdjacentHTML('beforeend', `
+    <div id="expand-layer" class="modal-backdrop" data-target-id="${getEscapedText(textareaId)}" data-test-id="expand-editor-layer">
+        <div class="modal modal--editor" role="dialog" aria-modal="true" aria-labelledby="expand-title" data-test-id="expand-editor-modal">
+            <div class="modal-hdr">
+                <span id="expand-title" class="modal-title">${getEscapedText(title)}</span>
+                <span class="spacer"></span>
+                ${formatHtml}
+            </div>
+            <div class="expand-body">
+                <div id="expand-gutter" class="line-numbers" aria-hidden="true"></div>
+                <textarea id="expand-textarea"
+                          class="expand-textarea mono"
+                          data-test-id="expand-editor-textarea"
+                          aria-labelledby="expand-title"
+                          spellcheck="false"
+                          wrap="off"
+                          oninput="setExpandedText(this.value)"
+                          onscroll="document.getElementById('expand-gutter').scrollTop = this.scrollTop">${getEscapedText(source.value)}</textarea>
+            </div>
+            ${errorHtml}
+            <button type="button"
+                    class="modal-close"
+                    title="Close (Esc)"
+                    data-test-id="expand-editor-close-button"
+                    aria-label="Close"
+                    onclick="hideExpandEditor()">${SVG_CLOSE}</button>
+        </div>
+    </div>`);
+
+    // Open where the caret was, with line numbers and any current error.
+    const editor = document.getElementById('expand-textarea');
+
+    showExpandLineNumbers();
+    showExpandError();
+    editor.focus();
+    editor.setSelectionRange(source.selectionStart, source.selectionEnd);
+}
+
+/**
+ * Writes one number per line into the expanded editor's gutter and keeps it aligned with the text.
+ */
+function showExpandLineNumbers() {
+    const editor = document.getElementById('expand-textarea');
+    const gutter = document.getElementById('expand-gutter');
+
+    if (!editor || !gutter) {
+        return;
+    }
+
+    const lineCount = editor.value.split(LINE_BREAK_PATTERN).length;
+
+    gutter.textContent = Array.from({ length: lineCount }, (_, index) => index + 1).join('\n');
+    gutter.scrollTop = editor.scrollTop;
+}
+
+/**
+ * Writes the line numbers of one text box into its gutter.
+ *
+ * @remarks
+ * Text boxes do not wrap, so every line is exactly one row. The row height is read from a hidden
+ * one-row text area with the box's font (a text area's row is taller than a block's when
+ * line-height is 'normal'), and the gutter scrolls in step with the text. A box in a folded
+ * section has no size yet; the resize observer numbers it when it becomes visible.
+ *
+ * @param {HTMLTextAreaElement} textarea - The text box.
+ */
+function showFieldLineNumbers(textarea) {
+    const gutter = textarea ? document.getElementById(`${textarea.id}-line-numbers`) : null;
+
+    if (!gutter || textarea.clientWidth === 0) {
+        return;
+    }
+
+    // One hidden one-row text area per page, used to read the row height of the box's font.
+    let rowProbe = document.getElementById('row-measure');
+
+    if (!rowProbe) {
+        rowProbe = document.createElement('textarea');
+        rowProbe.id = 'row-measure';
+        rowProbe.className = 'line-measure';
+        rowProbe.setAttribute('aria-hidden', 'true');
+        rowProbe.tabIndex = -1;
+        document.body.append(rowProbe);
+    }
+
+    const style = getComputedStyle(textarea);
+
+    rowProbe.style.font = style.font;
+    rowProbe.style.lineHeight = style.lineHeight;
+    rowProbe.value = 'x';
+
+    const rowHeight = rowProbe.scrollHeight;
+    const lines = textarea.value.split(LINE_BREAK_PATTERN);
+
+    // One number per line, each one row tall.
+    gutter.replaceChildren(...lines.map((_, index) => {
+        const number = document.createElement('div');
+        number.textContent = String(index + 1);
+        number.style.height = `${rowHeight}px`;
+        return number;
+    }));
+
+    // The rows layer is absolutely placed, so the numbers never stretch the box; the column is as
+    // wide as the largest number (in the box's monospace font, where 1ch is one digit).
+    gutter.style.font = style.font;
+    gutter.style.lineHeight = `${rowHeight}px`;
+    gutter.style.paddingTop = style.paddingTop;
+    gutter.parentElement.style.font = style.font;
+    gutter.parentElement.style.width = `calc(${String(lines.length).length}ch + 18px)`;
+    gutter.scrollTop = textarea.scrollTop;
+}
+
+/**
  * Scrolls a freshly added item into view and focuses its first editable
  * field.
  *
@@ -1580,6 +2097,85 @@ function showItem(element) {
     if (field) {
         field.focus();
     }
+}
+
+/**
+ * Shows "Duplicate of entry N." under each repeated entry of the list at `path` (ignoring case
+ * and blank entries); the first occurrence stays clean.
+ *
+ * @param {string} path - Dotted state path to the string[] list.
+ * @returns {boolean} True when the list has a duplicate.
+ */
+function showListErrors(path) {
+    const list = getPath(globalThis.STATE, path);
+    const slug = path.replace(/[^a-z0-9]/gi, '-');
+    const firstIndexes = new Map();
+    let isDuplicateFound = false;
+
+    (Array.isArray(list) ? list : []).forEach((entry, index) => {
+        const comparable = String(entry ?? '').trim().toLowerCase();
+        const isDuplicate = comparable !== '' && firstIndexes.has(comparable);
+        const message = isDuplicate ? `Duplicate of entry ${firstIndexes.get(comparable) + 1}.` : '';
+
+        if (comparable !== '' && !isDuplicate) {
+            firstIndexes.set(comparable, index);
+        }
+
+        isDuplicateFound = isDuplicateFound || isDuplicate;
+        setError(document.getElementById(`listerr-${slug}-${index}`), message);
+    });
+
+    return isDuplicateFound;
+}
+
+/**
+ * Marks every empty required field with "Required." (fields show only their * until a save), and
+ * opens the sections and cards that hold them.
+ *
+ * @returns {boolean} True when a required field is empty.
+ */
+function showRequiredErrors() {
+    const emptyFields = [...document.querySelectorAll('[data-required="true"]')]
+        .filter((control) => String(control.value ?? '').trim() === '');
+
+    for (const control of emptyFields) {
+        setError(document.getElementById(control.dataset.errorId), 'Required.');
+
+        // Open the card, then the section, that hold the field.
+        const cardBody = control.closest('.item-card-body');
+        const sectionBody = control.closest('.section-body');
+
+        if (cardBody?.classList.contains('is-collapsed')) {
+            setCardOpen(cardBody.id, true);
+        }
+
+        if (sectionBody?.classList.contains('is-collapsed')) {
+            updateSectionCollapse(sectionBody.id, sectionBody.id.replace('sec-', 'seci-'));
+        }
+    }
+
+    if (emptyFields.length === 0) {
+        return false;
+    }
+
+    // Say why in the first affected section, and bring the first empty field into view.
+    const sectionId = emptyFields[0].closest('.section-body')?.id.replace('sec-', '');
+
+    if (sectionId) {
+        setSectionStatus(sectionId, 'Fill in the required fields before saving.', 'status-err');
+    }
+
+    emptyFields[0].scrollIntoView({ block: 'center' });
+    emptyFields[0].focus();
+
+    return true;
+}
+
+/**
+ * Re-checks every list that must be unique, so a re-render never hides a duplicate message.
+ */
+function showUniqueListErrors() {
+    document.querySelectorAll('[data-unique-path]').forEach((list) => showListErrors(list.dataset.uniquePath));
 }
 
 /**
@@ -1630,6 +2226,11 @@ function showSettings() {
         <span class="spacer"></span>
         <span class="save-note" id="save-note">Settings sent.</span>
     </div>`;
+
+    // Number every text box (now, and as each one becomes visible or changes size), and check the
+    // lists that must be unique.
+    startLineNumbers();
+    showUniqueListErrors();
 }
 
 /**
@@ -1675,6 +2276,23 @@ function splitPath(path) {
 
     // Return the resolved segment list.
     return segments;
+}
+
+/**
+ * Numbers every text box on the page, now and whenever one changes size.
+ *
+ * @remarks
+ * Called after each render. The resize observer also fires when a box first gets a size, which
+ * is when a folded section or card opens, so boxes rendered while hidden are numbered then.
+ */
+function startLineNumbers() {
+    const onTextBoxesResized = (entries) => {
+        entries.forEach((entry) => showFieldLineNumbers(entry.target));
+    };
+
+    globalThis.LINE_NUMBER_OBSERVER ??= new ResizeObserver(onTextBoxesResized);
+    globalThis.LINE_NUMBER_OBSERVER.disconnect();
+    document.querySelectorAll('textarea[data-line-numbers]').forEach((textarea) => globalThis.LINE_NUMBER_OBSERVER.observe(textarea));
 }
 
 /**
@@ -1867,11 +2485,11 @@ function updateFieldError(options) {
 }
 
 /**
- * Reveals or masks a secret input and updates the toggle button label.
+ * Reveals or masks a secret input and updates the toggle button icon.
  *
  * Behavior:
  * - Flips the input type between password and text.
- * - Updates the button caption to Show/Hide accordingly.
+ * - Shows the eye-slash icon (Hide) while revealed and the eye icon (Show) while masked.
  *
  * @param {string} inputId - The id of the password input.
  * @param {HTMLButtonElement} button - The clicked toggle button.
@@ -1883,10 +2501,14 @@ function updateSecretVisibility(inputId, button) {
         return;
     }
 
-    // Flip the visibility and update the button caption to match.
+    // Flip the visibility and update the button icon, tooltip, and accessible name to match.
     const isRevealing = input.type === 'password';
+    const label = isRevealing ? 'Hide' : 'Show';
+
     input.type = isRevealing ? 'text' : 'password';
-    button.textContent = isRevealing ? 'Hide' : 'Show';
+    button.innerHTML = isRevealing ? SVG_EYE_SLASH : SVG_EYE;
+    button.title = label;
+    button.setAttribute('aria-label', label);
 }
 
 /**
@@ -1914,11 +2536,21 @@ function updateSection(id) {
     const scratch = document.createElement('div');
     scratch.innerHTML = builder();
 
+    // Remember which cards are open: a fresh render starts every card closed.
+    const openCardIds = [...liveBody.querySelectorAll('.item-card-body:not(.is-collapsed)')].map((body) => body.id);
+
     // Swap in only the inner body content, preserving collapse/scroll.
     const freshBody = scratch.querySelector('#sec-' + id);
     if (freshBody) {
         liveBody.innerHTML = freshBody.innerHTML;
     }
+
+    // Reopen the cards that were open (by position, so editing a card never folds it).
+    openCardIds.forEach((cardId) => setCardOpen(cardId, true));
+
+    // The section's text boxes are new elements: number them, and re-check unique lists.
+    startLineNumbers();
+    showUniqueListErrors();
 }
 
 /**
@@ -1981,6 +2613,28 @@ function writeCapabilitiesNote() {
         <a href="${getEscapedText(url)}" onclick="return openExternal(this.href)" target="_blank" rel="noopener noreferrer">Capabilities page</a>
         - search plugins, read each plugin's manifest and documentation, and add external or MCP sources.
     </div>`;
+}
+
+/**
+ * Renders the move up, move down, and trash buttons of a card header.
+ *
+ * @param {object} options - Button options.
+ * @param {string} options.label - What the card is, for tooltips (e.g. 'machine 2').
+ * @param {string} options.moveCall - Call that moves the card, with `OFFSET` in place of -1/1.
+ * @param {string} options.removeCall - Call that removes the card.
+ * @param {boolean} options.isFirst - Whether the card is first (Move up disabled).
+ * @param {boolean} options.isLast - Whether the card is last (Move down disabled).
+ * @param {string} options.testId - Test id prefix for the buttons.
+ * @returns {string} HTML markup for the header buttons.
+ */
+function writeCardActions({ label, moveCall, removeCall, isFirst, isLast, testId }) {
+    // Header buttons stop the click from reaching a collapsible header, so they never fold the card.
+    return `
+    <span class="item-card-actions">
+        ${writeIconButton({ icon: SVG_ARROW_UP, label: `Move ${label} up`, onclick: `event.stopPropagation(); ${moveCall.replace('OFFSET', '-1')}`, testId: `move-${testId}-up-button`, isDisabled: isFirst })}
+        ${writeIconButton({ icon: SVG_ARROW_DOWN, label: `Move ${label} down`, onclick: `event.stopPropagation(); ${moveCall.replace('OFFSET', '1')}`, testId: `move-${testId}-down-button`, isDisabled: isLast })}
+        ${writeIconButton({ icon: SVG_TRASH, label: `Remove ${label}`, onclick: `event.stopPropagation(); ${removeCall}`, testId: `remove-${testId}-button` })}
+    </span>`;
 }
 
 /**
@@ -2157,13 +2811,38 @@ function writeDriverSection() {
 }
 
 /**
+ * Renders a small ghost icon button with a tooltip and an accessible name.
+ *
+ * @param {object} options - Button options.
+ * @param {string} options.icon - The SVG markup.
+ * @param {string} options.label - Tooltip and accessible name.
+ * @param {string} options.onclick - Inline click handler.
+ * @param {string} [options.testId] - Test id of the button.
+ * @param {boolean} [options.isDisabled=false] - Whether the button is disabled.
+ * @param {string} [options.id] - Element id of the button.
+ * @returns {string} HTML markup for the button.
+ */
+function writeIconButton({ icon, label, onclick, testId, isDisabled = false, id }) {
+    const escapedLabel = getEscapedText(label);
+    const idAttribute = id ? ` id="${getEscapedText(id)}"` : '';
+    const testIdAttribute = testId ? ` data-test-id="${getEscapedText(testId)}"` : '';
+
+    return `
+    <button type="button"${idAttribute}
+            class="btn btn-ghost btn-sm icon-btn"
+            title="${escapedLabel}"
+            aria-label="${escapedLabel}"${testIdAttribute}
+            onclick="${onclick}"${isDisabled ? ' disabled' : ''}>${icon}</button>`;
+}
+
+/**
  * Renders a JSON editor bound to an object/array state path.
  *
  * Behavior:
  * - Pretty-prints the current value into the textarea.
  * - On each edit the text is parsed; valid JSON is written to state, invalid
  *   JSON leaves the last good value untouched and surfaces an inline error.
- * - Provides a Format button to validate and reformat the JSON.
+ * - Provides Format and Expand icon buttons, line numbers, and no wrapping, like the flow publisher.
  *
  * @param {object} options - Control options.
  * @param {string} options.path - Dotted state path the control binds to.
@@ -2184,16 +2863,20 @@ function writeJson({ path, label, hint, rows = 8 }) {
     const errorElementId = 'jsonerr-' + slug;
     const textareaId = 'json-' + slug;
 
-    // Render the JSON textarea, the Format button, and the inline error line.
+    // Render the numbered JSON text box, its Format/Expand buttons, and the inline error line.
     return `
     <div class="field">
         <label class="field-label">${getEscapedText(label)}</label>
         ${hintHtml}
-        <div class="json-wrap">
-            <textarea id="${textareaId}" class="mono settings-json-textarea" rows="${rows}"
-                oninput="setJsonValue('${path}', this.value, '${errorElementId}')">${getEscapedText(text)}</textarea>
-            <button type="button" class="btn btn-ghost btn-sm json-format-btn"
-                title="Check &amp; Format JSON" onclick="setFormattedJson('${textareaId}', '${path}', '${errorElementId}')">Format</button>
+        <div class="json-wrap numbered">
+            ${writeLineNumbers(textareaId)}
+            <textarea id="${textareaId}" class="mono settings-json-textarea" rows="${rows}" spellcheck="false" wrap="off"
+                data-line-numbers="true" data-json-path="${path}" data-error-id="${errorElementId}"
+                oninput="setJsonValue('${path}', this.value, '${errorElementId}'); showFieldLineNumbers(this)">${getEscapedText(text)}</textarea>
+            <div class="text-tools">
+                ${writeIconButton({ icon: SVG_FORMAT, label: 'Check & Format JSON', onclick: `setFormattedJson('${textareaId}', '${path}', '${errorElementId}')`, testId: `${textareaId}-format-button` })}
+                ${writeIconButton({ icon: SVG_EXPAND, label: 'Expand', onclick: `showExpandEditor('${textareaId}')`, testId: `${textareaId}-expand-button` })}
+            </div>
         </div>
         <div class="field-error" id="${errorElementId}"></div>
     </div>`;
@@ -2233,7 +2916,7 @@ function writeKeyValue({ path, label, hint, keyPlaceholder = 'Key', valuePlaceho
                     onchange="renameEntryKey('${path}', '${getEscapedText(key)}', this.value)" />
                 <input type="text" class="kv-val" value="${getEscapedText(val)}" placeholder="${getEscapedText(valuePlaceholder)}"
                     oninput="setEntryValue('${path}', '${getEscapedText(key)}', this.value)" />
-                <button type="button" class="btn btn-ghost btn-sm" onclick="removeEntry('${path}', '${getEscapedText(key)}')">Remove</button>
+                ${writeIconButton({ icon: SVG_TRASH, label: `Remove ${key}`, onclick: `removeEntry('${path}', '${getEscapedText(key)}')` })}
             </div>`).join('')
         : `<div class="field-hint">${getEscapedText(emptyText)}</div>`;
 
@@ -2289,30 +2972,73 @@ function writeLicenseSection() {
 }
 
 /**
- * Renders a multi-line textarea whose lines map to a string array in state.
+ * Renders the line-number gutter for a text box; the script fills it (see showFieldLineNumbers).
+ *
+ * @param {string} textareaId - Id of the text box the gutter numbers.
+ * @returns {string} HTML markup for the gutter.
+ */
+function writeLineNumbers(textareaId) {
+    return `
+            <div class="field-line-numbers" aria-hidden="true">
+                <div id="${textareaId}-line-numbers" class="field-line-rows"></div>
+            </div>`;
+}
+
+/**
+ * Renders a list editor bound to a string[] state path: one text box per entry with a trash button
+ * (and move buttons when order matters), plus an add button, like the flow publisher lists.
  *
  * Behavior:
- * - Joins the current string array into one line-per-entry textarea.
- * - Wires the textarea to setListValue (empty lines are ignored on input).
+ * - Entries are stored as typed; blank entries are dropped when the manifest is saved.
+ * - A unique list reports repeated entries (ignoring case) under the repeated row.
  *
  * @param {object} options - Control options.
  * @param {string} options.path - Dotted state path the control binds to (string[]).
  * @param {string} options.label - Human-friendly field label.
  * @param {string} [options.hint] - Optional helper text shown under the label.
+ * @param {boolean} [options.isOrdered=false] - Whether rows get move up/down buttons.
+ * @param {boolean} [options.isUnique=false] - Whether repeated entries are reported.
+ * @param {string} [options.emptyText='None.'] - Text shown when the list is empty.
  * @returns {string} HTML markup for the list field.
  */
-function writeListLines({ path, label, hint }) {
-    // Resolve the current array as newline-joined text and optional hint markup.
+function writeListRows({ path, label, hint, isOrdered = false, isUnique = false, emptyText = 'None.' }) {
+    // Resolve the current list, optional hint markup, and stable ids.
     const value = getPath(globalThis.STATE, path);
-    const text = Array.isArray(value) ? value.join('\n') : '';
+    const list = Array.isArray(value) ? value : [];
     const hintHtml = hint ? `<div class="field-hint">${getEscapedText(hint)}</div>` : '';
+    const slug = path.replace(/[^a-z0-9]/gi, '-');
 
-    // Render the labeled textarea wired to setListValue.
+    // One row per entry: a text box, optional move buttons, and the trash button, with an error line.
+    const rows = list.length
+        ? list.map((entry, index) => {
+            const moveButtons = isOrdered
+                ? `${writeIconButton({ icon: SVG_ARROW_UP, label: `Move ${label} entry ${index + 1} up`, onclick: `moveListEntry('${path}', ${index}, -1)`, isDisabled: index === 0 })}
+                   ${writeIconButton({ icon: SVG_ARROW_DOWN, label: `Move ${label} entry ${index + 1} down`, onclick: `moveListEntry('${path}', ${index}, 1)`, isDisabled: index === list.length - 1 })}`
+                : '';
+
+            return `
+            <div class="list-entry">
+                <div class="kv-row">
+                    <input type="text" class="kv-key" value="${getEscapedText(entry)}" placeholder="Entry"
+                        aria-label="${getEscapedText(label)} entry ${index + 1}"
+                        oninput="setListEntry('${path}', ${index}, this.value, ${isUnique})" />
+                    ${moveButtons}
+                    ${writeIconButton({ icon: SVG_TRASH, label: `Remove ${label} entry ${index + 1}`, onclick: `removeListEntry('${path}', ${index})` })}
+                </div>
+                <div class="field-error" id="listerr-${slug}-${index}"></div>
+            </div>`;
+        }).join('')
+        : `<div class="field-hint">${getEscapedText(emptyText)}</div>`;
+
+    // Render the labeled list plus the add button.
     return `
     <div class="field">
         <label class="field-label">${getEscapedText(label)}</label>
         ${hintHtml}
-        <textarea oninput="setListValue('${path}', this.value)">${getEscapedText(text)}</textarea>
+        <div class="kv-list" id="list-${slug}"${isUnique ? ` data-unique-path="${path}"` : ''}>${rows}</div>
+        <div class="add-row">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addListEntry('${path}')">+ Add entry</button>
+        </div>
     </div>`;
 }
 
@@ -2361,10 +3087,11 @@ function writeLoggingSection() {
         ]
     })}
     </div>
-    ${writeListLines({
+    ${writeListRows({
         path: 'settings.clientLogConfiguration.sourceOptions.sources',
-        label: 'Sources (One per Line)',
-        hint: 'Leave empty for the default set. If logs go silent, switch the mode above to "Hide" with this empty.'
+        label: 'Sources',
+        hint: 'Leave empty for the default set. If logs go silent, switch the mode above to "Hide" with this empty.',
+        isUnique: true
     })}`;
 
     // Wrap the body in the collapsible section shell.
@@ -2432,23 +3159,29 @@ function writeMcpServerCard(name, server) {
     const base = `settings.pluginsSettings.servers.${convertToEscapedKey(name)}`;
     const type = server?.type || 'stdio';
     const isRemote = type === 'http' || type === 'sse';
-    const argumentLines = Array.isArray(server?.args) ? server.args.join('\n') : '';
+    const names = Object.keys(getPath(globalThis.STATE, 'settings.pluginsSettings.servers') || {});
+    const position = names.indexOf(name);
 
     // Local (stdio) servers are launched as a process; remote servers are
     // reached over HTTP/SSE. Only the relevant fields are shown. The
     // variable-length key/value editor (env or headers) is rendered last
     // so growing it never pushes the fixed fields around.
+    const commandErrorId = `mcp-command-error-${position}`;
     const localFields = `
         <div class="field">
-            <label class="field-label">Command</label>
+            <label class="field-label">Command <span class="required-mark">*</span></label>
             <div class="field-hint">The program that starts the server (e.g. node, python, npx).</div>
             <input type="text" value="${getEscapedText(server?.command ?? '')}"
-                oninput="setControlValue({ path: '${base}.command', rawValue: this.value })" />
+                data-required="true" data-error-id="${commandErrorId}"
+                oninput="setControlValue({ path: '${base}.command', rawValue: this.value }); setError(document.getElementById('${commandErrorId}'), '')" />
+            <div class="field-error" id="${commandErrorId}"></div>
         </div>
-        <div class="field">
-            <label class="field-label">Arguments (One per Line)</label>
-            <textarea oninput="setListValue('${base}.args', this.value)">${getEscapedText(argumentLines)}</textarea>
-        </div>
+        ${writeListRows({
+        path: `${base}.args`,
+        label: 'Arguments',
+        hint: 'Passed to the command, in this order.',
+        isOrdered: true
+    })}
         ${writeText({
         path: `${base}.workingDirectory`,
         label: 'Working Directory',
@@ -2460,6 +3193,7 @@ function writeMcpServerCard(name, server) {
         ${writeText({
         path: `${base}.url`,
         label: 'URL',
+        required: true,
         validate: 'url',
         placeholder: 'https://...',
         hint: 'The remote MCP server endpoint.'
@@ -2486,23 +3220,35 @@ function writeMcpServerCard(name, server) {
             emptyText: 'No environment variables.'
         });
 
-    // Render the card header, name/type row, transport-specific fields, timeout, and map editor.
+    // Render a foldable card (closed by default, like the recorder cards): the header, name/type row,
+    // transport-specific fields, timeout, and map editor.
     return `
-    <div class="item-card">
-        <div class="item-card-hdr">
+    <div class="item-card foldable-card">
+        <div class="item-card-hdr" onclick="updateSectionCollapse('mcp-body-${position}','mcp-chev-${position}')">
+            <i class="chev" id="mcp-chev-${position}">${SVG_CHEVRON}</i>
             <span class="item-card-title mono">${getEscapedText(name)}</span>
             <span class="spacer"></span>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="removeServer('${getEscapedText(name)}')">Remove</button>
+            ${writeCardActions({
+        label: `server ${name}`,
+        moveCall: `moveServer('${getEscapedText(name)}', OFFSET)`,
+        removeCall: `removeServer('${getEscapedText(name)}')`,
+        isFirst: position === 0,
+        isLast: position === names.length - 1,
+        testId: `mcp-server-${position}`
+    })}
         </div>
+        <div class="item-card-body is-collapsed" id="mcp-body-${position}" data-chevron-id="mcp-chev-${position}">
         <div class="field-row">
             <div class="field">
-                <label class="field-label">Name</label>
+                <label class="field-label">Name <span class="required-mark">*</span></label>
                 <div class="field-hint">A short identifier for this tool server.</div>
                 <input type="text" value="${getEscapedText(name)}"
+                    data-required="true" data-error-id="mcp-name-error-${position}"
                     onchange="renameServer('${getEscapedText(name)}', this.value)" />
+                <div class="field-error" id="mcp-name-error-${position}"></div>
             </div>
             <div class="field">
-                <label class="field-label">Type</label>
+                <label class="field-label">Type <span class="required-mark">*</span></label>
                 <div class="field-hint">How G4 connects to the server.</div>
                 <select onchange="setServerType('${getEscapedText(name)}', this.value)">
                     <option value="stdio" ${type === 'stdio' ? 'selected' : ''}>Local Process (stdio)</option>
@@ -2520,6 +3266,7 @@ function writeMcpServerCard(name, server) {
         hint: 'Optional connection timeout. Leave empty for the server default.'
     })}
         ${mapEditor}
+        </div>
     </div>`;
 }
 
@@ -2757,10 +3504,16 @@ function writeRecorderCard(recorder, index) {
             <i class="chev" id="rec-chev-${index}">${SVG_CHEVRON}</i>
             <span class="item-card-title">${getEscapedText(headerTitle)}</span>
             <span class="spacer"></span>
-            <button type="button" class="btn btn-ghost btn-sm"
-                    onclick="event.stopPropagation(); removeRecorder(${index})">Remove</button>
+            ${writeCardActions({
+        label: `machine ${index + 1}`,
+        moveCall: `moveRecorder(${index}, OFFSET)`,
+        removeCall: `removeRecorder(${index})`,
+        isFirst: index === 0,
+        isLast: index === globalThis.STATE.settings.recorderSettings.recorders.length - 1,
+        testId: `recorder-${index}`
+    })}
         </div>
-        <div class="item-card-body is-collapsed" id="rec-body-${index}">
+        <div class="item-card-body is-collapsed" id="rec-body-${index}" data-chevron-id="rec-chev-${index}">
         ${writeToggle({
         path: `${base}.enabled`,
         label: 'Enabled',
@@ -2974,14 +3727,24 @@ function writeRepositoryCard(repository, index) {
     const base = `settings.pluginsSettings.externalRepositories.${index}`;
     const title = repository?.name || `Repository ${index + 1}`;
 
-    // Render the card header, the scalar fields, and the advanced editors.
+    // Render a foldable card (closed by default, like the recorder cards): the header, the scalar
+    // fields, and the advanced editors.
     return `
-    <div class="item-card">
-        <div class="item-card-hdr">
+    <div class="item-card foldable-card">
+        <div class="item-card-hdr" onclick="updateSectionCollapse('repo-body-${index}','repo-chev-${index}')">
+            <i class="chev" id="repo-chev-${index}">${SVG_CHEVRON}</i>
             <span class="item-card-title">${getEscapedText(title)}</span>
             <span class="spacer"></span>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="removeRepository(${index})">Remove</button>
+            ${writeCardActions({
+        label: `repository ${index + 1}`,
+        moveCall: `moveRepository(${index}, OFFSET)`,
+        removeCall: `removeRepository(${index})`,
+        isFirst: index === 0,
+        isLast: index === (getPath(globalThis.STATE, 'settings.pluginsSettings.externalRepositories') || []).length - 1,
+        testId: `repository-${index}`
+    })}
         </div>
+        <div class="item-card-body is-collapsed" id="repo-body-${index}" data-chevron-id="repo-chev-${index}">
         ${writeText({
         path: `${base}.name`,
         label: 'Name',
@@ -3035,6 +3798,7 @@ function writeRepositoryCard(repository, index) {
         label: 'Credentials',
         hint: 'Optional authentication for the repository endpoint.'
     })}
+        </div>
     </div>`;
 }
 
@@ -3146,13 +3910,13 @@ function writeSandboxField() {
                    aria-label="G4 Sandbox Folder"
                    oninput="setControlValue({ path: 'sandbox', rawValue: this.value })"
                    value="${getEscapedText(value)}" />
-            <button type="button"
-                    id="browse-sandbox-button"
-                    class="btn btn-ghost btn-sm"
-                    title="Browse for G4 Sandbox"
-                    data-test-id="browse-g4-sandbox-button"
-                    aria-label="Browse for G4 Sandbox"
-                    onclick="selectSandboxFolder()">Browse</button>
+            ${writeIconButton({
+        icon: SVG_SEARCH,
+        label: 'Browse for G4 Sandbox',
+        onclick: 'selectSandboxFolder()',
+        testId: 'browse-g4-sandbox-button',
+        id: 'browse-sandbox-button'
+    })}
             <button type="button"
                     id="auto-detect-sandbox-button"
                     class="btn btn-ghost btn-sm"
@@ -3229,8 +3993,7 @@ function writeSecret({ path, label, hint }) {
         <div class="input-wrap">
             <input id="${safeId}" type="password" value="${getEscapedText(value ?? '')}"
                 oninput="setControlValue({ path: '${path}', rawValue: this.value })" />
-            <button type="button" class="btn btn-ghost btn-sm"
-                onclick="updateSecretVisibility('${safeId}', this)">Show</button>
+            ${writeIconButton({ icon: SVG_EYE, label: 'Show', onclick: `updateSecretVisibility('${safeId}', this)`, testId: `${safeId}-visibility-button` })}
         </div>
     </div>`;
 }
@@ -3357,14 +4120,22 @@ function writeTextarea({ path, label, hint, placeholder, rows = 4, extraInput = 
     // Append an optional caller statement (for example inline validation) after the value is stored.
     const extraInputCall = extraInput ? `; ${extraInput}` : '';
 
-    // Render the labeled text area wired to setControlValue on every input. The value is escaped so
-    // script characters like < and & render as literal text inside the element.
+    // Render the numbered text box (no wrapping) wired to setControlValue on every input, with an
+    // Expand button. The value is escaped so script characters like < and & render as literal text.
+    const textareaId = 'text-' + path.replace(/[^a-z0-9]/gi, '-');
+
     return `
     <div class="field">
         <label class="field-label">${getEscapedText(label)}</label>
         ${hintHtml}
-        <textarea class="mono" rows="${rows}" spellcheck="false"${placeholderAttribute}
-            oninput="setControlValue({ path: '${path}', rawValue: this.value })${extraInputCall}">${getEscapedText(value ?? '')}</textarea>
+        <div class="json-wrap numbered">
+            ${writeLineNumbers(textareaId)}
+            <textarea id="${textareaId}" class="mono text-box" rows="${rows}" spellcheck="false" wrap="off" data-line-numbers="true"${placeholderAttribute}
+                oninput="setControlValue({ path: '${path}', rawValue: this.value })${extraInputCall}; showFieldLineNumbers(this)">${getEscapedText(value ?? '')}</textarea>
+            <div class="text-tools">
+                ${writeIconButton({ icon: SVG_EXPAND, label: 'Expand', onclick: `showExpandEditor('${textareaId}')`, testId: `${textareaId}-expand-button` })}
+            </div>
+        </div>
     </div>`;
 }
 
@@ -3422,20 +4193,24 @@ function writeText({
     const slug = path.replace(/[^a-z0-9]/gi, '-');
     const inputId = 'inp-' + slug;
 
-    // Required marker + inline validation are only wired for text fields;
-    // number fields stay valid via their min/step handling.
+    // Required marker + inline validation are only wired for text fields; number fields stay valid
+    // via their min/step handling. A required field shows only its * while editing: "Required."
+    // appears when a save finds it empty (showRequiredErrors), and typing clears it again.
     const star = required ? ' <span class="required-mark">*</span>' : '';
     const isValidationNeeded = (required || validate) && kind !== 'number';
     const errorElementId = 'fielderr-' + slug;
     const validationCall = isValidationNeeded
-        ? `; updateFieldError({ errorElementId: '${errorElementId}', value: this.value, isRequired: ${!!required}, rule: '${validate || ''}' })`
+        ? `; updateFieldError({ errorElementId: '${errorElementId}', value: this.value, isRequired: false, rule: '${validate || ''}' })`
         : '';
     const errorHtml = isValidationNeeded
-        ? `<div class="field-error" id="${errorElementId}">${getEscapedText(getFieldError(value, !!required, validate))}</div>`
+        ? `<div class="field-error" id="${errorElementId}">${getEscapedText(getFieldError(value, false, validate))}</div>`
+        : '';
+    const requiredAttributes = required && kind !== 'number'
+        ? ` data-required="true" data-error-id="${errorElementId}"`
         : '';
 
     // Build the base input element wired to setControlValue (+ optional validation).
-    const inputHtml = `<input id="${inputId}" type="${type}" value="${getEscapedText(value ?? '')}"${placeholderAttribute}${minimumAttribute}${maximumAttribute}${maxLengthAttribute}
+    const inputHtml = `<input id="${inputId}" type="${type}" value="${getEscapedText(value ?? '')}"${placeholderAttribute}${minimumAttribute}${maximumAttribute}${maxLengthAttribute}${requiredAttributes}
             oninput="setControlValue({ path: '${path}', rawValue: this.value, kind: '${kind}'${minimumOption} })${validationCall}" />`;
 
     // Number fields get themed up/down steppers in place of the native
@@ -3503,6 +4278,10 @@ function writeToggle({ path, label, hint, extraChange = '' }) {
 // VS Code webview where only the extension host can post messages, so any message origin is accepted
 // intentionally and the cross-origin verification finding is suppressed here on purpose.
 window.addEventListener('message', onHostMessage); // NOSONAR - sandboxed webview; any origin accepted by design
+
+// Keep text box line numbers in step with scrolling, and let Escape close the expanded editor.
+document.addEventListener('scroll', onTextBoxScroll, true);
+document.addEventListener('keydown', onDocumentKeyDown);
 
 // Initial render.
 showSettings();

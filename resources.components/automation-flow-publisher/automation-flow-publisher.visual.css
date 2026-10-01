@@ -48,8 +48,7 @@ body {
 .flow-publisher-section-desc,
 .flow-publisher-field-hint,
 .flow-publisher-toggle-hint,
-.flow-publisher-save-note,
-.flow-publisher-automation-meta {
+.flow-publisher-save-note {
     color: var(--flow-publisher-muted-foreground);
 }
 
@@ -63,7 +62,9 @@ body {
     color: var(--flow-publisher-success-foreground);
 }
 
-.flow-publisher-key-preview {
+/* The Automation facts (size, authentication, encoding) read like the "Will publish as" preview. */
+.flow-publisher-key-preview,
+.flow-publisher-automation-meta {
     color: var(--flow-publisher-link-foreground);
 }
 
@@ -80,7 +81,9 @@ textarea {
 
 textarea,
 .flow-publisher-mono,
-.flow-publisher-code {
+.flow-publisher-line-numbers,
+.flow-publisher-md-syntax,
+.flow-publisher-md-result code {
     font-family: var(--flow-publisher-monospace-font-family);
 }
 
@@ -147,19 +150,31 @@ textarea:focus {
     cursor: default;
 }
 
-/* JSON format button: revealed while the editor is hovered or focused. */
-.flow-publisher-json-format-btn {
+/* Line-number gutter: joined to the left edge of its text box. */
+.flow-publisher-field-line-numbers {
+    color: var(--flow-publisher-muted-foreground);
+    background-color: var(--flow-publisher-surface-background);
+    border: var(--flow-publisher-input-border);
+    border-right: none;
+}
+
+/* Corner buttons (Format, Markdown, Expand): revealed while the text box is hovered or focused,
+   like the settings Format button. */
+.flow-publisher-text-tools .flow-publisher-btn {
     background-color: var(--flow-publisher-format-button-background);
+}
+
+.flow-publisher-text-tools .flow-publisher-btn:hover {
+    background-color: var(--flow-publisher-hover-background);
+}
+
+.flow-publisher-text-tools {
     opacity: 0;
     transition: var(--flow-publisher-fade-transition);
 }
 
-.flow-publisher-json-format-btn:hover {
-    background-color: var(--flow-publisher-hover-background);
-}
-
-.flow-publisher-json-wrap:hover .flow-publisher-json-format-btn,
-.flow-publisher-json-wrap:focus-within .flow-publisher-json-format-btn {
+.flow-publisher-json-wrap:hover .flow-publisher-text-tools,
+.flow-publisher-json-wrap:focus-within .flow-publisher-text-tools {
     opacity: 1;
 }
 
@@ -194,9 +209,106 @@ textarea:focus {
     color: var(--flow-publisher-muted-foreground);
 }
 
-.flow-publisher-code {
+/* Parameter token warnings */
+.flow-publisher-header-warning,
+.flow-publisher-warning-item {
+    color: var(--flow-publisher-warning-foreground);
+}
+
+button.flow-publisher-warning-item {
+    font-family: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
+button.flow-publisher-warning-item:hover span {
+    text-decoration: underline;
+}
+
+.flow-publisher-warning-item code {
+    font-family: var(--flow-publisher-monospace-font-family);
+}
+
+/* Modals */
+.flow-publisher-modal-backdrop {
+    background-color: var(--flow-publisher-modal-backdrop);
+}
+
+.flow-publisher-modal {
+    border: 1px solid var(--flow-publisher-border-color);
+    background-color: var(--flow-publisher-background);
+    box-shadow: var(--flow-publisher-modal-shadow);
+}
+
+/* Close: a theme-colored circle; the white disc behind it shows through the X. */
+.flow-publisher-modal-close {
+    cursor: pointer;
+    border: none;
+    border-radius: 50%;
+    color: var(--flow-publisher-button-background);
+    background: radial-gradient(circle closest-side, var(--flow-publisher-button-foreground) 0 76%, transparent 78%);
+}
+
+.flow-publisher-modal-close:hover {
+    color: var(--flow-publisher-button-hover-background);
+}
+
+.flow-publisher-modal-close:focus-visible {
+    outline: 1px solid var(--flow-publisher-focus-border-color);
+    outline-offset: 1px;
+}
+
+.flow-publisher-modal-hdr {
+    background-color: var(--flow-publisher-surface-background);
+    border-bottom: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-line-numbers {
+    color: var(--flow-publisher-muted-foreground);
+    background-color: var(--flow-publisher-surface-background);
+    border-right: 1px solid var(--flow-publisher-border-color);
+}
+
+textarea.flow-publisher-expand-textarea {
+    border: none;
+}
+
+/* Markdown reference */
+.flow-publisher-md-table th,
+.flow-publisher-md-table td {
+    border-bottom: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-md-table thead th {
+    color: var(--flow-publisher-muted-foreground);
+}
+
+.flow-publisher-md-syntax,
+.flow-publisher-md-result pre {
     border: var(--flow-publisher-input-border);
     background-color: var(--flow-publisher-input-background);
+}
+
+.flow-publisher-md-result code {
+    background-color: var(--flow-publisher-input-background);
+    border-radius: var(--flow-publisher-button-radius);
+}
+
+.flow-publisher-md-result blockquote {
+    border-left: 3px solid var(--flow-publisher-border-color);
+    color: var(--flow-publisher-muted-foreground);
+}
+
+.flow-publisher-md-result hr {
+    border: none;
+    border-top: 1px solid var(--flow-publisher-border-color);
+}
+
+.flow-publisher-md-result table th,
+.flow-publisher-md-result table td {
+    border: 1px solid var(--flow-publisher-border-color);
+    border-bottom: 1px solid var(--flow-publisher-border-color);
 }
 
 /* Chevron */

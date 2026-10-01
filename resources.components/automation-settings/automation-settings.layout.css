@@ -194,6 +194,11 @@
             min-height: 14px
         }
 
+        /* An error line takes space only while it shows an error, so fields keep an even gap. */
+        .field-error:empty {
+            display: none
+        }
+
         .field-suffix {
             font-size: 11px;
             margin-left: 6px
@@ -223,10 +228,15 @@
             height: 30px
         }
 
+        /* Text boxes have a fixed size and never wrap: long lines scroll sideways, and long text is
+           edited in the expanded editor instead (same as the flow publisher). */
         textarea {
-            resize: vertical;
+            resize: none;
             min-height: 60px;
-            font-family: 'Consolas', monospace
+            font-family: 'Consolas', monospace;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto
         }
 
         /* The native number spinners can't be themed (they render as a light
@@ -492,16 +502,19 @@
            card is just its header, and give the header the same symmetric padding as a section
            header. align-items:center keeps the chevron/title/Remove balanced; the row height stays
            proportional to its content rather than being clamped to a fixed value. */
-        .machine-card {
+        .machine-card,
+        .foldable-card {
             padding: 0
         }
 
-        .machine-card .item-card-hdr {
+        .machine-card .item-card-hdr,
+        .foldable-card .item-card-hdr {
             padding: 10px 16px;
             margin-bottom: 0
         }
 
-        .machine-card .item-card-body {
+        .machine-card .item-card-body,
+        .foldable-card .item-card-body {
             padding: 14px
         }
 
@@ -534,6 +547,25 @@
             flex-shrink: 0
         }
 
+        /* In a key/value or list row the icon buttons match the 30px input height. */
+        .kv-row .icon-btn {
+            align-self: stretch
+        }
+
+        /* One list entry: its row and the error line under it. */
+        .list-entry {
+            display: flex;
+            flex-direction: column;
+            gap: 4px
+        }
+
+        /* Card header buttons (move up, move down, trash) share one height. */
+        .item-card-actions {
+            display: flex;
+            align-items: stretch;
+            gap: 10px
+        }
+
         .required-mark {
             font-weight: 700
         }
@@ -556,22 +588,161 @@
             font-family: 'Consolas', monospace
         }
 
-        /* json editor */
+        /* Text boxes (JSON and scripts): line-number gutter on the left, corner buttons on the right. */
         .json-wrap {
             position: relative
         }
 
-        .json-format-btn {
+        .numbered {
+            display: flex;
+            align-items: stretch
+        }
+
+        .numbered > textarea {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding-right: 100px
+        }
+
+        .field-line-numbers {
+            position: relative;
+            flex: 0 0 auto;
+            min-width: 36px;
+            user-select: none
+        }
+
+        /* The numbers fill the column without adding to its height, so the box keeps its own size. */
+        .field-line-rows {
+            position: absolute;
+            inset: 0;
+            padding: 0 8px 24px;
+            overflow: hidden;
+            text-align: right;
+            white-space: nowrap
+        }
+
+        /* Hidden one-row text area, used to measure how tall a text box row is. */
+        textarea.line-measure {
+            position: absolute;
+            top: 0;
+            left: -10000px;
+            visibility: hidden;
+            height: 0;
+            min-height: 0;
+            padding: 0;
+            border: none;
+            overflow: hidden
+        }
+
+        /* Corner buttons (Format, Expand): far enough from the right edge to clear the scrollbar,
+           revealed while the box is hovered or focused. */
+        .text-tools {
             position: absolute;
             top: 6px;
-            right: 6px;
+            right: 20px;
+            display: flex;
+            gap: 4px;
             opacity: 0;
             transition: opacity .15s
         }
 
-        .json-wrap:hover .json-format-btn,
-        .json-wrap:focus-within .json-format-btn {
+        .json-wrap:hover .text-tools,
+        .json-wrap:focus-within .text-tools {
             opacity: 1
+        }
+
+        /* Expanded editor: centered over the page, above the sticky action bar */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px
+        }
+
+        .modal {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: min(1000px, 100%);
+            max-height: 100%
+        }
+
+        .modal--editor {
+            height: 80vh
+        }
+
+        .modal-hdr {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 43px;
+            padding: 10px 28px 10px 16px
+        }
+
+        .modal-hdr .spacer {
+            flex: 1
+        }
+
+        .modal-title {
+            font-size: 12px;
+            font-weight: 600
+        }
+
+        /* Icon-only Close button centered on the modal's top-right corner. */
+        .modal-close {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1
+        }
+
+        .modal-close svg {
+            width: 100%;
+            height: 100%;
+            display: block
+        }
+
+        /* Line-number gutter and text share one line height so they stay aligned. */
+        .expand-body {
+            flex: 1;
+            min-height: 0;
+            display: flex
+        }
+
+        .line-numbers {
+            flex: 0 0 auto;
+            min-width: 48px;
+            padding: 8px 10px 32px 8px;
+            overflow: hidden;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 18px;
+            text-align: right;
+            white-space: pre;
+            user-select: none
+        }
+
+        textarea.expand-textarea {
+            flex: 1;
+            height: 100%;
+            min-height: 0;
+            padding: 8px 10px;
+            font-size: 12px;
+            line-height: 18px;
+            overflow: auto
+        }
+
+        .expand-error {
+            padding: 6px 16px 8px
         }
 
         /* chevron */

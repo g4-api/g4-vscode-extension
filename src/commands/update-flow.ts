@@ -37,11 +37,12 @@ const KEY_SEPARATOR_PATTERN = /[^\p{L}\p{N}]+/u;
 // Manifest fields the form never controls: the host always sets them.
 const HOST_OWNED_FIELDS = ['automation', 'id', 'pluginType', 'source', 'type'];
 
-// Upper bound for the automation preview shown in the form, so huge bots do not bloat the page.
-const PREVIEW_MAXIMUM_CHARACTERS = 20000;
-
 // Default summary text; the form replaces {key} while the user has not edited the summary.
 const SUMMARY_TEMPLATE = 'Runs the {key} bot automation.';
+
+// Confirmation buttons of the parameter warnings notification.
+const CANCEL_ACTION = 'Cancel';
+const PUBLISH_ANYWAY_ACTION = 'Publish Anyway';
 
 /**
  * Command that publishes one selected bot file as a flow in the G4 Hub through a webview form.
@@ -53,7 +54,9 @@ const SUMMARY_TEMPLATE = 'Runs the {key} bot automation.';
  * from the Hub (falling back to a bundled copy), checks whether the default key already exists, and
  * injects both into the page. The page sends `lookupFlow` and `publish`; the host owns every Hub call,
  * builds the manifest (authentication removed, automation Base64-encoded), and answers with
- * `flowLookup` and `publishResult`. The command is hidden from the Command Palette.
+ * `flowLookup` and `publishResult`. The automation is edited in the page (without its authentication
+ * block); after a successful publish the host saves it back to the bot file, authentication restored.
+ * The command is hidden from the Command Palette.
  */
 export class UpdateFlowCommand extends CommandBase {
     /** Logger scoped to this command; publish outcomes are written here. */
@@ -224,6 +227,27 @@ export class UpdateFlowCommand extends CommandBase {
     }
 
     /**
+     * Asks the user to confirm publishing a flow that has parameter token warnings.
+     *
+     * @remarks
+     * A short VS Code warning notification (bottom right) asks for confirmation; the warnings
+     * themselves stay on the page, where they are marked in the Parameters and Automation sections.
+     * Publish Anyway continues, and Cancel or closing the notification stops this publish only.
+     * Warnings never block publishing.
+     *
+     * @param flowName - Namespace and key of the flow, for the message.
+     * @returns True when the user chose Publish Anyway.
+     */
+    private async confirmPublishWarnings(flowName: string): Promise<boolean> {
+        const choice = await vscode.window.showWarningMessage(
+            `Flow '${flowName}' has parameter warnings. Publish anyway?`,
+            PUBLISH_ANYWAY_ACTION,
+            CANCEL_ACTION);
+
+        return choice === PUBLISH_ANYWAY_ACTION;
+    }
+
+    /**
      * Serializes component data for injection into a textarea without breaking the HTML.
      *
      * @remarks
@@ -335,8 +359,8 @@ export class UpdateFlowCommand extends CommandBase {
      * Builds the data injected into the component's #g4-data holder.
      *
      * @remarks
-     * Compute-only. The preview shows exactly what will be encoded (authentication removed), capped
-     * at PREVIEW_MAXIMUM_CHARACTERS.
+     * Compute-only. The editable automation text is exactly what will be encoded (authentication
+     * removed), in full, so the page can edit and publish it.
      *
      * @param options - Bot, parsed automation, schemas, schema source, and any stored flow.
      * @returns The component data object.
@@ -346,17 +370,13 @@ export class UpdateFlowCommand extends CommandBase {
 
         // Describe exactly what will be encoded: the automation without its authentication block.
         const { authentication: _authentication, ...automationWithoutAuthentication } = automation;
-        const previewText = JSON.stringify(automationWithoutAuthentication, null, 4);
-        const isPreviewTruncated = previewText.length > PREVIEW_MAXIMUM_CHARACTERS;
         const sizeKilobytes = Buffer.byteLength(JSON.stringify(automationWithoutAuthentication), 'utf8') / 1024;
 
-        // Assemble the page data: automation card, defaults, schema, and any stored flow.
+        // Assemble the page data: automation editor, defaults, schema, and any stored flow.
         return {
             automation: {
+                automationText: JSON.stringify(automationWithoutAuthentication, null, 4),
                 isAuthenticationRemoved: 'authentication' in automation,
-                previewText: isPreviewTruncated
-                    ? `${previewText.slice(0, PREVIEW_MAXIMUM_CHARACTERS)}\n… (preview truncated)`
-                    : previewText,
                 relativePath: botFile.relativePath,
                 sizeText: `${sizeKilobytes.toFixed(1)} KB`
             },
@@ -366,6 +386,33 @@ export class UpdateFlowCommand extends CommandBase {
             schemas,
             summaryTemplate: SUMMARY_TEMPLATE
         };
+    }
+
+    /**
+     * Builds the bot JSON to save: the edited automation with the file's authentication block put
+     * back where it was.
+     *
+     * @remarks
+     * Compute-only. The page never shows the authentication block, so the file's block always wins
+     * and keeps its original position among the top-level properties. When the file has none, the
+     * edited automation is saved as it is.
+     *
+     * @param editedAutomation - Automation submitted by the page.
+     * @param fileAutomation - Automation currently in the bot file.
+     * @returns The bot JSON to write.
+     */
+    private static newSavedAutomation(editedAutomation: any, fileAutomation: any): any {
+        if (!('authentication' in fileAutomation)) {
+            return editedAutomation;
+        }
+
+        const { authentication: _authentication, ...editedWithoutAuthentication } = editedAutomation;
+        const entries = Object.entries(editedWithoutAuthentication);
+        const authenticationIndex = Math.min(Object.keys(fileAutomation).indexOf('authentication'), entries.length);
+
+        entries.splice(authenticationIndex, 0, ['authentication', fileAutomation.authentication]);
+
+        return Object.fromEntries(entries);
     }
 
     /**
@@ -475,6 +522,69 @@ export class UpdateFlowCommand extends CommandBase {
     }
 
     /**
+     * Saves the published automation back to the bot file, with its authentication block restored.
+     *
+     * @remarks
+     * The file is written only when its JSON actually changes, with a 4-space indent and the file's
+     * trailing newline kept. A bot open with unsaved changes in an editor is never overwritten: the
+     * save is skipped with a warning, so the user's editor changes are kept.
+     *
+     * @param botFile - The tab's bot.
+     * @param editedAutomation - Automation that was just published.
+     * @param openedAutomation - Automation read when the tab opened; its authentication block is
+     * used when the file can no longer be read.
+     * @returns The saved automation text (authentication removed) and a sentence for the page banner.
+     */
+    private saveBotAutomation(botFile: BotFile, editedAutomation: any, openedAutomation: any): SaveResult {
+        const filePath = path.normalize(botFile.filePath).toLowerCase();
+        const openDocument = vscode.workspace.textDocuments.find((document) => path.normalize(document.uri.fsPath).toLowerCase() === filePath);
+
+        // Never overwrite edits the user has not saved yet.
+        if (openDocument?.isDirty) {
+            const note = `bots/${botFile.relativePath} has unsaved changes in an editor, so the automation was not saved to the file.`;
+            this._logger.warning(note);
+            vscode.window.showWarningMessage(note);
+            return { note: ` ${note}` };
+        }
+
+        // Read the file as it is now; fall back to the copy read when the tab opened.
+        let fileText = '';
+        let fileAutomation = openedAutomation;
+
+        try {
+            fileText = fs.readFileSync(botFile.filePath, 'utf8');
+            fileAutomation = JSON.parse(fileText);
+        } catch {
+            this._logger.warning(`Could not read 'bots/${botFile.relativePath}' before saving; using the copy read when the tab opened.`);
+        }
+
+        // Build the JSON to save and the text the page restores on Reset to Defaults.
+        const savedAutomation = UpdateFlowCommand.newSavedAutomation(editedAutomation, fileAutomation);
+        const { authentication: _authentication, ...savedWithoutAuthentication } = savedAutomation;
+        const savedAutomationText = JSON.stringify(savedWithoutAuthentication, null, 4);
+
+        // Nothing changed: leave the file and its formatting alone.
+        if (JSON.stringify(savedAutomation) === JSON.stringify(fileAutomation)) {
+            return { note: '', savedAutomationText };
+        }
+
+        // Write the file, keeping its trailing newline.
+        const newLine = fileText.endsWith('\n') ? '\n' : '';
+
+        try {
+            fs.writeFileSync(botFile.filePath, `${JSON.stringify(savedAutomation, null, 4)}${newLine}`, 'utf8');
+        } catch (error) {
+            const reason = error instanceof Error ? error.message : 'the file could not be written';
+            this.showFailure(`Published, but 'bots/${botFile.relativePath}' was not saved: ${reason}.`);
+            return { note: ` bots/${botFile.relativePath} was not saved: ${reason}.` };
+        }
+
+        this._logger.information(`Saved the published automation to 'bots/${botFile.relativePath}'.`);
+
+        return { note: ` Saved bots/${botFile.relativePath}.`, savedAutomationText };
+    }
+
+    /**
      * Logs a failure and shows it as a warning with a shortcut to the log.
      *
      * @param message - Failure message.
@@ -495,14 +605,36 @@ export class UpdateFlowCommand extends CommandBase {
      * Publishes the flow submitted by a publisher tab and reports the result back to the tab.
      *
      * @remarks
-     * On success the tab stays open, its title follows the published key, and the stored flow is
-     * sent back so the page shows the overwrite notice from then on. On failure the Hub's field
-     * errors are forwarded so the page can mark the matching fields.
+     * The automation comes from the page's editor and must be a JSON object. On success the edited
+     * automation is saved to the bot file, the tab stays open, its title follows the published key,
+     * and the stored flow is sent back so the page shows the overwrite notice from then on. On
+     * failure the Hub's field errors are forwarded so the page can mark the matching fields.
      *
-     * @param options - The tab, its bot, the parsed automation, and the publish message.
+     * @param options - The tab, its bot, the automation read when the tab opened, and the publish message.
      */
     private async updateFlow(options: PublisherMessageOptions): Promise<void> {
-        const { automation, botFile, message, panel } = options;
+        const { automation: openedAutomation, botFile, message, panel } = options;
+
+        // Parse the edited automation; the page validates it too, so this only guards the contract.
+        let automation: any;
+
+        try {
+            automation = JSON.parse(typeof message.automationText === 'string' ? message.automationText : '');
+        } catch {
+            automation = undefined;
+        }
+
+        const isAutomationObject = automation !== null && typeof automation === 'object' && !Array.isArray(automation);
+
+        if (!isAutomationObject) {
+            await panel.webview.postMessage({
+                command: 'publishResult',
+                fieldErrors: { automation: ['Enter the bot automation as a JSON object.'] },
+                isSuccess: false,
+                message: 'The automation is not a JSON object.'
+            });
+            return;
+        }
 
         // Build the manifest from the submitted values; host-owned fields always win.
         const manifest = UpdateFlowCommand.newFlowManifest({ automation, values: message.values ?? {} });
@@ -516,6 +648,18 @@ export class UpdateFlowCommand extends CommandBase {
                 isSuccess: false,
                 message: 'The flow key is empty.'
             });
+            return;
+        }
+
+        // Parameter token warnings never block, but the user confirms them first.
+        const warnings = Array.isArray(message.warnings)
+            ? message.warnings.filter((warning: unknown) => typeof warning === 'string')
+            : [];
+        const isConfirmed = warnings.length === 0 || await this.confirmPublishWarnings(flowName);
+
+        if (!isConfirmed) {
+            this._logger.information(`Publishing flow '${flowName}' was cancelled at the parameter warnings.`);
+            await panel.webview.postMessage({ command: 'publishResult', isCancelled: true, isSuccess: false, message: '' });
             return;
         }
 
@@ -535,18 +679,21 @@ export class UpdateFlowCommand extends CommandBase {
             return;
         }
 
-        // Confirm success in the log, status bar, tab title, and the page banner.
+        // Confirm success in the log, status bar, and tab title, then save the bot file.
         this._logger.information(`Flow '${flowName}' updated from 'bots/${botFile.relativePath}'.`);
         vscode.window.setStatusBarMessage(`$(check) Flow '${flowName}' updated.`, 5000);
         panel.title = `Publish Flow · ${manifest.key}`;
 
+        const saveResult = this.saveBotAutomation(botFile, automation, openedAutomation);
         const existingFlow = await this._client.getFlow(manifest.namespace, manifest.key);
+
         await panel.webview.postMessage({
             command: 'publishResult',
             existingFlow: existingFlow ?? null,
             fieldErrors: {},
             isSuccess: true,
-            message: `Published ${flowName}.`
+            message: `Published ${flowName}.${saveResult.note}`,
+            savedAutomationText: saveResult.savedAutomationText
         });
     }
 }
@@ -578,7 +725,7 @@ interface PublisherDataOptions {
  * One message from a publisher tab, with the context needed to answer it.
  */
 interface PublisherMessageOptions {
-    /** Parsed bot JSON for the tab's bot. */
+    /** Bot JSON read when the tab opened; its authentication block is the save fallback. */
     automation: any;
 
     /** The tab's bot. */
@@ -589,6 +736,17 @@ interface PublisherMessageOptions {
 
     /** The tab that posted the message. */
     panel: vscode.WebviewPanel;
+}
+
+/**
+ * Outcome of saving the published automation back to the bot file.
+ */
+interface SaveResult {
+    /** Sentence appended to the publish banner (starts with a space), or '' when nothing needs saying. */
+    note: string;
+
+    /** Saved automation without authentication, as the page shows it; absent when the file was not saved. */
+    savedAutomationText?: string;
 }
 
 /**
