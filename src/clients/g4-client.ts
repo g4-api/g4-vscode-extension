@@ -295,4 +295,92 @@ export class G4Client {
             Global.logger.error(err.message);
         }
     }
+
+    /**
+     * Reads one stored template manifest from the G4 Hub.
+     *
+     * @remarks
+     * Used by the template publisher to detect that a key already exists (so publishing would
+     * overwrite it) and to pre-fill the form from the stored values. The Hub identifies a template
+     * by key alone. HttpClient resolves failures with their error text instead of rejecting, so any
+     * non-object response (404 Not Found, timeout, Hub unreachable) is treated as "no stored template".
+     *
+     * @param key - Template key, matched case-insensitively by the server.
+     * @returns The stored G4PluginAttribute manifest, or `undefined` when none is available.
+     */
+    public async getTemplate(key: string): Promise<any | undefined> {
+        // Build a GET for the template route; the key is URL-encoded.
+        const command = new HttpCommand();
+        command.command = `api/v${this._version}/g4/templates/${encodeURIComponent(key)}`;
+        command.method = 'GET';
+        command.timeout = 5000;
+
+        // Only a JSON object with a key is a stored manifest; everything else means "not available".
+        const response = await this.httpClient.sendAsync(command);
+        const isManifest = response !== null && typeof response === 'object' && typeof response.key === 'string';
+
+        return isManifest ? response : undefined;
+    }
+
+    /**
+     * Reads the template manifest schema published by the G4 Hub's OpenAPI document.
+     *
+     * @remarks
+     * Returns `components.schemas` from `swagger/templates/docs.json`: G4PluginAttribute plus the
+     * models it references. `$ref` links are left as-is for the consumer to resolve. When the Hub
+     * is unreachable or the document has no template schema, `undefined` is returned so the caller
+     * can fall back to a bundled copy.
+     *
+     * @returns The schemas map, or `undefined` when it cannot be read.
+     */
+    public async getTemplateSchema(): Promise<Record<string, any> | undefined> {
+        // The OpenAPI documents live outside the versioned API route.
+        const command = new HttpCommand();
+        command.command = 'swagger/templates/docs.json';
+        command.method = 'GET';
+        command.timeout = 5000;
+
+        // Accept the document only when it actually carries the template manifest schema.
+        const response = await this.httpClient.sendAsync(command);
+        const schemas = response?.components?.schemas;
+        const isTemplateSchema = schemas !== null && typeof schemas === 'object' && schemas.G4PluginAttribute !== undefined;
+
+        return isTemplateSchema ? schemas : undefined;
+    }
+
+    /**
+     * Sends a PUT request that creates or overwrites one template in the G4 Hub and reports failures.
+     *
+     * @remarks
+     * The templates endpoint answers 204 No Content on success, and HttpClient resolves every request
+     * (it never rejects) with either the response body or the error text. An empty response
+     * therefore means success, and any other response carries the server's failure details, such
+     * as a 400 validation error, a 409 invalid manifest, or a timeout message. Unlike
+     * `updateTemplate`, which only logs, this lets the publisher report the failure on the form.
+     *
+     * @param manifest - G4PluginAttribute payload; `rules` is a JSON array of rules.
+     * @returns `undefined` when the template was stored; otherwise the failure text.
+     */
+    public async publishTemplate(manifest: any): Promise<string | undefined> {
+        // Build a PUT against the templates endpoint with a JSON manifest body.
+        const command = new HttpCommand();
+        command.command = `api/v${this._version}/g4/templates`;
+        command.body = manifest;
+        command.method = 'PUT';
+        command.addHeader('Content-Type', 'application/json');
+        command.timeout = 5000;
+
+        // Send the request; a 204 resolves with an empty body, while failures resolve with their error text.
+        const response = await this.httpClient.sendAsync(command);
+        const isStored = response === '' || response === null || response === undefined;
+
+        if (isStored) {
+            return undefined;
+        }
+
+        // Surface the failure text verbatim; structured bodies are already serialized by HttpClient.
+        return typeof response === 'string'
+            ? response
+            : JSON.stringify(response);
+    }
 }

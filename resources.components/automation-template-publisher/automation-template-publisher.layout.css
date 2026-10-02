@@ -1,0 +1,94 @@
+/*
+ * Flow publisher layout: the page frame and how the page arranges the G4 components (sections,
+ * fields, toggles) it is built from. Each component lays out its own inside.
+ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.component-data {
+    display: none;
+    position: absolute;
+    left: -9999px;
+}
+
+/* Page column */
+.template-publisher-main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.template-publisher-page-spacer {
+    height: 8px;
+}
+
+/* Fields side by side. Each field's bottom edge is aligned so the inputs line up across the row
+   even when one field has an extra line of label or hint text. */
+.template-publisher-field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+    align-items: end;
+}
+
+.template-publisher-field-row:last-child {
+    margin-bottom: 0;
+}
+
+.template-publisher-field-row > g4-field {
+    margin-bottom: 0;
+}
+
+.template-publisher-key-preview {
+    font-size: 11px;
+    min-height: 16px;
+}
+
+/* Toggle switches side by side. */
+.template-publisher-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    margin-bottom: 16px;
+}
+
+.template-publisher-toggle-row > g4-toggle {
+    margin-bottom: 0;
+}
+
+/* Automation facts: size, authentication, and encoding. */
+.template-publisher-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 11px;
+    margin-bottom: 10px;
+}

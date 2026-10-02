@@ -80,6 +80,11 @@
                 "command": "Update-Flow",
                 "category": "G4",
                 "title": "Open in Flow Publisher"
+            },
+            {
+                "command": "Open-Template-Publisher",
+                "category": "G4",
+                "title": "Open in Template Publisher"
             }
         ],
         "grammars": [
@@ -159,6 +164,16 @@
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
                 },
                 {
+                    "command": "Open-Template-Publisher",
+                    "group": "navigation@3",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Open-Template-Publisher",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])templates([\\\\/]|$)/i"
+                },
+                {
                     "command": "Show-Settings",
                     "group": "navigation",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceFilename == manifest.json"
@@ -175,6 +190,10 @@
                 },
                 {
                     "command": "Update-Flow",
+                    "when": "false"
+                },
+                {
+                    "command": "Open-Template-Publisher",
                     "when": "false"
                 }
             ]

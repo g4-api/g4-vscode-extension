@@ -1,6 +1,6 @@
 # G4 webview components
 
-The webview pages of the extension (the flow publisher, the settings editor, and the report) are
+The webview pages of the extension (the flow publisher, the template publisher, the settings editor, and the report) are
 built from reusable components. Each component is a complete unit in its own folder: its markup,
 styles, icons, and behavior.
 
@@ -9,6 +9,7 @@ styles, icons, and behavior.
 | Folder | What it is |
 | --- | --- |
 | `automation-flow-publisher/` | The flow publisher page. |
+| `automation-template-publisher/` | The template publisher page. |
 | `automation-settings/` | The settings editor page. |
 | `automation-report/` | The report page. |
 | `g4-*/` | Reusable components, used by the pages and by each other. |

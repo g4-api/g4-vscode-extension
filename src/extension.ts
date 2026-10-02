@@ -9,6 +9,7 @@ import { Global } from './constants/global';
 import { UpdateEnvironmentCommand } from './commands/update-environment';
 import { UpdateTemplateCommand } from './commands/update-template';
 import { UpdateFlowCommand } from './commands/update-flow';
+import { UpdateTemplatePublisherCommand } from './commands/update-template-publisher';
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
 import { StartRecorderCommand } from './commands/start-recorder';
 import { StopRecorderCommand } from './commands/stop-recorder';
@@ -169,6 +170,9 @@ const registerCommands = (options: {
 
     // Command to publish bot automations from the workspace bots folder as flows.
     new UpdateFlowCommand(options.context, options.baseUri).register();
+
+    // Command to publish a template file, or the rules of one bot job, from the workspace as a template.
+    new UpdateTemplatePublisherCommand(options.context, options.baseUri).register();
 
     // Initialize the recorder command, which handles UI event recording. Captured in a module
     // field so the settings service can rebuild its connections when settings are applied.

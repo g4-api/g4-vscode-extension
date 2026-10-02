@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="g4-components" content="g4-page-header g4-action-bar g4-notice-list g4-section g4-field g4-text-input g4-markdown-textarea g4-json-textarea g4-code-textarea g4-list-editor g4-key-value-editor g4-card-list g4-card g4-toggle">
+    <title>G4(TM) Publish Template</title>
+    {{$ components.styles }}
+    <link rel="stylesheet" href="{{$ component.style.uri }}">
+</head>
+
+<body>
+    <div id="g4-header" data-test-id="template-publisher-header-region"></div>
+    <div id="app" data-test-id="template-publisher-form-region"></div>
+    <div id="g4-actionbar" data-test-id="template-publisher-actionbar-region"></div>
+    <div id="g4-modal" data-test-id="template-publisher-modal-region"></div>
+    <textarea id="g4-data" class="component-data" data-test-id="template-publisher-injected-data">
+        {{$ template.publisher.data }}
+    </textarea>
+
+    {{$ components.templates }}
+    {{$ components.scripts }}
+    <script src="{{$ component.script.uri }}"></script>
+</body>
+
+</html>

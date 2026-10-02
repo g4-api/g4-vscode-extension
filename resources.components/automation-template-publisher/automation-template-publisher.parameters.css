@@ -1,0 +1,19 @@
+/*
+ * Flow publisher parameters.
+ *
+ * The page is built from the reusable G4 components (resources.components/g4-*), which carry their
+ * own parameters; these values cover only what the page itself draws: the page background, text,
+ * the "Will publish as" and automation facts, and links.
+ */
+:root {
+    /* Typography */
+    --template-publisher-font-family: 'Inter', sans-serif;
+
+    /* Page */
+    --template-publisher-background: var(--vscode-editor-background);
+    --template-publisher-foreground: var(--vscode-editor-foreground);
+
+    /* Links and link-colored facts */
+    --template-publisher-link-foreground: var(--vscode-textLink-foreground);
+    --template-publisher-link-active-foreground: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
+}
