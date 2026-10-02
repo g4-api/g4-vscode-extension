@@ -1,0 +1,82 @@
+/*
+ * G4 Markdown text area visual language: a themed box, corner buttons revealed on hover or focus,
+ * and the reference table.
+ */
+textarea.g4-markdown-textarea__input {
+    font-family: var(--g4-markdown-textarea-font-family);
+    color: inherit;
+    background-color: var(--g4-markdown-textarea-background);
+    border-color: var(--g4-markdown-textarea-border-color);
+    outline: none;
+}
+
+textarea.g4-markdown-textarea__input:focus {
+    border-color: var(--g4-markdown-textarea-focus-border-color);
+}
+
+.g4-markdown-textarea__tools {
+    opacity: 0;
+    transition: var(--g4-markdown-textarea-tools-transition);
+}
+
+.g4-markdown-textarea__box:hover .g4-markdown-textarea__tools,
+.g4-markdown-textarea__box:focus-within .g4-markdown-textarea__tools {
+    opacity: 1;
+}
+
+.g4-markdown-textarea__tool {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-markdown-textarea-tool-foreground);
+    background-color: var(--g4-markdown-textarea-tool-background);
+    border-color: var(--g4-markdown-textarea-tool-border-color);
+    border-radius: var(--g4-markdown-textarea-radius);
+}
+
+.g4-markdown-textarea__tool:hover {
+    background-color: var(--g4-markdown-textarea-tool-hover-background);
+}
+
+/* In the expanded editor's header the buttons look like the other header buttons. */
+.g4-markdown-textarea__tool--header {
+    background-color: var(--g4-markdown-textarea-header-tool-background);
+}
+
+.g4-markdown-textarea__tool--header:hover {
+    background-color: var(--g4-markdown-textarea-tool-hover-background);
+}
+
+/* Markdown reference */
+.g4-markdown-textarea__reference-note,
+.g4-markdown-textarea__reference thead th {
+    color: var(--g4-markdown-textarea-muted-foreground);
+}
+
+.g4-markdown-textarea__reference th,
+.g4-markdown-textarea__reference td {
+    border-bottom-color: var(--g4-markdown-textarea-rule-color);
+}
+
+.g4-markdown-textarea__syntax,
+.g4-markdown-textarea__result pre {
+    font-family: var(--g4-markdown-textarea-font-family);
+    border-color: var(--g4-markdown-textarea-border-color);
+    background-color: var(--g4-markdown-textarea-background);
+}
+
+.g4-markdown-textarea__result code {
+    font-family: var(--g4-markdown-textarea-font-family);
+    background-color: var(--g4-markdown-textarea-background);
+    border-radius: var(--g4-markdown-textarea-radius);
+}
+
+.g4-markdown-textarea__result blockquote {
+    color: var(--g4-markdown-textarea-muted-foreground);
+    border-left-color: var(--g4-markdown-textarea-rule-color);
+}
+
+.g4-markdown-textarea__result hr,
+.g4-markdown-textarea__result table th,
+.g4-markdown-textarea__result table td {
+    border-color: var(--g4-markdown-textarea-rule-color);
+}

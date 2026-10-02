@@ -1,0 +1,90 @@
+/*
+ * G4 section layout: a header row over the body. The header is separated from the body by a line
+ * only while the section is open.
+ */
+g4-section {
+    display: block;
+    overflow: hidden;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-section__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.g4-section__header--open {
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+}
+
+.g4-section__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.g4-section__chevron-closed {
+    display: block;
+}
+
+.g4-section__chevron-open {
+    display: none;
+}
+
+.g4-section__chevron--open .g4-section__chevron-closed {
+    display: none;
+}
+
+.g4-section__chevron--open .g4-section__chevron-open {
+    display: block;
+}
+
+/* Warning: a triangle and a short label at the right end of the header. */
+.g4-section__warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.g4-section__warning:empty {
+    display: none;
+}
+
+.g4-section__warning svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    display: block;
+}
+
+.g4-section__body {
+    padding: 16px;
+}
+
+.g4-section__body--flush {
+    padding: 0;
+}
+
+.g4-section__body--collapsed {
+    display: none;
+}
+
+.g4-section__description {
+    font-size: 11px;
+    margin-bottom: 14px;
+}
+
+.g4-section__status {
+    font-size: 11px;
+    min-height: 18px;
+    margin-top: 12px;
+}

@@ -1,204 +1,41 @@
-﻿body {
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground)
-        }
+/*
+ * Settings visual language: the page font and colors, muted hints, notes, notices, and links. The
+ * G4 components draw their own look.
+ */
+@font-face {
+    font-family: 'Inter';
+    src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
 
-        .header {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
+body {
+    font-family: var(--settings-font-family);
+    background-color: var(--settings-background);
+    color: var(--settings-foreground);
+}
 
-        .header-meta {
-            color: var(--vscode-descriptionForeground)
-        }
+.settings-hint {
+    color: var(--settings-muted-foreground);
+}
 
-        .section {
-            border: 1px solid var(--vscode-panel-border)
-        }
+.settings-note {
+    color: var(--settings-muted-foreground);
+    background-color: var(--settings-note-background);
+    border-color: var(--settings-note-border-color);
+}
 
-        .section-hdr {
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
+.settings-error {
+    color: var(--settings-error-foreground);
+}
 
-        .section-hdr:has(.chev:not(.open)) {
-            border-bottom: none
-        }
+a {
+    color: var(--settings-link-foreground);
+    text-decoration: none;
+}
 
-        .section-desc,
-        .field-hint,
-        .field-suffix,
-        .toggle-hint,
-        .meta-text,
-        .save-note {
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .field-error,
-        .required-mark,
-        .status-err {
-            color: var(--vscode-errorForeground)
-        }
-
-        .status-ok {
-            color: var(--vscode-testing-iconPassed, #22c55e)
-        }
-
-        input[type="text"],
-        input[type="password"],
-        input[type="number"],
-        select,
-        textarea {
-            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-            background-color: var(--vscode-input-background, transparent)
-        }
-
-        .num-steppers {
-            border-left: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
-
-        .num-step {
-            background-color: var(--vscode-input-background, transparent);
-            color: var(--vscode-foreground)
-        }
-
-        .num-step:first-child {
-            border-bottom: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
-
-        .num-step:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        .num-step svg path {
-            fill: currentColor
-        }
-
-        .switch {
-            background-color: var(--vscode-panel-border)
-        }
-
-        .switch::after {
-            background-color: var(--vscode-editor-background)
-        }
-
-        .toggle input:checked+.switch {
-            background-color: var(--vscode-testing-iconPassed, #22c55e)
-        }
-
-        .btn {
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground)
-        }
-
-        .btn:hover {
-            background-color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
-        }
-
-        .btn-ghost {
-            color: var(--vscode-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        .btn-ghost:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        /* Corner buttons over a text box keep the text box background, like the flow publisher. */
-        .text-tools .btn {
-            background-color: var(--vscode-input-background, var(--vscode-editor-background))
-        }
-
-        .text-tools .btn:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
-
-        /* Line-number gutter: joined to the left edge of its text box. */
-        .field-line-numbers {
-            color: var(--vscode-descriptionForeground);
-            background-color: var(--vscode-sideBar-background);
-            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
-            border-right: none
-        }
-
-        /* Expanded editor */
-        .modal-backdrop {
-            background-color: rgba(0, 0, 0, .45)
-        }
-
-        .modal {
-            border: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-editor-background);
-            box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, .36))
-        }
-
-        .modal-hdr {
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
-
-        .line-numbers {
-            color: var(--vscode-descriptionForeground);
-            background-color: var(--vscode-sideBar-background);
-            border-right: 1px solid var(--vscode-panel-border)
-        }
-
-        textarea.expand-textarea {
-            border: none
-        }
-
-        /* Close: a theme-colored circle; the white disc behind it shows through the X. */
-        .modal-close {
-            cursor: pointer;
-            border: none;
-            border-radius: 50%;
-            color: var(--vscode-button-background);
-            background: radial-gradient(circle closest-side, var(--vscode-button-foreground) 0 76%, transparent 78%)
-        }
-
-        .modal-close:hover {
-            color: var(--vscode-button-hoverBackground, var(--vscode-button-background))
-        }
-
-        .modal-close:focus-visible {
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: 1px
-        }
-
-        .actionbar {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-top: 1px solid var(--vscode-panel-border)
-        }
-
-        .item-card {
-            border: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-sideBar-background)
-        }
-
-        /* Foldable cards (repositories, MCP servers) fold from their header, like the recorder cards. */
-        .foldable-card .item-card-hdr {
-            cursor: pointer
-        }
-
-        .note {
-            border: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-sideBar-background);
-            color: var(--vscode-descriptionForeground)
-        }
-
-        .read-only-tag {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
-
-        a {
-            color: var(--vscode-textLink-foreground);
-            text-decoration: none
-        }
-
-        a:hover {
-            color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
-            text-decoration: underline
-        }
-
+a:hover {
+    color: var(--settings-link-active-foreground);
+    text-decoration: underline;
+}

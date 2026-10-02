@@ -1,0 +1,12 @@
+/*
+ * G4 busy button parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-busy-button-background: var(--vscode-button-background);
+    --g4-busy-button-border-color: var(--vscode-panel-border);
+    --g4-busy-button-disabled-opacity: .6;
+    --g4-busy-button-foreground: var(--vscode-foreground);
+    --g4-busy-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-busy-button-radius: 2px;
+    --g4-busy-button-spin: g4-busy-button-spin .8s linear infinite;
+}

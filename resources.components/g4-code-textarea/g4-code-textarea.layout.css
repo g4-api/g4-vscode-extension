@@ -1,0 +1,55 @@
+/*
+ * G4 code text area layout: the line-number gutter, the text box, and the corner Expand button.
+ */
+g4-code-textarea {
+    display: flex;
+    flex-direction: column;
+}
+
+.g4-code-textarea__box {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+}
+
+/* The box has a fixed size and never wraps; the right padding keeps text clear of the buttons. */
+textarea.g4-code-textarea__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    min-height: 60px;
+    padding: 6px 100px 6px 8px;
+    font-size: 12px;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    resize: none;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-code-textarea__tools {
+    position: absolute;
+    top: 6px;
+    right: 20px;
+    display: flex;
+    gap: 4px;
+}
+
+.g4-code-textarea__tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-code-textarea__tool svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}

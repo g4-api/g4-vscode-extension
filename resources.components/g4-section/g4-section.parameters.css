@@ -1,0 +1,11 @@
+/*
+ * G4 section parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-section-border-color: var(--vscode-panel-border);
+    --g4-section-error-foreground: var(--vscode-errorForeground);
+    --g4-section-header-background: var(--vscode-sideBar-background);
+    --g4-section-muted-foreground: var(--vscode-descriptionForeground);
+    --g4-section-success-foreground: var(--vscode-testing-iconPassed, #22c55e);
+    --g4-section-warning-foreground: var(--vscode-editorWarning-foreground, #cca700);
+}

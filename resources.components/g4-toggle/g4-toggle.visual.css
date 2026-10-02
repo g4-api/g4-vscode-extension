@@ -1,0 +1,35 @@
+/*
+ * G4 toggle visual language: a rounded switch whose knob slides right and turns green when on.
+ */
+.g4-toggle__label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.g4-toggle__input {
+    opacity: 0;
+}
+
+.g4-toggle__switch {
+    background-color: var(--g4-toggle-off-background);
+    border-radius: var(--g4-toggle-radius);
+    transition: var(--g4-toggle-transition);
+}
+
+.g4-toggle__switch::after {
+    background-color: var(--g4-toggle-knob-background);
+    border-radius: 50%;
+    transition: var(--g4-toggle-knob-transition);
+}
+
+.g4-toggle__input:checked + .g4-toggle__switch {
+    background-color: var(--g4-toggle-on-background);
+}
+
+.g4-toggle__input:checked + .g4-toggle__switch::after {
+    transform: var(--g4-toggle-knob-offset);
+}
+
+.g4-toggle__hint {
+    color: var(--g4-toggle-hint-foreground);
+}

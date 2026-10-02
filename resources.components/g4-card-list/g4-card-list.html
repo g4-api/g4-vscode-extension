@@ -1,0 +1,18 @@
+<!--
+    G4 card list: a stack of <g4-card> elements with an add button, or an empty message.
+    See g4-card-list.js.
+-->
+<template id="g4-card-list-template" data-dependencies="g4-card">
+    <div class="g4-card-list__items" data-part="items" data-test-id="items"></div>
+    <div class="g4-card-list__add-row">
+        <button type="button"
+                class="g4-card-list__button"
+                data-part="add"
+                data-test-id="add-button"></button>
+    </div>
+</template>
+
+<!-- Shown instead of the cards when the list is empty. -->
+<template id="g4-card-list-empty-template">
+    <div class="g4-card-list__empty" data-part="empty" data-test-id="empty-message"></div>
+</template>

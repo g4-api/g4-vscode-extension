@@ -1,3 +1,25 @@
-﻿:root {
+/*
+ * Settings parameters.
+ *
+ * The page is built from the reusable G4 components (resources.components/g4-*), which carry their
+ * own parameters; these values cover only what the page itself draws: the page background, text,
+ * hints, notes, sub-headers, script notices, and links.
+ */
+:root {
+    /* Typography */
     --settings-font-family: 'Inter', sans-serif;
+
+    /* Page */
+    --settings-background: var(--vscode-editor-background);
+    --settings-foreground: var(--vscode-editor-foreground);
+    --settings-muted-foreground: var(--vscode-descriptionForeground);
+    --settings-error-foreground: var(--vscode-errorForeground);
+
+    /* Notes */
+    --settings-note-background: var(--vscode-sideBar-background);
+    --settings-note-border-color: var(--vscode-panel-border);
+
+    /* Links */
+    --settings-link-foreground: var(--vscode-textLink-foreground);
+    --settings-link-active-foreground: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground));
 }

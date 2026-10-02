@@ -1,0 +1,42 @@
+/*
+ * G4 card visual language: a bordered surface, a clickable header, ghost header buttons, and a
+ * warning-colored warning.
+ */
+g4-card {
+    border-color: var(--g4-card-border-color);
+    background-color: var(--g4-card-background);
+}
+
+.g4-card__header {
+    cursor: pointer;
+}
+
+.g4-card__chevron {
+    font-style: normal;
+}
+
+.g4-card__title--mono {
+    font-family: var(--g4-card-monospace-font-family);
+}
+
+.g4-card__warning {
+    color: var(--g4-card-warning-foreground);
+}
+
+.g4-card__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-card-button-foreground);
+    background-color: var(--g4-card-button-background);
+    border-color: var(--g4-card-button-border-color);
+    border-radius: var(--g4-card-button-radius);
+}
+
+.g4-card__button:hover {
+    background-color: var(--g4-card-button-hover-background);
+}
+
+.g4-card__button:disabled {
+    opacity: var(--g4-card-disabled-opacity);
+    cursor: default;
+}

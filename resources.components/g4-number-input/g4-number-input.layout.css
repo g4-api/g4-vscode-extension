@@ -1,0 +1,62 @@
+/*
+ * G4 number input layout: a 30px-high box with two stacked steppers inside its right edge.
+ */
+g4-number-input {
+    display: flex;
+    flex-direction: column;
+}
+
+.g4-number-input__wrap {
+    position: relative;
+    display: flex;
+}
+
+/* The native spinners are hidden; the themed steppers take their place. */
+.g4-number-input__input {
+    flex: 1;
+    width: 100%;
+    height: 30px;
+    padding: 6px 24px 6px 8px;
+    font-size: 12px;
+    border-width: 1px;
+    border-style: solid;
+    appearance: textfield;
+}
+
+.g4-number-input__input::-webkit-inner-spin-button,
+.g4-number-input__input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.g4-number-input__steppers {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    bottom: 1px;
+    width: 20px;
+    display: flex;
+    flex-direction: column;
+    border-left-width: 1px;
+    border-left-style: solid;
+}
+
+.g4-number-input__step {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-style: none;
+}
+
+.g4-number-input__step:first-child {
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+}
+
+.g4-number-input__step svg {
+    width: 9px;
+    height: 9px;
+    display: block;
+}

@@ -1,0 +1,16 @@
+/*
+ * G4 key/value editor parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-key-value-editor-background: var(--vscode-input-background, transparent);
+    --g4-key-value-editor-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-key-value-editor-button-background: var(--vscode-button-background);
+    --g4-key-value-editor-button-border-color: var(--vscode-panel-border);
+    --g4-key-value-editor-button-foreground: var(--vscode-foreground);
+    --g4-key-value-editor-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-key-value-editor-button-radius: 2px;
+    --g4-key-value-editor-disabled-opacity: .6;
+    --g4-key-value-editor-error-foreground: var(--vscode-errorForeground);
+    --g4-key-value-editor-focus-border-color: var(--vscode-focusBorder);
+    --g4-key-value-editor-muted-foreground: var(--vscode-descriptionForeground);
+}

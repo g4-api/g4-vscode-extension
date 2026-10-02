@@ -1,0 +1,44 @@
+/*
+ * G4 action bar visual language: a tab-colored bar, filled primary and ghost secondary buttons,
+ * and a note that fades in and out.
+ */
+.g4-action-bar__bar {
+    background-color: var(--g4-action-bar-background);
+    border-top-color: var(--g4-action-bar-border-color);
+}
+
+.g4-action-bar__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-action-bar-button-foreground);
+    background-color: var(--g4-action-bar-button-background);
+    border-radius: var(--g4-action-bar-button-radius);
+}
+
+.g4-action-bar__button:hover {
+    background-color: var(--g4-action-bar-button-hover-background);
+}
+
+.g4-action-bar__button--secondary {
+    color: var(--g4-action-bar-secondary-foreground);
+    border-color: var(--g4-action-bar-border-color);
+}
+
+.g4-action-bar__button--secondary:hover {
+    background-color: var(--g4-action-bar-secondary-hover-background);
+}
+
+.g4-action-bar__button:disabled {
+    opacity: var(--g4-action-bar-disabled-opacity);
+    cursor: default;
+}
+
+.g4-action-bar__note {
+    color: var(--g4-action-bar-note-foreground);
+    opacity: 0;
+    transition: var(--g4-action-bar-note-transition);
+}
+
+.g4-action-bar__note--shown {
+    opacity: 1;
+}

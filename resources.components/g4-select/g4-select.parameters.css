@@ -1,0 +1,10 @@
+/*
+ * G4 select parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-select-background: var(--vscode-input-background, transparent);
+    --g4-select-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-select-focus-border-color: var(--vscode-focusBorder);
+    --g4-select-option-background: var(--vscode-dropdown-background, var(--vscode-editor-background));
+    --g4-select-option-foreground: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));
+}

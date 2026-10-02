@@ -1,0 +1,16 @@
+/*
+ * G4 action bar parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-action-bar-background: var(--vscode-editorGroupHeader-tabsBackground);
+    --g4-action-bar-border-color: var(--vscode-panel-border);
+    --g4-action-bar-button-background: var(--vscode-button-background);
+    --g4-action-bar-button-foreground: var(--vscode-button-foreground);
+    --g4-action-bar-button-hover-background: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+    --g4-action-bar-button-radius: 2px;
+    --g4-action-bar-disabled-opacity: .6;
+    --g4-action-bar-note-foreground: var(--vscode-descriptionForeground);
+    --g4-action-bar-note-transition: opacity .2s;
+    --g4-action-bar-secondary-foreground: var(--vscode-foreground);
+    --g4-action-bar-secondary-hover-background: var(--vscode-list-hoverBackground);
+}

@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="g4-components" content="g4-page-header g4-section">
     <title>G4(TM) Automation Report</title>
+    {{$ components.styles }}
     <!-- layout -->
     <!-- colors -->
         <link rel="stylesheet" href="{{$ component.style.uri }}">
@@ -18,7 +20,9 @@
         {{$ report.data }}
     </textarea>
 
-        <script src="{{$ component.script.uri }}"></script>
+    {{$ components.templates }}
+    {{$ components.scripts }}
+    <script src="{{$ component.script.uri }}"></script>
 </body>
 
 </html>

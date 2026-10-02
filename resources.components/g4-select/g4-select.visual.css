@@ -1,0 +1,19 @@
+/*
+ * G4 select visual language: a themed dropdown and themed options.
+ */
+.g4-select__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-select-background);
+    border-color: var(--g4-select-border-color);
+    outline: none;
+}
+
+.g4-select__input:focus {
+    border-color: var(--g4-select-focus-border-color);
+}
+
+.g4-select__input option {
+    background: var(--g4-select-option-background);
+    color: var(--g4-select-option-foreground);
+}

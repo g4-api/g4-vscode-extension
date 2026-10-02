@@ -27,12 +27,6 @@
             flex-direction: column
         }
 
-        .header {
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            gap: 14px
-        }
 
         #app {
             flex: 1;
@@ -41,22 +35,8 @@
             scrollbar-gutter: stable
         }
 
-        .header-title {
-            font-size: 16px;
-            font-weight: 700
-        }
 
-        .header-meta {
-            font-size: 11px;
-            margin-top: 1px
-        }
 
-        .header-right {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
 
         .main {
             max-width: 1440px;
@@ -90,24 +70,8 @@
             font-variant-numeric: tabular-nums
         }
 
-        .section {
-            overflow: hidden
-        }
 
-        .section-hdr {
-            padding: 10px 16px;
-            font-weight: 600;
-            font-size: 12px;
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            align-items: center;
-            gap: 8px
-        }
 
-        .section-body {
-            padding: 16px
-        }
 
         .component-data {
             display: none;

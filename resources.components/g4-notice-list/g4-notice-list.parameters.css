@@ -1,0 +1,16 @@
+/*
+ * G4 notice list parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-notice-list-background: var(--vscode-sideBar-background);
+    --g4-notice-list-border-color: var(--vscode-panel-border);
+    --g4-notice-list-button-background: var(--vscode-button-background);
+    --g4-notice-list-button-foreground: var(--vscode-foreground);
+    --g4-notice-list-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-notice-list-button-radius: 2px;
+    --g4-notice-list-code-font-family: 'Consolas', monospace;
+    --g4-notice-list-error-foreground: var(--vscode-errorForeground);
+    --g4-notice-list-muted-foreground: var(--vscode-descriptionForeground);
+    --g4-notice-list-success-foreground: var(--vscode-testing-iconPassed, #22c55e);
+    --g4-notice-list-warning-foreground: var(--vscode-editorWarning-foreground, #cca700);
+}

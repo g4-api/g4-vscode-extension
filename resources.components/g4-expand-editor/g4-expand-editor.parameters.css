@@ -1,0 +1,8 @@
+/*
+ * G4 expand editor parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-expand-editor-background: var(--vscode-input-background, transparent);
+    --g4-expand-editor-error-foreground: var(--vscode-errorForeground);
+    --g4-expand-editor-font-family: 'Consolas', monospace;
+}

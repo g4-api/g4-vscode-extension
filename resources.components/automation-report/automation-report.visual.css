@@ -3,10 +3,6 @@
             color: var(--vscode-editor-foreground)
         }
 
-        .header {
-            background-color: var(--vscode-editorGroupHeader-tabsBackground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
 
         .card {
             background-color: var(--vscode-editor-background);
@@ -17,18 +13,8 @@
             color: var(--vscode-descriptionForeground)
         }
 
-        .section {
-            border: 1px solid var(--vscode-panel-border)
-        }
 
-        .section-hdr {
-            background-color: var(--vscode-sideBar-background);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
 
-        .section-hdr:has(.chev:not(.open)) {
-            border-bottom: none
-        }
 
         .si-label {
             color: var(--vscode-descriptionForeground)

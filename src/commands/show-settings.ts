@@ -10,6 +10,7 @@ import { CommandBase } from './command-base';
 
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
+import { WebviewComponents } from '../extensions/webview-components';
 
 /**
  * Command to create a new project structure in VS Code.
@@ -227,8 +228,13 @@ export class ShowSettingsCommand extends CommandBase {
         // Serialize the manifest to a formatted JSON string for injection into the settings HTML.
         const manifestJson = JSON.stringify(manifest, null, 4);
 
-        // Load the settings component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/automation-settings/automation-settings.html');
+        // Load the settings component HTML template and fill in the reusable components it uses,
+        // before the manifest is injected, so the manifest is never searched for placeholders.
+        const html = WebviewComponents.setComponentHtml({
+            html: Utilities.getResource('resources.components/automation-settings/automation-settings.html'),
+            rootPath: vscode.Uri.joinPath(context.extensionUri, 'resources.components').fsPath,
+            toUri: (filePath) => panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
 
         // Inject the manifest data and font URI into the HTML template and return it.
         // The manifest is supplied through a replacer function so any literal `$`

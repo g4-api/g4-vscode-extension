@@ -4,23 +4,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="g4-components" content="g4-page-header g4-action-bar g4-section g4-field g4-text-input g4-number-input g4-secret-input g4-path-input g4-select g4-toggle g4-busy-button g4-json-textarea g4-code-textarea g4-list-editor g4-key-value-editor g4-card-list g4-card">
     <title>G4(TM) Settings</title>
-    <!-- layout -->
-    <!-- colors -->
-        <link rel="stylesheet" href="{{$ component.style.uri }}">
+    {{$ components.styles }}
+    <link rel="stylesheet" href="{{$ component.style.uri }}">
 </head>
 
 <body>
-    <div id="g4-header"></div>
-    <div id="app"></div>
-    <div id="g4-actionbar"></div>
-    <div id="g4-modal"></div>
-    <textarea id="g4-data" class="component-data">
+    <div id="g4-header" data-test-id="settings-header-region"></div>
+    <div id="app" data-test-id="settings-form-region"></div>
+    <div id="g4-actionbar" data-test-id="settings-actionbar-region"></div>
+    <div id="g4-modal" data-test-id="settings-modal-region"></div>
+    <textarea id="g4-data" class="component-data" data-test-id="settings-injected-data">
         {{$ settings.data }}
     </textarea>
 
-        <script src="{{$ component.script.uri }}"></script>
+    {{$ components.templates }}
+    {{$ components.scripts }}
+    <script src="{{$ component.script.uri }}"></script>
 </body>
 
 </html>
-

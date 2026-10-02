@@ -1,0 +1,34 @@
+/*
+ * G4 modal visual language: backdrop, dialog surface, header, and the round Close button.
+ */
+.g4-modal__backdrop {
+    background-color: var(--g4-modal-backdrop-background);
+}
+
+.g4-modal__dialog {
+    border-color: var(--g4-modal-border-color);
+    background-color: var(--g4-modal-background);
+    box-shadow: var(--g4-modal-shadow);
+}
+
+.g4-modal__header {
+    background-color: var(--g4-modal-header-background);
+    border-bottom-color: var(--g4-modal-border-color);
+}
+
+/* Close: a theme-colored circle; the light disc behind it shows through the X. */
+.g4-modal__close {
+    cursor: pointer;
+    border-radius: 50%;
+    color: var(--g4-modal-close-foreground);
+    background: radial-gradient(circle closest-side, var(--g4-modal-close-background) 0 76%, transparent 78%);
+}
+
+.g4-modal__close:hover {
+    color: var(--g4-modal-close-hover-foreground);
+}
+
+.g4-modal__close:focus-visible {
+    outline: 1px solid var(--g4-modal-focus-border-color);
+    outline-offset: 1px;
+}

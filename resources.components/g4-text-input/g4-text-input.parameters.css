@@ -1,0 +1,8 @@
+/*
+ * G4 text input parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-text-input-background: var(--vscode-input-background, transparent);
+    --g4-text-input-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-text-input-focus-border-color: var(--vscode-focusBorder);
+}

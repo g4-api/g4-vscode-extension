@@ -741,7 +741,7 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             // Add failed assertion count when failures exist.
             if (asserts.length > 0) {
                 counts.push(
-                    `<span class="assert-count">${LED('#ef4444')}${asserts.length} failed</span>`
+                    `<span class="assert-count" data-slot="header">${LED('#ef4444')}${asserts.length} failed</span>`
                 );
             }
 
@@ -752,20 +752,19 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                     : '';
 
                 counts.push(
-                    `<span class="assert-count">${LED('#ef4444')}${exceptions.length} exception${suffix}</span>`
+                    `<span class="assert-count" data-slot="header">${LED('#ef4444')}${exceptions.length} exception${suffix}</span>`
                 );
             }
 
             // Render the complete collapsible error summary section.
             return `
-            <div class="section section-mt-lg">
-                <div class="section-hdr" onclick="toggleElement('es-${sid}','esi-${sid}')">
-                    <i class="chev open" id="esi-${sid}">${SVG_CHEVRON}</i>
-                    Error Summary
-                    ${counts.join('')}
-                </div>
-                <div class="section-body" id="es-${sid}">${assertBlock}${exceptionBlock}</div>
-            </div>`;
+            <g4-section class="section-mt-lg"
+                        open
+                        section-title="Error Summary"
+                        test-id="error-summary-${sid}-section">
+                ${counts.join('')}
+                ${assertBlock}${exceptionBlock}
+            </g4-section>`;
         }
 
 // Incremental id used to generate unique plugin/process node ids.
@@ -1084,21 +1083,19 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                         <div class="card-value">${clearString(c.value)}</div>
                     </div>`).join('')}
             </div>
-            <div class="section">
-                <div class="section-hdr" onclick="toggleElement('req-tree','req-tree-chev')">
-                    <i class="chev open" id="req-tree-chev">${SVG_CHEVRON}</i>
-                    Rule Tree <span class="meta-text">${stages.length} stage${stages.length > 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length > 1 ? 's' : ''} &bull; ${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
-                </div>
-                <div class="section-body" id="req-tree">${stagesHtml}</div>
-            </div>
-            <div class="section section-mt">
-                <div class="section-hdr" onclick="toggleElement('req-tl','req-tl-chev')">
-                <i class="chev open" id="req-tl-chev">${SVG_CHEVRON}</i>
-                Execution Timeline
-                <span class="meta-text">${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
-                </div>
-                <div class="section-body" id="req-tl">${writeRequestTimeline(stages)}</div>
-            </div>`;
+            <g4-section open
+                        section-title="Rule Tree"
+                        test-id="rule-tree-section">
+                <span class="meta-text" data-slot="header">${stages.length} stage${stages.length > 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length > 1 ? 's' : ''} &bull; ${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
+                ${stagesHtml}
+            </g4-section>
+            <g4-section class="section-mt"
+                        open
+                        section-title="Execution Timeline"
+                        test-id="request-timeline-section">
+                <span class="meta-text" data-slot="header">${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
+                ${writeRequestTimeline(stages)}
+            </g4-section>`;
         }
 
         /**
@@ -1524,12 +1521,9 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
 
             // Render the report header.
             return `
-            <div class="header">
-                <div>
-                    <div class="header-title">G4&#x2122; Automation Report</div>
-                    <div class="header-meta">${clearString(name)} &bull; ${clearString(formatDateTime(start))}</div>
-                </div>
-            </div>`;
+            <g4-page-header meta="${clearString(name)} &bull; ${clearString(formatDateTime(start))}"
+                            page-title="G4&#x2122; Automation Report"
+                            test-id="automation-report-header"></g4-page-header>`;
         }
 
 (() => {
@@ -1554,15 +1548,11 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
 
                 // Render the request configuration header.
                 document.getElementById('g4-header').innerHTML = `
-                <div class="header">
-                    <div>
-                        <div class="header-title">G4&#x2122; Request Configuration</div>
-                        <div class="header-meta">${clearString(driver)} &bull; ${clearString(browser)}</div>
-                    </div>
-                    <div class="header-right">
-                        <span class="tag tag-neutral">Request</span>
-                    </div>
-                </div>`;
+                <g4-page-header meta="${clearString(driver)} &bull; ${clearString(browser)}"
+                                page-title="G4&#x2122; Request Configuration"
+                                test-id="request-configuration-header">
+                    <span class="tag tag-neutral">Request</span>
+                </g4-page-header>`;
 
                 // Render the request view into the main app container.
                 document.getElementById('app').innerHTML =
@@ -1581,12 +1571,9 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
             const resolveNoData = () => {
                 // Render the fallback report header.
                 document.getElementById('g4-header').innerHTML = `
-                <div class="header">
-                    <div>
-                        <div class="header-title">G4&#x2122; Automation Report</div>
-                        <div class="header-meta">${clearString('No session data found')}</div>
-                    </div>
-                </div>`;
+                <g4-page-header meta="${clearString('No session data found')}"
+                                page-title="G4&#x2122; Automation Report"
+                                test-id="automation-report-header"></g4-page-header>`;
 
                 // Render the fallback body for unrecognized report formats.
                 document.getElementById('app').innerHTML = `
@@ -1770,48 +1757,41 @@ const DATA = JSON.parse(document.getElementById('g4-data').value);
                         : ''}
 
                     <!-- Plugin tree -->
-                    <div class="section section-mt-lg">
-                        <div class="section-hdr" onclick="toggleElement('tr-${safeSid}','ti-${safeSid}')">
-                            <i class="chev open" id="ti-${safeSid}">${SVG_CHEVRON}</i>
-                            Plugin Tree
-                            <span class="meta-text">${stages.length} stage${stageSuffix} &bull; ${allJobs.length} job${jobSuffix} &bull; ${allPlugs.length} total plugins</span>
-
-                            <input 
-                                class="tree-filter"
-                                type="text"
-                                placeholder="Filter"
-                                oninput="filterTree('${safeSid}', this.value)"
-                                onclick="event.stopPropagation()" />
-                        </div>
-
-                        <div class="section-body" id="tr-${safeSid}">
+                    <g4-section class="section-mt-lg"
+                                open
+                                section-title="Plugin Tree"
+                                test-id="plugin-tree-${safeSid}-section">
+                        <span class="meta-text" data-slot="header">${stages.length} stage${stageSuffix} &bull; ${allJobs.length} job${jobSuffix} &bull; ${allPlugs.length} total plugins</span>
+                        <input type="text"
+                               class="tree-filter"
+                               data-slot="header"
+                               data-test-id="plugin-tree-${safeSid}-filter-input"
+                               aria-label="Filter plugins"
+                               oninput="filterTree('${safeSid}', this.value)"
+                               placeholder="Filter" />
+                        <div id="tr-${safeSid}">
                             ${writeTree(stages)}
                         </div>
-                    </div>
+                    </g4-section>
 
                     <!-- Execution timeline -->
-                    <div class="section section-mt">
-                        <div class="section-hdr" onclick="toggleElement('tl-${safeSid}','tli-${safeSid}')">
-                            <i class="chev open" id="tli-${safeSid}">${SVG_CHEVRON}</i>
-                            Execution Timeline
-                        </div>
-                        <div class="section-body" id="tl-${safeSid}">
-                            ${writeTimeline(stages, spp.start, spp.end)}
-                        </div>
-                    </div>
+                    <g4-section class="section-mt"
+                                open
+                                section-title="Execution Timeline"
+                                test-id="execution-timeline-${safeSid}-section">
+                        ${writeTimeline(stages, spp.start, spp.end)}
+                    </g4-section>
 
                     <!-- Assertions -->
-                    <div class="section section-mt">
-                        <div class="section-hdr" onclick="toggleElement('as-${safeSid}','ai-${safeSid}')">
-                            <i class="chev open" id="ai-${safeSid}">${SVG_CHEVRON}</i>
-                            Assertions
-                            ${fails > 0 ? `<span class="assert-count">${LED('#ef4444')}${fails} Fail${failSuffix}</span>` : ''}
-                            ${passes > 0 ? `<span class="assert-count">${LED('#22c55e')}${passes} Pass${passSuffix}</span>` : ''}
-                        </div>
-                        <div id="as-${safeSid}">
-                            ${writeAssertions(asserts)}
-                        </div>
-                    </div>
+                    <g4-section class="section-mt"
+                                flush
+                                open
+                                section-title="Assertions"
+                                test-id="assertions-${safeSid}-section">
+                        ${fails > 0 ? `<span class="assert-count" data-slot="header">${LED('#ef4444')}${fails} Fail${failSuffix}</span>` : ''}
+                        ${passes > 0 ? `<span class="assert-count" data-slot="header">${LED('#22c55e')}${passes} Pass${passSuffix}</span>` : ''}
+                        ${writeAssertions(asserts)}
+                    </g4-section>
                 </div>`;
             }).join('<div class="session-divider"></div>');
 

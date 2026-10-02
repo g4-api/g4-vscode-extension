@@ -1,0 +1,30 @@
+/*
+ * G4 busy button visual language: a ghost button whose refresh icon spins while busy.
+ */
+.g4-busy-button__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-busy-button-foreground);
+    background-color: var(--g4-busy-button-background);
+    border-color: var(--g4-busy-button-border-color);
+    border-radius: var(--g4-busy-button-radius);
+}
+
+.g4-busy-button__button:hover {
+    background-color: var(--g4-busy-button-hover-background);
+}
+
+.g4-busy-button__button:disabled {
+    opacity: var(--g4-busy-button-disabled-opacity);
+    cursor: default;
+}
+
+.g4-busy-button__button--busy svg {
+    animation: var(--g4-busy-button-spin);
+}
+
+@keyframes g4-busy-button-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

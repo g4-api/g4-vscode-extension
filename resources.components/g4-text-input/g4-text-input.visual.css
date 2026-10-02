@@ -1,0 +1,14 @@
+/*
+ * G4 text input visual language: a themed box with a focus border.
+ */
+.g4-text-input__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-text-input-background);
+    border-color: var(--g4-text-input-border-color);
+    outline: none;
+}
+
+.g4-text-input__input:focus {
+    border-color: var(--g4-text-input-focus-border-color);
+}

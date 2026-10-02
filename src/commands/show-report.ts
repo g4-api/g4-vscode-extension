@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Utilities } from '../extensions/utilities';
+import { WebviewComponents } from '../extensions/webview-components';
 
 /**
  * Command responsible for opening and displaying a G4 report.
@@ -276,7 +277,11 @@ export class ShowReportCommand extends CommandBase {
         );
 
         // Load the report component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/automation-report/automation-report.html');
+        const html = WebviewComponents.setComponentHtml({
+            html: Utilities.getResource('resources.components/automation-report/automation-report.html'),
+            rootPath: vscode.Uri.joinPath(context.extensionUri, 'resources.components').fsPath,
+            toUri: (filePath) => panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
 
         // Decode the Base64 report payload into UTF-8 text.
         reportData = Utilities.convertFromBase64(reportData);

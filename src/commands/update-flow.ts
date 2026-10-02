@@ -18,6 +18,7 @@ import { G4Client } from '../clients/g4-client';
 import { Channels } from '../constants/channels';
 
 import { Utilities } from '../extensions/utilities';
+import { WebviewComponents } from '../extensions/webview-components';
 
 import { Logger } from '../logging/logger';
 
@@ -327,8 +328,13 @@ export class UpdateFlowCommand extends CommandBase {
         const componentUri = vscode.Uri.joinPath(this.context.extensionUri, 'resources.components', COMPONENT_FOLDER);
         const styleUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(componentUri, `${COMPONENT_FOLDER}.css`));
         const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(componentUri, `${COMPONENT_FOLDER}.js`));
-        const html = Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.html`);
+        const html = WebviewComponents.setComponentHtml({
+            html: Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.html`),
+            rootPath: vscode.Uri.joinPath(this.context.extensionUri, 'resources.components').fsPath,
+            toUri: (filePath) => panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
 
+        // The components are filled first, so the injected data is never searched for placeholders.
         // Replacer functions keep any `$` in the data from being read as a replacement pattern.
         return html
             .replace('{{$ flow.publisher.data }}', () => UpdateFlowCommand.convertToInjectedJson(data))

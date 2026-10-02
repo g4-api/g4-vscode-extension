@@ -1,0 +1,15 @@
+/*
+ * G4 card parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-card-background: var(--vscode-sideBar-background);
+    --g4-card-border-color: var(--vscode-panel-border);
+    --g4-card-button-background: var(--vscode-button-background);
+    --g4-card-button-border-color: var(--vscode-panel-border);
+    --g4-card-button-foreground: var(--vscode-foreground);
+    --g4-card-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-card-button-radius: 2px;
+    --g4-card-disabled-opacity: .6;
+    --g4-card-monospace-font-family: 'Consolas', monospace;
+    --g4-card-warning-foreground: var(--vscode-editorWarning-foreground, #cca700);
+}

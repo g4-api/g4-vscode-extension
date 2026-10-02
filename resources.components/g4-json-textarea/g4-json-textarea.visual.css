@@ -1,0 +1,47 @@
+/*
+ * G4 JSON text area visual language: a themed box, and corner buttons revealed while the box is
+ * hovered or focused.
+ */
+textarea.g4-json-textarea__input {
+    font-family: var(--g4-json-textarea-font-family);
+    color: inherit;
+    background-color: var(--g4-json-textarea-background);
+    border-color: var(--g4-json-textarea-border-color);
+    outline: none;
+}
+
+textarea.g4-json-textarea__input:focus {
+    border-color: var(--g4-json-textarea-focus-border-color);
+}
+
+.g4-json-textarea__tools {
+    opacity: 0;
+    transition: var(--g4-json-textarea-tools-transition);
+}
+
+.g4-json-textarea__box:hover .g4-json-textarea__tools,
+.g4-json-textarea__box:focus-within .g4-json-textarea__tools {
+    opacity: 1;
+}
+
+.g4-json-textarea__tool {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-json-textarea-tool-foreground);
+    background-color: var(--g4-json-textarea-tool-background);
+    border-color: var(--g4-json-textarea-tool-border-color);
+    border-radius: var(--g4-json-textarea-tool-radius);
+}
+
+.g4-json-textarea__tool:hover {
+    background-color: var(--g4-json-textarea-tool-hover-background);
+}
+
+/* In the expanded editor's header the buttons look like the other header buttons. */
+.g4-json-textarea__tool--header {
+    background-color: var(--g4-json-textarea-header-tool-background);
+}
+
+.g4-json-textarea__tool--header:hover {
+    background-color: var(--g4-json-textarea-tool-hover-background);
+}

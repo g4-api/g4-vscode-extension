@@ -1,0 +1,27 @@
+/*
+ * G4 path input visual language: a themed box and ghost buttons.
+ */
+.g4-path-input__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-path-input-background);
+    border-color: var(--g4-path-input-border-color);
+    outline: none;
+}
+
+.g4-path-input__input:focus {
+    border-color: var(--g4-path-input-focus-border-color);
+}
+
+.g4-path-input__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-path-input-button-foreground);
+    background-color: var(--g4-path-input-button-background);
+    border-color: var(--g4-path-input-button-border-color);
+    border-radius: var(--g4-path-input-button-radius);
+}
+
+.g4-path-input__button:hover {
+    background-color: var(--g4-path-input-button-hover-background);
+}

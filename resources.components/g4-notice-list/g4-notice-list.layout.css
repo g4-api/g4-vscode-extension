@@ -1,0 +1,67 @@
+/*
+ * G4 notice list layout: banners stacked 8px apart, or warning lines stacked 4px apart; nothing
+ * while empty.
+ */
+g4-notice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+g4-notice-list[variant="warning"] {
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+g4-notice-list[hidden] {
+    display: none;
+}
+
+.g4-notice-list__banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    margin-top: 4px;
+    font-size: 11px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-notice-list__text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.g4-notice-list__action {
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-notice-list__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: left;
+    border-style: none;
+}
+
+.g4-notice-list__warning svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    display: block;
+    margin-top: 2px;
+}
+
+.g4-notice-list__warning code {
+    font-size: 11px;
+}

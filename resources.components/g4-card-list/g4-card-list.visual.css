@@ -1,0 +1,24 @@
+/*
+ * G4 card list visual language: a muted (or noted) empty message and a ghost add button.
+ */
+.g4-card-list__empty {
+    color: var(--g4-card-list-muted-foreground);
+}
+
+.g4-card-list__empty--note {
+    border-color: var(--g4-card-list-note-border-color);
+    background-color: var(--g4-card-list-note-background);
+}
+
+.g4-card-list__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-card-list-button-foreground);
+    background-color: var(--g4-card-list-button-background);
+    border-color: var(--g4-card-list-button-border-color);
+    border-radius: var(--g4-card-list-button-radius);
+}
+
+.g4-card-list__button:hover {
+    background-color: var(--g4-card-list-button-hover-background);
+}

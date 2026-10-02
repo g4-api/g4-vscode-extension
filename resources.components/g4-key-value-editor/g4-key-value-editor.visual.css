@@ -1,0 +1,41 @@
+/*
+ * G4 key/value editor visual language: themed text boxes, ghost buttons, muted empty text, and
+ * error-colored entry errors.
+ */
+.g4-key-value-editor__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-key-value-editor-background);
+    border-color: var(--g4-key-value-editor-border-color);
+    outline: none;
+}
+
+.g4-key-value-editor__input:focus {
+    border-color: var(--g4-key-value-editor-focus-border-color);
+}
+
+.g4-key-value-editor__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-key-value-editor-button-foreground);
+    background-color: var(--g4-key-value-editor-button-background);
+    border-color: var(--g4-key-value-editor-button-border-color);
+    border-radius: var(--g4-key-value-editor-button-radius);
+}
+
+.g4-key-value-editor__button:hover {
+    background-color: var(--g4-key-value-editor-button-hover-background);
+}
+
+.g4-key-value-editor__button:disabled {
+    opacity: var(--g4-key-value-editor-disabled-opacity);
+    cursor: default;
+}
+
+.g4-key-value-editor__empty {
+    color: var(--g4-key-value-editor-muted-foreground);
+}
+
+.g4-key-value-editor__error {
+    color: var(--g4-key-value-editor-error-foreground);
+}

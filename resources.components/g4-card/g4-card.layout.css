@@ -1,0 +1,101 @@
+/*
+ * G4 card layout: a header row (chevron, title, warning, buttons) over the body. A folded card is
+ * just its header.
+ */
+g4-card {
+    display: block;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-card__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+}
+
+.g4-card__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.g4-card__chevron-closed {
+    display: block;
+}
+
+.g4-card__chevron-open {
+    display: none;
+}
+
+.g4-card__chevron--open .g4-card__chevron-closed {
+    display: none;
+}
+
+.g4-card__chevron--open .g4-card__chevron-open {
+    display: block;
+}
+
+.g4-card__title {
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.g4-card__spacer {
+    flex: 1;
+}
+
+/* Warning: a triangle and a short label, before the buttons. */
+.g4-card__warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.g4-card__warning:empty {
+    display: none;
+}
+
+.g4-card__warning svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    display: block;
+}
+
+/* Header buttons share one height. */
+.g4-card__actions {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.g4-card__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-card__button svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.g4-card__body {
+    padding: 14px;
+}
+
+.g4-card__body--collapsed {
+    display: none;
+}

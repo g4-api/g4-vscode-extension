@@ -1,0 +1,44 @@
+/*
+ * G4 action bar layout: a padded bar that sticks to the bottom of the page, buttons on the left
+ * and the note on the right.
+ */
+g4-action-bar {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+}
+
+.g4-action-bar__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 24px;
+    border-top-width: 1px;
+    border-top-style: solid;
+}
+
+.g4-action-bar__buttons {
+    display: contents;
+}
+
+.g4-action-bar__spacer {
+    flex: 1;
+}
+
+.g4-action-bar__button {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border-style: none;
+}
+
+.g4-action-bar__button--secondary {
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-action-bar__note {
+    font-size: 11px;
+}

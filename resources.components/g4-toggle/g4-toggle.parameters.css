@@ -1,0 +1,13 @@
+/*
+ * G4 toggle parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-toggle-hint-foreground: var(--vscode-descriptionForeground);
+    --g4-toggle-knob-background: var(--vscode-editor-background);
+    --g4-toggle-knob-offset: translateX(16px);
+    --g4-toggle-knob-transition: transform .15s;
+    --g4-toggle-off-background: var(--vscode-panel-border);
+    --g4-toggle-on-background: var(--vscode-testing-iconPassed, #22c55e);
+    --g4-toggle-radius: 9px;
+    --g4-toggle-transition: background-color .15s;
+}
