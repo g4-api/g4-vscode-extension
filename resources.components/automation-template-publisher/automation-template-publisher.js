@@ -16,10 +16,13 @@
  *                   { command: 'publishResult', isSuccess, isCancelled, message, fieldErrors, existingTemplate,
  *                     file, savedRulesText, savedValues }
  *
- * Tokens: the rules reference a parameter as `{{$ parameters.Name }}` and a property as
- * `{{$ properties.Name }}`, exactly. Unused parameters, unknown names, and broken tokens are
- * warnings: they are shown on the page and listed in a confirmation the host shows on Publish, but
- * never block publishing.
+ * Tokens: the rules reference a parameter as `{{$ Parameters.Name }}` and a property as
+ * `{{$ Properties.Name }}`; the words and the names are matched ignoring case. Unused parameters or
+ * properties, unknown names, and broken tokens are warnings: they are shown on the page and listed
+ * in a confirmation the host shows on Publish, but never block publishing.
+ *
+ * Properties are the rule schema's own inputs: a fixed set (PROPERTY_NAMES), each added at most once
+ * from a list of the names still free. Parameters are free-named and unlimited.
  *
  * The page never talks to the network; the host owns every Hub call and every file write. The Rules
  * box edits the rules array as JSON; the host publishes it as it is and, after a successful publish,
@@ -46,7 +49,7 @@ const FIELD_HINTS = {
     namespace: 'Groups related templates. Leave it empty to use G4.System. The Hub identifies a template by key alone, so a key that exists under another namespace is rejected.',
     platforms: 'Where the template can run, for example Windows, Linux, or Any. Add at least one, up to 55 characters each.',
     projectUrl: 'Where to read more about the template, such as its repository or documentation.',
-    properties: 'Inputs the rules read as {{$ properties.Name }}, such as the argument that callers pass to the template.',
+    properties: 'The rule inputs the template fills in, read by the rules as {{$ Properties.Name }}. Each of the six can be added once.',
     protocol: 'Key/value settings for the protocol the template uses. Leave it empty for none.',
     summary: 'A short explanation of what the template does, shown in the G4 catalog. Supports Markdown.',
     version: 'Your own version label for this template, for example 1.0.0.'
@@ -119,6 +122,17 @@ const MANIFEST_SCHEMA_NAME = 'G4PluginAttribute';
 // Sentence above the Markdown reference of every Markdown box on this page.
 const MARKDOWN_REFERENCE_NOTE = 'Summary and description text is Markdown; each line is published as one entry. The most common syntax:';
 
+// The rule properties a template can expose, in display order. The rule schema defines them, so the
+// set is fixed and each name can be added once.
+const PROPERTY_NAMES = ['argument', 'onElement', 'onAttribute', 'locator', 'locatorType', 'regularExpression'];
+
+// Properties of a property card that the form does not edit: a property is never multiple.
+const PROPERTY_HIDDEN_PROPERTIES = ['multiple'];
+
+// The plus icon of the add-property button, embedded so the page needs no image file. It takes the
+// button text color.
+const PLUS_ICON_HTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="14" height="14" aria-hidden="true" focusable="false"><path fill="currentColor" d="M352 128C352 110.3 337.7 96 320 96C302.3 96 288 110.3 288 128L288 288L128 288C110.3 288 96 302.3 96 320C96 337.7 110.3 352 128 352L288 352L288 512C288 529.7 302.3 544 320 544C337.7 544 352 529.7 352 512L352 352L512 352C529.7 352 544 337.7 544 320C544 302.3 529.7 288 512 288L352 288L352 128z"/></svg>';
+
 // One plain sentence per parameter property, in the voice of the settings editor hints.
 const PARAMETER_HINTS = {
     default: 'The value used when the caller does not pass one.',
@@ -180,7 +194,7 @@ const SECTIONS = [
         id: 'properties',
         isOpenByDefault: false,
         title: 'Properties',
-        description: 'Inputs the rules read as properties, such as the argument callers pass. Open a card to edit a property.'
+        description: 'The rule properties the template exposes: argument, onElement, onAttribute, locator, locatorType, and regularExpression, each at most once. Open a card to edit a property.'
     },
     {
         id: 'parameters',
@@ -214,10 +228,10 @@ const SECTIONS = [
     }
 ];
 
-// The strict token: `{{$ parameters.Name }}` or `{{$ properties.Name }}` with exactly one space after
+// The strict token: `{{$ Parameters.Name }}` or `{{$ Properties.Name }}` (any case) with exactly one space after
 // `{{$` and one before `}}`. The name is everything up to that space. Linear: one negated class
 // between literals.
-const STRICT_TOKEN_PATTERN = /\{\{\$ (parameters|properties)\.([^\s{}"]+) \}\}/g;
+const STRICT_TOKEN_PATTERN = /\{\{\$ (parameters|properties)\.([^\s{}"]+) \}\}/gi;
 
 // Validation message for URL fields checked when publishing.
 const URL_ERROR_MESSAGE = 'Enter a full URL, for example https://example.com.';
@@ -257,6 +271,7 @@ globalThis.STATE = {
     lookupRequestId: 0,
     lookupTimer: undefined,
     openSectionIds: new Set(SECTIONS.filter((section) => section.isOpenByDefault).map((section) => section.id)),
+    propertyPick: '',
     publishResult: null,
     rulesText: '',
     values: {}
@@ -577,6 +592,11 @@ function getManifestValues() {
             }
         }
 
+        // A rule property is one value, never a repeated one.
+        if (getIsPropertyField(definition)) {
+            parameter.multiple = false;
+        }
+
         // Value cards back to PluginParameterModel items; properties the card does not show are kept.
         parameter[PARAMETER_VALUES_PROPERTY] = row.values.map((valueRow) => ({
             ...valueRow.extra,
@@ -634,6 +654,56 @@ function getManifestValues() {
 }
 
 /**
+ * Tells whether a field definition is the fixed-set Properties field (not the free Parameters list).
+ *
+ * @param {{ name: string }} definition - A field definition with the parameters control.
+ * @returns {boolean} True for the properties field.
+ */
+function getIsPropertyField(definition) {
+    return definition?.name === 'properties';
+}
+
+/**
+ * Describes why a property card's name is not allowed.
+ *
+ * @remarks
+ * Compute-only. A property name must be one of PROPERTY_NAMES (ignoring case) and used by one card
+ * only; a repeated name is reported on its later card, so the first one stays clean.
+ *
+ * @param {{ fields: { name?: string } }} row - Property card state.
+ * @param {number} index - Position of the card.
+ * @returns {string} '' when the name is allowed; otherwise the error line.
+ */
+function getPropertyNameError(row, index) {
+    const getKey = (name) => (name ?? '').trim().toLowerCase();
+    const key = getKey(row.fields.name);
+
+    if (!PROPERTY_NAMES.some((name) => name.toLowerCase() === key)) {
+        return `Use one of: ${PROPERTY_NAMES.join(', ')}.`;
+    }
+
+    const rows = globalThis.STATE.values.properties ?? [];
+    const firstIndex = rows.findIndex((item) => getKey(item.fields.name) === key);
+
+    return firstIndex < index ? `Duplicate of property ${firstIndex + 1}.` : '';
+}
+
+/**
+ * Returns the fixed property names that no property card uses yet, in display order.
+ *
+ * @remarks
+ * Compute-only. Names are compared ignoring case and surrounding spaces.
+ *
+ * @returns {string[]} Free names from PROPERTY_NAMES.
+ */
+function getFreePropertyNames() {
+    const rows = globalThis.STATE.values.properties ?? [];
+    const usedNames = new Set(rows.map((row) => (row.fields.name ?? '').trim().toLowerCase()));
+
+    return PROPERTY_NAMES.filter((name) => !usedNames.has(name.toLowerCase()));
+}
+
+/**
  * Returns the names of the parameters and properties in the form, trimmed, without blank names.
  *
  * @returns {{ parameters: string[], properties: string[] }} Names in form order, by token kind.
@@ -674,8 +744,12 @@ function getParameterProperties(definition) {
     };
 
     // Hidden properties (dependsOn) are not edited; newParameterRow keeps their values in `extra`.
+    // A property card also hides `multiple`, which is always false for a rule property.
+    const hiddenNames = getIsPropertyField(definition)
+        ? [...PARAMETER_HIDDEN_PROPERTIES, ...PROPERTY_HIDDEN_PROPERTIES]
+        : PARAMETER_HIDDEN_PROPERTIES;
     const entries = Object.entries(itemSchema.properties ?? {})
-        .filter(([name]) => !PARAMETER_HIDDEN_PROPERTIES.includes(name))
+        .filter(([name]) => !hiddenNames.includes(name))
         .sort(([left], [right]) => getRank(left) - getRank(right));
 
     // Map each property schema type to the input kind that edits it.
@@ -693,7 +767,11 @@ function getParameterProperties(definition) {
             kind = PARAMETER_MARKDOWN_PROPERTIES.includes(name) ? 'markdown' : 'lines';
         }
 
-        const hint = PARAMETER_HINTS[name] ?? propertySchema.description ?? '';
+        // A property card words its hints about a property, not a parameter.
+        const parameterHint = PARAMETER_HINTS[name] ?? propertySchema.description ?? '';
+        const hint = getIsPropertyField(definition)
+            ? parameterHint.replaceAll('parameter', 'property')
+            : parameterHint;
 
         return { name, kind, label: getLabelText(name), hint };
     }).filter((property) => property.kind !== 'json');
@@ -703,35 +781,39 @@ function getParameterProperties(definition) {
  * Finds parameter and property token problems in the rules text.
  *
  * @remarks
- * Compute-only. A strict token names a parameter or a property; a parameter no strict token names is
- * unused, and a strict token naming nothing in its list is unknown (names are case-sensitive; a
- * case-only difference adds a suggestion). Any token-like text that is not exactly a strict token is
- * broken. Unused properties are not reported: a property can be read by the engine without a token.
+ * Compute-only. A strict token names a parameter or a property, ignoring case. A parameter or
+ * property that no strict token names is unused, and a strict token naming nothing in its list is
+ * unknown. An unknown property says whether the name is not a rule property at all or is one that
+ * has no card yet. Any token-like text that is not exactly a strict token is broken.
  *
  * @param {string} text - Rules JSON text.
  * @param {{ parameters: string[], properties: string[] }} names - Names in the form (blank names excluded).
- * @returns {{ broken: object[], unknown: object[], unused: string[] }} Issues; positions are offsets into the text.
+ * @returns {{ broken: object[], unknown: object[], unused: string[], unusedProperties: string[] }} Issues; positions are offsets into the text.
  */
 function getTokenIssues(text, names) {
     const getLine = (offset) => text.slice(0, offset).split('\n').length;
+    const getKey = (name) => name.toLowerCase();
 
     // Strict tokens: the names they reference and the ranges they cover.
     const strictMatches = [...text.matchAll(STRICT_TOKEN_PATTERN)];
     const strictRanges = strictMatches.map((match) => [match.index, match.index + match[0].length]);
-    const usedParameterNames = new Set(strictMatches
-        .filter((match) => match[1] === 'parameters')
-        .map((match) => match[2]));
+    const getUsedKeys = (kind) => new Set(strictMatches
+        .filter((match) => getKey(match[1]) === kind)
+        .map((match) => getKey(match[2])));
+    const usedParameterKeys = getUsedKeys('parameters');
+    const usedPropertyKeys = getUsedKeys('properties');
 
-    // Unknown names, with a suggestion when only the case differs.
+    // Unknown names, each with the reason: not a rule property at all, or a property without a card.
     const unknown = strictMatches
-        .filter((match) => !names[match[1]].includes(match[2]))
-        .map((match) => ({
+        .map((match) => ({ kind: getKey(match[1]), match }))
+        .filter(({ kind, match }) => !names[kind].some((name) => getKey(name) === getKey(match[2])))
+        .map(({ kind, match }) => ({
             end: match.index + match[0].length,
-            kind: match[1],
+            isFixedName: kind === 'properties' && PROPERTY_NAMES.some((name) => getKey(name) === getKey(match[2])),
+            kind,
             line: getLine(match.index),
             name: match[2],
-            start: match.index,
-            suggestion: names[match[1]].find((name) => name.toLowerCase() === match[2].toLowerCase()) ?? ''
+            start: match.index
         }));
 
     // Broken tokens: token-like text that no strict token covers exactly.
@@ -739,17 +821,22 @@ function getTokenIssues(text, names) {
         .filter((match) => !strictRanges.some(([start, end]) => start === match.index && end === match.index + match[0].length))
         .map((match) => ({ end: match.index + match[0].length, line: getLine(match.index), start: match.index, text: match[0] }));
 
-    // Unused parameters, once each, in form order.
-    const unused = [...new Set(names.parameters)].filter((name) => !usedParameterNames.has(name));
+    // Unused parameters and properties, once each, in form order.
+    const getUnused = (kind, usedKeys) => [...new Set(names[kind])].filter((name) => !usedKeys.has(getKey(name)));
 
-    return { broken, unknown, unused };
+    return {
+        broken,
+        unknown,
+        unused: getUnused('parameters', usedParameterKeys),
+        unusedProperties: getUnused('properties', usedPropertyKeys)
+    };
 }
 
 /**
  * Builds the warning notices of the Rules section: one line per issue; line issues select their
  * text in the Rules box when pressed.
  *
- * @param {{ broken: object[], unknown: object[], unused: string[] }} issues - Result of getTokenIssues.
+ * @param {object} issues - Result of getTokenIssues.
  * @returns {object[]} Notices for the warning list.
  */
 function getTokenWarningNotices(issues) {
@@ -757,10 +844,13 @@ function getTokenWarningNotices(issues) {
     const text = (value) => ({ text: value });
     const selectAction = (issue) => ({ data: { end: issue.end, start: issue.start }, id: 'select-rules-text' });
 
-    // Unused parameters have no position; unknown and broken tokens select their text when pressed.
+    // Unused entries have no position; unknown and broken tokens select their text when pressed.
     return [
         ...issues.unused.map((name) => ({
-            parts: [text('Unused parameter '), code(name), text(': the rules have no '), code(`{{$ parameters.${name} }}`), text('.')]
+            parts: [text('Unused parameter '), code(name), text(': the rules have no '), code(`{{$ Parameters.${name} }}`), text('.')]
+        })),
+        ...issues.unusedProperties.map((name) => ({
+            parts: [text('Unused property '), code(name), text(': the rules have no '), code(`{{$ Properties.${name} }}`), text('.')]
         })),
         ...issues.unknown.map((issue) => ({
             action: selectAction(issue),
@@ -768,7 +858,7 @@ function getTokenWarningNotices(issues) {
                 text(`Line ${issue.line}: unknown ${issue.kind === 'parameters' ? 'parameter' : 'property'} `),
                 code(issue.name),
                 text('.'),
-                ...(issue.suggestion === '' ? [] : [text(' Did you mean '), code(issue.suggestion), text('?')])
+                ...getUnknownHintParts(issue)
             ]
         })),
         ...issues.broken.map((issue) => ({
@@ -777,9 +867,9 @@ function getTokenWarningNotices(issues) {
                 text(`Line ${issue.line}: broken token `),
                 code(issue.text),
                 text('. Use '),
-                code('{{$ parameters.Name }}'),
+                code('{{$ Parameters.Name }}'),
                 text(' or '),
-                code('{{$ properties.Name }}'),
+                code('{{$ Properties.Name }}'),
                 text(' with one space after '),
                 code('{{$'),
                 text(' and before '),
@@ -791,21 +881,41 @@ function getTokenWarningNotices(issues) {
 }
 
 /**
- * Lists the token warnings as plain sentences, for the publish confirmation.
+ * Describes what to do about an unknown property token, as notice parts.
  *
- * @param {{ broken: object[], unknown: object[], unused: string[] }} issues - Result of getTokenIssues.
+ * @remarks
+ * Compute-only. A parameter token needs no extra hint.
+ *
+ * @param {{ isFixedName: boolean, kind: string }} issue - An unknown token issue.
+ * @returns {object[]} Notice parts, empty for a parameter.
+ */
+function getUnknownHintParts(issue) {
+    if (issue.kind !== 'properties') {
+        return [];
+    }
+
+    return issue.isFixedName
+        ? [{ text: ' Add it in Properties.' }]
+        : [{ text: ` The rule properties are ${PROPERTY_NAMES.join(', ')}.` }];
+}
+
+/**
+ * Lists the token warnings as plain sentences, for the publish confirmation and the tooltips.
+ *
+ * @param {object} issues - Result of getTokenIssues.
  * @returns {string[]} One sentence per warning.
  */
 function getTokenWarningTexts(issues) {
     return [
-        ...issues.unused.map((name) => `Unused parameter '${name}': the rules have no {{$ parameters.${name} }}.`),
+        ...issues.unused.map((name) => `Unused parameter '${name}': the rules have no {{$ Parameters.${name} }}.`),
+        ...issues.unusedProperties.map((name) => `Unused property '${name}': the rules have no {{$ Properties.${name} }}.`),
         ...issues.unknown.map((issue) => {
-            const suggestionText = issue.suggestion === '' ? '' : ` Did you mean '${issue.suggestion}'?`;
             const kindText = issue.kind === 'parameters' ? 'parameter' : 'property';
+            const hintText = getUnknownHintParts(issue).map((part) => part.text).join('');
 
-            return `Line ${issue.line}: unknown ${kindText} '${issue.name}'.${suggestionText}`;
+            return `Line ${issue.line}: unknown ${kindText} '${issue.name}'.${hintText}`;
         }),
-        ...issues.broken.map((issue) => `Line ${issue.line}: broken token '${issue.text}'. Use {{$ parameters.Name }} or {{$ properties.Name }}.`)
+        ...issues.broken.map((issue) => `Line ${issue.line}: broken token '${issue.text}'. Use {{$ Parameters.Name }} or {{$ Properties.Name }}.`)
     ];
 }
 
@@ -1075,6 +1185,39 @@ function onAppAction(event) {
 }
 
 /**
+ * Adds the property picked in the property picker as a new open card.
+ *
+ * @param {MouseEvent} event - Click event of the app; only the picker's add button is handled.
+ */
+function onAppClick(event) {
+    if (!event.target.closest('[data-property-add]')) {
+        return;
+    }
+
+    const state = globalThis.STATE;
+    const name = state.propertyPick;
+
+    // The pick must still be free; the picker only offers free names, so this guards stale state.
+    if (!getFreePropertyNames().includes(name)) {
+        return;
+    }
+
+    const newRow = newParameterRow({ name }, getDefinition('properties'));
+
+    // Cards follow the fixed order of the names, so the list reads the same however names were added.
+    const rows = state.values.properties;
+    const getRank = (row) => PROPERTY_NAMES.findIndex((item) => item.toLowerCase() === (row.fields.name ?? '').trim().toLowerCase());
+    const insertIndex = rows.findIndex((row) => getRank(row) > getRank(newRow));
+
+    rows.splice(insertIndex === -1 ? rows.length : insertIndex, 0, { ...newRow, isOpen: true });
+
+    // Structural edits invalidate indexed error paths, so stale errors are dropped.
+    state.errors = {};
+    state.openSectionIds.add('properties');
+    showForm();
+}
+
+/**
  * Applies a card list change: add a parameter, property, example, or value, move one, or remove one,
  * then renders the form again from state.
  *
@@ -1163,7 +1306,13 @@ function onAppInput(event) {
         delete state.errors[errorPath];
     }
 
-    // Rules editor: kept apart from the manifest values, since the host publishes it as it is.
+    // Property picker: remembers which free property the add button adds.
+    if (dataset.propertyPicker !== undefined) {
+        state.propertyPick = value;
+        return;
+    }
+
+    // Rules editor: kept apart from the manifest values; the host normalizes it when publishing.
     if (dataset.rules !== undefined) {
         state.rulesText = value;
         showRulesSummary();
@@ -1337,6 +1486,9 @@ function onHostMessage(event) {
     if (isSaved) {
         injected.defaults = message.savedValues;
         injected.rules = { ...injected.rules, rulesText: convertToSafeText(message.savedRulesText) };
+
+        // The editor shows the rules as published: normalized, without references or empty fields.
+        state.rulesText = injected.rules.rulesText;
         injected.file = message.file ?? injected.file;
         state.fileName = convertToSafeText(injected.file?.fileName) || state.fileName;
         state.isFileExisting = false;
@@ -1674,7 +1826,7 @@ function showParameterTitle(path, rowIndex) {
 
     // The card may not be rendered (for example during a re-render).
     if (card && row) {
-        card.cardTitle = writeParameterTitle(row, rowIndex);
+        card.cardTitle = writeParameterTitle(row, rowIndex, path);
     }
 }
 
@@ -1688,8 +1840,9 @@ function showParameterTitle(path, rowIndex) {
  */
 function showTokenWarnings() {
     const issues = getTokenIssues(globalThis.STATE.rulesText, getTokenNames());
-    const unusedNames = new Set(issues.unused);
-    const rulesCount = issues.unused.length + issues.unknown.length + issues.broken.length;
+    const getKey = (name) => name.toLowerCase();
+    const unusedKeys = { parameters: new Set(issues.unused.map(getKey)), properties: new Set(issues.unusedProperties.map(getKey)) };
+    const rulesCount = issues.unused.length + issues.unusedProperties.length + issues.unknown.length + issues.broken.length;
 
     // Writes one header warning: a label (empty for none) and its tooltip.
     const setWarning = (element, label, tooltip) => {
@@ -1710,19 +1863,29 @@ function showTokenWarnings() {
         issues.unused.length > 0 ? 'Unused Parameter(s)' : '',
         issues.unused.join(', '));
     setWarning(
+        document.querySelector('g4-section[data-section-id="properties"]'),
+        issues.unusedProperties.length > 0 ? 'Unused Property(ies)' : '',
+        issues.unusedProperties.join(', '));
+    setWarning(
         document.querySelector('g4-section[data-section-id="rules"]'),
         rulesCount > 0 ? 'Token Warning(s)' : '',
         getTokenWarningTexts(issues).join('\n'));
 
-    // Parameter card headers: every parameter card whose (trimmed) name is unused. Property cards
-    // are never reported as unused.
-    document.querySelectorAll('g4-card[data-card-kind="parameter"][data-path="parameters"]').forEach((card) => {
-        const rows = globalThis.STATE.values[card.dataset.path] ?? [];
-        const name = (rows[Number(card.dataset.index)]?.fields.name ?? '').trim();
-        const isUnused = unusedNames.has(name);
+    // Card headers: every parameter or property card whose (trimmed) name no token reads.
+    const cardKinds = [
+        { kind: 'parameters', label: 'Unused Parameter', tokenWord: 'Parameters' },
+        { kind: 'properties', label: 'Unused Property', tokenWord: 'Properties' }
+    ];
 
-        setWarning(card, isUnused ? 'Unused Parameter' : '', isUnused ? `No {{$ parameters.${name} }} in the rules.` : '');
-    });
+    for (const { kind, label, tokenWord } of cardKinds) {
+        document.querySelectorAll(`g4-card[data-card-kind="parameter"][data-path="${kind}"]`).forEach((card) => {
+            const rows = globalThis.STATE.values[kind] ?? [];
+            const name = (rows[Number(card.dataset.index)]?.fields.name ?? '').trim();
+            const isUnused = unusedKeys[kind].has(getKey(name));
+
+            setWarning(card, isUnused ? label : '', isUnused ? `No {{$ ${tokenWord}.${name} }} in the rules.` : '');
+        });
+    }
 
     // Rules warning list.
     const list = document.getElementById('template-rules-warnings');
@@ -1808,6 +1971,7 @@ function startTemplatePublisher() {
     // Delegated listeners survive re-renders of #app: every component reports through events.
     const app = document.getElementById('app');
 
+    app.addEventListener('click', onAppClick);
     app.addEventListener('g4-input', onAppInput);
     app.addEventListener('g4-change', onAppChange);
     app.addEventListener('g4-action', onAppAction);
@@ -1945,11 +2109,16 @@ function testFormValues() {
             Object.assign(errors, testMapRows(name, value));
         }
 
-        // Parameter and property rows: a name is required, and every value card is checked.
+        // Parameter and property rows: a name is required (a property name must also be one of the
+        // fixed names, used once), and every value card is checked.
         if (control === 'parameters') {
             value.forEach((row, index) => {
+                const propertyNameError = getIsPropertyField(definition) ? getPropertyNameError(row, index) : '';
+
                 if ((row.fields.name ?? '').trim() === '') {
-                    errors[`${name}.${index}.name`] = 'Enter a name.';
+                    errors[`${name}.${index}.name`] = getIsPropertyField(definition) ? propertyNameError : 'Enter a name.';
+                } else if (propertyNameError !== '') {
+                    errors[`${name}.${index}.name`] = propertyNameError;
                 }
 
                 Object.assign(errors, testParameterValues(`${name}.${index}.${PARAMETER_VALUES_PROPERTY}`, row.values));
@@ -2442,9 +2611,15 @@ function writeParameterRow(options) {
     const { definition, index, properties, row } = options;
     const path = definition.name;
 
+    // A property card names its property in the title, so the name input is shown only to fix a
+    // stored name that is not allowed (unknown or repeated).
+    const isFixedName = getIsPropertyField(definition) && getPropertyNameError(row, index) === '';
+    const kindWord = getIsPropertyField(definition) ? 'property' : 'parameter';
+
     // Renders every property of one kind with the shared input writer.
     const writeInputs = (kind) => properties
         .filter((property) => property.kind === kind)
+        .filter((property) => !(isFixedName && property.name === 'name'))
         .map((property) => writeParameterInput({ index, path, property, row }))
         .join('');
 
@@ -2455,8 +2630,8 @@ function writeParameterRow(options) {
     <g4-card data-card-kind="parameter"
              data-index="${index}"
              data-path="${path}"
-             card-title="${convertToSafeHtml(writeParameterTitle(row, index))}"
-             item-label="parameter ${index + 1}"${openAttribute}
+             card-title="${convertToSafeHtml(writeParameterTitle(row, index, path))}"
+             item-label="${kindWord} ${index + 1}"${openAttribute}
              test-id="${path}-${index}">
         <div class="template-publisher-field-row">${writeInputs('text')}</div>
         ${writeInputs('markdown')}
@@ -2467,22 +2642,26 @@ function writeParameterRow(options) {
 }
 
 /**
- * Builds a parameter card title: "name - type", like the settings "machine - driver" card titles.
+ * Builds a parameter or property card title: "name - type", like the settings "machine - driver"
+ * card titles.
  *
- * @param {object} row - Parameter row state.
+ * @param {object} row - Parameter or property row state.
  * @param {number} index - Row index, used when the name is still empty.
+ * @param {string} path - Field name: 'parameters' or 'properties'.
  * @returns {string} Title text.
  */
-function writeParameterTitle(row, index) {
+function writeParameterTitle(row, index, path) {
     const nameText = convertToSafeText(row.fields.name).trim();
     const typeText = convertToSafeText(row.fields.type).trim();
-    const title = nameText === '' ? `Parameter ${index + 1}` : nameText;
+    const emptyTitle = path === 'properties' ? `Property ${index + 1}` : `Parameter ${index + 1}`;
+    const title = nameText === '' ? emptyTitle : nameText;
 
     return typeText === '' ? title : `${title} - ${typeText}`;
 }
 
 /**
- * Builds the parameters editor: a list of foldable cards and an add button.
+ * Builds the parameters editor: a list of foldable cards and an add button. The Properties editor
+ * is the same list with a picker for the fixed names instead of the add button.
  *
  * @param {object} definition - The parameters field definition.
  * @returns {string} Card list HTML.
@@ -2490,17 +2669,61 @@ function writeParameterTitle(row, index) {
 function writeParametersField(definition) {
     const rows = globalThis.STATE.values[definition.name];
     const properties = getParameterProperties(definition);
+    const isPropertyField = getIsPropertyField(definition);
 
     // One card per parameter, in the card list with its add button.
     const cardsHtml = rows
         .map((row, index) => writeParameterRow({ definition, index, properties, row }))
         .join('');
 
-    return `
+    const listHtml = `
     <g4-card-list data-path="${definition.name}"
-                  add-label="+ Add parameter"
-                  empty-text="None."
+                  add-label="${isPropertyField ? '+ Add property' : '+ Add parameter'}"
+                  empty-text="${isPropertyField ? 'None. Pick a property above and add it.' : 'None.'}"
                   test-id="${definition.name}-card-list">${cardsHtml}</g4-card-list>`;
+
+    // The picker sits above the cards, so adding never needs a scroll past the list.
+    return isPropertyField ? `${writePropertyPicker()}${listHtml}` : listHtml;
+}
+
+/**
+ * Builds the picker that adds a property: a dropdown of the names not used yet and its add button.
+ *
+ * @remarks
+ * The card list's own add button is hidden for properties (see the page CSS); this picker replaces
+ * it, so a name is chosen before the card exists and can be used once. When every name is used the
+ * picker is replaced by a note.
+ *
+ * @returns {string} Picker HTML.
+ */
+function writePropertyPicker() {
+    const freeNames = getFreePropertyNames();
+
+    if (freeNames.length === 0) {
+        return '<div class="template-publisher-property-note" data-test-id="property-picker-full">All six properties are added.</div>';
+    }
+
+    // The remembered pick survives a re-render while it is still free.
+    const state = globalThis.STATE;
+    const pick = freeNames.includes(state.propertyPick) ? state.propertyPick : freeNames[0];
+    const choices = freeNames.map((name) => ({ text: name, value: name }));
+
+    state.propertyPick = pick;
+
+    return `
+    <div class="template-publisher-property-picker">
+        <g4-select data-property-picker="true"
+                   choices="${convertToSafeHtml(JSON.stringify(choices))}"
+                   label="Property to add"
+                   test-id="property-picker"
+                   value="${convertToSafeHtml(pick)}"></g4-select>
+        <button type="button"
+                class="g4-card-list__button template-publisher-icon-button"
+                aria-label="Add property"
+                title="Add property"
+                data-property-add="true"
+                data-test-id="add-property-button">${PLUS_ICON_HTML}</button>
+    </div>`;
 }
 
 /**

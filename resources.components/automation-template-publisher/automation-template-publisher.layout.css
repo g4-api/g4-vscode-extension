@@ -92,3 +92,34 @@ body {
     font-size: 11px;
     margin-bottom: 10px;
 }
+
+/* Properties: the picker replaces the card list's own add button, so a name is chosen before the card exists. */
+g4-card-list[data-path="properties"]:not([data-values-of]) > .g4-card-list__add-row {
+    display: none;
+}
+
+.template-publisher-property-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.template-publisher-property-picker > .g4-card-list__button {
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 0 10px;
+}
+
+.template-publisher-property-picker > g4-select {
+    min-width: 220px;
+}
+
+.template-publisher-property-note {
+    font-size: 11px;
+    margin-bottom: 12px;
+}

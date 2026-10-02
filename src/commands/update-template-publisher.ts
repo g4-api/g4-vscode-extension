@@ -277,6 +277,58 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
     }
 
     /**
+     * Normalizes the rules before they are published and saved.
+     *
+     * @remarks
+     * Compute-only. Each top-level rule loses its `reference` (the identity of the bot's rule, which
+     * a template's rules must not carry), then every field whose value is null, an empty string, an
+     * empty object, or an empty array is removed, at any depth inside the rule. `false` and `0` are
+     * kept because they are values. Array entries are never removed, so the rule count and the
+     * order of nested lists do not change. Anything that is not a rule object is kept as it is.
+     *
+     * @param rules - Parsed rules array.
+     * @returns A new array of normalized rules; the input is not changed.
+     */
+    public static normalizeRules(rules: any[]): any[] {
+        const isObject = (value: unknown): value is Record<string, unknown> =>
+            value !== null && typeof value === 'object' && !Array.isArray(value);
+
+        const isEmpty = (value: unknown): boolean =>
+            value === null
+            || value === undefined
+            || value === ''
+            || (Array.isArray(value) && value.length === 0)
+            || (isObject(value) && Object.keys(value).length === 0);
+
+        // Prunes children first, so an object that only held empty fields is empty itself.
+        const prune = (value: unknown): unknown => {
+            if (Array.isArray(value)) {
+                return value.map(prune);
+            }
+
+            if (!isObject(value)) {
+                return value;
+            }
+
+            const entries = Object.entries(value)
+                .map(([name, child]) => [name, prune(child)] as const)
+                .filter(([, child]) => !isEmpty(child));
+
+            return Object.fromEntries(entries);
+        };
+
+        return rules.map((rule) => {
+            if (!isObject(rule)) {
+                return rule;
+            }
+
+            const { reference: _reference, ...ruleWithoutReference } = rule;
+
+            return prune(ruleWithoutReference);
+        });
+    }
+
+    /**
      * Describes the stage or job choices as Quick Pick entries: `#index · name`, with the position
      * counted from 1.
      *
@@ -510,6 +562,11 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             const existingTemplate = key === '' ? undefined : await this._client.getTemplate(key);
             const filePath = source.kind === 'bot' ? UpdateTemplatePublisherCommand.getTemplateFilePath(fileName) : undefined;
 
+            // The tab shows the template file name; a valid typed name replaces it as it is edited.
+            if (filePath !== undefined) {
+                panel.title = path.basename(filePath);
+            }
+
             await panel.webview.postMessage({
                 command: 'templateLookup',
                 existingTemplate: existingTemplate ?? null,
@@ -540,7 +597,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         // Create the tab with access to the component and font resources only.
         const panel = vscode.window.createWebviewPanel(
             'g4-template-publisher',
-            `Publish Template · ${source.defaults.key || path.basename(source.filePath)}`,
+            path.basename(source.kind === 'bot' ? source.fileName : source.filePath),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -601,7 +658,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      *
      * @remarks
      * The rules come from the page's editor and must be a JSON array. On success the template is
-     * saved to its file, the tab stays open, its title follows the published key, and the stored
+     * saved to its file, the tab stays open, its title is the saved file name, and the stored
      * template is sent back so the page shows the overwrite notice from then on. A template made from
      * a bot becomes an ordinary template file from then on. On failure the Hub's field errors are
      * forwarded so the page can mark the matching fields.
@@ -629,6 +686,9 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             await fail('The rules are not a JSON array.', { rules: ['Enter the template rules as a JSON array.'] });
             return;
         }
+
+        // The Hub and the file receive the normalized rules: no reference, no empty fields.
+        rules = UpdateTemplatePublisherCommand.normalizeRules(rules);
 
         // Build the manifests from the submitted values; host-owned fields always win.
         const manifests = UpdateTemplatePublisherCommand.newTemplateManifests({
@@ -686,7 +746,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         // Confirm success in the log, status bar, and tab title, then save the template file.
         this._logger.information(`Template '${templateName}' updated from ${source.label}.`);
         vscode.window.setStatusBarMessage(`$(check) Template '${templateName}' updated.`, 5000);
-        panel.title = `Publish Template · ${manifests.hub.key}`;
+        panel.title = path.basename(targetPath);
 
         const saveResult = this.saveTemplateFile(targetPath, manifests.file);
 
