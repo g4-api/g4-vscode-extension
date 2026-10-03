@@ -1,0 +1,31 @@
+{
+  // markdownlint config for learning-path guides produced by the
+  // markdown-learning-path skill. Drop this at the guide root for anyone
+  // running markdownlint-cli / markdownlint-cli2. The bundled
+  // check-markdown.ps1 enforces the same intent without Node.
+  "default": true,
+
+  // Long, friendly prose lines are expected in these guides.
+  "MD013": false,
+
+  // Allow a trailing "?" in headings (e.g. "Who is this for?"),
+  // but still forbid . , ; : ! at the end of a heading.
+  "MD026": { "punctuation": ".,;:!" },
+
+  // Ordered lists must be numbered 1, 2, 3, ... and stay contiguous.
+  // Keep images/blocks that belong to an item INDENTED under it so the
+  // list is not split (that split is the classic MD029 failure).
+  "MD029": { "style": "ordered" },
+
+  // First line of every file must be a top-level (#) heading. The
+  // "[⬅ Back]" navigation goes on the line BELOW the title, not above it.
+  "MD041": true,
+
+  // Inline HTML is discouraged; the mandated style uses blockquote
+  // callouts (> **💡 Tip:** ...) instead of raw HTML.
+  "MD033": true
+
+  // Table rules note (enforced by check-markdown.ps1 as MD060):
+  //   Separator rows must be padded  ->  | --- | --- |   (NOT |---|---|)
+  //   so every pipe has a space to its left.
+}
