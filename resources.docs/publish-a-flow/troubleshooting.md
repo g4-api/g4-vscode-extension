@@ -41,11 +41,11 @@ Find your symptom below. Each entry says what you see, why it happens, and what 
 
 ---
 
-## I missed the "Publish anyway?" question
+## "Could not reach the G4 Hub"
 
-- **Symptom:** The button says **Publishing…** and nothing happens.
-- **Cause:** The question appeared in the bottom-right corner and disappeared after a few seconds, but it is still waiting for your answer.
-- **Fix:** Click the **bell** icon at the bottom-right of VS Code and choose **Publish Anyway** or **Cancel**.
+- **Symptom:** The result message starts with **Could not reach the G4 Hub**, followed by a short reason such as **ECONNREFUSED** or **timed out**.
+- **Cause:** The Hub did not answer: it is not running, or the address in `manifest.json` is wrong.
+- **Fix:** Check that the G4 engine is running (the status bar should say **G4 Engine is Connected and Ready**) and that the **Connection** settings point to it, then press **Publish** again.
 
 ---
 
@@ -57,11 +57,11 @@ Find your symptom below. Each entry says what you see, why it happens, and what 
 
 ---
 
-## "…has unsaved changes in an editor, so the automation was not saved to the file"
+## "…has unsaved changes that could not be saved, so the flow was not published"
 
-- **Symptom:** The flow published, but a warning says the bot file was not saved.
-- **Cause:** The same bot is open in another tab with edits you have not saved. G4 refuses to overwrite your unsaved work.
-- **Fix:** Save or close the bot's editor tab. The flow in the Hub is already published; your bot file simply has not been refreshed.
+- **Symptom:** The result message is red, and nothing was published.
+- **Cause:** The bot is open in another tab with unsaved edits. G4 saves that tab before publishing, and this time VS Code could not save it — for example, the file is read-only.
+- **Fix:** Switch to the bot's tab and save it yourself (or close it without saving), then press **Publish** again.
 
 ---
 

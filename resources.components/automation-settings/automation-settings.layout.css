@@ -49,14 +49,18 @@ body {
     height: 8px;
 }
 
-/* Fields side by side. Each field's bottom edge is aligned so the inputs line up across the row
-   even when one field has an extra line of label or hint text. */
+/*
+ * Fields in a row line up part by part: each field spans four rows of the row grid (label, hint,
+ * control, error) and shares them through subgrid, so labels align even when hints wrap to
+ * different lengths. The row gap equals the field's own 4px gap, so a subgrid never shifts its
+ * parts; a field's bottom margin keeps wrapped lines of fields 16px apart.
+ */
 .settings-field-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-bottom: 16px;
-    align-items: end;
+    column-gap: 16px;
+    row-gap: 4px;
+    margin-bottom: 4px;
 }
 
 .settings-field-row:last-child {
@@ -64,17 +68,30 @@ body {
 }
 
 .settings-field-row > g4-field {
+    grid-row: span 4;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 4px;
+    align-content: start;
+    margin-bottom: 12px;
+}
+
+.settings-field-row:last-child > g4-field {
     margin-bottom: 0;
 }
 
-/* Connection: protocol, address, port, and the Test Connection button on one row. */
-.settings-connection-row {
-    grid-template-columns: minmax(150px, .8fr) minmax(260px, 1.4fr) minmax(88px, 116px) auto;
+/* Anything else in a row (a button) spans the label, hint, and control rows and sits at the bottom. */
+.settings-field-row > :not(g4-field) {
+    grid-row: span 3;
+    align-self: end;
 }
 
-.settings-connection-action {
-    align-self: end;
-    display: flex;
+/*
+ * Connection: protocol, address, port, and the Test Connection button on one row. The button's
+ * holder (.settings-connection-action) is placed by the field-row rule above, in the control row.
+ */
+.settings-connection-row {
+    grid-template-columns: minmax(150px, .8fr) minmax(260px, 1.4fr) minmax(88px, 116px) auto;
 }
 
 /* Hints, notes, and sub-headers written by the page between the components. */

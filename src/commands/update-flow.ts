@@ -41,8 +41,7 @@ const HOST_OWNED_FIELDS = ['automation', 'id', 'pluginType', 'source', 'type'];
 // Default summary text; the form replaces {key} while the user has not edited the summary.
 const SUMMARY_TEMPLATE = 'Runs the {key} bot automation.';
 
-// Confirmation buttons of the parameter warnings notification.
-const CANCEL_ACTION = 'Cancel';
+// Confirmation button of the parameter warnings dialog; a modal dialog adds its own Cancel.
 const PUBLISH_ANYWAY_ACTION = 'Publish Anyway';
 
 /**
@@ -231,19 +230,20 @@ export class UpdateFlowCommand extends CommandBase {
      * Asks the user to confirm publishing a flow that has parameter token warnings.
      *
      * @remarks
-     * A short VS Code warning notification (bottom right) asks for confirmation; the warnings
-     * themselves stay on the page, where they are marked in the Parameters and Automation sections.
-     * Publish Anyway continues, and Cancel or closing the notification stops this publish only.
-     * Warnings never block publishing.
+     * A modal VS Code dialog lists the warnings and waits for an answer: unlike a notification it
+     * never hides itself, so the page cannot be left locked on "Publishing…". Publish Anyway
+     * continues; Cancel or closing the dialog stops this publish only. Warnings never block
+     * publishing.
      *
      * @param flowName - Namespace and key of the flow, for the message.
+     * @param warnings - The warning sentences sent by the page.
      * @returns True when the user chose Publish Anyway.
      */
-    private async confirmPublishWarnings(flowName: string): Promise<boolean> {
+    private async confirmPublishWarnings(flowName: string, warnings: string[]): Promise<boolean> {
         const choice = await vscode.window.showWarningMessage(
             `Flow '${flowName}' has parameter warnings. Publish anyway?`,
-            PUBLISH_ANYWAY_ACTION,
-            CANCEL_ACTION);
+            { detail: warnings.join('\n'), modal: true },
+            PUBLISH_ANYWAY_ACTION);
 
         return choice === PUBLISH_ANYWAY_ACTION;
     }
@@ -286,23 +286,41 @@ export class UpdateFlowCommand extends CommandBase {
     }
 
     /**
+     * Names a publisher tab after the flow key, or the bot file when there is no key yet.
+     *
+     * @remarks
+     * Compute-only. The same title is used when the tab opens, while the key is typed, and after a
+     * publish, so the tab always names the flow the page would publish.
+     *
+     * @param key - PascalCase key from the form; empty while the key has no letters or digits.
+     * @param botFile - The tab's bot.
+     * @returns The tab title.
+     */
+    private static getPanelTitle(key: string, botFile: BotFile): string {
+        const name = key === '' ? path.basename(botFile.filePath) : key;
+
+        return `Publish Flow · ${name}`;
+    }
+
+    /**
      * Extracts field errors and a readable message from the Hub's failure text.
      *
      * @remarks
      * Compute-only. The client returns the error body as JSON text (GenericErrorModel/ProblemDetails
-     * with an `errors` map); anything else is shown verbatim.
+     * with an `errors` map); anything else (a timeout, an unreachable Hub) becomes one readable
+     * sentence.
      *
      * @param failure - Failure text returned by G4Client.updateFlow.
      * @returns The banner message and the errors map for the form.
      */
     private static getPublishFailure(failure: string): { fieldErrors: Record<string, unknown>; message: string } {
-        // Parse the problem body; non-JSON failure text (for example a timeout) is shown verbatim.
+        // Parse the problem body; non-JSON failure text (for example a timeout) becomes one sentence.
         let body: any;
 
         try {
             body = JSON.parse(failure);
         } catch {
-            return { fieldErrors: {}, message: `The Hub rejected the flow: ${failure}` };
+            return { fieldErrors: {}, message: Utilities.convertToHubFailureText(failure, 'flow') };
         }
 
         // Prefer the field messages, then the problem title, then the raw text.
@@ -427,7 +445,7 @@ export class UpdateFlowCommand extends CommandBase {
      * @param options - The tab, its bot, the parsed automation, and the message.
      */
     private async onPublisherMessage(options: PublisherMessageOptions): Promise<void> {
-        const { message, panel } = options;
+        const { botFile, message, panel } = options;
 
         // Existence lookup for the key and namespace currently in the form.
         if (message?.command === 'lookupFlow') {
@@ -436,6 +454,9 @@ export class UpdateFlowCommand extends CommandBase {
             const key = typeof message.key === 'string' ? message.key : '';
             const flowNamespace = namespaceText === '' ? FLOW_NAMESPACE : namespaceText;
             const existingFlow = await this._client.getFlow(flowNamespace, key);
+
+            // The tab names the flow by the key being typed, as the template tab follows its file name.
+            panel.title = UpdateFlowCommand.getPanelTitle(key, botFile);
 
             await panel.webview.postMessage({
                 command: 'flowLookup',
@@ -467,7 +488,7 @@ export class UpdateFlowCommand extends CommandBase {
         // Create the tab with access to the component and font resources only.
         const panel = vscode.window.createWebviewPanel(
             'g4-flow-publisher',
-            `Publish Flow · ${botFile.key || path.basename(botFile.filePath)}`,
+            UpdateFlowCommand.getPanelTitle(botFile.key, botFile),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -532,8 +553,8 @@ export class UpdateFlowCommand extends CommandBase {
      *
      * @remarks
      * The file is written only when its JSON actually changes, with a 4-space indent and the file's
-     * trailing newline kept. A bot open with unsaved changes in an editor is never overwritten: the
-     * save is skipped with a warning, so the user's editor changes are kept.
+     * trailing newline kept. The caller saved any open editor of the bot before publishing, so the
+     * page's automation is written over saved state: the page is the source of what is published.
      *
      * @param botFile - The tab's bot.
      * @param editedAutomation - Automation that was just published.
@@ -542,17 +563,6 @@ export class UpdateFlowCommand extends CommandBase {
      * @returns The saved automation text (authentication removed) and a sentence for the page banner.
      */
     private saveBotAutomation(botFile: BotFile, editedAutomation: any, openedAutomation: any): SaveResult {
-        const filePath = path.normalize(botFile.filePath).toLowerCase();
-        const openDocument = vscode.workspace.textDocuments.find((document) => path.normalize(document.uri.fsPath).toLowerCase() === filePath);
-
-        // Never overwrite edits the user has not saved yet.
-        if (openDocument?.isDirty) {
-            const note = `bots/${botFile.relativePath} has unsaved changes in an editor, so the automation was not saved to the file.`;
-            this._logger.warning(note);
-            vscode.window.showWarningMessage(note);
-            return { note: ` ${note}` };
-        }
-
         // Read the file as it is now; fall back to the copy read when the tab opened.
         let fileText = '';
         let fileAutomation = openedAutomation;
@@ -611,7 +621,9 @@ export class UpdateFlowCommand extends CommandBase {
      * Publishes the flow submitted by a publisher tab and reports the result back to the tab.
      *
      * @remarks
-     * The automation comes from the page's editor and must be a JSON object. On success the edited
+     * The automation comes from the page's editor and must be a JSON object. An open editor of the
+     * bot with unsaved edits is saved before anything is sent; when that save fails, nothing is
+     * published. On success the edited
      * automation is saved to the bot file, the tab stays open, its title follows the published key,
      * and the stored flow is sent back so the page shows the overwrite notice from then on. On
      * failure the Hub's field errors are forwarded so the page can mark the matching fields.
@@ -661,11 +673,22 @@ export class UpdateFlowCommand extends CommandBase {
         const warnings = Array.isArray(message.warnings)
             ? message.warnings.filter((warning: unknown) => typeof warning === 'string')
             : [];
-        const isConfirmed = warnings.length === 0 || await this.confirmPublishWarnings(flowName);
+        const isConfirmed = warnings.length === 0 || await this.confirmPublishWarnings(flowName, warnings);
 
         if (!isConfirmed) {
             this._logger.information(`Publishing flow '${flowName}' was cancelled at the parameter warnings.`);
             await panel.webview.postMessage({ command: 'publishResult', isCancelled: true, isSuccess: false, message: '' });
+            return;
+        }
+
+        // An editor with unsaved edits of the bot is saved first, so publishing always starts from
+        // saved state and the file write below never meets pending editor changes.
+        const isEditorSaved = await Utilities.saveOpenDocument(botFile.filePath);
+
+        if (!isEditorSaved) {
+            const unsavedMessage = `bots/${botFile.relativePath} has unsaved changes that could not be saved, so the flow was not published.`;
+
+            await panel.webview.postMessage({ command: 'publishResult', fieldErrors: {}, isSuccess: false, message: unsavedMessage });
             return;
         }
 
@@ -688,7 +711,7 @@ export class UpdateFlowCommand extends CommandBase {
         // Confirm success in the log, status bar, and tab title, then save the bot file.
         this._logger.information(`Flow '${flowName}' updated from 'bots/${botFile.relativePath}'.`);
         vscode.window.setStatusBarMessage(`$(check) Flow '${flowName}' updated.`, 5000);
-        panel.title = `Publish Flow · ${manifest.key}`;
+        panel.title = UpdateFlowCommand.getPanelTitle(manifest.key, botFile);
 
         const saveResult = this.saveBotAutomation(botFile, automation, openedAutomation);
         const existingFlow = await this._client.getFlow(manifest.namespace, manifest.key);

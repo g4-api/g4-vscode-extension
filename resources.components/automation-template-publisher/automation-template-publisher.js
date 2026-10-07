@@ -14,7 +14,7 @@
  *                   { command: 'publish', fileName, rulesText, values, warnings }
  * - Host → webview: { command: 'templateLookup', requestId, existingTemplate, isFileExisting }
  *                   { command: 'publishResult', isSuccess, isCancelled, message, fieldErrors, existingTemplate,
- *                     file, savedRulesText, savedValues }
+ *                     file, savedRulesText, savedValues, source }
  *
  * Tokens: the rules reference a parameter as `{{$ Parameters.Name }}` and a property as
  * `{{$ Properties.Name }}`; the words and the names are matched ignoring case. Unused parameters or
@@ -592,9 +592,11 @@ function getManifestValues() {
             }
         }
 
-        // A rule property is one value, never a repeated one.
+        // A rule property is one value, never a repeated one, and is published with the rule
+        // schema's own spelling (a stored "Argument" is published as "argument").
         if (getIsPropertyField(definition)) {
             parameter.multiple = false;
+            parameter.name = getPropertyName(parameter.name);
         }
 
         // Value cards back to PluginParameterModel items; properties the card does not show are kept.
@@ -661,6 +663,23 @@ function getManifestValues() {
  */
 function getIsPropertyField(definition) {
     return definition?.name === 'properties';
+}
+
+/**
+ * Returns the rule schema's spelling of a property name.
+ *
+ * @remarks
+ * Compute-only. Property names are matched ignoring case (a template file may hold "Argument"),
+ * but the published name always uses the spelling in PROPERTY_NAMES. A name that matches none is
+ * returned as it is; the form does not publish it, since its card is flagged as an error.
+ *
+ * @param {string} name - Property name as stored or typed (already trimmed).
+ * @returns {string} The PROPERTY_NAMES spelling, or the name unchanged.
+ */
+function getPropertyName(name) {
+    const key = name.toLowerCase();
+
+    return PROPERTY_NAMES.find((propertyName) => propertyName.toLowerCase() === key) ?? name;
 }
 
 /**
@@ -1492,6 +1511,14 @@ function onHostMessage(event) {
         injected.file = message.file ?? injected.file;
         state.fileName = convertToSafeText(injected.file?.fileName) || state.fileName;
         state.isFileExisting = false;
+    }
+
+    // The header names the template's source; a bot job's template now names its template file.
+    const sourceLabel = convertToSafeText(message.source?.label);
+
+    if (injected && sourceLabel !== '') {
+        injected.source = { ...injected.source, label: sourceLabel };
+        showHeader();
     }
 
     // Open whatever holds an error, re-render, and bring the result banner into view.

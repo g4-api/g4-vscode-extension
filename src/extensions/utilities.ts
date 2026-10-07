@@ -6,6 +6,13 @@ import path = require('path');
 import { LogSettings } from '../logging/logger-base';
 import { Global } from '../constants/global';
 
+// A connection failure in HttpClient's error text: refused, unknown host, unreachable, reset, or
+// timed out. Linear: an alternation of literals with no quantifier.
+const HUB_UNREACHABLE_PATTERN = /ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET|ETIMEDOUT|timed out/i;
+
+// What to check when the Hub could not be reached.
+const HUB_UNREACHABLE_GUIDANCE = 'Check that the Hub is running and the g4Server settings in manifest.json.';
+
 export class Utilities {
     /**
      * Cached global project-manifest snapshot shared by every consumer.
@@ -104,6 +111,36 @@ export class Utilities {
 
         // Decode the byte array as UTF-8 so non-Latin characters are restored correctly.
         return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    /**
+     * Converts a Hub failure that is not a JSON problem body into one readable sentence.
+     *
+     * @remarks
+     * Compute-only. HttpClient resolves network failures with the error's stack trace, so only the
+     * first line is kept. A connection failure (refused, unknown host, unreachable, reset, or timed
+     * out) means the Hub never answered, so it is reported as unreachable rather than as a rejection.
+     *
+     * @param failure - Failure text returned by a G4Client publish call.
+     * @param subject - What was published, for the message ('flow' or 'template').
+     * @returns The sentence for the publish banner.
+     */
+    public static convertToHubFailureText(failure: string, subject: string): string {
+        // Keep the first line: the rest of a network failure is a stack trace the user cannot act on.
+        const lineBreakIndex = failure.indexOf('\n');
+        const firstLineText = lineBreakIndex === -1
+            ? failure
+            : failure.slice(0, lineBreakIndex);
+        const firstLine = firstLineText.trim();
+
+        // A connection failure names its cause, so the user knows to check the Hub, not the form.
+        const unreachableMatch = HUB_UNREACHABLE_PATTERN.exec(firstLine);
+
+        if (unreachableMatch) {
+            return `Could not reach the G4 Hub (${unreachableMatch[0]}). ${HUB_UNREACHABLE_GUIDANCE}`;
+        }
+
+        return `The Hub rejected the ${subject}: ${firstLine}`;
     }
 
     /**
@@ -781,6 +818,31 @@ export class Utilities {
 
         // Return the normalized manifest file path.
         return manifest;
+    }
+
+    /**
+     * Saves the editor of a file when it is open with unsaved changes.
+     *
+     * @remarks
+     * The publishers publish and write files only from saved state: an editor with pending edits is
+     * saved first, so the edits are never silently skipped. A file that is not open, or has no
+     * pending edits, needs nothing.
+     *
+     * @param filePath - Absolute path of the file.
+     * @returns False only when the file had unsaved changes and saving them failed.
+     */
+    public static async saveOpenDocument(filePath: string): Promise<boolean> {
+        // Find the editor document of this file; paths compare case-insensitively, as Windows does.
+        const normalizedPath = path.normalize(filePath).toLowerCase();
+        const openDocument = vscode.workspace.textDocuments.find((document) => path.normalize(document.uri.fsPath).toLowerCase() === normalizedPath);
+
+        // Nothing is pending when the file is closed or already saved.
+        if (!openDocument?.isDirty) {
+            return true;
+        }
+
+        // Save the pending edits; VS Code reports false when the save did not happen.
+        return openDocument.save();
     }
 
     /**

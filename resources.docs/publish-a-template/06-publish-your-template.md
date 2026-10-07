@@ -37,16 +37,16 @@ Fix the marked box and press **Publish** again. The most common causes are:
 
 ## Step 3: Answer the warning question
 
-If the form has token warnings (see [Module 4](04-understand-the-rules.md)), VS Code asks one question in the bottom-right corner:
+If the form has token warnings (see [Module 4](04-understand-the-rules.md)), VS Code asks one question in a box in the middle of the window. The box lists every warning:
 
-```text
-Template 'G4.System/SearchBing' has token warnings. Publish anyway?
-```
+![The question: Template has token warnings. Publish anyway? with the list of warnings](images/06-publish-warning.png)
 
 - **Publish Anyway** — continue and send the template.
 - **Cancel** — stop this publish. Nothing is sent, and you can fix the warnings first.
 
-> **📝 Note:** The question disappears after a few seconds. If you missed it, click the **bell** icon at the bottom-right of VS Code to bring it back, then choose.
+> **📝 Note:** The box stays until you answer it. Closing it with the **X** is the same as **Cancel**.
+>
+> **💡 Tip:** If the template file is open in another tab with unsaved edits, G4 saves that tab first. The file then gets the template shown on this page.
 
 ---
 

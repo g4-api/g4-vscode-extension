@@ -45,17 +45,37 @@ const HOST_OWNED_FIELDS = ['id', 'pluginType', 'rules', 'source', 'type'];
 // The G4PluginAttribute properties the Hub accepts. Anything else a template file holds (for
 // example manifestVersion or scopes) is kept in the file and never sent.
 const HUB_FIELDS = [
-    'aliases', 'author', 'categories', 'context', 'description', 'entity', 'examples', 'key', 'namespace',
-    'outputParameters', 'parameters', 'platforms', 'pluginType', 'projectUrl', 'properties', 'protocol',
-    'ruleType', 'rules', 'source', 'summary', 'version'
+    'aliases',
+    'author',
+    'categories',
+    'context',
+    'description',
+    'entity',
+    'examples',
+    'key',
+    'namespace',
+    'outputParameters',
+    'parameters',
+    'platforms',
+    'pluginType',
+    'projectUrl',
+    'properties',
+    'protocol',
+    'ruleType',
+    'rules',
+    'source',
+    'summary',
+    'version'
 ];
 
 // Default summary text; the form replaces {key} while the user has not edited the summary.
 const SUMMARY_TEMPLATE = 'Runs the {key} template.';
 
-// Confirmation buttons of the token warnings notification.
-const CANCEL_ACTION = 'Cancel';
+// Confirmation button of the token warnings dialog; a modal dialog adds its own Cancel.
 const PUBLISH_ANYWAY_ACTION = 'Publish Anyway';
+
+// Tab title of a template made from a bot while its File Name box is empty.
+const NEW_TEMPLATE_TITLE = 'New template';
 
 // Server messages (from TemplatesClient.AddTemplate and ConfirmTemplate) mapped onto form fields.
 const CIRCULAR_REFERENCE_PATTERN = /circular reference/i;
@@ -352,19 +372,20 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * Asks the user to confirm publishing a template that has token warnings.
      *
      * @remarks
-     * A short VS Code warning notification (bottom right) asks for confirmation; the warnings
-     * themselves stay on the page, where they are marked in the Parameters and Rules sections.
-     * Publish Anyway continues, and Cancel or closing the notification stops this publish only.
-     * Warnings never block publishing.
+     * A modal VS Code dialog lists the warnings and waits for an answer: unlike a notification it
+     * never hides itself, so the page cannot be left locked on "Publishing…". Publish Anyway
+     * continues; Cancel or closing the dialog stops this publish only. Warnings never block
+     * publishing.
      *
      * @param templateName - Namespace and key of the template, for the message.
+     * @param warnings - The warning sentences sent by the page.
      * @returns True when the user chose Publish Anyway.
      */
-    private async confirmPublishWarnings(templateName: string): Promise<boolean> {
+    private async confirmPublishWarnings(templateName: string, warnings: string[]): Promise<boolean> {
         const choice = await vscode.window.showWarningMessage(
             `Template '${templateName}' has token warnings. Publish anyway?`,
-            PUBLISH_ANYWAY_ACTION,
-            CANCEL_ACTION);
+            { detail: warnings.join('\n'), modal: true },
+            PUBLISH_ANYWAY_ACTION);
 
         return choice === PUBLISH_ANYWAY_ACTION;
     }
@@ -385,6 +406,41 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         return JSON.stringify(data)
             .replaceAll('<', '\\u003c') // NOSONAR
             .replaceAll('&', '\\u0026'); // NOSONAR
+    }
+
+    /**
+     * Builds the key that identifies a publisher tab for a file.
+     *
+     * @remarks
+     * Compute-only. Paths are normalized and compared without case, as Windows does, so the same file
+     * reached through a different drive-letter case or separator still finds its open tab.
+     *
+     * @param filePath - Absolute path of the bot or template file.
+     * @returns The tab key; a bot job appends its stage and job position to it.
+     */
+    private static getPanelKey(filePath: string): string {
+        return path.normalize(filePath).toLowerCase();
+    }
+
+    /**
+     * Names a publisher tab after the template file it saves to.
+     *
+     * @remarks
+     * Compute-only. A template file is named by its file. A template made from a bot is named by the
+     * File Name box as typed, so the tab always matches the box, valid or not; an empty box shows a
+     * placeholder instead of a blank tab.
+     *
+     * @param source - The tab's source; for a bot, its fileName is the typed File Name.
+     * @returns The tab title.
+     */
+    private static getPanelTitle(source: Pick<PublisherSource, 'fileName' | 'filePath' | 'kind'>): string {
+        if (source.kind === 'template') {
+            return path.basename(source.filePath);
+        }
+
+        const fileName = source.fileName.trim();
+
+        return fileName === '' ? NEW_TEMPLATE_TITLE : fileName;
     }
 
     /**
@@ -410,7 +466,8 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      *
      * @remarks
      * Compute-only. The client returns the error body as JSON text (GenericErrorModel/ProblemDetails
-     * with an `errors` map); anything else is shown verbatim. The Hub reports every manifest problem
+     * with an `errors` map); anything else (a timeout, an unreachable Hub) becomes one readable
+     * sentence. The Hub reports every manifest problem
      * under one `InvalidManifest` entry, so its message is also attached to the field it names: a
      * circular reference to the rules, an alias conflict to the aliases, and a key or namespace
      * conflict to the key.
@@ -419,13 +476,13 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * @returns The banner message and the errors map for the form.
      */
     private static getPublishFailure(failure: string): { fieldErrors: Record<string, unknown>; message: string } {
-        // Parse the problem body; non-JSON failure text (for example a timeout) is shown verbatim.
+        // Parse the problem body; non-JSON failure text (for example a timeout) becomes one sentence.
         let body: any;
 
         try {
             body = JSON.parse(failure);
         } catch {
-            return { fieldErrors: {}, message: `The Hub rejected the template: ${failure}` };
+            return { fieldErrors: {}, message: Utilities.convertToHubFailureText(failure, 'template') };
         }
 
         // Prefer the field messages, then the problem title, then the raw text.
@@ -548,6 +605,20 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
     }
 
     /**
+     * Describes a template file for the page header.
+     *
+     * @remarks
+     * Compute-only. Shared by a template file opened from the Explorer and by a bot job's template
+     * once it is saved, so both headers read the same.
+     *
+     * @param relativePath - Path of the file below the templates folder, with forward slashes.
+     * @returns The header text.
+     */
+    private static newTemplateLabel(relativePath: string): string {
+        return `Publish templates/${relativePath} to the G4 Hub as a template`;
+    }
+
+    /**
      * Handles one message from a publisher tab.
      *
      * @param options - The tab, its source, and the message.
@@ -562,10 +633,8 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             const existingTemplate = key === '' ? undefined : await this._client.getTemplate(key);
             const filePath = source.kind === 'bot' ? UpdateTemplatePublisherCommand.getTemplateFilePath(fileName) : undefined;
 
-            // The tab shows the template file name; a valid typed name replaces it as it is edited.
-            if (filePath !== undefined) {
-                panel.title = path.basename(filePath);
-            }
+            // The tab of a template made from a bot follows the File Name box as it is typed.
+            panel.title = UpdateTemplatePublisherCommand.getPanelTitle({ ...source, fileName });
 
             await panel.webview.postMessage({
                 command: 'templateLookup',
@@ -597,7 +666,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         // Create the tab with access to the component and font resources only.
         const panel = vscode.window.createWebviewPanel(
             'g4-template-publisher',
-            path.basename(source.kind === 'bot' ? source.fileName : source.filePath),
+            UpdateTemplatePublisherCommand.getPanelTitle(source),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -609,7 +678,8 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             }
         );
 
-        // Track the tab per source, and forget it when the user closes it.
+        // Track the tab per source, and forget it when the user closes it. The key is read when the
+        // tab closes, because a bot job's tab is moved to its template file's key once it is saved.
         this._panels.set(source.panelKey, panel);
         panel.onDidDispose(() => this._panels.delete(source.panelKey), undefined, this.context.subscriptions);
 
@@ -657,8 +727,10 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * Publishes the template submitted by a publisher tab and reports the result back to the tab.
      *
      * @remarks
-     * The rules come from the page's editor and must be a JSON array. On success the template is
-     * saved to its file, the tab stays open, its title is the saved file name, and the stored
+     * The rules come from the page's editor and must be a JSON array. An open editor of the template
+     * file with unsaved edits is saved before anything is sent; when that save fails, nothing is
+     * published. On success the template is saved to its file, the tab stays open (registered
+     * under the template file, with a matching header), its title is the saved file name, and the stored
      * template is sent back so the page shows the overwrite notice from then on. A template made from
      * a bot becomes an ordinary template file from then on. On failure the Hub's field errors are
      * forwarded so the page can mark the matching fields.
@@ -724,11 +796,23 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         const warnings = Array.isArray(message.warnings)
             ? message.warnings.filter((warning: unknown) => typeof warning === 'string')
             : [];
-        const isConfirmed = warnings.length === 0 || await this.confirmPublishWarnings(templateName);
+        const isConfirmed = warnings.length === 0 || await this.confirmPublishWarnings(templateName, warnings);
 
         if (!isConfirmed) {
             this._logger.information(`Publishing template '${templateName}' was cancelled at the token warnings.`);
             await panel.webview.postMessage({ command: 'publishResult', isCancelled: true, isSuccess: false, message: '' });
+            return;
+        }
+
+        // An editor with unsaved edits of the template file is saved first, so publishing always
+        // starts from saved state and the file write below never meets pending editor changes.
+        const isEditorSaved = await Utilities.saveOpenDocument(targetPath);
+
+        if (!isEditorSaved) {
+            const relativePath = UpdateTemplatePublisherCommand.getRelativePath(targetPath, TEMPLATES_FOLDER);
+            const unsavedMessage = `templates/${relativePath} has unsaved changes that could not be saved, so the template was not published.`;
+
+            await fail(unsavedMessage);
             return;
         }
 
@@ -756,6 +840,8 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             source.filePath = targetPath;
             source.manifest = manifests.file;
             source.fileName = UpdateTemplatePublisherCommand.getRelativePath(targetPath, TEMPLATES_FOLDER);
+            source.label = UpdateTemplatePublisherCommand.newTemplateLabel(source.fileName);
+            this.setPanelKey(source, panel);
         }
 
         const existingTemplate = await this._client.getTemplate(manifests.hub.key);
@@ -769,7 +855,8 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             isSuccess: true,
             message: `Published ${templateName}.${saveResult.note}`,
             savedRulesText: saveResult.isSaved ? JSON.stringify(rules, null, 4) : undefined,
-            savedValues: saveResult.isSaved ? savedValues : undefined
+            savedValues: saveResult.isSaved ? savedValues : undefined,
+            source: { label: source.label }
         });
     }
 
@@ -863,7 +950,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             kind: 'bot',
             label: `Publish ${label} › ${location} as a template`,
             manifest: undefined,
-            panelKey: `${filePath}#${stageIndex}/${jobIndex}`,
+            panelKey: `${UpdateTemplatePublisherCommand.getPanelKey(filePath)}#${stageIndex}/${jobIndex}`,
             rules
         };
     }
@@ -910,9 +997,9 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             fileName: relativePath,
             filePath,
             kind: 'template',
-            label: `Publish ${label} to the G4 Hub as a template`,
+            label: UpdateTemplatePublisherCommand.newTemplateLabel(relativePath),
             manifest,
-            panelKey: filePath,
+            panelKey: UpdateTemplatePublisherCommand.getPanelKey(filePath),
             rules: Array.isArray(manifest.rules) ? manifest.rules : []
         };
     }
@@ -921,27 +1008,22 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * Saves the published template to its file.
      *
      * @remarks
-     * The file is written only when its JSON actually changes, with a 4-space indent and the file's
-     * trailing newline kept (a new file ends with one). A file open with unsaved changes in an editor
-     * is never overwritten: the save is skipped with a warning, so the user's editor changes are
-     * kept. The folder is created when it does not exist.
+     * The file is written only when its JSON actually changes, with a 4-space indent, its top-level
+     * fields in A-Z order (so every saved template reads the same way), and the file's trailing
+     * newline kept (a new file ends with one). The caller saved any open editor of the file before
+     * publishing, so the published template is written over saved state. The folder is created when
+     * it does not exist.
      *
      * @param filePath - Absolute path of the template file.
-     * @param manifest - The published template, including the fields the Hub does not take.
+     * @param publishedManifest - The published template, including the fields the Hub does not take.
      * @returns Whether the file now holds the template, and a sentence for the page banner.
      */
-    private saveTemplateFile(filePath: string, manifest: any): SaveResult {
-        const normalizedPath = path.normalize(filePath).toLowerCase();
+    private saveTemplateFile(filePath: string, publishedManifest: any): SaveResult {
         const relativePath = UpdateTemplatePublisherCommand.getRelativePath(filePath, TEMPLATES_FOLDER);
-        const openDocument = vscode.workspace.textDocuments.find((document) => path.normalize(document.uri.fsPath).toLowerCase() === normalizedPath);
 
-        // Never overwrite edits the user has not saved yet.
-        if (openDocument?.isDirty) {
-            const note = `templates/${relativePath} has unsaved changes in an editor, so the template was not saved to the file.`;
-            this._logger.warning(note);
-            vscode.window.showWarningMessage(note);
-            return { isSaved: false, note: ` ${note}` };
-        }
+        // Order the top-level fields A-Z; nested values keep their order (rules, examples, cards).
+        const manifest = Object.fromEntries(Object.entries(publishedManifest)
+            .sort(([left], [right]) => left.localeCompare(right)));
 
         // Read the file as it is now (it may not exist yet).
         let fileText = '';
@@ -988,6 +1070,32 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         } catch {
             return false;
         }
+    }
+
+    /**
+     * Moves a tab to the key of its template file once a bot job's template is saved there.
+     *
+     * @remarks
+     * Without this, the tab stays registered under the bot job, and opening the new template file
+     * from the Explorer opens a second tab that writes the same file. When another tab already
+     * owns that file, the keys are left as they are, so neither tab loses its registration.
+     *
+     * @param source - The tab's source, already switched to its template file.
+     * @param panel - The tab.
+     */
+    private setPanelKey(source: PublisherSource, panel: vscode.WebviewPanel): void {
+        const panelKey = UpdateTemplatePublisherCommand.getPanelKey(source.filePath);
+        const isKeyTaken = this._panels.has(panelKey) && this._panels.get(panelKey) !== panel;
+
+        // Another tab already edits this file; keep both registrations unchanged.
+        if (isKeyTaken) {
+            return;
+        }
+
+        // Re-register the tab; the dispose handler reads source.panelKey, so it removes the new key.
+        this._panels.delete(source.panelKey);
+        source.panelKey = panelKey;
+        this._panels.set(panelKey, panel);
     }
 
     /**

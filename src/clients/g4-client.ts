@@ -260,19 +260,21 @@ export class G4Client {
     }
 
     /**
-     * Sends a PUT request to create or update an environment on the server.
+     * Sends a PUT request that creates or overwrites one template in the G4 Hub.
      *
-     * @param name        - The unique name of the environment to update.
-     * @param encode      - Whether the server should encode the response (true/false).
-     * @param environment - The environment payload object to send in the request body.
-     * 
+     * @remarks
+     * Used by the Update-Template command. Failures are only logged, so the caller cannot tell
+     * whether the template was stored; the template publisher uses `publishTemplate`, which
+     * returns the failure text, instead.
+     *
+     * @param template - G4PluginAttribute payload to send in the request body.
      * @returns A Promise that resolves when the update completes (errors are logged).
      */
     public async updateTemplate(template: any): Promise<void> {
         // Construct a new HTTP command for the template update endpoint
         const command = new HttpCommand();
 
-        // Build the request URL path with version, template name, and encode flag
+        // Build the versioned templates route; the template identifies itself by its key
         command.command = `api/v${this._version}/g4/templates`;
 
         // Attach the template object as the request body

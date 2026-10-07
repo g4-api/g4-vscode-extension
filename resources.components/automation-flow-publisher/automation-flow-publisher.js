@@ -15,7 +15,8 @@
  * - Host → webview: { command: 'flowLookup', requestId, existingFlow }
  *                   { command: 'publishResult', isSuccess, isCancelled, message, fieldErrors, existingFlow, savedAutomationText }
  *
- * Parameter tokens: the automation references a parameter as `{{$ Parameters.Name }}`, exactly.
+ * Parameter tokens: the automation references a parameter as `{{$ Parameters.Name }}`; the word and
+ * the name are matched ignoring case, exactly as the Template Publisher matches them.
  * Unused parameters, unknown names, and broken tokens are warnings: they are shown on the page and
  * listed in a confirmation the host shows on Publish, but never block publishing.
  *
@@ -173,9 +174,10 @@ const SECTIONS = [
     }
 ];
 
-// The strict parameter token: `{{$ Parameters.Name }}` with exactly one space after `{{$` and one
-// before `}}`. The name is everything up to that space. Linear: one negated class between literals.
-const STRICT_PARAMETER_TOKEN_PATTERN = /\{\{\$ Parameters\.([^\s{}"]+) \}\}/g;
+// The strict parameter token: `{{$ Parameters.Name }}` (any case) with exactly one space after `{{$`
+// and one before `}}`. The name is everything up to that space. Linear: one negated class between
+// literals.
+const STRICT_PARAMETER_TOKEN_PATTERN = /\{\{\$ Parameters\.([^\s{}"]+) \}\}/gi;
 
 // Validation message for URL fields checked when publishing.
 const URL_ERROR_MESSAGE = 'Enter a full URL, for example https://example.com.';
@@ -633,9 +635,9 @@ function getParameterProperties(definition) {
  * Finds parameter token problems in the automation text.
  *
  * @remarks
- * Compute-only. A strict token names a parameter; a parameter no strict token names is unused, and
- * a strict token naming no parameter is unknown (names are case-sensitive; a case-only difference
- * adds a suggestion). Any parameter-like text that is not exactly a strict token is broken.
+ * Compute-only. A strict token names a parameter, ignoring case; a parameter no strict token names
+ * is unused, and a strict token naming no parameter is unknown. Any parameter-like text that is not
+ * exactly a strict token is broken.
  *
  * @param {string} text - Automation JSON text.
  * @param {string[]} parameterNames - Names of the parameters in the form (blank names excluded).
@@ -643,22 +645,22 @@ function getParameterProperties(definition) {
  */
 function getParameterTokenIssues(text, parameterNames) {
     const getLine = (offset) => text.slice(0, offset).split('\n').length;
+    const getKey = (name) => name.toLowerCase();
 
-    // Strict tokens: the names they reference and the ranges they cover.
+    // Strict tokens: the names they reference (ignoring case) and the ranges they cover.
     const strictMatches = [...text.matchAll(STRICT_PARAMETER_TOKEN_PATTERN)];
     const strictRanges = strictMatches.map((match) => [match.index, match.index + match[0].length]);
-    const usedNames = new Set(strictMatches.map((match) => match[1]));
-    const knownNames = new Set(parameterNames);
+    const usedKeys = new Set(strictMatches.map((match) => getKey(match[1])));
+    const knownKeys = new Set(parameterNames.map(getKey));
 
-    // Unknown names, with a suggestion when only the case differs.
+    // Unknown names: tokens whose name matches no parameter in any case.
     const unknown = strictMatches
-        .filter((match) => !knownNames.has(match[1]))
+        .filter((match) => !knownKeys.has(getKey(match[1])))
         .map((match) => ({
             end: match.index + match[0].length,
             line: getLine(match.index),
             name: match[1],
-            start: match.index,
-            suggestion: parameterNames.find((name) => name.toLowerCase() === match[1].toLowerCase()) ?? ''
+            start: match.index
         }));
 
     // Broken tokens: parameter-like text that no strict token covers exactly.
@@ -667,7 +669,7 @@ function getParameterTokenIssues(text, parameterNames) {
         .map((match) => ({ end: match.index + match[0].length, line: getLine(match.index), start: match.index, text: match[0] }));
 
     // Unused parameters, once each, in form order.
-    const unused = [...new Set(parameterNames)].filter((name) => !usedNames.has(name));
+    const unused = [...new Set(parameterNames)].filter((name) => !usedKeys.has(getKey(name)));
 
     return { broken, unknown, unused };
 }
@@ -691,12 +693,7 @@ function getParameterWarningNotices(issues) {
         })),
         ...issues.unknown.map((issue) => ({
             action: selectAction(issue),
-            parts: [
-                text(`Line ${issue.line}: unknown parameter `),
-                code(issue.name),
-                text('.'),
-                ...(issue.suggestion === '' ? [] : [text(' Did you mean '), code(issue.suggestion), text('?')])
-            ]
+            parts: [text(`Line ${issue.line}: unknown parameter `), code(issue.name), text('.')]
         })),
         ...issues.broken.map((issue) => ({
             action: selectAction(issue),
@@ -724,10 +721,7 @@ function getParameterWarningNotices(issues) {
 function getParameterWarningTexts(issues) {
     return [
         ...issues.unused.map((name) => `Unused parameter '${name}': the automation has no {{$ Parameters.${name} }}.`),
-        ...issues.unknown.map((issue) => {
-            const suggestionText = issue.suggestion === '' ? '' : ` Did you mean '${issue.suggestion}'?`;
-            return `Line ${issue.line}: unknown parameter '${issue.name}'.${suggestionText}`;
-        }),
+        ...issues.unknown.map((issue) => `Line ${issue.line}: unknown parameter '${issue.name}'.`),
         ...issues.broken.map((issue) => `Line ${issue.line}: broken parameter token '${issue.text}'. Use {{$ Parameters.Name }}.`)
     ];
 }
@@ -1480,7 +1474,8 @@ function showParameterTitle(path, rowIndex) {
  */
 function showParameterWarnings() {
     const issues = getParameterTokenIssues(globalThis.STATE.automationText, getParameterNames());
-    const unusedNames = new Set(issues.unused);
+    const getKey = (name) => name.toLowerCase();
+    const unusedKeys = new Set(issues.unused.map(getKey));
     const automationCount = issues.unused.length + issues.unknown.length + issues.broken.length;
 
     // Writes one header warning: a label (empty for none) and its tooltip.
@@ -1510,7 +1505,7 @@ function showParameterWarnings() {
     document.querySelectorAll('g4-card[data-card-kind="parameter"]').forEach((card) => {
         const rows = globalThis.STATE.values[card.dataset.path] ?? [];
         const name = (rows[Number(card.dataset.index)]?.fields.name ?? '').trim();
-        const isUnused = unusedNames.has(name);
+        const isUnused = unusedKeys.has(getKey(name));
 
         setWarning(card, isUnused ? 'Unused Parameter' : '', isUnused ? `No {{$ Parameters.${name} }} in the automation.` : '');
     });

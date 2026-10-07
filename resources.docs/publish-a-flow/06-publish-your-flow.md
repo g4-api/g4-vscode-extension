@@ -36,14 +36,14 @@ Fill in the marked box and press **Publish** again. The most common causes are a
 
 ## Step 3: Answer the warning question
 
-If the form has parameter warnings (see [Module 4](04-add-parameters.md)), VS Code asks one question in the bottom-right corner:
+If the form has parameter warnings (see [Module 4](04-add-parameters.md)), VS Code asks one question in a box in the middle of the window. The box lists every warning:
 
-![The question: Flow has parameter warnings. Publish anyway?](images/06-publish-warning.png)
+![The question: Flow has parameter warnings. Publish anyway? with the list of warnings](images/06-publish-warning.png)
 
 - **Publish Anyway** — continue and send the flow.
 - **Cancel** — stop this publish. Nothing is sent, and you can fix the warnings first.
 
-> **📝 Note:** This message disappears after a few seconds. If you missed it, click the **bell** icon at the bottom-right of VS Code to bring it back, then choose.
+> **📝 Note:** The box stays until you answer it. Closing it with the **X** is the same as **Cancel**.
 
 ---
 

@@ -57,10 +57,10 @@ You can type directly in the JSON box — for example, to add a token like `{{$ 
 
 After a successful publish, G4 **saves the automation back to your bot file**, with your authentication block put back exactly as it was. That keeps the file and the published flow in step.
 
-Two safety rules apply:
+Two rules apply:
 
 - If nothing changed, G4 leaves the file alone.
-- If the bot is open in an editor tab with **unsaved changes**, G4 does **not** overwrite it. You'll see a warning, and your unsaved work stays safe.
+- If the bot is open in an editor tab with **unsaved changes**, G4 saves that tab first, before anything is sent. The file then gets the automation shown on this page, so make the changes you want to keep here, in the **Automation** section.
 
 ---
 
@@ -68,7 +68,7 @@ Two safety rules apply:
 
 - [ ] You found the **Automation** section and its size
 - [ ] You know your token is hidden here and stays in the bot file
-- [ ] You know the bot file is saved after a successful publish, unless it has unsaved edits
+- [ ] You know the bot file is saved after a successful publish, with the automation shown on this page
 
 ---
 

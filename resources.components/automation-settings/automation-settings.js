@@ -10,8 +10,9 @@
  * Host contract (show-settings.ts):
  * - Injected #g4-data: the manifest JSON.
  * - Webview → host: { command: 'saveSettings', manifest }, { command: 'openExternal', url },
- *                   { command: 'browseSandbox' }, { command: 'autoDetectSandbox' }
- * - Host → webview: { command: 'setSandboxPath', sandboxPath }
+ *                   { command: 'browseSandbox' }, { command: 'autoDetectSandbox' },
+ *                   { command: 'confirmFactoryReset' }
+ * - Host → webview: { command: 'setSandboxPath', sandboxPath }, { command: 'factoryResetConfirmed' }
  *
  * Every control carries data-path (the dotted state path it edits) and data-kind (how its value is
  * stored); one delegated listener per component event writes the value into state.
@@ -247,6 +248,10 @@ globalThis.INJECTED = (() => {
 globalThis.STATE = (globalThis.INJECTED && Object.keys(globalThis.INJECTED).length)
     ? mergeSettings(copyValue(globalThis.DEFAULTS), globalThis.INJECTED)
     : copyValue(globalThis.DEFAULTS);
+
+// The settings as the page opened them (the manifest layered over the defaults). Reset to Defaults
+// restores this copy, like the publishers' reset; never mutated.
+globalThis.INITIAL = copyValue(globalThis.STATE);
 
 // Driver keys fetched from the engine; null until a successful load.
 // Used to populate every "Driver" dropdown.
@@ -707,6 +712,25 @@ function getUnsafeScriptReason(script) {
 }
 
 /**
+ * Asks for confirmation before restoring the shipped defaults (Restore Factory Settings).
+ *
+ * @remarks
+ * A webview cannot show a native dialog, so the host shows a modal confirmation and answers with
+ * factoryResetConfirmed (see onHostMessage). Opened outside VS Code there is no host to ask, and
+ * the reset applies directly.
+ */
+function invokeFactoryReset() {
+    // Without the host bridge there is no dialog; apply the reset so the button still works.
+    if (!globalThis.VSCODE) {
+        resetFactorySettings();
+        return;
+    }
+
+    // Ask the host to confirm; the reset happens only when it answers.
+    globalThis.VSCODE.postMessage({ command: 'confirmFactoryReset' });
+}
+
+/**
  * Deep-merges an override object onto a base object, returning the base.
  *
  * Behavior:
@@ -818,7 +842,7 @@ function newManifest() {
 }
 
 /**
- * Handles the action bar buttons: Save and Reset to Defaults.
+ * Handles the action bar buttons: Save, Reset to Defaults, and Restore Factory Settings.
  *
  * @param {CustomEvent} event - g4-action event of the action bar.
  */
@@ -831,6 +855,11 @@ function onActionBarAction(event) {
 
     if (event.detail.id === 'reset') {
         resetDefaults();
+        return;
+    }
+
+    if (event.detail.id === 'factory-reset') {
+        invokeFactoryReset();
     }
 }
 
@@ -988,6 +1017,16 @@ function onAppInput(event) {
                 .map((entry) => [entry.key.trim(), entry.value])));
             break;
         case 'number': {
+            // An optional number left empty is removed (undefined is dropped when the manifest is
+            // serialized), so the consumer's default applies instead of a stored 0.
+            const isEmptyText = typeof value === 'string' && value.trim() === '';
+            const isEmptyOptional = dataset.optional === 'true' && isEmptyText;
+
+            if (isEmptyOptional) {
+                setPath(globalThis.STATE, path, undefined);
+                break;
+            }
+
             // A number field may carry a lower bound; the stored value is clamped to it.
             const minimum = dataset.minimum === undefined ? null : Number(dataset.minimum);
 
@@ -1032,9 +1071,15 @@ function onHostMessage(event) {
         return;
     }
 
-    // Only sandbox path messages are handled by this page-level listener.
     const message = event.data;
 
+    // The user confirmed the factory reset in the host's dialog.
+    if (message?.command === 'factoryResetConfirmed') {
+        resetFactorySettings();
+        return;
+    }
+
+    // A sandbox path picked or detected by the host fills the sandbox field.
     if (message?.command !== 'setSandboxPath' || !message.sandboxPath) {
         return;
     }
@@ -1149,12 +1194,30 @@ function renameServer(oldName, newNameRaw) {
 }
 
 /**
- * Resets all settings back to the shipped defaults and re-renders.
+ * Restores every setting to the values the page opened with (Reset to Defaults) and re-renders.
+ *
+ * @remarks
+ * Matches the publishers' Reset to Defaults: it undoes this session's edits. Restoring the shipped
+ * defaults is a separate, confirmed action (resetFactorySettings).
  */
 function resetDefaults() {
-    // Restore the baseline working copy and re-render the whole form.
+    // Restore the opened working copy and re-render the whole form.
+    globalThis.STATE = copyValue(globalThis.INITIAL);
+    showSettings();
+    showSaveNote('Defaults restored.');
+}
+
+/**
+ * Restores the shipped defaults after the user confirmed it in the host's dialog, and re-renders.
+ *
+ * @remarks
+ * Clears the license token and the sandbox path; nothing is written until the user saves.
+ */
+function resetFactorySettings() {
+    // Replace the working copy with the shipped baseline and re-render the whole form.
     globalThis.STATE = copyValue(globalThis.DEFAULTS);
     showSettings();
+    showSaveNote('Factory settings restored. Click Save to apply.');
 }
 
 /**
@@ -1218,7 +1281,7 @@ function save() {
     }
 
     // Give the user immediate feedback regardless of host wiring.
-    document.querySelector('#g4-actionbar g4-action-bar')?.showNote('Settings sent.');
+    showSaveNote('Settings sent.');
 }
 
 /**
@@ -1583,6 +1646,15 @@ function showRequiredErrors() {
 }
 
 /**
+ * Shows a short note in the action bar, such as "Settings sent." after a save.
+ *
+ * @param {string} text - Note text; it disappears after SAVE_NOTE_DURATION_MILLISECONDS.
+ */
+function showSaveNote(text) {
+    document.querySelector('#g4-actionbar g4-action-bar')?.showNote(text);
+}
+
+/**
  * Renders the header, the full settings form, and the action bar from the current state.
  */
 function showSettings() {
@@ -1616,7 +1688,8 @@ function showSettings() {
     // Render the action bar with Save / Reset controls.
     const actions = [
         { id: 'save', label: 'Save', testId: 'save-settings-button', variant: 'primary' },
-        { id: 'reset', label: 'Reset to Defaults', testId: 'reset-settings-to-defaults-button', variant: 'secondary' }
+        { id: 'reset', label: 'Reset to Defaults', testId: 'reset-settings-to-defaults-button', variant: 'secondary' },
+        { id: 'factory-reset', label: 'Restore Factory Settings', testId: 'restore-factory-settings-button', variant: 'secondary' }
     ];
 
     document.getElementById('g4-actionbar').innerHTML = `
@@ -2439,6 +2512,7 @@ function writeMcpServerCard(name, server, position) {
         label: 'Timeout',
         type: 'number',
         minimum: 0,
+        isOptional: true,
         hint: 'Optional connection timeout. Leave empty for the server default.'
     })}
         ${mapEditor}
@@ -3070,6 +3144,8 @@ function writeSelect({ path, label, choices, hint }) {
  * @param {number} [options.minimum] - Lower bound for number fields.
  * @param {number} [options.maximum] - Upper bound for number fields.
  * @param {boolean} [options.required] - Whether the field must be non-empty.
+ * @param {boolean} [options.isOptional] - Number fields only: an empty box removes the setting
+ *     (the consumer's default applies) instead of storing 0.
  * @param {number} [options.maxLength] - Max character length for text fields.
  * @param {string} [options.validate] - Extra validation rule ('url').
  * @param {string} [options.testId] - Test id prefix of the field and its input.
@@ -3086,6 +3162,7 @@ function writeText(options) {
         minimum,
         maximum,
         required,
+        isOptional,
         maxLength,
         validate,
         testId
@@ -3097,6 +3174,7 @@ function writeText(options) {
 
     // Optional attributes are built first, so the markup stays readable.
     const minimumDataAttribute = isMinimumProvided ? ` data-minimum="${minimum}"` : '';
+    const optionalDataAttribute = isOptional ? ' data-optional="true"' : '';
     const minimumAttribute = isMinimumProvided ? ` min="${minimum}"` : '';
     const maximumAttribute = isMaximumProvided ? ` max="${maximum}"` : '';
     const placeholderAttribute = placeholder ? ` placeholder="${getEscapedText(placeholder)}"` : '';
@@ -3106,7 +3184,7 @@ function writeText(options) {
     // Number fields store numbers (clamped to the lower bound); text fields store text.
     const control = type === 'number'
         ? `
-        <g4-number-input data-kind="number"${minimumDataAttribute}
+        <g4-number-input data-kind="number"${minimumDataAttribute}${optionalDataAttribute}
                          data-path="${getEscapedText(path)}"${maximumAttribute}${minimumAttribute}
                          test-id="${getEscapedText(prefix)}-number-input"
                          value="${getEscapedText(value ?? '')}"></g4-number-input>`
