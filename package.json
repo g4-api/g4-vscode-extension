@@ -1,6 +1,6 @@
 {
     "name": "g4-engine-client",
-    "displayName": "g4-engine-client",
+    "displayName": "G4 Studio",
     "description": "G4 Engine is a plugin-based automation platform that lets teams orchestrate workflows across web, desktop, API, and enterprise systems with speed, control, and reliability.",
     "version": "0.0.2",
     "engines": {
