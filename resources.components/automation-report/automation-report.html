@@ -7,16 +7,16 @@
     <meta name="g4-components" content="g4-page-header g4-section">
     <title>G4(TM) Automation Report</title>
     {{$ components.styles }}
-    <!-- layout -->
-    <!-- colors -->
-        <link rel="stylesheet" href="{{$ component.style.uri }}">
+    <link rel="stylesheet" href="{{$ component.style.uri }}">
 </head>
 
 <body>
-    <div id="g4-header"></div>
-    <div id="app"></div>
-    <label for="g4-data" style="display: none;">Automation report data</label>
-    <textarea id="g4-data" class="component-data">
+    <div id="g4-header" data-test-id="automation-report-header-region"></div>
+    <div id="app" data-test-id="automation-report-body-region"></div>
+    <textarea id="g4-data"
+              class="automation-report-data"
+              data-test-id="automation-report-injected-data"
+              aria-label="Automation report data">
         {{$ report.data }}
     </textarea>
 

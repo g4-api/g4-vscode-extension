@@ -239,21 +239,21 @@ export class ShowReportCommand extends CommandBase {
             }
         };
 
-        // Reads a file from a VS Code URI string and returns its content.
+        // Reads a file from a file system path and returns its content.
         //
         // Behavior:
-        // - Parses the incoming URI string into a VS Code URI.
+        // - Converts the path into a VS Code file URI. Uri.parse would read a Windows path such as
+        //   "E:\reports\a.g4rpt" as scheme "e", so the path is converted with Uri.file.
         // - Reads the file content using the VS Code workspace file system API.
         // - Converts the file bytes into UTF-8 text.
         // - Returns the file name and content when successful.
         // - Returns an error message when the file cannot be read.
         const readFile = async (
-            uri: string
+            filePath: string
         ): Promise<{ fileName?: string; error?: string; content?: string }> => {
             try {
-                // Parse the incoming URI string.
-                // This supports VS Code URI formats and percent-encoded characters.
-                const fileUri = vscode.Uri.parse(uri);
+                // Convert the path (already confirmed to exist by assertFile) into a file URI.
+                const fileUri = vscode.Uri.file(filePath);
 
                 // Read the file as raw bytes from the workspace file system.
                 const fileBytes = await vscode.workspace.fs.readFile(fileUri);

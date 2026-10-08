@@ -1,1810 +1,1733 @@
-// Creates a small circular LED/status icon.
-        const LED = (fill) => `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
-            <path fill="${fill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
-        </svg>`;
+/*
+ * G4(TM) Automation Report component.
+ *
+ * Renders an automation result (or an automation request) that the extension host injects through
+ * #g4-data. The page shows the report header, then one block per session: summary cards, an error
+ * summary, the plugin tree, the execution timeline (a waterfall trace view), and the assertions.
+ * A request payload gets a rule tree and an order-only timeline instead, because it has not run yet.
+ *
+ * Host contract (show-report.ts):
+ * - Injected #g4-data: the decoded report JSON (a G4 response with sessions, or a G4 request).
+ * - Rendered into #g4-header (the page header) and #app (the report body).
+ * - No messages are exchanged with the host.
+ *
+ * Interactive elements carry data-report-action (what a click, key, or input does) and
+ * data-report-target (the id of the element it changes); one delegated listener per event type on
+ * #app performs the action, so the markup holds no inline handlers.
+ */
 
-        const SVG_CHEVRON = `
-        <svg class="chev-r" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
-            <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
-        </svg>
-        <svg class="chev-d" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="13" height="13">
-            <path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
-        </svg>`;
+// Chevron markup shared by every collapsible row; CSS shows the right or down arrow from the open modifier.
+const CHEVRON_ICONS_HTML = `
+<svg class="automation-report-chevron__right" height="13" viewBox="0 0 640 640" width="13" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M441.3 299.8C451.5 312.4 450.8 330.9 439.1 342.6L311.1 470.6C301.9 479.8 288.2 482.5 276.2 477.5C264.2 472.5 256.5 460.9 256.5 448L256.5 192C256.5 179.1 264.3 167.4 276.3 162.4C288.3 157.4 302 160.2 311.2 169.3L439.2 297.3L441.4 299.7z"/>
+</svg>
+<svg class="automation-report-chevron__down" height="13" viewBox="0 0 640 640" width="13" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M300.3 440.8C312.9 451 331.4 450.3 343.1 438.6L471.1 310.6C480.3 301.4 483 287.7 478 275.7C473 263.7 461.4 256 448.5 256L192.5 256C179.6 256 167.9 263.8 162.9 275.8C157.9 287.8 160.7 301.5 169.9 310.6L297.9 438.6L300.3 440.8z"/>
+</svg>`;
+
+// Class that hides a collapsed section, plugin child list, timeline child list, or stack trace row.
+const COLLAPSED_CLASS = 'automation-report-collapsed';
+
+// Class that hides a plugin node the tree filter does not match.
+const FILTER_HIDDEN_CLASS = 'automation-report-filter-hidden';
+
+// Number of the slowest plugins per job that the plugin tree marks as hot.
+const HOT_PLUGIN_COUNT = 3;
+
+// Maximum characters shown for a plugin argument and target element in the plugin tree row.
+const MAXIMUM_ARGUMENT_CHARACTERS = 55;
+const MAXIMUM_ELEMENT_CHARACTERS = 40;
+
+// Maximum characters of a plugin description used as the plugin row tooltip.
+const MAXIMUM_TOOLTIP_CHARACTERS = 200;
+
+// .NET ticks per millisecond (a tick is 100 nanoseconds).
+const TICKS_PER_MILLISECOND = 10000;
+
+// Counter behind every generated element id (plugin nodes, sections, stack traces, timelines).
+// Module-level because ids must stay unique across all sessions rendered into one page, and the
+// writers that need them are independent compute-only functions.
+globalThis.REPORT_ELEMENT_COUNT = 0;
 
 /**
-         * Escapes a value so it can be safely rendered as HTML text or inside
-         * double-quoted HTML attributes.
-         *
-         * Behavior:
-         * - Converts null or undefined values into an empty string.
-         * - Converts all other values into strings.
-         * - Escapes HTML-sensitive characters:
-         *   - & becomes &amp;
-         *   - < becomes &lt;
-         *   - > becomes &gt;
-         *   - " becomes &quot;
-         *
-         * @param {*} s - The value to escape.
-         * @returns {string} The escaped HTML-safe string.
-         */
-        function clearString(s) {
-            // Convert null/undefined to an empty string, then normalize to string.
-            return String(s ?? '')
-
-                // Escape ampersand first so we do not double-break generated entities.
-                .replaceAll('&', '&amp;')
-
-                // Escape opening angle brackets to prevent HTML tag injection.
-                .replaceAll('<', '&lt;')
-
-                // Escape closing angle brackets for safe HTML rendering.
-                .replaceAll('>', '&gt;')
-
-                // Escape double quotes so the value is safe in double-quoted attributes.
-                .replaceAll('"', '&quot;');
-        }
-
-        /**
-         * Converts .NET ticks into milliseconds.
-         *
-         * A .NET tick is 100 nanoseconds.
-         * There are 10,000 ticks in 1 millisecond.
-         *
-         * @param {number} ticks - The tick value to convert.
-         * @returns {number} The equivalent value in milliseconds.
-         */
-        function convertToMilliseconds(ticks) {
-            // Convert ticks to milliseconds.
-            return ticks / 10000;
-        }
-
-        /**
-         * Filters the plugin tree by plugin name and keeps matching branches visible.
-         *
-         * Behavior:
-         * - Finds the tree root by stage/session id.
-         * - Normalizes the search query to lowercase.
-         * - Processes plugin nodes from leaves to parents.
-         * - Shows nodes that match the query.
-         * - Shows parent nodes when one of their descendants matches.
-         * - Expands matching branches so nested matches are visible.
-         *
-         * @param {string} sid - The stage/session id suffix used to locate the tree root.
-         * @param {string} query - The text used to filter plugin nodes.
-         */
-        function filterTree(sid, query) {
-            // Resolve the tree root for the selected stage/session.
-            const root = document.getElementById('tr-' + sid);
-
-            // If the tree root does not exist, there is nothing to filter.
-            if (!root) {
-                return;
-            }
-
-            // Normalize the search query for case-insensitive matching.
-            const q = String(query ?? '').trim().toLowerCase();
-
-            // Process leaves first, using reverse document order.
-            // This lets parent nodes check whether their descendants are still visible.
-            const nodes = Array
-                .from(root.querySelectorAll('.p-node'))
-                .reverse();
-
-            // Evaluate each plugin node against the filter query.
-            for (const node of nodes) {
-                // Check whether the current node matches the query.
-                const self = (node.dataset.name || '').includes(q);
-
-                // Check whether any descendant plugin node is currently visible.
-                const hasMatchingDescendant = Array
-                    .from(node.querySelectorAll('.p-node'))
-                    .some(descendant => !descendant.classList.contains('is-filter-hidden'));
-
-                // Show this node when:
-                // - The query is empty.
-                // - The node itself matches.
-                // - One of its descendants matches.
-                const isShow = !q || self || hasMatchingDescendant;
-
-                // Apply the visibility result.
-                node.classList.toggle('is-filter-hidden', !isShow);
-
-                // When a descendant matches, expand this node so the match is visible.
-                if (q && hasMatchingDescendant) {
-                    // Resolve the direct child plugin container for this node.
-                    const nestedElements = node.querySelector(':scope > .p-children');
-
-                    // If this node has no direct nested container, continue to the next node.
-                    if (!nestedElements) {
-                        continue;
-                    }
-
-                    // Expand the nested child container.
-                    nestedElements.classList.remove('hidden');
-
-                    // Resolve the matching chevron icon from the child container id.
-                    // Example: ck-p1 -> p1 -> ci-p1
-                    const icon = document.getElementById(
-                        'ci-' + nestedElements.id.slice(3)
-                    );
-
-                    // Mark the chevron as open when available.
-                    if (icon) {
-                        icon.classList.add('open');
-                    }
-                }
-            }
-        }
-
-        /**
-         * Finds machine/session information from a report stage collection.
-         *
-         * Behavior:
-         * - Iterates over all stages.
-         * - Iterates over all jobs inside each stage.
-         * - Flattens each job's plugin tree.
-         * - Searches plugin extractions for session metadata.
-         * - Returns the first session that contains a machine name.
-         * - Returns null when no machine information is found.
-         *
-         * @param {Array<object>|null|undefined} stages - The report stages to search.
-         * @returns {object|null} The first session object containing machine information, or null.
-         */
-        function findMachineInformation(stages) {
-            // Iterate over each stage in the report.
-            // If stages is null/undefined, use an empty array.
-            for (const stage of (stages || [])) {
-                // Iterate over each job in the current stage.
-                for (const job of (stage.jobs || [])) {
-                    // Flatten the job plugin tree so nested plugins are searched too.
-                    for (const plugin of groupPlugins(job.plugins)) {
-                        // Check all extraction results produced by the plugin.
-                        for (const extraction of (plugin?.extractions || [])) {
-                            // Return the first session that contains machine information.
-                            if (extraction.session?.machineName) {
-                                return extraction.session;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // No machine/session information was found.
-            return null;
-        }
-
-        /**
-         * Formats a byte value into a readable text value.
-         *
-         * Behavior:
-         * - Returns an em dash when the byte value is missing.
-         * - Displays values smaller than 1024 as bytes.
-         * - Displays values of 1024 bytes or higher as kilobytes.
-         *
-         * @param {number|null|undefined} bytes - The byte value to format.
-         * @returns {string} A human-readable byte size string.
-         */
-        function formatBytes(bytes) {
-            // No byte value was provided.
-            if (bytes === null) {
-                return '-';
-            }
-
-            // Display values of 1024 bytes or more as kilobytes.
-            if (bytes >= 1024) {
-                return (bytes / 1024).toFixed(1) + ' KB';
-            }
-
-            // Display small values as raw bytes.
-            return bytes + ' B';
-        }
-
-        /**
-         * Formats a duration value from .NET ticks into a readable text value.
-         *
-         * Behavior:
-         * - Returns an em dash when the duration is missing.
-         * - Converts ticks into milliseconds.
-         * - Displays seconds when the duration is 1000 ms or higher.
-         * - Displays whole milliseconds when the duration is at least 1 ms.
-         * - Displays "< 1 ms" for very small durations.
-         *
-         * @param {number|null|undefined} ticks - Duration value in .NET ticks.
-         * @returns {string} A human-readable duration string.
-         */
-        function formatDuration(ticks) {
-            // No duration value was provided.
-            if (ticks === null) {
-                return '-';
-            }
-
-            // Convert .NET ticks into milliseconds.
-            const m = convertToMilliseconds(ticks);
-
-            // Display long durations in seconds.
-            if (m >= 1000) {
-                return (m / 1000).toFixed(2) + ' s';
-            }
-
-            // Display normal durations in whole milliseconds.
-            if (m >= 1) {
-                return m.toFixed(0) + ' ms';
-            }
-
-            // Display very small durations below 1 millisecond.
-            return '< 1 ms';
-        }
-
-        /**
-         * Formats an ISO date/time value into a readable local date/time string.
-         *
-         * Behavior:
-         * - Returns an em dash when the value is missing.
-         * - Parses the provided ISO date/time string.
-         * - Formats the date/time using the user's current locale.
-         * - Uses medium date and medium time formatting.
-         *
-         * @param {string|null|undefined} iso - The ISO date/time value to format.
-         * @returns {string} A human-readable local date/time string.
-         */
-        function formatDateTime(iso) {
-            // No date/time value was provided.
-            if (!iso) {
-                return '-';
-            }
-
-            // Convert the ISO string into a Date and format it using the local locale.
-            return new Date(iso).toLocaleString(
-                undefined,
-                {
-                    dateStyle: 'medium',
-                    timeStyle: 'medium'
-                }
-            );
-        }
-
-        /**
-         * Formats an ISO date/time value into a local time string.
-         *
-         * Behavior:
-         * - Returns an em dash when the value is missing.
-         * - Parses the provided ISO date/time string.
-         * - Formats the time using 24-hour format.
-         * - Includes hours, minutes, seconds, and milliseconds.
-         *
-         * @param {string|null|undefined} iso - The ISO date/time value to format.
-         * @returns {string} A human-readable local time string.
-         */
-        function formatTime(iso) {
-            // No time value was provided.
-            if (!iso) {
-                return '-';
-            }
-
-            // Convert the ISO string into a Date and format only the time portion.
-            return new Date(iso).toLocaleTimeString(
-                'en-US',
-                {
-                    // Use 24-hour time instead of AM/PM.
-                    hour12: false,
-
-                    // Always show two-digit hours, minutes, and seconds.
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-
-                    // Include milliseconds in the formatted time.
-                    fractionalSecondDigits: 3
-                }
-            );
-        }
-
-        /**
-         * Gets the plugin type from a plugin report object.
-         *
-         * @param {object|null|undefined} plugin - The plugin object to inspect.
-         * @returns {string} The resolved plugin type.
-         */
-        function getPluginType(plugin) {
-            // Resolve the plugin type from the performance point reference metadata.
-            // Default to "Action" when the type is missing or unavailable.
-            return plugin?.performancePoint?.reference?.type || 'Action';
-        }
-
-        /**
-         * Collects assertion/extraction entities from a nested plugin tree.
-         *
-         * Behavior:
-         * - Iterates over each plugin.
-         * - Reads extraction entities from `plugin.extractions`.
-         * - Adds each entity as a flat assertion object.
-         * - Includes the entity content, source element, and extraction session.
-         * - Recursively processes child plugins from `plugin.plugins`.
-         *
-         * @param {Array<object>|null|undefined} plugins - The plugin collection to scan.
-         * @param {Array<object>} out - The output array used to collect assertions.
-         * @returns {Array<object>} A flat list of assertion/extraction results.
-         */
-        function groupAssertions(plugins, out = []) {
-            // Iterate over the current plugin level.
-            // If plugins is null/undefined, use an empty array.
-            for (const plugin of (plugins || [])) {
-                // Iterate over all extractions created by the current plugin.
-                for (const extraction of (plugin.extractions || [])) {
-                    // Iterate over all entities found in the current extraction.
-                    for (const entity of (extraction.entities || [])) {
-                        // Add a normalized assertion item to the flat output list.
-                        out.push({
-                            // Extracted entity content.
-                            content: entity?.content || {},
-
-                            // The element/locator from the plugin rule, if available.
-                            onElement: plugin?.rule?.onElement || '',
-
-                            // Session metadata associated with the extraction.
-                            session: extraction?.session
-                        });
-                    }
-                }
-
-                // Recursively collect assertions from child plugins.
-                groupAssertions(plugin.plugins, out);
-            }
-
-            // Return the accumulated assertion list.
-            return out;
-        }
-
-        /**
-         * Flattens a nested plugin tree into a single plugin list.
-         *
-         * Behavior:
-         * - Iterates over the provided plugin collection.
-         * - Adds each plugin to the output array.
-         * - Recursively adds child plugins from `plugin.plugins`.
-         * - Returns the same output array so callers can reuse or extend it.
-         *
-         * @param {Array<object>|null|undefined} plugins - The plugin collection to flatten.
-         * @param {Array<object>} out - The output array used to collect flattened plugins.
-         * @returns {Array<object>} A flat list of all plugins.
-         */
-        function groupPlugins(plugins, out = []) {
-            // Iterate over the current plugin level.
-            // If plugins is null/undefined, use an empty array.
-            for (const plugin of (plugins || [])) {
-                // Add the current plugin to the flat output list.
-                out.push(plugin);
-
-                // Recursively add any child plugins owned by this plugin.
-                groupPlugins(plugin?.plugins, out);
-            }
-
-            // Return the accumulated flat plugin list.
-            return out;
-        }
-
-        /**
-         * Resolves the report schema type and returns the object that should be used
-         * as the report root.
-         *
-         * Supported shapes:
-         * - Response schema: root object contains `sessions`.
-         * - Wrapped response schema: first object value contains `sessions`.
-         * - Request schema: root object contains `stages[0].jobs[0].rules`.
-         * - Unknown schema: fallback when the structure does not match known formats.
-         *
-         * @param {object|null|undefined} data - The parsed report/request data.
-         * @returns {{ type: string, root: object }} The resolved schema type and root object.
-         */
-        function resolveSchema(data) {
-            // Response schema:
-            // The object itself contains sessions, so it is already the report root.
-            if (data?.sessions) {
-                return {
-                    type: 'response',
-                    root: data
-                };
-            }
-
-            // Some responses may be wrapped under a dynamic top-level key.
-            // Example:
-            // {
-            //   "some-id": {
-            //     "sessions": [...]
-            //   }
-            // }
-            const values = Object.values(data || {});
-
-            // Wrapped response schema:
-            // Use the first object value as the report root when it contains sessions.
-            if (values.length && values[0]?.sessions) {
-                return {
-                    type: 'response',
-                    root: values[0]
-                };
-            }
-
-            // Request schema:
-            // Automation request data usually contains stages, jobs, and rules.
-            if (data?.stages?.[0]?.jobs?.[0]?.rules) {
-                return {
-                    type: 'request',
-                    root: data
-                };
-            }
-
-            // Unknown schema:
-            // Return the original data when available, otherwise use an empty object.
-            return {
-                type: 'unknown',
-                root: data || {}
-            };
-        }
-
-        /**
-         * Truncates a value to a maximum number of characters.
-         *
-         * Behavior:
-         * - Converts null or undefined values into an empty string.
-         * - Converts all other values into strings.
-         * - Returns the original string when it is within the requested length.
-         * - Cuts the string and appends an ellipsis when it exceeds the limit.
-         *
-         * @param {*} s - The value to truncate.
-         * @param {number} maxLength - The maximum number of characters to keep before adding the ellipsis.
-         * @returns {string} The original or truncated string.
-         */
-        function setTruncates(s, maxLength) {
-            // Convert null/undefined to an empty string, then normalize to string.
-            s = String(s ?? '');
-
-            // If the string is longer than the allowed length, cut it and append ellipsis.
-            return s.length > maxLength
-                ? s.slice(0, maxLength) + '...'
-                : s;
-        }
-
-        /**
-         * Resolves a bounded CSS depth class suffix for nested report rows.
-         *
-         * @param {number} depth - The source tree depth.
-         * @returns {number} A depth value between 0 and 12.
-         */
-        function getDepthClass(depth) {
-            // Normalize invalid values to the root depth class.
-            const parsedDepth = Number(depth);
-
-            if (!Number.isFinite(parsedDepth) || parsedDepth < 0) {
-                return 0;
-            }
-
-            // Keep generated class names inside the CSS range.
-            return Math.min(12, Math.floor(parsedDepth));
-        }
-
-        /**
-         * Toggles the visibility of an HTML element and updates its icon state.
-         *
-         * Behavior:
-         * - Finds the target element by id.
-         * - Finds the optional icon element by icon id.
-         * - Hides the target element when it is currently visible.
-         * - Shows the target element when it is currently hidden.
-         * - Adds or removes the `open` class on the icon to match the visible state.
-         *
-         * @param {string} id - The id of the element to show or hide.
-         * @param {string} iconId - The id of the icon element to update.
-         */
-        function toggleElement(id, iconId) {
-            // Resolve the target element that should be toggled.
-            const element = document.getElementById(id);
-
-            // Resolve the optional icon that visually represents the toggle state.
-            const icon = document.getElementById(iconId);
-
-            // If the target element does not exist, there is nothing to toggle.
-            if (!element) {
-                return;
-            }
-
-        // The element should be hidden when it is currently visible.
-        const isHide = !element.classList.contains('is-collapsed');
-
-        // Toggle the element display state.
-        element.classList.toggle('is-collapsed', isHide);
-
-            // If no icon exists, only the element visibility is toggled.
-            if (!icon) {
-                return;
-            }
-
-            // Update the icon open state.
-            // When hiding the element, remove "open".
-            // When showing the element, add "open".
-            isHide
-                ? icon.classList.remove('open')
-                : icon.classList.add('open');
-        }
-
-        /**
-         * Toggles a plugin node's child plugin container and updates its chevron icon.
-         *
-         * Behavior:
-         * - Finds the child plugin container by id using the `ck-` prefix.
-         * - Finds the matching chevron icon by id using the `ci-` prefix.
-         * - Expands the child container when it is currently collapsed.
-         * - Collapses the child container when it is currently expanded.
-         * - Adds or removes the `open` class on the icon to match the expanded state.
-         *
-         * @param {string} id - The plugin node id suffix.
-         */
-        function togglePlugin(id) {
-            // Resolve the child plugin container.
-            const children = document.getElementById('ck-' + id);
-
-            // Resolve the chevron icon used to show expanded/collapsed state.
-            const icon = document.getElementById('ci-' + id);
-
-            // If the child container does not exist, there is nothing to toggle.
-            if (!children) {
-                return;
-            }
-
-            // The plugin is collapsed when the children container has the hidden class.
-            const isCollapsed = children.classList.contains('hidden');
-
-            // If it was collapsed, show it.
-            // If it was expanded, hide it.
-            children.classList.toggle('hidden', !isCollapsed);
-
-            // If no icon exists, only the children container is toggled.
-            if (!icon) {
-                return;
-            }
-
-            // Update the chevron visual state.
-            // Expanded = open class exists.
-            // Collapsed = open class removed.
-            isCollapsed
-                ? icon.classList.add('open')
-                : icon.classList.remove('open');
-        }
-
-const DATA = JSON.parse(document.getElementById('g4-data').value);
+ * Converts an ISO date/time into a local medium date and time text.
+ *
+ * @param {unknown} isoText - The ISO date/time value.
+ * @returns {string} The local date/time text, or '-' when the value is missing or invalid.
+ */
+function convertToDateTimeText(isoText) {
+    // A missing or unparsable value shows a dash rather than "Invalid Date".
+    const time = convertToTime(isoText);
+
+    if (Number.isNaN(time)) {
+        return '-';
+    }
+
+    return new Date(time).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
+}
 
 /**
-         * Renders the top-level report summary cards.
-         *
-         * Behavior:
-         * - Flattens all jobs from the stage collection.
-         * - Flattens all plugins/actions from each job.
-         * - Collects assertion results from each job.
-         * - Counts failed assertions and exceptions.
-         * - Calculates average action runtime.
-         * - Calculates total runtime spent on timeout-related actions.
-         * - Returns the summary cards as an HTML string.
-         *
-         * @param {object} performancePoint - The main report performance point.
-         * @param {Array<object>} stages - The report stages to summarize.
-         * @returns {string} HTML markup for the summary cards.
-         */
-        function writeCards(performancePoint, stages) {
-            // Flatten all jobs from all stages.
-            const jobs = stages.flatMap(stage => stage.jobs || []);
+ * Converts a duration in .NET ticks into a readable text: seconds from 1 s, whole milliseconds from
+ * 1 ms, and "< 1 ms" below that.
+ *
+ * @param {unknown} ticks - Duration in .NET ticks.
+ * @returns {string} The duration text, or '-' when the value is not a finite number.
+ */
+function convertToDurationText(ticks) {
+    // A missing or non-numeric duration shows a dash.
+    const isNumber = typeof ticks === 'number' && Number.isFinite(ticks);
 
-            // Flatten all plugins/actions from all jobs, including nested plugins.
-            const plugins = jobs.flatMap(job => groupPlugins(job.plugins));
+    if (!isNumber) {
+        return '-';
+    }
 
-            // Collect all assertion/extraction entities from all jobs.
-            const asserts = jobs.flatMap(job => groupAssertions(job.plugins));
+    // Choose the unit by size so short and long actions both read naturally.
+    const milliseconds = convertToMilliseconds(ticks);
 
-            // Count assertions where the evaluation result explicitly failed.
-            const fails = asserts
-                .filter(assert => assert.content?.Evaluation === false)
-                .length;
+    if (milliseconds >= 1000) {
+        return `${(milliseconds / 1000).toFixed(2)} s`;
+    }
 
-            // Count all exceptions found across all plugins/actions.
-            const exceptions = plugins.reduce(
-                (sum, p) => sum + (p.exceptions || []).length,
-                0
-            );
+    if (milliseconds >= 1) {
+        return `${milliseconds.toFixed(0)} ms`;
+    }
 
-            // Calculate average runtime per plugin/action.
-            const averageRuntime = plugins.length > 0
-                ? performancePoint.runTime / plugins.length
-                : null;
-
-            // Sum runtime for plugins/actions that contain timeout-related exceptions.
-            const timeouts = plugins
-                .filter(plugin =>
-                    (plugin.exceptions || []).some(exception =>
-                        (exception.type || '').includes('Timeout')
-                    )
-                )
-                .reduce(
-                    (sum, plugin) => sum + (plugin.performancePoint?.runTime || 0),
-                    0
-                );
-
-            // Build the card model used by the HTML template.
-            const items = [
-                { label: 'Total Runtime', value: formatDuration(performancePoint.runTime) },
-                { label: 'Avg. Action Time', value: averageRuntime ? formatDuration(averageRuntime) : '-' },
-                { label: 'Total Actions', value: String(plugins.length) },
-                { label: 'Total Exceptions', value: String(exceptions) },
-                { label: 'Failed Assertions', value: String(fails) },
-                { label: 'Total Timeouts', value: timeouts > 0 ? formatDuration(timeouts) : '-' },
-            ];
-
-            // Render all summary cards as HTML.
-            return `
-            <div class="cards cards-6">
-                ${items.map(i => `
-                    <div class="card"><div class="card-label">${clearString(i.label)}</div>
-                    <div class="card-value">${clearString(i.value)}</div></div>`
-            ).join('')}
-            </div>`;
-        }
+    return '< 1 ms';
+}
 
 /**
-         * Renders the error summary section for failed assertions and exceptions.
-         *
-         * Behavior:
-         * - Builds failed assertion rows when assertion failures exist.
-         * - Builds exception rows when plugin exceptions exist.
-         * - Displays compact count badges in the section header.
-         * - Uses a collapsible section body controlled by `toggleElement`.
-         * - Returns the complete Error Summary HTML block.
-         *
-         * @param {Array<object>} asserts - Failed assertion items to render.
-         * @param {Array<object>} exceptions - Exception items to render.
-         * @param {string|number} sid - Unique section id suffix used for collapse/expand behavior.
-         * @returns {string} HTML markup for the error summary section.
-         */
-        function writeErrorSummary(asserts, exceptions, sid) {
-            // Render all failed assertion rows.
-            const assertRows = asserts.map(assert => {
-                // Assertion content contains the evaluation details.
-                const content = assert.content || {};
+ * Converts any value into text that is safe inside HTML text and double-quoted attributes.
+ *
+ * @remarks
+ * Compute-only. The value is first turned into text by convertToText (so an object shows as JSON,
+ * never as "[object Object]"), then &, <, >, and " are escaped.
+ *
+ * @param {unknown} value - The value to render.
+ * @returns {string} The escaped text.
+ */
+function convertToEscapedHtml(value) {
+    // Escape the ampersand first so the entities added next are not escaped again.
+    return convertToText(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+}
 
-                return `
-                <tr>
-                    <td class="mono">${clearString(assert.onElement || '-')}</td>
-                    <td class="mono">${clearString(content.Condition || '-')}</td>
-                    <td class="mono">${clearString(content.Operator || '-')}</td>
-                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
-                </tr>`;
-            }).join('');
+/**
+ * Converts .NET ticks into milliseconds.
+ *
+ * @param {number} ticks - The tick value.
+ * @returns {number} The equivalent milliseconds.
+ */
+function convertToMilliseconds(ticks) {
+    return ticks / TICKS_PER_MILLISECOND;
+}
 
-            // Render all exception rows.
-            const exceptionRows = exceptions.map(i => `
-                <tr>
-                    <td class="mono">${clearString(i.pluginName || '?')}</td>
-                    <td class="mono">${clearString(i.type || '-')}</td>
-                    <td>${clearString(i.exception?.Message || '-')}</td>
-                    <td class="reason">${clearString(i.reasonPhrase || '-')}</td>
-                </tr>`).join('');
+/**
+ * Converts any value into display text without default object stringification.
+ *
+ * @remarks
+ * Compute-only. Report values come from engine JSON, so a field such as an assertion's Actual value
+ * can be an object or array; it is shown as JSON instead of "[object Object]".
+ *
+ * @param {unknown} value - The value to convert.
+ * @returns {string} The text: '' for null or undefined, the string itself, a primitive's text, or JSON.
+ */
+function convertToText(value) {
+    // Nothing to show for a missing value.
+    if (value === null || value === undefined) {
+        return '';
+    }
 
-            // Build the failed assertions table.
-            const assertBlockHtml = `
-            <div class="es-label meta-text">Failed Assertions</div>
-            <table class="assert-tbl">
-                <thead>
-                    <tr>
-                        <th>Element</th>
-                        <th>Condition</th>
-                        <th>Operator</th>
-                        <th>Expected</th>
-                        <th>Actual</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>${assertRows}</tbody>
-            </table>`;
+    if (typeof value === 'string') {
+        return value;
+    }
 
-            // Only show the assertion block when there are failed assertions.
-            const assertBlock = asserts.length > 0
-                ? assertBlockHtml
-                : '';
+    // Numbers, booleans, and big integers have a meaningful text form.
+    const isPrimitive = ['bigint', 'boolean', 'number'].includes(typeof value);
 
-            // Add a visual separator before the exception block when assertions exist.
-            const exceptionCssClass = asserts.length > 0
-                ? ' es-sep'
-                : '';
+    if (isPrimitive) {
+        return `${value}`;
+    }
 
-            // Build the exceptions table.
-            const exceptionBlockHtml = `
-            <div class="es-label meta-text${exceptionCssClass}">Exceptions</div>
-            <table class="assert-tbl">
-                <thead>
-                    <tr>
-                        <th>Plugin</th>
-                        <th>Type</th>
-                        <th>Message</th>
-                        <th>Reason</th>
-                    </tr>
-                </thead>
-                <tbody>${exceptionRows}</tbody>
-            </table>`;
+    // Objects and arrays are shown as JSON; values JSON cannot represent (functions, symbols) show nothing.
+    try {
+        return JSON.stringify(value) ?? '';
+    } catch {
+        return '';
+    }
+}
 
-            // Only show the exception block when there are exceptions.
-            const exceptionBlock = exceptions.length > 0
-                ? exceptionBlockHtml
-                : '';
+/**
+ * Converts an ISO date/time text into milliseconds since the epoch.
+ *
+ * @remarks
+ * Shared by the date/time texts and the timeline. Only text is parsed, so an object or number from
+ * the report never reaches the Date parser.
+ *
+ * @param {unknown} isoText - The ISO date/time value.
+ * @returns {number} The time in milliseconds, or NaN when the value is missing or not a valid date.
+ */
+function convertToTime(isoText) {
+    if (typeof isoText !== 'string') {
+        return Number.NaN;
+    }
 
-            // Build compact header count badges.
-            const counts = [];
+    return new Date(isoText).getTime();
+}
 
-            // Add failed assertion count when failures exist.
-            if (asserts.length > 0) {
-                counts.push(
-                    `<span class="assert-count" data-slot="header">${LED('#ef4444')}${asserts.length} failed</span>`
-                );
+/**
+ * Converts an ISO date/time into a 24-hour local time with milliseconds (HH:MM:SS.mmm).
+ *
+ * @param {unknown} isoText - The ISO date/time value.
+ * @returns {string} The local time text, or '-' when the value is missing or invalid.
+ */
+function convertToTimeText(isoText) {
+    // A missing or unparsable value shows a dash rather than "Invalid Date".
+    const time = convertToTime(isoText);
+
+    if (Number.isNaN(time)) {
+        return '-';
+    }
+
+    return new Date(time).toLocaleTimeString('en-US', {
+        fractionalSecondDigits: 3,
+        hour: '2-digit',
+        hour12: false,
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+/**
+ * Converts a value into text cut to a maximum length, with "..." appended when it was longer.
+ *
+ * @param {unknown} value - The value to shorten.
+ * @param {number} maximumLength - The number of characters kept before the ellipsis.
+ * @returns {string} The original or shortened text.
+ */
+function convertToTruncatedText(value, maximumLength) {
+    const text = convertToText(value);
+
+    return text.length > maximumLength
+        ? `${text.slice(0, maximumLength)}...`
+        : text;
+}
+
+/**
+ * Collects every assertion (extraction entity) from a plugin tree into a flat list.
+ *
+ * @remarks
+ * Compute-only: walks the tree recursively and returns new objects; the report data is not changed.
+ *
+ * @param {Array<object>|null|undefined} plugins - The plugins to scan, children included.
+ * @returns {Array<{ content: object, onElement: string, session: object|undefined }>} The assertions.
+ */
+function getAssertions(plugins) {
+    const assertions = [];
+
+    // Visit every plugin, its extractions, and their entities, then descend into the children.
+    for (const plugin of (plugins || [])) {
+        for (const extraction of (plugin?.extractions || [])) {
+            for (const entity of (extraction?.entities || [])) {
+                assertions.push({
+                    content: entity?.content || {},
+                    onElement: plugin?.rule?.onElement || '',
+                    session: extraction?.session
+                });
             }
-
-            // Add exception count when exceptions exist.
-            if (exceptions.length > 0) {
-                const suffix = exceptions.length > 1
-                    ? 's'
-                    : '';
-
-                counts.push(
-                    `<span class="assert-count" data-slot="header">${LED('#ef4444')}${exceptions.length} exception${suffix}</span>`
-                );
-            }
-
-            // Render the complete collapsible error summary section.
-            return `
-            <g4-section class="section-mt-lg"
-                        open
-                        section-title="Error Summary"
-                        test-id="error-summary-${sid}-section">
-                ${counts.join('')}
-                ${assertBlock}${exceptionBlock}
-            </g4-section>`;
         }
 
-// Incremental id used to generate unique plugin/process node ids.
-        // These ids are used by the report tree expand/collapse behavior.
-        let _processId = 0;
+        assertions.push(...getAssertions(plugin?.plugins));
+    }
 
-        // Incremental id used to generate unique exception/stack-trace row ids.
-        // These ids are used by the exception stack trace expand/collapse behavior.
-        let _exceptionId = 0;
+    return assertions;
+}
 
-        /**
-         * Renders an exceptions table for a plugin/action level.
-         *
-         * Behavior:
-         * - Creates one table row for each exception.
-         * - Shows plugin name, exception type, message, and reason.
-         * - Adds an expandable stack trace row when stack trace data exists.
-         * - Uses the current depth to visually indent the exception table.
-         *
-         * @param {Array<object>} exceptions - The exception items to render.
-         * @param {number} depth - The nesting depth used to indent the table.
-         * @returns {string} HTML markup for the exceptions table.
-         */
-        function writeExceptions(exceptions, depth) {
-            // Render all exception rows.
-            const rows = exceptions.map(ex => {
-                // Resolve the stack trace text when available.
-                const stack = ex.exception?.StackTrace || '';
+/**
+ * Resolves a plugin's status from its exceptions: passed without exceptions, timeout when any
+ * exception type mentions a timeout, otherwise error.
+ *
+ * @remarks
+ * Shared by the plugin tree and the execution timeline so both color an action the same way.
+ *
+ * @param {Array<object>} exceptions - The plugin's exceptions.
+ * @returns {'passed'|'timeout'|'error'} The status.
+ */
+function getExceptionStatus(exceptions) {
+    if (exceptions.length === 0) {
+        return 'passed';
+    }
 
-                // Generate a unique id for the expandable stack trace row.
-                const eid = 'e' + (_exceptionId++);
+    // A timeout is reported separately because it usually means a slow page, not a broken step.
+    const isTimeout = exceptions.some((exception) => {
+        const isTypeText = typeof exception?.type === 'string';
 
-                // Render the stack trace toggle cell only when stack trace data exists.
-                const stackToggle = stack
-                    ? `<td class="exc-stack-toggle" onclick="toggleElement('${eid}','${eid}-ic')"><i class="chev" id="${eid}-ic">${SVG_CHEVRON}</i></td>`
-                    : '<td>-</td>';
+        return isTypeText && exception.type.includes('Timeout');
+    });
 
-                // Render the hidden stack trace row.
-                // It is expanded/collapsed by clicking the stack trace toggle cell.
-            const stackRow = stack
-                ? `<tr id="${eid}" class="is-collapsed"><td colspan="5"><pre class="exc-stack">${clearString(stack)}</pre></td></tr>`
-                    : '';
+    return isTimeout
+        ? 'timeout'
+        : 'error';
+}
 
-                // Render the main exception row and optional stack trace row.
-                return `
-                <tr>
-                    <td class="mono">${clearString(ex.pluginName || '?')}</td>
-                    <td class="mono">${clearString(ex.type || '-')}</td>
-                    <td>${clearString(ex.exception?.Message || '-')}</td>
-                    <td class="reason">${clearString(ex.reasonPhrase || '-')}</td>
-                    ${stackToggle}
-                </tr>${stackRow}`;
-            }).join('');
+/**
+ * Flattens a plugin tree into one list: each plugin followed by its descendants.
+ *
+ * @param {Array<object>|null|undefined} plugins - The plugins to flatten.
+ * @returns {Array<object>} Every plugin in the tree, in document order.
+ */
+function getFlattenedPlugins(plugins) {
+    const flattened = [];
 
-            // Render the exceptions table.
-            // The left padding is increased by depth so nested plugin exceptions
-            // visually align under their owning plugin/action.
-            return `
-        <div class="assertion-depth assertion-depth--${getDepthClass(depth)}">
-            <table class="assert-tbl">
-                <thead>
-                    <tr>
-                        <th>Plugin</th>
-                        <th>Type</th>
-                        <th>Message</th>
-                        <th>Reason</th>
-                        <th>Stack Trace</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-                </table>
-            </div>`;
-        }
+    for (const plugin of (plugins || [])) {
+        flattened.push(plugin, ...getFlattenedPlugins(plugin?.plugins));
+    }
 
-        /**
-         * Renders a plugin/action row and all of its nested child plugins.
-         *
-         * Behavior:
-         * - Resolves plugin metadata from the performance point reference and rule.
-         * - Calculates runtime percentage relative to the parent job/plugin runtime.
-         * - Marks plugins with exceptions using a warning/error LED color.
-         * - Marks hot plugins using the provided hotSet.
-         * - Renders exception details when exceptions exist.
-         * - Recursively renders nested plugins.
-         *
-         * @param {object} plugin - The plugin/action report object to render.
-         * @param {number} depth - The current nesting depth used for indentation.
-         * @param {number} jobRunTime - The parent job or plugin runtime in ticks.
-         * @param {Set<string>} hotSet - Set of plugin reference ids marked as hot/slow.
-         * @returns {string} HTML markup for the plugin row and its children.
-         */
-        function writePlugins(plugin, depth, jobRunTime, hotSet = new Set()) {
-            // Generate a unique id used for expand/collapse behavior.
-            const id = 'p' + (_processId++);
+    return flattened;
+}
 
-            // Resolve commonly used plugin report sections.
-            const reference = plugin.performancePoint?.reference || {};
-            const performancePoint = plugin.performancePoint || {};
-            const rule = plugin.rule || {};
+/**
+ * Returns the plural suffix for a count: the suffix for every count except exactly one.
+ *
+ * @param {number} count - The counted items.
+ * @param {string} [pluralSuffix='s'] - The suffix to use ('s', 'es').
+ * @returns {string} The suffix, or '' for a count of one.
+ */
+function getPluralSuffix(count, pluralSuffix = 's') {
+    return count === 1
+        ? ''
+        : pluralSuffix;
+}
 
-            // Resolve plugin identity and display metadata.
-            const type = reference.type || 'Action';
-            const name = reference.name || rule.pluginName || '?';
-            const display = rule.capabilities?.displayName || name;
+/**
+ * Creates a unique element id for generated markup.
+ *
+ * @remarks
+ * Uses the module-level counter globalThis.REPORT_ELEMENT_COUNT so ids stay unique across sessions.
+ *
+ * @param {string} prefix - A short prefix that tells the element kind apart in the DOM.
+ * @returns {string} The new id.
+ */
+function newElementId(prefix) {
+    globalThis.REPORT_ELEMENT_COUNT++;
 
-            // Resolve rule details shown next to the plugin name.
-            const argument = rule.argument || '';
-            const onElement = rule.onElement || '';
+    return `${prefix}-${globalThis.REPORT_ELEMENT_COUNT}`;
+}
 
-            // Resolve runtime in ticks.
-            const runTime = performancePoint.runTime || 0;
+/**
+ * Performs the click action of the element under the pointer: toggling a plugin, a stage/job/stack
+ * trace section, or a timeline row, or expanding/collapsing a whole timeline.
+ *
+ * @param {MouseEvent} event - The click event delegated from #app.
+ */
+function onAppClick(event) {
+    // Find the nearest element that declares an action; clicks elsewhere are ignored.
+    const actionElement = event.target instanceof Element
+        ? event.target.closest('[data-report-action]')
+        : null;
 
-            // Calculate the runtime bar width relative to the parent runtime.
-            const barPct = jobRunTime > 0
-                ? Math.min(
-                    100,
-                    (convertToMilliseconds(runTime) / convertToMilliseconds(jobRunTime)) * 100
-                )
-                : 0;
+    if (!actionElement) {
+        return;
+    }
 
-            // Determine whether this plugin has nested child plugins.
-            const isNestedPlugins = (plugin.plugins || []).length > 0;
+    // Run the declared action against the element it targets.
+    const action = actionElement.getAttribute('data-report-action');
+    const targetId = actionElement.getAttribute('data-report-target') || '';
 
-            // Resolve plugin exceptions.
-            const exceptions = plugin.exceptions || [];
+    switch (action) {
+        case 'toggle-plugin':
+            updatePluginExpansion(targetId);
+            break;
+        case 'toggle-section':
+            updateSectionExpansion(targetId);
+            break;
+        case 'toggle-timeline-row':
+            updateTimelineRowExpansion(actionElement.id);
+            break;
+        case 'expand-timeline':
+            setTimelineExpansion(targetId, true);
+            break;
+        case 'collapse-timeline':
+            setTimelineExpansion(targetId, false);
+            break;
+        default:
+            break;
+    }
+}
 
-            // Detect timeout-related exceptions so they can use a warning color.
-            const isTimeout = exceptions.some(e =>
-                (e.type || '').includes('Timeout')
-            );
+/**
+ * Applies the plugin tree filter while the user types in a tree's filter box.
+ *
+ * @param {InputEvent} event - The input event delegated from #app.
+ */
+function onAppInput(event) {
+    // Only the tree filter boxes declare this action.
+    const input = event.target;
+    const isFilterInput = input instanceof HTMLInputElement
+        && input.getAttribute('data-report-action') === 'filter-tree';
 
-            // Timeout exceptions are warning-colored; other exceptions are error-colored.
-            const timeoutColor = isTimeout
-                ? '#eab308'
-                : '#ef4444';
+    if (!isFilterInput) {
+        return;
+    }
 
-            // Green means success, yellow means timeout, red means other exception.
-            const ledColor = exceptions.length === 0
-                ? '#22c55e'
-                : timeoutColor;
+    updateTreeFilter(input.getAttribute('data-report-target') || '', input.value);
+}
 
-            // Mark this plugin as hot when its reference id exists in the hot set.
-            const isHot = hotSet.has(reference.id);
+/**
+ * Toggles a focused timeline row with Enter or Space, so the timeline tree works from the keyboard.
+ *
+ * @param {KeyboardEvent} event - The keydown event delegated from #app.
+ */
+function onAppKeyDown(event) {
+    // Only Enter and Space on a timeline row toggle it; Tab and arrow keys keep their normal behavior.
+    const row = event.target instanceof Element
+        ? event.target.closest('[data-report-action="toggle-timeline-row"]')
+        : null;
+    const isToggleKey = event.key === 'Enter' || event.key === ' ';
 
-            // Render nested child plugins when available.
-            const nestedPluginsHtml = isNestedPlugins
-                ? `<div class="p-children hidden" id="ck-${id}">${(plugin.plugins || []).map(c => writePlugins(c, depth + 1, runTime || jobRunTime, hotSet)).join('')}</div>`
-                : '';
+    if (!row || !isToggleKey) {
+        return;
+    }
 
-            // Render exception details when this plugin contains exceptions.
-            const exceptionsHtml = exceptions.length > 0
-                ? writeExceptions(exceptions, depth)
-                : '';
+    // Keep Space from scrolling the report while it toggles the row.
+    event.preventDefault();
+    updateTimelineRowExpansion(row.id);
+}
 
-            // Use the reference description as a tooltip when available.
-            const title = reference.description
-                ? clearString(setTruncates(reference.description, 200))
-                : '';
+/**
+ * Resolves which kind of payload was injected and which object is its root.
+ *
+ * Supported shapes:
+ * - Response: the object contains `sessions`.
+ * - Wrapped response: the first property value contains `sessions`.
+ * - Request: the object contains `stages[0].jobs[0].rules`.
+ * - Unknown: anything else.
+ *
+ * @param {object|null|undefined} data - The parsed payload.
+ * @returns {{ type: 'response'|'request'|'unknown', root: object }} The payload kind and its root.
+ */
+function resolveSchema(data) {
+    if (data?.sessions) {
+        return { root: data, type: 'response' };
+    }
 
-            // Render the plugin node.
-            return `
-            <div class="p-node" data-name="${clearString(display.toLowerCase())}">
-            <div class="plugin-row plugin-row--depth-${getDepthClass(depth)}" onclick="togglePlugin('${id}')" title="${title}">
-                    <div class="p-toggle">${isNestedPlugins ? `<i class="chev" id="ci-${id}">${SVG_CHEVRON}</i>` : '<span class="p-toggle-spacer"></span>'}</div>
-                        <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8">
-                            <path fill="${ledColor}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
-                        </svg>
-                        <span class="p-name">${clearString(display)}</span>
-                        ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
-                        ${onElement ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(onElement, 40))}</span>` : ''}
-                        <span class="p-spacer"></span>
-                    <div class="p-bar-wrap">
-                        <progress class="p-runtime p-bar bar-${clearString(type)}" value="${barPct.toFixed(1)}" max="100"></progress>
-                    </div>
-                    <span class="p-dur${isHot ? ' p-hot' : ''}">${formatDuration(runTime)}</span>
-                </div>
-                ${exceptionsHtml}
-                ${nestedPluginsHtml}
-            </div>`;
-        }
+    // Some responses are wrapped under a dynamic top-level key such as an automation id.
+    const firstValue = Object.values(data || {})[0];
 
-        /**
-         * Renders a single request rule as a plugin/action row.
-         *
-         * Behavior:
-         * - Resolves the display name from rule capabilities or plugin name.
-         * - Shows the rule argument when available.
-         * - Shows the target element/locator when available.
-         * - Returns HTML markup compatible with the report plugin row layout.
-         *
-         * @param {object} rule - The request rule to render.
-         * @returns {string} HTML markup for the request rule row.
-         */
-        function writeRequestRule(rule) {
-            // Resolve the rule display name.
-            // Prefer the friendly display name, then fall back to the plugin name.
-            const name = rule.capabilities?.displayName || rule.pluginName || '?';
+    if (firstValue?.sessions) {
+        return { root: firstValue, type: 'response' };
+    }
 
-            // Resolve the rule argument shown beside the plugin name.
-            const argument = rule.argument || '';
+    if (data?.stages?.[0]?.jobs?.[0]?.rules) {
+        return { root: data, type: 'request' };
+    }
 
-            // Resolve the rule target element/locator.
-            const element = rule.onElement || '';
+    return { root: data || {}, type: 'unknown' };
+}
 
-            // Render the request rule as a plugin-style row.
-            return `
-            <div class="plugin-row">
-                <div class="p-toggle"><span class="p-toggle-spacer"></span></div>
-                <svg class="p-led" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="8" height="8">
-                    <path fill="currentColor" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
-                </svg>
-                <span class="p-name">${clearString(name)}</span>
-                ${argument ? `<span class="p-arg">&#x2022; ${clearString(setTruncates(argument, 55))}</span>` : ''}
-                ${element ? `<span class="p-elem">&#x2022; ${clearString(setTruncates(element, 40))}</span>` : ''}
-                <span class="p-spacer"></span>
-            </div>`;
-        }
+/**
+ * Expands or collapses every expandable row of one execution timeline.
+ *
+ * @remarks
+ * Called by the timeline's Expand all / Collapse all buttons. It changes only DOM state owned by that
+ * timeline: the children containers, the rows' aria-expanded value, and the chevrons.
+ *
+ * @param {string} timelineId - The id of the timeline root element.
+ * @param {boolean} isExpanded - True to expand every row; false to collapse every row.
+ */
+function setTimelineExpansion(timelineId, isExpanded) {
+    // Resolve the timeline so only its rows change, not another session's timeline.
+    const timeline = document.getElementById(timelineId);
 
-        /**
-         * Renders the request view for automation request data.
-         *
-         * Behavior:
-         * - Builds summary cards for request-level metrics.
-         * - Flattens stages, jobs, and rules for counting.
-         * - Renders a collapsible rule tree grouped by stage and job.
-         * - Renders a simple execution timeline based on rule order.
-         *
-         * @param {object} data - The automation request data to render.
-         * @returns {string} HTML markup for the request report view.
-         */
-        function writeRequestView(data) {
-            // Resolve all stages from the request data.
-            const stages = data.stages || [];
+    if (!timeline) {
+        return;
+    }
 
-            // Flatten all jobs from all stages.
-            const allJobs = stages.flatMap(st => st.jobs || []);
+    // Apply the requested state to every expandable row so the whole tree opens or closes at once.
+    const rows = timeline.querySelectorAll('.automation-report-timeline__row[aria-expanded]');
 
-            // Flatten all rules/actions from all jobs.
-            const allRules = allJobs.flatMap(j => j.rules || []);
+    for (const row of rows) {
+        setTimelineRowExpansion(row, isExpanded);
+    }
+}
 
-            // Build request summary cards.
-            // Runtime-related values are not available in request mode,
-            // because this view represents the automation request before execution.
-            const cards = [
-                { label: 'Total Runtime', value: '-' },
-                { label: 'Avg. Action Time', value: '-' },
-                { label: 'Total Actions', value: String(allRules.length) },
-                { label: 'Total Exceptions', value: '-' },
-                { label: 'Failed Assertions', value: '-' },
-                { label: 'Total Timeouts', value: '-' },
-            ];
+/**
+ * Sets the expanded state of one timeline row: its children container, aria-expanded, and chevron.
+ *
+ * @remarks
+ * Shared by the row toggle and the Expand all / Collapse all buttons so both keep the three pieces of
+ * state in step. The row's aria-controls names its children container.
+ *
+ * @param {Element} row - The expandable timeline row.
+ * @param {boolean} isExpanded - True to show the row's children; false to hide them.
+ */
+function setTimelineRowExpansion(row, isExpanded) {
+    // Resolve the children container this row controls; a row without one has nothing to change.
+    const children = document.getElementById(row.getAttribute('aria-controls') || '');
 
-            // Renders all jobs for a given stage, including their nested rules.
-            const writeJobsHtml = (jobs, stageIndex) => {
-                return jobs.map((job, jobIndex) => {
-                    // Resolve rules/actions for the current job.
-                    const rules = job.rules || [];
+    if (!children) {
+        return;
+    }
 
-                    // Resolve a stable job id when available.
-                    // Generate a fallback id when the request does not include one.
-                    const jid = job.reference?.id ||
-                        `j-${stageIndex}-${jobIndex}`;
+    // Show or hide the children, record the state for assistive technology, and turn the chevron.
+    children.classList.toggle(COLLAPSED_CLASS, !isExpanded);
+    row.setAttribute('aria-expanded', `${isExpanded}`);
+    row.querySelector('.automation-report-chevron')?.classList.toggle('automation-report-chevron--open', isExpanded);
+}
 
-                    // Resolve the job display name.
-                    const jname = job.reference?.name || 'Job';
+/**
+ * Renders the page: the request view, the no-data view, or the header and one block per session.
+ *
+ * @remarks
+ * Owns the page's DOM writes: #g4-header and #app are replaced, and the delegated listeners are
+ * attached to #app once. Called once when the script loads.
+ */
+function startReport() {
+    // Renders a request payload: its driver and browser in the header, and the request view below.
+    const showRequestView = (root) => {
+        const driver = root.driverParameters?.driver || '-';
+        const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '-';
 
-                    // Render the current job and its request rules.
-                    return `
-                        <div class="tree-job">
-                            <div class="tree-job-hdr" onclick="toggleElement('rj-${clearString(jid)}','rji-${clearString(jid)}')">
-                                <i class="chev open" id="rji-${clearString(jid)}">${SVG_CHEVRON}</i>
-                                ${clearString(jname)}
-                                <span class="meta-text">${rules.length} action${rules.length > 1 ? 's' : ''}</span>
-                            </div>
-                            <div id="rj-${clearString(jid)}">${rules.map(r => writeRequestRule(r)).join('')}</div>
-                        </div>`;
-                }).join('');
-            };
+        headerElement.innerHTML = `
+        <g4-page-header meta="${convertToEscapedHtml(driver)} &bull; ${convertToEscapedHtml(browser)}"
+                        page-title="G4&#x2122; Request Configuration"
+                        test-id="request-configuration-header">
+            <span class="automation-report-tag" data-test-id="request-configuration-kind-tag">Request</span>
+        </g4-page-header>`;
+        appElement.innerHTML = `<div class="automation-report-main" data-test-id="request-configuration-main">${writeRequestView(root)}</div>`;
+    };
 
-            // Render all stages and their nested jobs/rules.
-            const stagesHtml = stages.map((stage, stageIndex) => {
-                // Resolve jobs for the current stage.
-                const jobs = stage.jobs || [];
-
-                // Resolve a stable stage id when available.
-                // Generate a fallback id when the request does not include one.
-                const sid = stage.reference?.id ||
-                    `s-${stageIndex}`;
-
-                // Resolve the stage display name.
-                const sname = stage.reference?.name || 'Stage';
-
-                // Render the current stage.
-                return `
-                <div class="tree-stage">
-                    <div class="tree-stage-hdr" onclick="toggleElement('rs-${clearString(sid)}','ri-${clearString(sid)}')">
-                        <i class="chev open" id="ri-${clearString(sid)}">${SVG_CHEVRON}</i>
-                        ${clearString(sname)}
-                        <span class="meta-text">${jobs.length} job${jobs.length > 1 ? 's' : ''}</span>
-                    </div>
-                    <div id="rs-${clearString(sid)}">
-                        ${writeJobsHtml(jobs, stageIndex)}
-                    </div>
-                </div>`;
-            }).join('');
-
-            // Render the complete request view:
-            // - Summary cards
-            // - Rule tree
-            // - Request timeline
-            return `
-            <div class="cards cards-6 cards-req">
-                ${cards.map(c => `
-                    <div class="card">
-                        <div class="card-label">${clearString(c.label)}</div>
-                        <div class="card-value">${clearString(c.value)}</div>
-                    </div>`).join('')}
+    // Renders the fallback for a payload that is neither a response with sessions nor a request.
+    const showNoDataView = () => {
+        headerElement.innerHTML = `
+        <g4-page-header meta="No session data found"
+                        page-title="G4&#x2122; Automation Report"
+                        test-id="automation-report-header"></g4-page-header>`;
+        appElement.innerHTML = `
+        <div class="automation-report-main" data-test-id="automation-report-main">
+            <div class="automation-report-error" data-test-id="automation-report-unrecognized-format-message">
+                <div class="automation-report-error__title">Unrecognized format</div>
+                <div class="automation-report-error__description">Expected a G4 response with <code class="automation-report-error__code">sessions</code> and <code class="automation-report-error__code">responseTree</code> keys.</div>
             </div>
-            <g4-section open
-                        section-title="Rule Tree"
-                        test-id="rule-tree-section">
-                <span class="meta-text" data-slot="header">${stages.length} stage${stages.length > 1 ? 's' : ''} &bull; ${allJobs.length} job${allJobs.length > 1 ? 's' : ''} &bull; ${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
-                ${stagesHtml}
-            </g4-section>
-            <g4-section class="section-mt"
-                        open
-                        section-title="Execution Timeline"
-                        test-id="request-timeline-section">
-                <span class="meta-text" data-slot="header">${allRules.length} action${allRules.length > 1 ? 's' : ''}</span>
-                ${writeRequestTimeline(stages)}
-            </g4-section>`;
-        }
+        </div>`;
+    };
 
-        /**
-         * Renders the full execution tree for all report stages.
-         *
-         * Behavior:
-         * - Returns a "No stages" message when no stages exist.
-         * - Renders each stage as a collapsible section.
-         * - Renders each job inside its owning stage.
-         * - Renders each plugin/action inside its owning job.
-         * - Calculates the top slowest plugins per job and marks them as hot.
-         *
-         * @param {Array<object>|null|undefined} stages - The report stages to render.
-         * @returns {string} HTML markup for the execution tree.
-         */
-        function writeTree(stages) {
-            const writeJob = (job) => {
-                // Resolve the top-level plugins/actions for the current job.
-                const plugins = job.plugins || [];
+    // Resolve the page containers and wire the delegated listeners once, before any markup exists.
+    const headerElement = document.getElementById('g4-header');
+    const appElement = document.getElementById('app');
 
-                // Build the plugin label suffix.
-                const pluginSuffix = plugins.length > 1 || plugins.length === 0
-                    ? 's'
-                    : '';
+    appElement.addEventListener('click', onAppClick);
 
-                // Resolve the total runtime for the current job.
-                const jobRunTime = job.performancePoint?.runTime || 0;
+    appElement.addEventListener('input', onAppInput);
 
-                // Build a set of the top 3 slowest plugin reference ids.
-                // These are later highlighted by writePlugins().
-                const hotSet = new Set(
-                    groupPlugins(plugins)
-                        .sort((a, b) =>
-                            (b.performancePoint?.runTime || 0) -
-                            (a.performancePoint?.runTime || 0)
-                        )
-                        .slice(0, 3)
-                        .map(p => p.performancePoint?.reference?.id)
-                        .filter(Boolean)
-                );
+    appElement.addEventListener('keydown', onAppKeyDown);
 
-                // Render the current job and all of its plugins.
-                return `
-                <div class="tree-job">
-                    <div class="tree-job-hdr" onclick="toggleElement('jb-${clearString(job.id)}','ji-${clearString(job.id)}')">
-                        <i class="chev open" id="ji-${clearString(job.id)}">${SVG_CHEVRON}</i>
-                        ${clearString(job.name)}
-                        <span class="meta-text">${plugins.length} plugin${pluginSuffix} &bull; ${formatDuration(jobRunTime)}</span>
-                    </div>
-                    <div id="jb-${clearString(job.id)}">
-                        ${plugins.map(p => writePlugins(p, 0, jobRunTime, hotSet)).join('')}
-                    </div>
-                </div>`;
-            };
+    // Read the injected payload and decide which view it needs.
+    const data = JSON.parse(document.getElementById('g4-data').value);
+    const schema = resolveSchema(data);
 
-            const writeStage = (stage) => {
-                // Resolve the jobs for the current stage.
-                const jobs = stage.jobs || [];
+    if (schema.type === 'request') {
+        showRequestView(schema.root);
+        return;
+    }
 
-                // Build the job label suffix.
-                const jobSuffix = jobs.length > 1 || jobs.length === 0
-                    ? 's'
-                    : '';
+    const sessions = schema.root.sessions || {};
+    const sessionIds = Object.keys(sessions);
 
-                // Render the current stage and all of its jobs.
-                return `
-                <div class="tree-stage">
-                    <div class="tree-stage-hdr" onclick="toggleElement('st-${clearString(stage.id)}','si-${clearString(stage.id)}')">
-                        <i class="chev open" id="si-${clearString(stage.id)}">${SVG_CHEVRON}</i>
-                        ${clearString(stage.name)}
-                        <span class="meta-text">${jobs.length} job${jobSuffix}</span>
-                    </div>
-      
-                    <div id="st-${clearString(stage.id)}">
-                        ${jobs.map(job => writeJob(job)).join('')}
-                    </div>
-                </div>`;
-            };
+    if (sessionIds.length === 0) {
+        showNoDataView();
+        return;
+    }
 
-            // If the report does not contain stages, show an empty-state message.
-            if (!stages?.length) {
-                return '<div class="no-data">No stages.</div>';
-            }
+    // The automation name shown in the header is stored on the first stage of the first session.
+    const firstStages = sessions[sessionIds[0]]?.responseTree?.stages || [];
+    const automationReference = firstStages[0]?.automationReference || {};
 
-            // Render all stages.
-            return stages.map(stage => writeStage(stage)).join('');
-        }
+    // Render the header and every session, separated by a divider.
+    const sessionsHtml = sessionIds
+        .map(sessionId => writeSession(sessionId, sessions[sessionId] || {}))
+        .join('<div class="automation-report-session-divider"></div>');
+
+    headerElement.innerHTML = writeHeader(automationReference, schema.root.performancePoint || {});
+    appElement.innerHTML = `<div class="automation-report-main" data-test-id="automation-report-main">${sessionsHtml}</div>`;
+}
 
 /**
-         * Renders a simple request timeline for automation request rules.
-         *
-         * Behavior:
-         * - Flattens all rules from all stages and jobs.
-         * - Shows an empty-state message when no rules exist.
-         * - Renders each rule as one SVG row.
-         * - Places each rule as an equal-width segment across the timeline.
-         * - Uses the rule display name or plugin name as the row label.
-         *
-         * @param {Array<object>|null|undefined} stages - The request stages to render.
-         * @returns {string} HTML markup for the request timeline.
-         */
-        function writeRequestTimeline(stages) {
-            // SVG layout constants.
-            const ROW = 24;
-            const LW = 155;
-            const CW = 740;
-            const PAD = 6;
+ * Expands or collapses a plugin's child list and turns its chevron.
+ *
+ * @param {string} nodeId - The id of the plugin node.
+ */
+function updatePluginExpansion(nodeId) {
+    // A plugin without children has no list to toggle.
+    const children = document.getElementById(`${nodeId}-children`);
 
-            // Flatten all rules from all jobs in all stages.
-            const rules = (stages || [])
-                .flatMap(st => st.jobs || [])
-                .flatMap(j => j.rules || []);
+    if (!children) {
+        return;
+    }
 
-            // Total number of actions/rules in the request.
-            const total = rules.length;
+    // Flip the list and keep the chevron in step with it.
+    const isExpanded = children.classList.toggle(COLLAPSED_CLASS) === false;
 
-            // Show an empty-state message when no rules exist.
-            if (!total) {
-                return '<div class="no-data">No actions to display.</div>';
-            }
-
-            // Calculate the SVG height based on the number of rule rows.
-            const svgHeight = ROW * total + PAD * 2;
-
-            // Each rule gets an equal-width segment in the chart area.
-            const segmentWidth = CW / total;
-
-            // Render each rule as a label and a timeline segment.
-            const rowsSvg = rules.map((rule, i) => {
-                // Resolve the friendly rule name.
-                // Prefer displayName, then fall back to pluginName.
-                const name = rule.capabilities?.displayName || rule.pluginName || '?';
-
-                // Calculate the vertical row position.
-                const y = PAD + i * ROW;
-
-                // Calculate the horizontal segment start position.
-                const xStartPosition = LW + i * segmentWidth;
-
-                // Keep at least 2px width so every rule remains visible.
-                const width = Math.max(2, segmentWidth - 1);
-
-                // Render the rule label and its timeline segment.
-                return `
-                <text x="${LW - 4}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">
-                    ${clearString(setTruncates(name, 18))}
-                </text>
-                <rect x="${xStartPosition.toFixed(1)}" y="${y + 5}" width="${width.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
-                    <title>${clearString(setTruncates(name, 18))}</title>
-                </rect>`;
-            }).join('');
-
-            // Render the complete timeline SVG.
-            return `
-            <div class="tl-wrap">
-                <svg class="svg-block" width="${LW + CW + PAD}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
-                    ${rowsSvg}
-                </svg>
-            </div>`;
-        }
-
-        /**
-         * Renders a timeline chart for all plugins/actions in the report.
-         *
-         * Behavior:
-         * - Converts the session start/end values into millisecond timestamps.
-         * - Flattens all plugins from all stages/jobs into timeline rows.
-         * - Calculates each plugin bar position relative to the full session duration.
-         * - Renders an SVG timeline with duration axis, plugin labels, bars, and durations.
-         *
-         * @param {Array<object>|null|undefined} stages - The report stages to render.
-         * @param {string} sessionStart - The session start date/time.
-         * @param {string} sessionEnd - The session end date/time.
-         * @returns {string} HTML markup for the timeline section.
-         */
-        function writeTimeline(stages, sessionStart, sessionEnd) {
-            // Flattens a nested plugin tree into timeline items.
-            //
-            // Behavior:
-            // - Iterates over the provided plugin collection.
-            // - Resolves each plugin name and type from its performance reference or rule.
-            // - Resolves start/end timestamps using plugin timing data.
-            // - Falls back to the session start/end when plugin timing is missing.
-            // - Tracks nesting depth so child plugins can be rendered indented.
-            // - Recursively processes child plugins.
-            const groupPlugins = (plugins, depth, out) => {
-                // Iterate over the current plugin level.
-                // If plugins is null/undefined, use an empty array.
-                for (const plugin of (plugins || [])) {
-                    // Resolve plugin reference metadata when available.
-                    const reference = plugin?.performancePoint?.reference || {};
-
-                    // Resolve the display name from reference metadata first,
-                    // then fall back to the rule plugin name.
-                    const name = reference.name || plugin?.rule?.pluginName || '?';
-
-                    // Resolve the plugin type, defaulting to Action when missing.
-                    const type = reference.type || 'Action';
-
-                    // Resolve plugin start time.
-                    // If the plugin does not include a start time, fall back to sessionStart.
-                    const start = new Date(
-                        plugin?.performancePoint?.start || sessionStart
-                    ).getTime();
-
-                    // Resolve plugin end time.
-                    // If the plugin does not include an end time, fall back to sessionEnd.
-                    const end = new Date(
-                        plugin?.performancePoint?.end || sessionEnd
-                    ).getTime();
-
-                    // Add the normalized plugin timeline item to the output collection.
-                    out.push({
-                        name,
-                        type,
-                        depth,
-                        start,
-                        end
-                    });
-
-                    // Recursively collect child plugin timeline items.
-                    groupPlugins(plugin?.plugins, depth + 1, out);
-                }
-            };
-
-            // Convert the session start and end values into millisecond timestamps.
-            const startTime = new Date(sessionStart).getTime();
-            const endTime = new Date(sessionEnd).getTime();
-
-            // Calculate the full session span.
-            // Use at least 1 ms to avoid division by zero.
-            const span = Math.max(endTime - startTime, 1);
-
-            // Timeline rows created from all plugins/actions.
-            const rows = [];
-
-            // Collect all plugin timeline rows from all stages and jobs.
-            for (const stage of (stages || [])) {
-                for (const job of (stage.jobs || [])) {
-                    groupPlugins(job.plugins, 0, rows);
-                }
-            }
-
-            // Show an empty-state message when no plugin timing data exists.
-            if (!rows.length) {
-                return '<div class="no-data">No timeline data.</div>';
-            }
-
-            // Height of each plugin/action row in the timeline.
-            const ROW = 24;
-
-            // Width reserved on the left for plugin/action labels.
-            const LW = 155;
-
-            // Width of the main timeline chart area.
-            const CW = 680;
-
-            // Width reserved on the right for duration text.
-            const DW = 80;
-
-            // Outer padding around the SVG content.
-            const PAD = 6;
-
-            // Number of time segments shown on the timeline axis.
-            // TICKS + 1 grid lines are rendered.
-            const TICKS = 6;
-
-            // Calculate the full SVG height based on the row count.
-            const svgHeight = ROW * rows.length + 20 + PAD * 2;
-
-            // Render the timeline axis grid lines and labels.
-            const axisTicks = Array.from({ length: TICKS + 1 }, (_, i) => {
-                // Calculate the x position for this tick.
-                const x = LW + (i / TICKS) * CW;
-
-                // Calculate the elapsed time represented by this tick.
-                const milliseconds = (i / TICKS) * span;
-
-                // Format the tick label as seconds or milliseconds.
-                const label = milliseconds >= 1000
-                    ? (milliseconds / 1000).toFixed(1) + 's'
-                    : Math.round(milliseconds) + 'ms';
-
-                return `
-                <line x1="${x}" y1="${PAD}" x2="${x}" y2="${PAD + ROW * rows.length}" stroke="currentColor" stroke-width="1" opacity="0.15"/>
-                <text x="${x}" y="${PAD + ROW * rows.length + 14}" text-anchor="middle" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">
-                    ${label}
-                </text>`;
-            }).join('');
-
-            // Render each plugin row as a label, bar, tooltip, and duration value.
-            const rowsSvg = rows.map((r, i) => {
-                // Calculate the vertical position for the row.
-                const y = PAD + i * ROW;
-
-                // Calculate the start position of the plugin bar.
-                const xStartPosition = LW + ((r.start - startTime) / span) * CW;
-
-                // Calculate the plugin bar width.
-                // Use at least 3 px so very fast actions are still visible.
-                const barWidth = Math.max(3, ((r.end - r.start) / span) * CW);
-
-                // Convert elapsed milliseconds back to ticks for the existing duration formatter.
-                const duration = formatDuration((r.end - r.start) * 10000);
-
-                // Indent nested plugin labels based on their depth.
-                const indent = LW - 4 - r.depth * 14;
-
-                return `
-                <text x="${indent}" y="${y + ROW / 2 + 4}" text-anchor="end" fill="currentColor" font-size="11" font-family="Segoe UI,sans-serif">
-                    ${clearString(setTruncates(r.name, 18))}
-                </text>
-                <rect x="${xStartPosition.toFixed(1)}" y="${y + 5}" width="${barWidth.toFixed(1)}" height="${ROW - 10}" fill="currentColor">
-                    <title>${clearString(r.name)}: ${duration} (${formatTime(new Date(r.start).toISOString())} - ${formatTime(new Date(r.end).toISOString())})</title>
-                </rect>
-                <text x="${LW + CW + 6}" y="${y + ROW / 2 + 4}" text-anchor="start" fill="currentColor" font-size="10" font-family="Segoe UI,sans-serif">${duration}</text>`;
-            }).join('');
-
-            // Render the complete timeline wrapper and SVG.
-            return `
-            <div class="tl-wrap">
-                <svg class="svg-block" width="${LW + CW + DW + PAD}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
-                    ${axisTicks}
-                    ${rowsSvg}
-                </svg>
-            </div>`;
-        }
+    document.getElementById(`${nodeId}-chevron`)?.classList.toggle('automation-report-chevron--open', isExpanded);
+}
 
 /**
-         * Renders the assertion results table.
-         *
-         * Behavior:
-         * - Shows an empty-state message when no assertion data exists.
-         * - Renders each assertion as a table row.
-         * - Displays assertion element, condition, operator, expected value, actual value,
-         *   result status, and reason phrase.
-         * - Uses a green LED for passed assertions.
-         * - Uses a red LED for failed assertions.
-         * - Uses the default text color when the evaluation result is missing or unknown.
-         *
-         * @param {Array<object>} assertions - The assertion items to render.
-         * @returns {string} HTML markup for the assertion table.
-         */
-        function writeAssertions(assertions) {
-            // Show an empty-state message when there are no assertions to display.
-            if (!assertions.length) {
-                return '<div class="no-data">No assertion data found.</div>';
-            }
+ * Expands or collapses a section (a stage, a job, or an exception's stack trace) and turns its chevron.
+ *
+ * @param {string} sectionId - The id of the section body.
+ */
+function updateSectionExpansion(sectionId) {
+    const section = document.getElementById(sectionId);
 
-            // Render all assertion rows.
-            const rows = assertions.map(assertion => {
-                // Assertion content contains the condition, expected value,
-                // actual value, evaluation result, and reason phrase.
-                const content = assertion.content || {};
+    if (!section) {
+        return;
+    }
 
-                // Resolve the assertion evaluation result.
-                // Expected values are usually true, false, or undefined/null.
-                const evaluation = content.Evaluation;
+    // Flip the section and keep its chevron in step with it.
+    const isExpanded = section.classList.toggle(COLLAPSED_CLASS) === false;
 
-                // Failed assertions are shown in red.
-                // Unknown/missing evaluation uses the current text color.
-                const evaluationColor = evaluation === false
-                    ? '#ef4444'
-                    : 'currentColor';
+    document.getElementById(`${sectionId}-chevron`)?.classList.toggle('automation-report-chevron--open', isExpanded);
+}
 
-                // Passed assertions are shown in green.
-                // Failed assertions use red.
-                // Unknown/missing results use the fallback evaluation color.
-                const ledFill = evaluation === true
-                    ? '#22c55e'
-                    : evaluationColor;
+/**
+ * Toggles one timeline row between expanded and collapsed.
+ *
+ * @param {string} rowId - The id of the expandable timeline row.
+ */
+function updateTimelineRowExpansion(rowId) {
+    const row = document.getElementById(rowId);
 
-                // Build the assertion result LED icon.
-                const ledSvg = `
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="10" height="10">
-                    <path fill="${ledFill}" d="M64 320C64 178.6 178.6 64 320 64C461.4 64 576 178.6 576 320C576 461.4 461.4 576 320 576C178.6 576 64 461.4 64 320z"/>
-                </svg>`;
+    if (!row) {
+        return;
+    }
 
-                // Render one assertion result row.
-                return `
+    const isExpanded = row.getAttribute('aria-expanded') === 'true';
+
+    setTimelineRowExpansion(row, !isExpanded);
+}
+
+/**
+ * Filters a plugin tree by name, keeping the branches that lead to a match visible and expanded.
+ *
+ * @remarks
+ * Nodes are visited from the leaves up (reverse document order), so a parent can see whether any of
+ * its descendants is still visible before deciding its own visibility.
+ *
+ * @param {string} treeId - The id of the tree root.
+ * @param {string} query - The text typed in the filter box.
+ */
+function updateTreeFilter(treeId, query) {
+    const tree = document.getElementById(treeId);
+
+    if (!tree) {
+        return;
+    }
+
+    // Match case-insensitively; an empty query shows everything.
+    const normalizedQuery = query.trim().toLowerCase();
+    const nodes = Array.from(tree.querySelectorAll('.automation-report-plugin')).reverse();
+
+    for (const node of nodes) {
+        // A node stays visible when the query is empty, it matches, or a descendant is still visible.
+        const isMatch = (node.getAttribute('data-name') || '').includes(normalizedQuery);
+        const isDescendantVisible = Array
+            .from(node.querySelectorAll('.automation-report-plugin'))
+            .some(descendant => !descendant.classList.contains(FILTER_HIDDEN_CLASS));
+        const isVisible = normalizedQuery === '' || isMatch || isDescendantVisible;
+
+        node.classList.toggle(FILTER_HIDDEN_CLASS, !isVisible);
+
+        // Open the path to a matching descendant so the match is on screen.
+        const isOpenPath = normalizedQuery !== '' && isDescendantVisible;
+        const children = node.querySelector(':scope > .automation-report-plugin__children');
+
+        if (!isOpenPath || !children) {
+            continue;
+        }
+
+        children.classList.remove(COLLAPSED_CLASS);
+        document.getElementById(`${node.id}-chevron`)?.classList.add('automation-report-chevron--open');
+    }
+}
+
+/**
+ * Renders the assertion results table: element, condition, operator, expected and actual values,
+ * the result dot (passed, failed, or unknown), and the reason phrase.
+ *
+ * @param {Array<object>} assertions - The assertions to render.
+ * @returns {string} HTML markup for the table, or an empty-state message.
+ */
+function writeAssertions(assertions) {
+    if (assertions.length === 0) {
+        return '<div class="automation-report-empty-state" data-test-id="assertions-empty-message">No assertion data found.</div>';
+    }
+
+    // One row per assertion; the result dot reflects the evaluation (true, false, or anything else).
+    const rowsHtml = assertions.map((assertion) => {
+        const content = assertion.content || {};
+        let status = 'unknown';
+
+        if (content.Evaluation === true) {
+            status = 'passed';
+        }
+
+        if (content.Evaluation === false) {
+            status = 'error';
+        }
+
+        return `
+        <tr data-test-id="assertion-row">
+            <td class="automation-report-monospace">${convertToEscapedHtml(assertion.onElement || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Condition || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Operator || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Expected ?? '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Actual ?? '-')}</td>
+            <td class="automation-report-table__cell--center">${writeStatusDot(status)}</td>
+            <td class="automation-report-table__reason">${convertToEscapedHtml(content.ReasonPhrase || '-')}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+    <table class="automation-report-table" data-test-id="assertions-table">
+        <thead>
+            <tr>
+                <th>Element</th>
+                <th>Condition</th>
+                <th>Operator</th>
+                <th>Expected</th>
+                <th>Actual</th>
+                <th>Result</th>
+                <th>Reason Phrase</th>
+            </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+    </table>`;
+}
+
+/**
+ * Renders the session summary cards: total runtime, average action time, total actions, exceptions,
+ * failed assertions, and the time lost to timeouts.
+ *
+ * @param {object} performancePoint - The session performance point.
+ * @param {Array<object>} stages - The session stages.
+ * @returns {string} HTML markup for the cards.
+ */
+function writeCards(performancePoint, stages) {
+    // Collect the plugins and assertions of every job, children included.
+    const jobs = stages.flatMap(stage => stage.jobs || []);
+    const plugins = jobs.flatMap(job => getFlattenedPlugins(job.plugins));
+    const failedAssertionCount = jobs
+        .flatMap(job => getAssertions(job.plugins))
+        .filter(assertion => assertion.content?.Evaluation === false)
+        .length;
+    const exceptionCount = plugins.reduce((total, plugin) => total + (plugin.exceptions || []).length, 0);
+
+    // Average time per action, and the total run time of actions that timed out.
+    const isAverageAvailable = plugins.length > 0 && typeof performancePoint.runTime === 'number';
+    const averageRunTime = isAverageAvailable
+        ? performancePoint.runTime / plugins.length
+        : null;
+    const timeoutRunTime = plugins
+        .filter(plugin => getExceptionStatus(plugin.exceptions || []) === 'timeout')
+        .reduce((total, plugin) => total + (plugin.performancePoint?.runTime || 0), 0);
+    const timeoutText = timeoutRunTime > 0
+        ? convertToDurationText(timeoutRunTime)
+        : '-';
+
+    // Render the cards in display order, each with an escaped label and value.
+    const cards = [
+        { label: 'Total Runtime', value: convertToDurationText(performancePoint.runTime) },
+        { label: 'Avg. Action Time', value: convertToDurationText(averageRunTime) },
+        { label: 'Total Actions', value: `${plugins.length}` },
+        { label: 'Total Exceptions', value: `${exceptionCount}` },
+        { label: 'Failed Assertions', value: `${failedAssertionCount}` },
+        { label: 'Total Timeouts', value: timeoutText }
+    ];
+
+    const cardsHtml = cards.map(card => `
+        <div class="automation-report-card" data-test-id="summary-card">
+            <div class="automation-report-card__label">${convertToEscapedHtml(card.label)}</div>
+            <div class="automation-report-card__value">${convertToEscapedHtml(card.value)}</div>
+        </div>`).join('');
+
+    return `<div class="automation-report-cards" data-test-id="summary-cards">${cardsHtml}</div>`;
+}
+
+/**
+ * Renders a chevron that a collapsible row turns between right (collapsed) and down (expanded).
+ *
+ * @param {{ id?: string, isOpen: boolean }} options - The chevron id (for rows toggled by id) and its state.
+ * @returns {string} HTML markup for the chevron.
+ */
+function writeChevron({ id, isOpen }) {
+    const openClass = isOpen
+        ? ' automation-report-chevron--open'
+        : '';
+    const idAttribute = id
+        ? ` id="${id}"`
+        : '';
+
+    return `<i${idAttribute} class="automation-report-chevron${openClass}" aria-hidden="true">${CHEVRON_ICONS_HTML}</i>`;
+}
+
+/**
+ * Renders a section-header count badge, such as "2 failed", with a status dot.
+ *
+ * @param {'passed'|'error'} status - The dot color.
+ * @param {string} text - The count text.
+ * @returns {string} HTML markup for the badge, placed in the section header slot.
+ */
+function writeCount(status, text) {
+    return `<span class="automation-report-count" data-slot="header" data-test-id="${status}-count">${writeStatusDot(status)}${convertToEscapedHtml(text)}</span>`;
+}
+
+/**
+ * Renders the error summary section: the failed assertions table, the exceptions table, and their counts.
+ *
+ * @param {{ assertions: Array<object>, exceptions: Array<object>, sessionId: string }} options -
+ *     The failed assertions, the exceptions, and the escaped session id used in the test id.
+ * @returns {string} HTML markup for the section.
+ */
+function writeErrorSummary({ assertions, exceptions, sessionId }) {
+    // One row per failed assertion and per exception.
+    const assertionRowsHtml = assertions.map((assertion) => {
+        const content = assertion.content || {};
+
+        return `
+        <tr data-test-id="failed-assertion-row">
+            <td class="automation-report-monospace">${convertToEscapedHtml(assertion.onElement || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Condition || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Operator || '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Expected ?? '-')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(content.Actual ?? '-')}</td>
+            <td class="automation-report-table__reason">${convertToEscapedHtml(content.ReasonPhrase || '-')}</td>
+        </tr>`;
+    }).join('');
+    const exceptionRowsHtml = exceptions.map(exception => `
+        <tr data-test-id="exception-row">
+            <td class="automation-report-monospace">${convertToEscapedHtml(exception.pluginName || '?')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(exception.type || '-')}</td>
+            <td>${convertToEscapedHtml(exception.exception?.Message || '-')}</td>
+            <td class="automation-report-table__reason">${convertToEscapedHtml(exception.reasonPhrase || '-')}</td>
+        </tr>`).join('');
+
+    // Show each table only when it has rows; the exceptions label gets extra space after assertions.
+    const assertionsHtml = assertions.length > 0
+        ? `
+        <div class="automation-report-error-summary__label automation-report-meta-text">Failed Assertions</div>
+        <table class="automation-report-table" data-test-id="failed-assertions-table">
+            <thead>
                 <tr>
-                    <td class="mono">${clearString(assertion.onElement || '-')}</td>
-                    <td class="mono">${clearString(content.Condition || '-')}</td>
-                    <td class="mono">${clearString(content.Operator || '-')}</td>
-                    <td class="mono">${clearString(content.Expected ?? '-')}</td>
-                    <td class="mono">${clearString(String(content.Actual ?? '-'))}</td>
-                    <td class="td-center">${ledSvg}</td>
-                    <td class="reason">${clearString(content.ReasonPhrase || '-')}</td>
-                </tr>`;
-            }).join('');
+                    <th>Element</th>
+                    <th>Condition</th>
+                    <th>Operator</th>
+                    <th>Expected</th>
+                    <th>Actual</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>${assertionRowsHtml}</tbody>
+        </table>`
+        : '';
+    const separatedClass = assertions.length > 0
+        ? ' automation-report-error-summary__label--separated'
+        : '';
+    const exceptionsHtml = exceptions.length > 0
+        ? `
+        <div class="automation-report-error-summary__label automation-report-meta-text${separatedClass}">Exceptions</div>
+        <table class="automation-report-table" data-test-id="exceptions-table">
+            <thead>
+                <tr>
+                    <th>Plugin</th>
+                    <th>Type</th>
+                    <th>Message</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>${exceptionRowsHtml}</tbody>
+        </table>`
+        : '';
 
-            // Render the complete assertions table.
-            return `
-            <table class="assert-tbl">
-                <thead>
-                    <tr>
-                        <th>Element</th>
-                        <th>Condition</th>
-                        <th>Operator</th>
-                        <th>Expected</th>
-                        <th>Actual</th>
-                        <th>Result</th>
-                        <th>Reason Phrase</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>`;
-        }
+    // Count badges for the section header.
+    const countsHtml = [];
+
+    if (assertions.length > 0) {
+        countsHtml.push(writeCount('error', `${assertions.length} failed`));
+    }
+
+    if (exceptions.length > 0) {
+        countsHtml.push(writeCount('error', `${exceptions.length} exception${getPluralSuffix(exceptions.length)}`));
+    }
+
+    return `
+    <g4-section class="automation-report-section automation-report-section--spaced"
+                open
+                section-title="Error Summary"
+                test-id="error-summary-${sessionId}-section">
+        ${countsHtml.join('')}
+        ${assertionsHtml}${exceptionsHtml}
+    </g4-section>`;
+}
 
 /**
-         * Renders the report header section.
-         *
-         * @param {object|null|undefined} automationReference - The automation reference metadata.
-         * @param {object|null|undefined} performancePoint - The main performance point for the report.
-         * @returns {string} HTML markup for the report header.
-         */
-        function renderHeader(automationReference, performancePoint) {
-            // Resolve the automation name shown in the report header.
-            const name = automationReference?.name || 'Untitled Automation';
+ * Renders a plugin's exceptions table, indented to the plugin's depth, with an expandable stack
+ * trace row for each exception that has one.
+ *
+ * @param {Array<object>} exceptions - The plugin's exceptions.
+ * @param {number} depth - The plugin's depth in the tree.
+ * @returns {string} HTML markup for the table.
+ */
+function writeExceptions(exceptions, depth) {
+    const rowsHtml = exceptions.map((exception) => {
+        // A stack trace gets a toggle cell and a collapsed row below the exception.
+        const stackTrace = exception.exception?.StackTrace || '';
+        const stackId = newElementId('stack');
+        const toggleCellHtml = stackTrace
+            ? `
+            <td class="automation-report-table__stack-toggle"
+                title="Show or hide the stack trace"
+                data-report-action="toggle-section"
+                data-report-target="${stackId}"
+                data-test-id="exception-stack-trace-toggle">
+                ${writeChevron({ id: `${stackId}-chevron`, isOpen: false })}
+            </td>`
+            : '<td>-</td>';
+        const stackRowHtml = stackTrace
+            ? `<tr id="${stackId}" class="${COLLAPSED_CLASS}"><td colspan="5"><pre class="automation-report-exception-stack">${convertToEscapedHtml(stackTrace)}</pre></td></tr>`
+            : '';
 
-            // Resolve the automation start time from the performance point.
-            const start = performancePoint?.start;
+        return `
+        <tr data-test-id="plugin-exception-row">
+            <td class="automation-report-monospace">${convertToEscapedHtml(exception.pluginName || '?')}</td>
+            <td class="automation-report-monospace">${convertToEscapedHtml(exception.type || '-')}</td>
+            <td>${convertToEscapedHtml(exception.exception?.Message || '-')}</td>
+            <td class="automation-report-table__reason">${convertToEscapedHtml(exception.reasonPhrase || '-')}</td>
+            ${toggleCellHtml}
+        </tr>${stackRowHtml}`;
+    }).join('');
 
-            // Render the report header.
-            return `
-            <g4-page-header meta="${clearString(name)} &bull; ${clearString(formatDateTime(start))}"
-                            page-title="G4&#x2122; Automation Report"
-                            test-id="automation-report-header"></g4-page-header>`;
+    // The table is indented by the plugin depth so it sits under its plugin row.
+    return `
+    <div class="automation-report-plugin-exceptions"
+         style="--automation-report-plugin-depth: ${depth}"
+         data-test-id="plugin-exceptions">
+        <table class="automation-report-table">
+            <thead>
+                <tr>
+                    <th>Plugin</th>
+                    <th>Type</th>
+                    <th>Message</th>
+                    <th>Reason</th>
+                    <th>Stack Trace</th>
+                </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+        </table>
+    </div>`;
+}
+
+/**
+ * Renders the report page header: the automation name and its start date/time.
+ *
+ * @param {object} automationReference - The automation reference of the first stage.
+ * @param {object} performancePoint - The report's root performance point.
+ * @returns {string} HTML markup for the header.
+ */
+function writeHeader(automationReference, performancePoint) {
+    const name = automationReference?.name || 'Untitled Automation';
+    const startText = convertToDateTimeText(performancePoint?.start);
+
+    return `
+    <g4-page-header meta="${convertToEscapedHtml(name)} &bull; ${convertToEscapedHtml(startText)}"
+                    page-title="G4&#x2122; Automation Report"
+                    test-id="automation-report-header"></g4-page-header>`;
+}
+
+/**
+ * Renders one plugin row of the plugin tree and, recursively, its children.
+ *
+ * Behavior:
+ * - Shows a chevron when the plugin has children (collapsed at first), a status dot, the display name,
+ *   the argument and target element, a runtime bar relative to the parent, and the duration.
+ * - Marks the duration as hot when the plugin is one of the job's slowest.
+ * - Shows the plugin's exceptions under the row.
+ *
+ * @param {object} plugin - The plugin to render.
+ * @param {{ depth: number, parentRunTime: number, hotPluginIds: Set<string> }} options - The plugin's
+ *     depth, its parent's (or job's) run time in ticks, and the ids of the job's slowest plugins.
+ * @returns {string} HTML markup for the plugin node.
+ */
+function writePlugin(plugin, options) {
+    const { depth, hotPluginIds, parentRunTime } = options;
+
+    // Resolve what the row shows: identity, rule details, timing, and status.
+    const nodeId = newElementId('plugin');
+    const reference = plugin.performancePoint?.reference || {};
+    const rule = plugin.rule || {};
+    const displayName = rule.capabilities?.displayName || reference.name || rule.pluginName || '?';
+    const runTime = plugin.performancePoint?.runTime || 0;
+    const exceptions = plugin.exceptions || [];
+    const children = plugin.plugins || [];
+    const isExpandable = children.length > 0;
+    const isHot = hotPluginIds.has(reference.id);
+
+    // The runtime bar is the plugin's share of its parent's run time.
+    const runTimePercent = parentRunTime > 0
+        ? Math.min(100, (runTime / parentRunTime) * 100)
+        : 0;
+
+    // Optional parts of the row, each empty when the plugin does not have it.
+    const chevronHtml = isExpandable
+        ? writeChevron({ id: `${nodeId}-chevron`, isOpen: false })
+        : '<span class="automation-report-plugin-row__toggle-spacer"></span>';
+    const argumentHtml = rule.argument
+        ? `<span class="automation-report-plugin-row__argument">&#x2022; ${convertToEscapedHtml(convertToTruncatedText(rule.argument, MAXIMUM_ARGUMENT_CHARACTERS))}</span>`
+        : '';
+    const elementHtml = rule.onElement
+        ? `<span class="automation-report-plugin-row__element">&#x2022; ${convertToEscapedHtml(convertToTruncatedText(rule.onElement, MAXIMUM_ELEMENT_CHARACTERS))}</span>`
+        : '';
+    const hotClass = isHot
+        ? ' automation-report-plugin-row__duration--hot'
+        : '';
+    const tooltip = reference.description
+        ? convertToTruncatedText(reference.description, MAXIMUM_TOOLTIP_CHARACTERS)
+        : '';
+    const exceptionsHtml = exceptions.length > 0
+        ? writeExceptions(exceptions, depth)
+        : '';
+    const childrenHtml = isExpandable
+        ? `<div id="${nodeId}-children" class="automation-report-plugin__children ${COLLAPSED_CLASS}">${children.map(child => writePlugin(child, { depth: depth + 1, hotPluginIds, parentRunTime: runTime || parentRunTime })).join('')}</div>`
+        : '';
+
+    return `
+    <div id="${nodeId}"
+         class="automation-report-plugin"
+         data-name="${convertToEscapedHtml(convertToText(displayName).toLowerCase())}"
+         data-test-id="plugin-tree-node">
+        <div class="automation-report-plugin-row"
+             style="--automation-report-plugin-depth: ${depth}"
+             title="${convertToEscapedHtml(tooltip)}"
+             data-report-action="toggle-plugin"
+             data-report-target="${nodeId}"
+             data-test-id="plugin-tree-row">
+            <div class="automation-report-plugin-row__toggle">${chevronHtml}</div>
+            ${writeStatusDot(getExceptionStatus(exceptions))}
+            <span class="automation-report-plugin-row__name">${convertToEscapedHtml(displayName)}</span>
+            ${argumentHtml}
+            ${elementHtml}
+            <span class="automation-report-plugin-row__spacer"></span>
+            <div class="automation-report-plugin-row__bar-track">
+                <progress class="automation-report-plugin-row__runtime" max="100" value="${runTimePercent.toFixed(1)}"></progress>
+            </div>
+            <span class="automation-report-plugin-row__duration${hotClass}">${convertToDurationText(runTime)}</span>
+        </div>
+        ${exceptionsHtml}
+        ${childrenHtml}
+    </div>`;
+}
+
+/**
+ * Renders an order-only timeline for a request: one row per rule, each in its own equal slot,
+ * because a request has not run and has no timing yet.
+ *
+ * @param {Array<object>|null|undefined} stages - The request stages.
+ * @returns {string} HTML markup for the timeline, or an empty-state message.
+ */
+function writeRequestTimeline(stages) {
+    const rules = (stages || [])
+        .flatMap(stage => stage.jobs || [])
+        .flatMap(job => job.rules || []);
+
+    if (rules.length === 0) {
+        return '<div class="automation-report-empty-state" data-test-id="request-timeline-empty-message">No actions to display.</div>';
+    }
+
+    // Each rule occupies its own slot of equal width, in request order.
+    const slotPercent = 100 / rules.length;
+    const rowsHtml = rules.map((rule, ruleIndex) => {
+        const name = rule.capabilities?.displayName || rule.pluginName || '?';
+
+        return `
+        <div class="automation-report-timeline__row"
+             style="--automation-report-timeline-depth: 0"
+             title="${convertToEscapedHtml(name)}"
+             data-test-id="request-timeline-row">
+            <div class="automation-report-timeline__name">
+                <span class="automation-report-timeline__label">${convertToEscapedHtml(name)}</span>
+            </div>
+            <div class="automation-report-timeline__track">
+                <span class="automation-report-timeline__bar automation-report-timeline__bar--solid automation-report-timeline__bar--passed"
+                      style="--automation-report-timeline-bar-start: ${(ruleIndex * slotPercent).toFixed(3)}%; --automation-report-timeline-bar-width: ${slotPercent.toFixed(3)}%"></span>
+            </div>
+            <div class="automation-report-timeline__duration">#${ruleIndex + 1}</div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="automation-report-timeline" data-test-id="request-timeline">
+        <div class="automation-report-timeline__viewport" data-test-id="request-timeline-viewport">
+            <div class="automation-report-timeline__axis" aria-hidden="true">
+                <div class="automation-report-timeline__axis-name">Action</div>
+                <div class="automation-report-timeline__axis-track"></div>
+                <div class="automation-report-timeline__axis-duration">Order</div>
+            </div>
+            ${rowsHtml}
+        </div>
+    </div>`;
+}
+
+/**
+ * Renders the request view: request-level cards, the rule tree grouped by stage and job, and the
+ * order-only request timeline.
+ *
+ * @param {object} data - The request payload.
+ * @returns {string} HTML markup for the request view.
+ */
+function writeRequestView(data) {
+    // Renders one rule as a plugin-style row without timing.
+    const writeRequestRule = (rule) => {
+        const name = rule.capabilities?.displayName || rule.pluginName || '?';
+        const argumentHtml = rule.argument
+            ? `<span class="automation-report-plugin-row__argument">&#x2022; ${convertToEscapedHtml(convertToTruncatedText(rule.argument, MAXIMUM_ARGUMENT_CHARACTERS))}</span>`
+            : '';
+        const elementHtml = rule.onElement
+            ? `<span class="automation-report-plugin-row__element">&#x2022; ${convertToEscapedHtml(convertToTruncatedText(rule.onElement, MAXIMUM_ELEMENT_CHARACTERS))}</span>`
+            : '';
+
+        return `
+        <div class="automation-report-plugin-row" data-test-id="request-rule-row">
+            <div class="automation-report-plugin-row__toggle"><span class="automation-report-plugin-row__toggle-spacer"></span></div>
+            ${writeStatusDot('unknown')}
+            <span class="automation-report-plugin-row__name">${convertToEscapedHtml(name)}</span>
+            ${argumentHtml}
+            ${elementHtml}
+            <span class="automation-report-plugin-row__spacer"></span>
+        </div>`;
+    };
+
+    // Renders one job header and its rules, expanded.
+    const writeRequestJob = (job) => {
+        const rules = job.rules || [];
+        const jobBodyId = newElementId('request-job');
+
+        return `
+        <div class="automation-report-tree-job" data-test-id="request-job">
+            <div class="automation-report-tree-job__header"
+                 data-report-action="toggle-section"
+                 data-report-target="${jobBodyId}"
+                 data-test-id="request-job-header">
+                ${writeChevron({ id: `${jobBodyId}-chevron`, isOpen: true })}
+                ${convertToEscapedHtml(job.reference?.name || 'Job')}
+                <span class="automation-report-meta-text">${rules.length} action${getPluralSuffix(rules.length)}</span>
+            </div>
+            <div id="${jobBodyId}">${rules.map(writeRequestRule).join('')}</div>
+        </div>`;
+    };
+
+    // Renders one stage header and its jobs, expanded.
+    const writeRequestStage = (stage) => {
+        const jobs = stage.jobs || [];
+        const stageBodyId = newElementId('request-stage');
+
+        return `
+        <div class="automation-report-tree-stage" data-test-id="request-stage">
+            <div class="automation-report-tree-stage__header"
+                 data-report-action="toggle-section"
+                 data-report-target="${stageBodyId}"
+                 data-test-id="request-stage-header">
+                ${writeChevron({ id: `${stageBodyId}-chevron`, isOpen: true })}
+                ${convertToEscapedHtml(stage.reference?.name || 'Stage')}
+                <span class="automation-report-meta-text">${jobs.length} job${getPluralSuffix(jobs.length)}</span>
+            </div>
+            <div id="${stageBodyId}">${jobs.map(writeRequestJob).join('')}</div>
+        </div>`;
+    };
+
+    // Count what the request contains.
+    const stages = data.stages || [];
+    const jobs = stages.flatMap(stage => stage.jobs || []);
+    const rules = jobs.flatMap(job => job.rules || []);
+
+    // Render the request cards; runtime values do not exist before a run, so they show a dash.
+    const cards = [
+        { label: 'Total Runtime', value: '-' },
+        { label: 'Avg. Action Time', value: '-' },
+        { label: 'Total Actions', value: `${rules.length}` },
+        { label: 'Total Exceptions', value: '-' },
+        { label: 'Failed Assertions', value: '-' },
+        { label: 'Total Timeouts', value: '-' }
+    ];
+    const cardsHtml = cards.map(card => `
+        <div class="automation-report-card" data-test-id="request-summary-card">
+            <div class="automation-report-card__label">${convertToEscapedHtml(card.label)}</div>
+            <div class="automation-report-card__value">${convertToEscapedHtml(card.value)}</div>
+        </div>`).join('');
+
+    // Summarize the counts in the rule tree header, then assemble the view.
+    const countsText = `${stages.length} stage${getPluralSuffix(stages.length)} \u2022 ${jobs.length} job${getPluralSuffix(jobs.length)} \u2022 ${rules.length} action${getPluralSuffix(rules.length)}`;
+
+    return `
+    <div class="automation-report-cards automation-report-cards--request" data-test-id="request-summary-cards">${cardsHtml}</div>
+    <g4-section open
+                section-title="Rule Tree"
+                test-id="rule-tree-section">
+        <span class="automation-report-meta-text" data-slot="header">${convertToEscapedHtml(countsText)}</span>
+        ${stages.map(writeRequestStage).join('')}
+    </g4-section>
+    <g4-section class="automation-report-section"
+                open
+                section-title="Execution Timeline"
+                test-id="request-timeline-section">
+        <span class="automation-report-meta-text" data-slot="header">${rules.length} action${getPluralSuffix(rules.length)}</span>
+        ${writeRequestTimeline(stages)}
+    </g4-section>`;
+}
+
+/**
+ * Renders one session: its title and info strip, summary cards, error summary, plugin tree,
+ * execution timeline, and assertions.
+ *
+ * @param {string} sessionId - The session id (a key of the sessions dictionary).
+ * @param {object} session - The session result.
+ * @returns {string} HTML markup for the session block.
+ */
+function writeSession(sessionId, session) {
+    // Finds the first extraction session that names a machine, for the machine and IP fields.
+    const findMachineInformation = (stages) => {
+        const plugins = stages
+            .flatMap(stage => stage.jobs || [])
+            .flatMap(job => getFlattenedPlugins(job.plugins));
+
+        for (const plugin of plugins) {
+            const extraction = (plugin?.extractions || []).find(item => item?.session?.machineName);
+
+            if (extraction) {
+                return extraction.session;
+            }
         }
 
-(() => {
-            // Renders the request configuration view.
-            //
-            // Behavior:
-            // - Reads driver and browser information from the resolved request schema.
-            // - Writes the request header into the `g4-header` container.
-            // - Writes the request body into the `app` container.
-            // - Uses `writeRequestView()` to render the request stages, jobs, and rules.
-            const resolveRequest = (schema) => {
-                // Resolve the request root object.
-                const root = schema.root || {};
+        return null;
+    };
 
-                // Resolve the configured driver.
-                // Falls back to an ASCII hyphen when the driver is missing.
-                const driver = root.driverParameters?.driver || '-';
+    // Renders one label/value pair of the session info strip.
+    const writeInformationItem = (label, value) => `
+        <div class="automation-report-session-info__item">
+            <div class="automation-report-session-info__label">${convertToEscapedHtml(label)}</div>
+            <div class="automation-report-session-info__value">${convertToEscapedHtml(value)}</div>
+        </div>`;
 
-                // Resolve the configured browser name from WebDriver capabilities.
-                // Falls back to an ASCII hyphen when the browser is missing.
-                const browser = root.driverParameters?.capabilities?.alwaysMatch?.browserName || '-';
+    // Collect the session's stages, jobs, plugins, assertions, and exceptions.
+    const performancePoint = session.performancePoint || {};
+    const stages = session.responseTree?.stages || [];
+    const jobs = stages.flatMap(stage => stage.jobs || []);
+    const plugins = jobs.flatMap(job => getFlattenedPlugins(job.plugins));
+    const assertions = jobs.flatMap(job => getAssertions(job.plugins));
+    const failedAssertions = assertions.filter(assertion => assertion.content?.Evaluation === false);
+    const passedCount = assertions.filter(assertion => assertion.content?.Evaluation === true).length;
+    const exceptions = plugins.flatMap(plugin => plugin.exceptions || []);
+    const safeSessionId = convertToEscapedHtml(sessionId);
+    const treeId = `tree-${safeSessionId}`;
 
-                // Render the request configuration header.
-                document.getElementById('g4-header').innerHTML = `
-                <g4-page-header meta="${clearString(driver)} &bull; ${clearString(browser)}"
-                                page-title="G4&#x2122; Request Configuration"
-                                test-id="request-configuration-header">
-                    <span class="tag tag-neutral">Request</span>
-                </g4-page-header>`;
+    // The info strip shows the machine only when an extraction reported one.
+    const machine = findMachineInformation(stages);
+    const machineHtml = machine
+        ? `${writeInformationItem('Machine', machine.machineName || '-')}${writeInformationItem('IP', machine.machineIp || '-')}`
+        : '';
 
-                // Render the request view into the main app container.
-                document.getElementById('app').innerHTML =
-                    `<div class="main">${writeRequestView(root)}</div>`;
-            };
+    // The error summary appears only when something failed; the assertion counts only when non-zero.
+    const isErrorSummaryNeeded = failedAssertions.length + exceptions.length > 0;
+    const errorSummaryHtml = isErrorSummaryNeeded
+        ? writeErrorSummary({ assertions: failedAssertions, exceptions, sessionId: safeSessionId })
+        : '';
+    const failedCountHtml = failedAssertions.length > 0
+        ? writeCount('error', `${failedAssertions.length} Fail${getPluralSuffix(failedAssertions.length)}`)
+        : '';
+    const passedCountHtml = passedCount > 0
+        ? writeCount('passed', `${passedCount} Pass${getPluralSuffix(passedCount, 'es')}`)
+        : '';
+    const treeCountsText = `${stages.length} stage${getPluralSuffix(stages.length)} \u2022 ${jobs.length} job${getPluralSuffix(jobs.length)} \u2022 ${plugins.length} total plugins`;
 
-            /**
-             * Renders the fallback view when the report data cannot be recognized.
-             *
-             * Behavior:
-             * - Shows the standard automation report header.
-             * - Displays a "No session data found" message in the header metadata.
-             * - Replaces the main app content with an error message.
-             * - Explains the expected G4 response shape.
-             */
-            const resolveNoData = () => {
-                // Render the fallback report header.
-                document.getElementById('g4-header').innerHTML = `
-                <g4-page-header meta="${clearString('No session data found')}"
-                                page-title="G4&#x2122; Automation Report"
-                                test-id="automation-report-header"></g4-page-header>`;
+    return `
+    <div data-test-id="session-${safeSessionId}">
+        <div class="automation-report-session-title">
+            <span class="automation-report-session-title__label">Session</span>
+            <span class="automation-report-session-title__id automation-report-monospace">${safeSessionId}</span>
+        </div>
+        <div class="automation-report-session-info" data-test-id="session-${safeSessionId}-information">
+            ${machineHtml}
+            ${writeInformationItem('Start', convertToTimeText(performancePoint.start))}
+            ${writeInformationItem('End', convertToTimeText(performancePoint.end))}
+            ${writeInformationItem('Plugins Run', `${plugins.length}`)}
+            ${writeInformationItem('Stages', `${stages.length}`)}
+            ${writeInformationItem('Jobs', `${jobs.length}`)}
+        </div>
+        ${writeCards(performancePoint, stages)}
+        ${errorSummaryHtml}
+        <g4-section class="automation-report-section automation-report-section--spaced"
+                    open
+                    section-title="Plugin Tree"
+                    test-id="plugin-tree-${safeSessionId}-section">
+            <span class="automation-report-meta-text" data-slot="header">${convertToEscapedHtml(treeCountsText)}</span>
+            <input type="text"
+                   class="automation-report-tree-filter"
+                   data-report-action="filter-tree"
+                   data-report-target="${treeId}"
+                   data-slot="header"
+                   data-test-id="plugin-tree-${safeSessionId}-filter-input"
+                   aria-label="Filter plugins"
+                   placeholder="Filter">
+            <div id="${treeId}" data-test-id="plugin-tree-${safeSessionId}">
+                ${writeTree(stages)}
+            </div>
+        </g4-section>
+        <g4-section class="automation-report-section"
+                    open
+                    section-title="Execution Timeline"
+                    test-id="execution-timeline-${safeSessionId}-section">
+            ${writeTimeline(stages, performancePoint.start, performancePoint.end)}
+        </g4-section>
+        <g4-section class="automation-report-section"
+                    flush
+                    open
+                    section-title="Assertions"
+                    test-id="assertions-${safeSessionId}-section">
+            ${failedCountHtml}
+            ${passedCountHtml}
+            ${writeAssertions(assertions)}
+        </g4-section>
+    </div>`;
+}
 
-                // Render the fallback body for unrecognized report formats.
-                document.getElementById('app').innerHTML = `
-                <div class="main">
-                    <div class="error-body">
-                        <div class="error-title">Unrecognized format</div>
-                        <div class="error-desc">Expected a G4 response with <code class="code-tag">sessions</code> and <code class="code-tag">responseTree</code> keys.</div>
-                    </div>
-                </div>`;
-            };
+/**
+ * Renders a small round status dot.
+ *
+ * @param {'passed'|'timeout'|'error'|'unknown'} status - The status; CSS maps it to the theme color.
+ * @returns {string} HTML markup for the dot.
+ */
+function writeStatusDot(status) {
+    return `<span class="automation-report-status automation-report-status--${status}" aria-hidden="true"></span>`;
+}
 
-            // Resolve the input data shape so the renderer knows whether this is
-            // a G4 request, a G4 response, or an unknown payload.
-            const schema = resolveSchema(DATA);
+/**
+ * Renders the execution timeline of one session as a waterfall trace view.
+ *
+ * Behavior:
+ * - Shows a sticky time axis with round tick steps, and one collapsible group row per stage and job.
+ * - Shows every action as one row: an indented tree on the left (children to the right of their
+ *   parent, with guide lines), its bar on the shared time axis, and its duration on the right.
+ * - Draws an action that has children as a span bracket, and a leaf action as a solid bar.
+ * - Colors an action's bar and row by its own status (passed, timeout, exception). The status dot
+ *   shows the worst status in the action's subtree, so a failure inside a collapsed action stays visible.
+ * - Starts with the stage/job groups and the first action level expanded; deeper levels start collapsed.
+ * - Fills the panel width (bars are positioned in percent) and scrolls inside its own viewport.
+ *
+ * @remarks
+ * Compute-only: it returns markup and owns no state. Rows are expanded and collapsed afterwards by
+ * updateTimelineRowExpansion and setTimelineExpansion, which change only the rendered DOM.
+ *
+ * @param {Array<object>|null|undefined} stages - The report stages to render.
+ * @param {string} sessionStart - The session start date/time.
+ * @param {string} sessionEnd - The session end date/time.
+ * @returns {string} HTML markup for the timeline section.
+ */
+function writeTimeline(stages, sessionStart, sessionEnd) {
+    // Ranks the statuses so the worst one in a subtree wins: an exception over a timeout over a pass.
+    const STATUS_RANKS = { error: 2, passed: 0, timeout: 1 };
 
-            // Use the resolved root object.
-            // For response data, this is the object that contains the sessions dictionary.
-            // For request data, this is the request configuration object.
-            const root = schema.root;
+    // Tooltip text per status.
+    const STATUS_TEXTS = { error: 'Failed', passed: 'Passed', timeout: 'Timed out' };
 
-            // Resolve the root-level performance point.
-            // This usually contains overall execution timing information for the report.
-            const performancePoint = root.performancePoint || {};
+    // Round axis steps in milliseconds; the axis uses the smallest step that keeps the interval count low.
+    const TICK_STEPS_MILLISECONDS = [
+        1, 2, 5, 10, 20, 50, 100, 200, 500,
+        1000, 2000, 5000, 10000, 15000, 30000,
+        60000, 120000, 300000, 600000, 900000, 1800000, 3600000
+    ];
 
-            // Resolve the sessions dictionary.
-            // Each key represents a session id and each value contains that session result.
-            const sessions = root.sessions || {};
+    // The largest number of axis intervals; more would crowd the tick labels on a narrow panel.
+    const MAXIMUM_TICK_INTERVALS = 8;
 
-            // Extract all available session ids from the sessions dictionary.
-            const sids = Object.keys(sessions);
+    // Action rows at this depth or deeper start collapsed, so only the first action level is open.
+    const COLLAPSED_ACTION_DEPTH = 1;
 
-            // If this payload is a request configuration, render the request view
-            // and stop because request data does not contain execution sessions.
-            if (schema.type === 'request') {
-                resolveRequest(schema);
-                return;
+    // Every start and end time seen, used to size the axis so no bar falls outside it.
+    const times = [];
+
+    // Converts a date/time into milliseconds, or returns the fallback when it is missing or invalid.
+    const getTime = (value, fallback) => {
+        const time = convertToTime(value);
+
+        return Number.isFinite(time)
+            ? time
+            : fallback;
+    };
+
+    // Picks the worst status of a list, so a parent can show a failure hidden in its subtree.
+    const getWorstStatus = (statuses) => {
+        let worstStatus = 'passed';
+
+        for (const status of statuses) {
+            const isWorse = STATUS_RANKS[status] > STATUS_RANKS[worstStatus];
+
+            if (isWorse) {
+                worstStatus = status;
+            }
+        }
+
+        return worstStatus;
+    };
+
+    // Reads the first exception's message for the tooltip; anything that is not text is left out.
+    const getExceptionMessage = (exceptions) => {
+        const message = exceptions[0]?.exception?.Message;
+
+        return typeof message === 'string'
+            ? message
+            : '';
+    };
+
+    // Converts one plugin (and its children) into a timeline node, recording its times for the axis.
+    const newNode = (plugin, depth) => {
+        // Resolve the identity shown in the row; the display name matches what the plugin tree shows.
+        const reference = plugin?.performancePoint?.reference || {};
+        const name = reference.name || plugin?.rule?.pluginName || '?';
+        const displayName = plugin?.rule?.capabilities?.displayName || name;
+
+        // Resolve the timing; an action without its own times falls back to the session bounds.
+        const start = getTime(plugin?.performancePoint?.start, sessionStartTime);
+        const end = getTime(plugin?.performancePoint?.end, sessionEndTime);
+
+        times.push(start, end);
+
+        // Build the children first so this node's subtree status is known.
+        const exceptions = plugin?.exceptions || [];
+        const status = getExceptionStatus(exceptions);
+        const children = (plugin?.plugins || []).map(child => newNode(child, depth + 1));
+        const worstStatus = getWorstStatus([status, ...children.map(child => child.worstStatus)]);
+
+        return {
+            children,
+            depth,
+            displayName,
+            end,
+            exceptionMessage: getExceptionMessage(exceptions),
+            name,
+            runTime: plugin?.performancePoint?.runTime,
+            start,
+            status,
+            worstStatus
+        };
+    };
+
+    // Formats an axis tick: milliseconds for sub-second steps, seconds below a minute, minutes above.
+    const formatTickText = (milliseconds, stepMilliseconds) => {
+        if (milliseconds === 0) {
+            return '0';
+        }
+
+        if (stepMilliseconds < 1000) {
+            return `${milliseconds} ms`;
+        }
+
+        if (stepMilliseconds < 60000) {
+            return `${milliseconds / 1000} s`;
+        }
+
+        return `${milliseconds / 60000} min`;
+    };
+
+    // Converts a time into a percent of the axis, clamped so a bar never leaves its track.
+    const getPercent = (time) => Math.min(100, Math.max(0, ((time - timelineStart) / span) * 100));
+
+    // Renders one row: tree cell (indent, chevron, status dot, label), bar on the time track, and duration.
+    const writeRow = (options) => {
+        const { childrenId, depth, durationText, end, isExpandable, isExpanded, kind, label, rowId, start, status, tooltip, worstStatus } = options;
+
+        // Expandable rows expose their state to assistive technology, toggle on click and on Enter/Space
+        // (through the delegated listeners), and take keyboard focus; leaf rows get none of these.
+        const toggleDataAttributes = isExpandable
+            ? `data-report-action="toggle-timeline-row"`
+            : '';
+        const toggleAriaAttributes = isExpandable
+            ? `aria-controls="${childrenId}"
+             aria-expanded="${isExpanded}"`
+            : '';
+        const focusAttribute = isExpandable
+            ? 'tabindex="0"'
+            : '';
+
+        // An expandable row shows a chevron; a leaf keeps the same space so labels stay aligned.
+        const toggleHtml = isExpandable
+            ? `<span class="automation-report-timeline__toggle">${writeChevron({ isOpen: isExpanded })}</span>`
+            : '<span class="automation-report-timeline__toggle" aria-hidden="true"></span>';
+
+        // A parent's bar is a span bracket over its children; a leaf's bar is solid.
+        const barKind = isExpandable
+            ? 'span'
+            : 'solid';
+        const barStart = getPercent(start);
+        const barWidth = Math.max(0, getPercent(end) - barStart);
+
+        return `
+        <div id="${rowId}"
+             class="automation-report-timeline__row automation-report-timeline__row--${kind} automation-report-timeline__row--${status}"
+             style="--automation-report-timeline-depth: ${depth}"
+             title="${convertToEscapedHtml(tooltip)}"
+             ${toggleDataAttributes}
+             data-test-id="execution-timeline-${rowId}-row"
+             ${toggleAriaAttributes}
+             aria-level="${depth + 1}"
+             role="treeitem"
+             ${focusAttribute}>
+            <div class="automation-report-timeline__name">
+                ${toggleHtml}
+                ${writeStatusDot(worstStatus)}
+                <span class="automation-report-timeline__label">${convertToEscapedHtml(label)}</span>
+            </div>
+            <div class="automation-report-timeline__track">
+                <span class="automation-report-timeline__bar automation-report-timeline__bar--${barKind} automation-report-timeline__bar--${status}"
+                      style="--automation-report-timeline-bar-start: ${barStart.toFixed(3)}%; --automation-report-timeline-bar-width: ${barWidth.toFixed(3)}%"></span>
+            </div>
+            <div class="automation-report-timeline__duration">${convertToEscapedHtml(durationText)}</div>
+        </div>`;
+    };
+
+    // Renders an action row and, recursively, its children inside a collapsible container.
+    const writeNode = (node) => {
+        // Give every row a unique id so its toggle and children container can find each other.
+        const rowId = newElementId(`${timelineId}-row`);
+        const childrenId = `${rowId}-children`;
+        const isExpandable = node.children.length > 0;
+        const isExpanded = node.depth < COLLAPSED_ACTION_DEPTH;
+
+        // Prefer the engine's own run time; fall back to the wall-clock span when it is missing.
+        const isRunTime = typeof node.runTime === 'number' && node.runTime > 0;
+        const durationTicks = isRunTime
+            ? node.runTime
+            : (node.end - node.start) * TICKS_PER_MILLISECOND;
+        const durationText = convertToDurationText(durationTicks);
+
+        // Explain the row in its tooltip: name, offset from the session start, duration, and status.
+        const nameText = node.displayName === node.name
+            ? node.name
+            : `${node.displayName} (${node.name})`;
+        const offsetText = `+${((node.start - timelineStart) / 1000).toFixed(3)} s`;
+        const messageText = node.exceptionMessage
+            ? `: ${node.exceptionMessage}`
+            : '';
+        const tooltip = `${nameText}\nStart: ${offsetText}   Duration: ${durationText}\n${STATUS_TEXTS[node.status]}${messageText}`;
+
+        // Render the children only when there are any, collapsed when this row starts collapsed.
+        const collapsedClass = isExpanded
+            ? ''
+            : ` ${COLLAPSED_CLASS}`;
+        const childrenHtml = isExpandable
+            ? `<div id="${childrenId}" class="automation-report-timeline__children${collapsedClass}" role="group">${node.children.map(writeNode).join('')}</div>`
+            : '';
+        const rowHtml = writeRow({
+            childrenId,
+            depth: node.depth + 1,
+            durationText,
+            end: node.end,
+            isExpandable,
+            isExpanded,
+            kind: 'action',
+            label: node.displayName,
+            rowId,
+            start: node.start,
+            status: node.status,
+            tooltip,
+            worstStatus: node.worstStatus
+        });
+
+        return `<div class="automation-report-timeline__node" role="none">${rowHtml}${childrenHtml}</div>`;
+    };
+
+    // Resolve the session bounds; actions without their own times fall back to them.
+    const sessionStartTime = getTime(sessionStart, Number.NaN);
+    const sessionEndTime = getTime(sessionEnd, Number.NaN);
+
+    // Build one group per stage and job, keeping the group's own times when the report has them.
+    const groups = [];
+
+    for (const stage of (stages || [])) {
+        for (const job of (stage.jobs || [])) {
+            const nodes = (job.plugins || []).map(plugin => newNode(plugin, 0));
+
+            if (nodes.length === 0) {
+                continue;
             }
 
-            // If there are no sessions, render the fallback/no-data view
-            // and stop because there is no execution data to display.
-            if (!sids.length) {
-                resolveNoData();
-                return;
-            }
+            // Label the group "Stage > Job" and span it over the job's own times, or its actions' times.
+            const stageName = typeof stage.name === 'string' ? stage.name : 'Stage';
+            const jobName = typeof job.name === 'string' ? job.name : 'Job';
+            const groupStart = getTime(job.performancePoint?.start, Math.min(...nodes.map(node => node.start)));
+            const groupEnd = getTime(job.performancePoint?.end, Math.max(...nodes.map(node => node.end)));
 
-            // Holds automation metadata used by the report header.
-            // It is resolved from the first available session/stage below.
-            let automationReference = {};
+            times.push(groupStart, groupEnd);
+            groups.push({ end: groupEnd, label: `${stageName} \u203A ${jobName}`, nodes, start: groupStart });
+        }
+    }
 
-            // Resolve automation metadata from the first session when possible.
-            if (sids.length) {
-                // Get the first session result from the sessions dictionary.
-                const first = sessions[sids[0]];
+    // Show an empty state when there is nothing with a time to place on the axis.
+    const knownTimes = [sessionStartTime, sessionEndTime, ...times].filter(Number.isFinite);
 
-                // Resolve the response stages from the first session response tree.
-                const stages = first.responseTree?.stages || [];
+    if (groups.length === 0 || knownTimes.length === 0) {
+        return '<div class="automation-report-empty-state" data-test-id="execution-timeline-empty-message">No timeline data.</div>';
+    }
 
-                // The automation reference is stored on the first stage.
-                if (stages.length) {
-                    automationReference = stages[0].automationReference || {};
-                }
-            }
+    // Size the axis to cover the session and every action, with at least 1 ms to avoid dividing by zero.
+    const timelineStart = Math.min(...knownTimes);
+    const timelineEnd = Math.max(...knownTimes);
+    const span = Math.max(timelineEnd - timelineStart, 1);
 
-            /**
-             * Renders all execution sessions into HTML.
-             *
-             * Behavior:
-             * - Iterates over all session ids from the response `sessions` dictionary.
-             * - Resolves session performance data, stages, jobs, plugins, assertions, and exceptions.
-             * - Renders machine information only when it exists.
-             * - Renders session summary cards, error summary, plugin tree, timeline, and assertions.
-             * - Separates sessions with a visual divider.
-             *
-             * Notes:
-             * - `sessions` is expected to be a dictionary/map where each key is a session id.
-             * - `findMachineInformation()` may return null, so machine fields must be rendered conditionally.
-             */
-            const sessionHtml = sids.map((sid) => {
-                // Resolve the current session from the sessions dictionary.
-                const session = sessions[sid] || {};
+    // Choose a round tick step and render the tick labels; the gridlines repeat at the same percent.
+    const tickStep = TICK_STEPS_MILLISECONDS.find(step => span / step <= MAXIMUM_TICK_INTERVALS)
+        ?? TICK_STEPS_MILLISECONDS.at(-1);
+    const tickPercent = (tickStep / span) * 100;
+    const ticksHtml = [];
 
-                // Resolve the session-level performance point.
-                const spp = session.performancePoint || {};
+    for (let milliseconds = 0; milliseconds <= span; milliseconds += tickStep) {
+        ticksHtml.push(`<span class="automation-report-timeline__tick" style="--automation-report-timeline-tick-position: ${((milliseconds / span) * 100).toFixed(3)}%">${formatTickText(milliseconds, tickStep)}</span>`);
+    }
 
-                // Resolve all stages from the session response tree.
-                const stages = session.responseTree?.stages || [];
+    // Render each stage/job group as an expanded header row with its actions nested below it.
+    const timelineId = newElementId('timeline');
+    const groupsHtml = groups.map((group) => {
+        const rowId = newElementId(`${timelineId}-row`);
+        const childrenId = `${rowId}-children`;
+        const durationText = convertToDurationText((group.end - group.start) * TICKS_PER_MILLISECOND);
+        const rowHtml = writeRow({
+            childrenId,
+            depth: 0,
+            durationText,
+            end: group.end,
+            isExpandable: true,
+            isExpanded: true,
+            kind: 'group',
+            label: group.label,
+            rowId,
+            start: group.start,
+            status: 'passed',
+            tooltip: `${group.label}\nDuration: ${durationText}`,
+            worstStatus: getWorstStatus(group.nodes.map(node => node.worstStatus))
+        });
 
-                // Flatten all jobs from all stages.
-                const allJobs = stages.flatMap(stage => stage.jobs || []);
+        return `
+        <div class="automation-report-timeline__node" role="none">
+            ${rowHtml}
+            <div id="${childrenId}" class="automation-report-timeline__children" role="group">${group.nodes.map(writeNode).join('')}</div>
+        </div>`;
+    }).join('');
 
-                // Flatten all plugins/actions from all jobs, including nested plugins.
-                const allPlugs = allJobs.flatMap(job => groupPlugins(job.plugins));
+    // Render the toolbar, the sticky axis, and the groups inside the timeline's own scroll viewport.
+    return `
+    <div id="${timelineId}"
+         class="automation-report-timeline"
+         style="--automation-report-timeline-tick-percent: ${tickPercent.toFixed(3)}%"
+         data-test-id="execution-timeline-${timelineId}">
+        <div class="automation-report-timeline__toolbar">
+            <button type="button"
+                    class="automation-report-timeline__toolbar-button"
+                    title="Expand every action in the timeline"
+                    data-report-action="expand-timeline"
+                    data-report-target="${timelineId}"
+                    data-test-id="execution-timeline-${timelineId}-expand-all-button">
+                Expand all
+            </button>
+            <button type="button"
+                    class="automation-report-timeline__toolbar-button"
+                    title="Collapse every action in the timeline"
+                    data-report-action="collapse-timeline"
+                    data-report-target="${timelineId}"
+                    data-test-id="execution-timeline-${timelineId}-collapse-all-button">
+                Collapse all
+            </button>
+        </div>
+        <div class="automation-report-timeline__viewport"
+             data-test-id="execution-timeline-${timelineId}-viewport"
+             aria-label="Execution timeline"
+             role="tree">
+            <div class="automation-report-timeline__axis" aria-hidden="true">
+                <div class="automation-report-timeline__axis-name">Action</div>
+                <div class="automation-report-timeline__axis-track">${ticksHtml.join('')}</div>
+                <div class="automation-report-timeline__axis-duration">Duration</div>
+            </div>
+            ${groupsHtml}
+        </div>
+    </div>`;
+}
 
-                // Collect all assertion/extraction entities from all jobs.
-                const asserts = allJobs.flatMap(job => groupAssertions(job.plugins));
+/**
+ * Renders the plugin tree: each stage and job as an expanded section, with the job's plugins below.
+ *
+ * @remarks
+ * The three slowest plugins of each job are passed down as hot so their durations stand out.
+ *
+ * @param {Array<object>|null|undefined} stages - The session stages.
+ * @returns {string} HTML markup for the tree, or an empty-state message.
+ */
+function writeTree(stages) {
+    // Renders one job section with its plugins; the job's slowest plugins are marked hot.
+    const writeTreeJob = (job) => {
+        const plugins = job.plugins || [];
+        const jobRunTime = job.performancePoint?.runTime || 0;
+        const jobBodyId = newElementId('job');
 
-                // Count failed assertions.
-                const fails = asserts
-                    .filter(assertion => assertion.content?.Evaluation === false)
-                    .length;
+        // Pick the job's slowest plugins (children included) so their durations are highlighted.
+        const getRunTime = plugin => plugin.performancePoint?.runTime || 0;
+        const hotPluginIds = new Set(getFlattenedPlugins(plugins)
+            .sort((left, right) => getRunTime(right) - getRunTime(left))
+            .slice(0, HOT_PLUGIN_COUNT)
+            .map(plugin => plugin.performancePoint?.reference?.id)
+            .filter(Boolean));
 
-                // Count passed assertions.
-                const passes = asserts
-                    .filter(assertion => assertion.content?.Evaluation === true)
-                    .length;
+        // Render the plugins under an expanded job header with their count and the job's run time.
+        const pluginsHtml = plugins
+            .map(plugin => writePlugin(plugin, { depth: 0, hotPluginIds, parentRunTime: jobRunTime }))
+            .join('');
 
-                // Keep only failed assertions for the error summary section.
-                const failedAsserts = asserts
-                    .filter(assertion => assertion.content?.Evaluation === false);
+        return `
+        <div class="automation-report-tree-job" data-test-id="plugin-tree-job">
+            <div class="automation-report-tree-job__header"
+                 data-report-action="toggle-section"
+                 data-report-target="${jobBodyId}"
+                 data-test-id="plugin-tree-job-header">
+                ${writeChevron({ id: `${jobBodyId}-chevron`, isOpen: true })}
+                ${convertToEscapedHtml(job.name)}
+                <span class="automation-report-meta-text">${plugins.length} plugin${getPluralSuffix(plugins.length)} &bull; ${convertToDurationText(jobRunTime)}</span>
+            </div>
+            <div id="${jobBodyId}">${pluginsHtml}</div>
+        </div>`;
+    };
 
-                // Collect all exceptions from all plugins/actions.
-                const allExceptions = allPlugs.flatMap(plugin => plugin.exceptions || []);
+    // Renders one stage section with its jobs.
+    const writeTreeStage = (stage) => {
+        const jobs = stage.jobs || [];
+        const stageBodyId = newElementId('stage');
 
-                // Resolve machine/session information when available.
-                const machine = findMachineInformation(stages);
+        return `
+        <div class="automation-report-tree-stage" data-test-id="plugin-tree-stage">
+            <div class="automation-report-tree-stage__header"
+                 data-report-action="toggle-section"
+                 data-report-target="${stageBodyId}"
+                 data-test-id="plugin-tree-stage-header">
+                ${writeChevron({ id: `${stageBodyId}-chevron`, isOpen: true })}
+                ${convertToEscapedHtml(stage.name)}
+                <span class="automation-report-meta-text">${jobs.length} job${getPluralSuffix(jobs.length)}</span>
+            </div>
+            <div id="${stageBodyId}">${jobs.map(writeTreeJob).join('')}</div>
+        </div>`;
+    };
 
-                // Escape the session id once because it is reused in ids, handlers, and visible text.
-                const safeSid = clearString(sid);
+    if (!stages?.length) {
+        return '<div class="automation-report-empty-state" data-test-id="plugin-tree-empty-message">No stages.</div>';
+    }
 
-                // Build plural suffixes for labels.
-                const stageSuffix = stages.length > 1 || stages.length === 0 ? 's' : '';
-                const jobSuffix = allJobs.length > 1 || allJobs.length === 0 ? 's' : '';
-                const failSuffix = fails > 1 || fails === 0 ? 's' : '';
-                const passSuffix = passes > 1 || passes === 0 ? 'es' : '';
+    return stages.map(writeTreeStage).join('');
+}
 
-                // Render machine details only when machine information exists.
-                // This prevents errors when findMachineInformation(stages) returns null.
-                const machineHtml = machine
-                    ? `
-                        <div class="si-item">
-                            <div class="si-label">Machine</div>
-                            <div class="si-value">${clearString(machine.machineName || '-')}</div>
-                        </div>
-                        <div class="si-item">
-                            <div class="si-label">IP</div>
-                            <div class="si-value">${clearString(machine.machineIp || '-')}</div>
-                        </div>`
-                    : '';
-
-                // Render the full session block.
-                return `
-                <div>
-                    <!-- Session title bar -->
-                    <div class="session-title-bar">
-                        <span class="session-label">Session</span>
-                        <span class="mono session-id">${safeSid}</span>
-                    </div>
-
-                    <!-- Session info strip -->
-                    <div class="session-info">
-                        ${machineHtml}
-
-                        <div class="si-item">
-                            <div class="si-label">Start</div>
-                            <div class="si-value">${clearString(formatTime(spp.start))}</div>
-                        </div>
-                        <div class="si-item">
-                            <div class="si-label">End</div>
-                            <div class="si-value">${clearString(formatTime(spp.end))}</div>
-                        </div>
-                        <div class="si-item">
-                            <div class="si-label">Plugins Run</div>
-                            <div class="si-value">${allPlugs.length}</div>
-                        </div>
-                        <div class="si-item">
-                            <div class="si-label">Stages</div>
-                            <div class="si-value">${stages.length}</div>
-                        </div>
-                        <div class="si-item">
-                            <div class="si-label">Jobs</div>
-                            <div class="si-value">${allJobs.length}</div>
-                        </div>
-                    </div>
-
-                    <!-- Stat cards -->
-                    ${writeCards(spp, stages)}
-
-                    <!-- Error summary -->
-                    ${(failedAsserts.length + allExceptions.length) > 0
-                        ? writeErrorSummary(failedAsserts, allExceptions, sid)
-                        : ''}
-
-                    <!-- Plugin tree -->
-                    <g4-section class="section-mt-lg"
-                                open
-                                section-title="Plugin Tree"
-                                test-id="plugin-tree-${safeSid}-section">
-                        <span class="meta-text" data-slot="header">${stages.length} stage${stageSuffix} &bull; ${allJobs.length} job${jobSuffix} &bull; ${allPlugs.length} total plugins</span>
-                        <input type="text"
-                               class="tree-filter"
-                               data-slot="header"
-                               data-test-id="plugin-tree-${safeSid}-filter-input"
-                               aria-label="Filter plugins"
-                               oninput="filterTree('${safeSid}', this.value)"
-                               placeholder="Filter" />
-                        <div id="tr-${safeSid}">
-                            ${writeTree(stages)}
-                        </div>
-                    </g4-section>
-
-                    <!-- Execution timeline -->
-                    <g4-section class="section-mt"
-                                open
-                                section-title="Execution Timeline"
-                                test-id="execution-timeline-${safeSid}-section">
-                        ${writeTimeline(stages, spp.start, spp.end)}
-                    </g4-section>
-
-                    <!-- Assertions -->
-                    <g4-section class="section-mt"
-                                flush
-                                open
-                                section-title="Assertions"
-                                test-id="assertions-${safeSid}-section">
-                        ${fails > 0 ? `<span class="assert-count" data-slot="header">${LED('#ef4444')}${fails} Fail${failSuffix}</span>` : ''}
-                        ${passes > 0 ? `<span class="assert-count" data-slot="header">${LED('#22c55e')}${passes} Pass${passSuffix}</span>` : ''}
-                        ${writeAssertions(asserts)}
-                    </g4-section>
-                </div>`;
-            }).join('<div class="session-divider"></div>');
-
-            // Render the report header into the header container.
-            // The header includes automation metadata such as the automation name
-            // and the root performance start time.
-            document.getElementById('g4-header').innerHTML =
-                renderHeader(automationReference, performancePoint);
-
-            // Render all session report sections into the main application container.
-            // `sessionHtml` already contains the full HTML for each session, including
-            // summary cards, plugin tree, timeline, assertions, and error summary.
-            document.getElementById('app').innerHTML =
-                `<div class="main">${sessionHtml}</div>`;
-        })();
-
+// Render the report once the script loads; the injected data is already in the page.
+startReport();

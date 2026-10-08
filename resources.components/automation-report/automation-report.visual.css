@@ -1,121 +1,258 @@
-﻿body {
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground)
-        }
+/*
+ * Automation report visual language: fonts, colors, border colors, radii, cursors, and hover/focus
+ * states. Every value comes from automation-report.parameters.css.
+ */
+@font-face {
+    font-family: 'Inter';
+    src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
 
+body {
+    font-family: var(--automation-report-font-family);
+    color: var(--automation-report-foreground);
+    background-color: var(--automation-report-background);
+}
 
-        .card {
-            background-color: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-panel-border)
-        }
+/* Page */
+.automation-report-monospace,
+.automation-report-session-info__value,
+.automation-report-plugin-row__argument,
+.automation-report-plugin-row__element,
+.automation-report-exception-stack {
+    font-family: var(--automation-report-monospace-font-family);
+}
 
-        .card-label {
-            color: var(--vscode-descriptionForeground)
-        }
+.automation-report-empty-state,
+.automation-report-card__label,
+.automation-report-session-info__label,
+.automation-report-plugin-row__argument,
+.automation-report-plugin-row__element,
+.automation-report-plugin-row__duration {
+    color: var(--automation-report-muted-foreground);
+}
 
+.automation-report-empty-state {
+    font-style: italic;
+}
 
+.automation-report-error {
+    border-color: var(--automation-report-error-border-color);
+}
 
+.automation-report-session-divider {
+    border-top-color: var(--automation-report-divider-color);
+}
 
-        .si-label {
-            color: var(--vscode-descriptionForeground)
-        }
+/* Summary cards */
+.automation-report-card {
+    background-color: var(--automation-report-card-background);
+    border-color: var(--automation-report-border-color);
+}
 
-        .plugin-row:hover {
-            background-color: var(--vscode-list-hoverBackground)
-        }
+/* Tags and status dots */
+.automation-report-tag {
+    color: var(--automation-report-tag-foreground);
+    background-color: var(--automation-report-tag-background);
+    border-color: var(--automation-report-border-color);
+}
 
-        .p-arg {
-            color: var(--vscode-descriptionForeground)
-        }
+.automation-report-status {
+    border-radius: 50%;
+}
 
-        .p-elem {
-            color: var(--vscode-descriptionForeground)
-        }
+.automation-report-status--passed {
+    background-color: var(--automation-report-status-passed-color);
+}
 
-        .p-dur {
-            color: var(--vscode-descriptionForeground)
-        }
+.automation-report-status--timeout {
+    background-color: var(--automation-report-status-timeout-color);
+}
 
-        .p-badge {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-status--error {
+    background-color: var(--automation-report-status-error-color);
+}
 
-        .p-bar-wrap {
-            border: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-status--unknown {
+    background-color: var(--automation-report-status-unknown-color);
+}
 
-        .p-runtime {
-            background-color: transparent;
-            color: var(--vscode-progressBar-background)
-        }
+/* Chevron */
+.automation-report-chevron {
+    font-style: normal;
+}
 
-        .p-runtime::-webkit-progress-bar {
-            background-color: transparent
-        }
+/* Plugin tree */
+.automation-report-tree-stage__header,
+.automation-report-tree-job__header,
+.automation-report-plugin-row,
+.automation-report-table__stack-toggle {
+    cursor: pointer;
+}
 
-        .p-runtime::-webkit-progress-value {
-            background-color: var(--vscode-progressBar-background)
-        }
+.automation-report-plugin-row:hover {
+    background-color: var(--automation-report-row-hover-background);
+}
 
-        .p-runtime::-moz-progress-bar {
-            background-color: var(--vscode-progressBar-background)
-        }
+.automation-report-plugin-row__bar-track {
+    border-color: var(--automation-report-border-color);
+}
 
-        .p-dot {
-            border: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-plugin-row__runtime {
+    color: var(--automation-report-runtime-bar-color);
+    background-color: transparent;
+}
 
-        .tag-pass {
-            border: 1px solid var(--vscode-testing-iconPassed)
-        }
+.automation-report-plugin-row__runtime::-webkit-progress-bar {
+    background-color: transparent;
+}
 
-        .tag-fail {
-            border: 1px solid var(--vscode-testing-iconFailed)
-        }
+.automation-report-plugin-row__runtime::-webkit-progress-value {
+    background-color: var(--automation-report-runtime-bar-color);
+}
 
-        .tag-neutral {
-            background-color: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            border: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-plugin-row__runtime::-moz-progress-bar {
+    background-color: var(--automation-report-runtime-bar-color);
+}
 
-        .assert-tbl th {
-            background-color: var(--vscode-sideBar-background);
-            color: var(--vscode-descriptionForeground);
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-plugin-row__duration--hot {
+    color: var(--automation-report-hot-foreground);
+}
 
-        .assert-tbl td {
-            border-bottom: 1px solid var(--vscode-panel-border)
-        }
+.automation-report-tree-filter {
+    font-family: inherit;
+    color: inherit;
+    background-color: transparent;
+    border-color: var(--automation-report-filter-border-color);
+    outline: none;
+}
 
-        .assert-tbl tr:last-child td {
-            border-bottom: none
-        }
+.automation-report-tree-filter:focus {
+    border-color: var(--automation-report-filter-focus-border-color);
+}
 
-        .assert-tbl tr:hover td {
-            background-color: var(--vscode-list-hoverBackground)
-        }
+/* Tables */
+.automation-report-table th {
+    color: var(--automation-report-muted-foreground);
+    background-color: var(--automation-report-table-header-background);
+    border-bottom-color: var(--automation-report-border-color);
+}
 
-        .no-data {
-            color: var(--vscode-descriptionForeground)
-        }
+.automation-report-table td {
+    border-bottom-color: var(--automation-report-border-color);
+}
 
-        .error-body {
-            border: 1px solid
-        }
+.automation-report-table tr:hover td {
+    background-color: var(--automation-report-row-hover-background);
+}
 
-        .session-divider {
-            border-top: 1px solid
-        }
+/* Execution timeline (waterfall) */
+.automation-report-timeline {
+    font-family: var(--automation-report-timeline-font-family);
+}
 
-        .tree-filter {
-            border: 1px solid var(--vscode-input-border, var(--vscode-panel-border))
-        }
+.automation-report-timeline__toolbar-button {
+    color: var(--automation-report-timeline-button-foreground);
+    background-color: var(--automation-report-timeline-button-background);
+    border-color: var(--automation-report-timeline-border-color);
+    border-radius: 2px;
+    cursor: pointer;
+}
 
-        .tree-filter:focus {
-            border-color: var(--vscode-focusBorder)
-        }
+.automation-report-timeline__toolbar-button:hover {
+    background-color: var(--automation-report-timeline-button-hover-background);
+}
 
+.automation-report-timeline__toolbar-button:focus-visible {
+    outline: 1px solid var(--automation-report-timeline-focus-outline-color);
+    outline-offset: 1px;
+}
+
+.automation-report-timeline__viewport {
+    border-color: var(--automation-report-timeline-border-color);
+}
+
+.automation-report-timeline__axis {
+    color: var(--automation-report-timeline-axis-foreground);
+    background-color: var(--automation-report-timeline-axis-background);
+    border-bottom-color: var(--automation-report-timeline-border-color);
+}
+
+/* Vertical gridlines repeat at the tick step, so they line up with the axis labels in every row. */
+.automation-report-timeline__track {
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--automation-report-timeline-grid-color) 0 1px,
+        transparent 1px var(--automation-report-timeline-tick-percent));
+}
+
+/* Tree guide lines: one vertical line per ancestor level, centered under each ancestor's chevron. */
+.automation-report-timeline__name {
+    background-image: repeating-linear-gradient(
+        to right,
+        var(--automation-report-timeline-guide-color) 0 1px,
+        transparent 1px var(--automation-report-timeline-indent-step));
+    background-position: 14px 0;
+    background-repeat: no-repeat;
+    background-size: calc(var(--automation-report-timeline-depth) * var(--automation-report-timeline-indent-step)) 100%;
+}
+
+.automation-report-timeline__row--group {
+    background-color: var(--automation-report-timeline-group-background);
+}
+
+.automation-report-timeline__row--error {
+    background-color: var(--automation-report-timeline-row-error-background);
+}
+
+.automation-report-timeline__row--timeout {
+    background-color: var(--automation-report-timeline-row-timeout-background);
+}
+
+.automation-report-timeline__row:hover {
+    background-color: var(--automation-report-timeline-row-hover-background);
+}
+
+.automation-report-timeline__row[aria-expanded] {
+    cursor: pointer;
+}
+
+.automation-report-timeline__row:focus-visible {
+    outline: 1px solid var(--automation-report-timeline-focus-outline-color);
+    outline-offset: -1px;
+}
+
+.automation-report-timeline__duration {
+    color: var(--automation-report-timeline-duration-foreground);
+}
+
+.automation-report-timeline__bar {
+    background-color: var(--automation-report-timeline-bar-passed-background);
+    border-radius: 2px;
+}
+
+.automation-report-timeline__bar--timeout {
+    background-color: var(--automation-report-timeline-bar-timeout-background);
+}
+
+.automation-report-timeline__bar--error {
+    background-color: var(--automation-report-timeline-bar-error-background);
+}
+
+/* A parent's span bracket: a thin centered line with end caps, in the status color (currentColor). */
+.automation-report-timeline__bar--span {
+    color: var(--automation-report-timeline-bar-passed-background);
+    background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
+    border-color: currentColor;
+    border-radius: 0;
+}
+
+.automation-report-timeline__bar--span.automation-report-timeline__bar--timeout {
+    color: var(--automation-report-timeline-bar-timeout-background);
+}
+
+.automation-report-timeline__bar--span.automation-report-timeline__bar--error {
+    color: var(--automation-report-timeline-bar-error-background);
+}

@@ -588,7 +588,13 @@ function getManifestValues() {
             } else if (property.kind === 'markdown' || property.kind === 'lines') {
                 parameter[property.name] = convertToLines(rawValue);
             } else {
-                parameter[property.name] = rawValue.trim();
+                // An empty text field is left out rather than sent as "", so the Hub applies its own
+                // default (for example type "Any").
+                const text = rawValue.trim();
+
+                if (text !== '') {
+                    parameter[property.name] = text;
+                }
             }
         }
 
@@ -600,12 +606,16 @@ function getManifestValues() {
         }
 
         // Value cards back to PluginParameterModel items; properties the card does not show are kept.
-        parameter[PARAMETER_VALUES_PROPERTY] = row.values.map((valueRow) => ({
-            ...valueRow.extra,
-            name: valueRow.name.trim(),
-            displayName: valueRow.displayName.trim(),
-            description: convertToLines(valueRow.description)
-        }));
+        parameter[PARAMETER_VALUES_PROPERTY] = row.values.map((valueRow) => {
+            const displayName = valueRow.displayName.trim();
+
+            return {
+                ...valueRow.extra,
+                name: valueRow.name.trim(),
+                ...(displayName === '' ? {} : { displayName }),
+                description: convertToLines(valueRow.description)
+            };
+        });
 
         return parameter;
     };

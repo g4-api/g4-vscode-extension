@@ -1,3 +1,73 @@
-﻿:root {
+/*
+ * Automation report parameters.
+ *
+ * Every color maps to the VS Code theme, so the report follows light, dark, and high-contrast themes.
+ * The page components (g4-page-header, g4-section) carry their own parameters; these values cover
+ * what the report itself draws: cards, the plugin tree, tables, status dots, and the timelines.
+ */
+:root {
+    /* Typography */
     --automation-report-font-family: 'Inter', sans-serif;
+    --automation-report-monospace-font-family: 'Consolas', monospace;
+
+    /* Page */
+    --automation-report-background: var(--vscode-editor-background);
+    --automation-report-border-color: var(--vscode-panel-border);
+    --automation-report-divider-color: currentColor;
+    --automation-report-foreground: var(--vscode-editor-foreground);
+    --automation-report-muted-foreground: var(--vscode-descriptionForeground);
+
+    /* Cards, tags, and the error state */
+    --automation-report-card-background: var(--vscode-editor-background);
+    --automation-report-error-border-color: currentColor;
+    --automation-report-tag-background: var(--vscode-badge-background);
+    --automation-report-tag-foreground: var(--vscode-badge-foreground);
+
+    /* Plugin tree */
+    --automation-report-filter-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --automation-report-filter-focus-border-color: var(--vscode-focusBorder);
+    --automation-report-hot-foreground: var(--vscode-editorWarning-foreground);
+    --automation-report-row-hover-background: var(--vscode-list-hoverBackground);
+    --automation-report-runtime-bar-color: var(--vscode-progressBar-background);
+
+    /* Tables */
+    --automation-report-table-header-background: var(--vscode-sideBar-background);
+
+    /* Status dots (plugin tree, counts, assertions, timeline) */
+    --automation-report-status-error-color: var(--vscode-testing-iconFailed, #ef4444);
+    --automation-report-status-passed-color: var(--vscode-testing-iconPassed, #22c55e);
+    --automation-report-status-timeout-color: var(--vscode-editorWarning-foreground, #eab308);
+    --automation-report-status-unknown-color: currentColor;
+
+    /* Execution timeline */
+    --automation-report-timeline-axis-background: var(--vscode-sideBar-background);
+    --automation-report-timeline-axis-foreground: var(--vscode-descriptionForeground);
+    --automation-report-timeline-bar-error-background: var(--vscode-testing-iconFailed, #ef4444);
+    --automation-report-timeline-bar-passed-background: var(--vscode-progressBar-background, #0e70c0);
+    --automation-report-timeline-bar-timeout-background: var(--vscode-editorWarning-foreground, #eab308);
+    --automation-report-timeline-border-color: var(--vscode-panel-border);
+    --automation-report-timeline-button-background: var(--vscode-button-secondaryBackground);
+    --automation-report-timeline-button-foreground: var(--vscode-button-secondaryForeground);
+    --automation-report-timeline-button-hover-background: var(--vscode-button-secondaryHoverBackground);
+    --automation-report-timeline-duration-foreground: var(--vscode-descriptionForeground);
+    --automation-report-timeline-focus-outline-color: var(--vscode-focusBorder);
+    --automation-report-timeline-font-family: var(--automation-report-font-family);
+    --automation-report-timeline-grid-color: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+    --automation-report-timeline-group-background: color-mix(in srgb, var(--vscode-editor-foreground) 5%, transparent);
+    --automation-report-timeline-guide-color: var(--vscode-tree-indentGuidesStroke, rgba(128, 128, 128, 0.4));
+    --automation-report-timeline-row-error-background: color-mix(in srgb, var(--vscode-testing-iconFailed, #ef4444) 10%, transparent);
+    --automation-report-timeline-row-hover-background: var(--vscode-list-hoverBackground);
+    --automation-report-timeline-row-timeout-background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #eab308) 10%, transparent);
+
+    /* Sizes shared by layout (indentation) and visual (timeline guide lines) */
+    --automation-report-timeline-indent-step: 16px;
+    --automation-report-timeline-name-column-width: minmax(220px, 32%);
+
+    /* Per-element values; the script sets them inline on each plugin row, timeline row, bar, and tick */
+    --automation-report-plugin-depth: 0;
+    --automation-report-timeline-bar-start: 0%;
+    --automation-report-timeline-bar-width: 0%;
+    --automation-report-timeline-depth: 0;
+    --automation-report-timeline-tick-percent: 100%;
+    --automation-report-timeline-tick-position: 0%;
 }
