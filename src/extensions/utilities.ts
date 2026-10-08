@@ -593,6 +593,43 @@ export class Utilities {
     }
 
     /**
+     * Tests whether a URI points to a saved report under the reports folder of a workspace folder.
+     *
+     * @remarks
+     * Shared by the Explorer menu list, the Open in Report Viewer command, and the report viewer, so
+     * all three accept the same files. Unlike {@link Utilities.testBotFile}, the folder is anchored:
+     * `reports` must be the first segment below a workspace folder, so `reports/a.g4rpt` and
+     * `reports/sub/b.g4rpt` match but `src/reports/c.g4rpt` does not.
+     *
+     * @param uri - Resource to test.
+     * @returns True when the URI is a local .g4rpt file below `<workspace folder>/reports`.
+     */
+    public static testReportFile(uri: vscode.Uri): boolean {
+        // Only local .g4rpt files can be saved reports.
+        if (uri.scheme !== 'file' || path.extname(uri.fsPath).toLowerCase() !== '.g4rpt') {
+            return false;
+        }
+
+        // The first segment below some workspace folder must be the reports folder.
+        // Separators are runs of forward or back slashes; linear, one character class.
+        const pathSeparatorPattern = /[\\/]+/;
+        const folders = vscode.workspace.workspaceFolders ?? [];
+
+        return folders.some(folder => {
+            const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+            const isOutsideFolder = !relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath);
+
+            if (isOutsideFolder) {
+                return false;
+            }
+
+            const segments = relativePath.split(pathSeparatorPattern);
+
+            return segments.length > 1 && segments[0].toLowerCase() === 'reports';
+        });
+    }
+
+    /**
      * Resolves the absolute path to a specified system folder within the current workspace.
      *
      * @param folder - The folder name to resolve. Valid options:

@@ -18,6 +18,7 @@ import { SyncCacheCommand } from './commands/sync-cache';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
+import { G4ReportCustomEditorProvider } from './providers/g4-report-custom-editor-provider';
 import { G4HubService, G4ProjectManifest } from './services/g4-hub-service';
 import { G4SettingsService } from './services/g4-settings-service';
 
@@ -156,6 +157,22 @@ const registerCommands = (options: {
     );
     options.context.subscriptions.push(openBotInWorkflow);
 
+    // Command to open a saved .g4rpt report in the report viewer.
+    const openReportViewer = vscode.commands.registerCommand(
+        'Open-Report-Viewer',
+        async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+            if (!targetUri || !Utilities.testReportFile(targetUri)) {
+                vscode.window.showWarningMessage('Select a .g4rpt file under the reports folder.');
+                return;
+            }
+
+            await vscode.commands.executeCommand('vscode.openWith', targetUri, G4ReportCustomEditorProvider.VIEW_TYPE);
+        }
+    );
+    options.context.subscriptions.push(openReportViewer);
+
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
 
@@ -221,6 +238,54 @@ const registerProviders = (options: {
 
     // Register the custom workflow editor for G4 bot workflow files.
     new G4WorkflowCustomEditorProvider(options.context, options.baseUri).register();
+
+    // Register the report viewer for saved .g4rpt reports, and keep the Explorer menu's list of
+    // report files current.
+    new G4ReportCustomEditorProvider(options.context).register();
+    registerReportFilesContext(options.context);
+};
+
+/**
+ * Keeps the `g4.reportFiles` context key listing every `<workspace folder>/reports/**\/*.g4rpt` file.
+ *
+ * @remarks
+ * The Explorer menu's `when` clause cannot anchor a folder to a workspace root, so the menu tests
+ * `resourcePath in g4.reportFiles` instead. The list is rebuilt (debounced) whenever anything below
+ * a reports folder is created or deleted, and when workspace folders change.
+ *
+ * @param context - Extension context that owns the watcher and listeners.
+ */
+const registerReportFilesContext = (context: vscode.ExtensionContext): void => {
+    let timer: NodeJS.Timeout | undefined;
+
+    // Publishes the current report files as an object keyed by path, the shape `in` tests.
+    const updateReportFiles = async (): Promise<void> => {
+        const uris = await vscode.workspace.findFiles('**/reports/**/*.g4rpt');
+        const reportFiles = Object.fromEntries(uris
+            .filter(uri => Utilities.testReportFile(uri))
+            .map(uri => [uri.fsPath, true]));
+
+        await vscode.commands.executeCommand('setContext', 'g4.reportFiles', reportFiles);
+    };
+
+    // Coalesces bursts of file events (a run saving, a folder deleted) into one rebuild.
+    const scheduleUpdate = (): void => {
+        clearTimeout(timer);
+        timer = setTimeout(() => void updateReportFiles(), 300);
+    };
+
+    // Watch whole reports trees so folder renames and deletions also refresh the list.
+    const watcher = vscode.workspace.createFileSystemWatcher('**/reports/**');
+
+    context.subscriptions.push(
+        watcher,
+        watcher.onDidCreate(scheduleUpdate),
+        watcher.onDidDelete(scheduleUpdate),
+        vscode.workspace.onDidChangeWorkspaceFolders(scheduleUpdate),
+        { dispose: () => clearTimeout(timer) }
+    );
+
+    void updateReportFiles();
 };
 
 /**

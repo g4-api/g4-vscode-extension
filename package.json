@@ -85,6 +85,11 @@
                 "command": "Open-Template-Publisher",
                 "category": "G4",
                 "title": "Open in Template Publisher"
+            },
+            {
+                "command": "Open-Report-Viewer",
+                "category": "G4",
+                "title": "Open in Report Viewer"
             }
         ],
         "grammars": [
@@ -177,6 +182,11 @@
                     "command": "Show-Settings",
                     "group": "navigation",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceFilename == manifest.json"
+                },
+                {
+                    "command": "Open-Report-Viewer",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .g4rpt && resourcePath in g4.reportFiles"
                 }
             ],
             "commandPalette": [
@@ -194,6 +204,10 @@
                 },
                 {
                     "command": "Open-Template-Publisher",
+                    "when": "false"
+                },
+                {
+                    "command": "Open-Report-Viewer",
                     "when": "false"
                 }
             ]
@@ -214,6 +228,16 @@
                     },
                     {
                         "filenamePattern": "**/bots/**/*.g4bot"
+                    }
+                ],
+                "priority": "default"
+            },
+            {
+                "viewType": "g4.reportViewer",
+                "displayName": "G4 Report Viewer",
+                "selector": [
+                    {
+                        "filenamePattern": "**/reports/**/*.g4rpt"
                     }
                 ],
                 "priority": "default"
