@@ -107,9 +107,8 @@ export class ShowSettingsCommand extends CommandBase {
                 // Allow scripts to run inside the settings webview.
                 enableScripts: true,
 
-                // Allow the component CSS/JS and shared font resources to load.
+                // Allow the component CSS/JS to load.
                 localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
                     vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
                 ],
 

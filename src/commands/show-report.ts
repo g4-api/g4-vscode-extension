@@ -86,9 +86,8 @@ export class ShowReportCommand extends CommandBase {
                 // Allow scripts to run inside the report webview.
                 enableScripts: true,
 
-                // Allow the component CSS/JS and shared font resources to load.
+                // Allow the component CSS/JS to load.
                 localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
                     vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
                 ],
 
@@ -110,7 +109,7 @@ export class ShowReportCommand extends CommandBase {
      * @remarks
      * Shared by this command (the report shown after a run) and the report custom editor (a saved
      * .g4rpt file), so both render the same page. The webview must allow scripts and the
-     * `resources.components` and `resources.fonts` roots.
+     * `resources.components` root.
      *
      * @param webview - Webview that will host the report; used to resolve resource URIs.
      * @param context - The VS Code extension context.

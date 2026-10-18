@@ -671,7 +671,6 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             {
                 enableScripts: true,
                 localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
                     vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
                 ],
                 retainContextWhenHidden: true

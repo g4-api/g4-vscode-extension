@@ -2,14 +2,6 @@
  * Flow publisher visual language: the page font and colors, link-colored facts, and links. The G4
  * components draw their own look.
  */
-@font-face {
-    font-family: 'Inter';
-    src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-}
-
 body {
     font-family: var(--template-publisher-font-family);
     background-color: var(--template-publisher-background);

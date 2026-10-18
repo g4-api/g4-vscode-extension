@@ -283,7 +283,6 @@
         "resources.components/**",
         "resources.docs/**",
         "resources.examples/**",
-        "resources.fonts/**",
         "languages/**",
         "dist/**",
         "node_modules/**",

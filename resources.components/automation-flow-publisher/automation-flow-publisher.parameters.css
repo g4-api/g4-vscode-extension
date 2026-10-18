@@ -7,7 +7,7 @@
  */
 :root {
     /* Typography */
-    --flow-publisher-font-family: 'Inter', sans-serif;
+    --flow-publisher-font-family: var(--vscode-font-family);
 
     /* Page */
     --flow-publisher-background: var(--vscode-editor-background);

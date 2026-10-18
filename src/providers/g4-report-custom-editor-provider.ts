@@ -94,7 +94,6 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
         webviewPanel.webview.options = {
             enableScripts: true,
             localResourceRoots: [
-                vscode.Uri.joinPath(this._context.extensionUri, 'resources.fonts'),
                 vscode.Uri.joinPath(this._context.extensionUri, 'resources.components')
             ]
         };

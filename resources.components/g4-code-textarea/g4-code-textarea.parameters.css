@@ -5,7 +5,7 @@
     --g4-code-textarea-background: var(--vscode-input-background, transparent);
     --g4-code-textarea-border-color: var(--vscode-input-border, var(--vscode-panel-border));
     --g4-code-textarea-focus-border-color: var(--vscode-focusBorder);
-    --g4-code-textarea-font-family: 'Consolas', monospace;
+    --g4-code-textarea-font-family: var(--vscode-editor-font-family, monospace);
     --g4-code-textarea-radius: 2px;
     --g4-code-textarea-tool-background: var(--vscode-input-background, var(--vscode-editor-background));
     --g4-code-textarea-tool-border-color: var(--vscode-panel-border);

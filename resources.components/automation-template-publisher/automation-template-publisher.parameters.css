@@ -7,7 +7,7 @@
  */
 :root {
     /* Typography */
-    --template-publisher-font-family: 'Inter', sans-serif;
+    --template-publisher-font-family: var(--vscode-font-family);
 
     /* Page */
     --template-publisher-background: var(--vscode-editor-background);

@@ -7,7 +7,7 @@
  */
 :root {
     /* Typography */
-    --settings-font-family: 'Inter', sans-serif;
+    --settings-font-family: var(--vscode-font-family);
 
     /* Page */
     --settings-background: var(--vscode-editor-background);

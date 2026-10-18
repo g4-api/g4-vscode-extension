@@ -7,8 +7,8 @@
  */
 :root {
     /* Typography */
-    --automation-report-font-family: 'Inter', sans-serif;
-    --automation-report-monospace-font-family: 'Consolas', monospace;
+    --automation-report-font-family: var(--vscode-font-family);
+    --automation-report-monospace-font-family: var(--vscode-editor-font-family, monospace);
 
     /* Page */
     --automation-report-background: var(--vscode-editor-background);

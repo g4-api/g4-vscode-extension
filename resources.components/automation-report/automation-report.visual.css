@@ -2,14 +2,6 @@
  * Automation report visual language: fonts, colors, border colors, radii, cursors, and hover/focus
  * states. Every value comes from automation-report.parameters.css.
  */
-@font-face {
-    font-family: 'Inter';
-    src: url('../../resources.fonts/inter-variable.ttf') format('truetype');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-}
-
 body {
     font-family: var(--automation-report-font-family);
     color: var(--automation-report-foreground);

@@ -10,6 +10,6 @@
     --g4-card-button-hover-background: var(--vscode-list-hoverBackground);
     --g4-card-button-radius: 2px;
     --g4-card-disabled-opacity: .6;
-    --g4-card-monospace-font-family: 'Consolas', monospace;
+    --g4-card-monospace-font-family: var(--vscode-editor-font-family, monospace);
     --g4-card-warning-foreground: var(--vscode-editorWarning-foreground, #cca700);
 }
