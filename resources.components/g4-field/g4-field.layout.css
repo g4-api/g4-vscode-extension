@@ -1,0 +1,48 @@
+/*
+ * G4 field layout: label, hint, control, and error line stacked with an even gap. A field is
+ * followed by the same gap as its siblings, except when it is the last one.
+ */
+g4-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+g4-field:last-child {
+    margin-bottom: 0;
+}
+
+.g4-field__label {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.g4-field__required {
+    font-weight: 700;
+}
+
+.g4-field__suffix {
+    font-size: 11px;
+    margin-left: 6px;
+}
+
+.g4-field__hint {
+    font-size: 11px;
+}
+
+/* Controls are stacked blocks that fill the field width. */
+.g4-field__control {
+    display: flex;
+    flex-direction: column;
+}
+
+.g4-field__error {
+    font-size: 11px;
+    min-height: 14px;
+}
+
+/* The error line takes space only while it shows an error. */
+.g4-field__error:empty {
+    display: none;
+}

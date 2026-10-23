@@ -24,6 +24,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
     // Custom URI scheme for our virtual Markdown documents.
     private static readonly _documentsScheme = 'g4md';
 
+    // A Windows drive prefix ('C:'), which marks a contributed documentation path as absolute.
+    // Linear: anchored, one character class and one literal.
+    private static readonly _drivePrefixPattern = /^[a-zA-Z]:/;
+
+    // Separators of a contributed documentation path; both '/' and '\' are accepted.
+    // Linear: one character class with a single quantifier.
+    private static readonly _pathSeparatorPattern = /[\\/]+/;
+
     // In-memory store of document contents keyed by `uri.toString()`.
     private static readonly _documentsStore = new Map<string, string>();
 
@@ -197,22 +205,148 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             }
         });
 
+        // Rebuild the tree when extensions are installed, updated, or removed, so documentation they
+        // contribute through 'g4Documentation' appears or disappears without a manual refresh.
+        const onDidChangeExtensions = vscode.extensions.onDidChange(() => this.refresh());
+
         // Track disposables to clean up automatically when the extension is deactivated.
         this._context.subscriptions.push(
             tree,
             onDidExpandElement,
             onDidCollapseElement,
-            onDidChangeSelection
+            onDidChangeSelection,
+            onDidChangeExtensions
         );
     }
 
-    // Build a tree of plugin types and populate each type with its plugin children.
+    // Builds the root list in reading order: documentation contributed by extensions (learning
+    // material), then the project's own docs, then the engine's plugin reference. The extension and
+    // project parts are local, so they still show when the engine cannot be reached.
     private static async getTreeItems(): Promise<any> {
+        // Read the documentation that installed extensions contribute through 'g4Documentation'.
+        const extensionItems = await this.getExtensionDocumentationItems();
+
+        // Read the project's docs folder (<workspace>/../docs or <workspace>/docs).
+        const docsItems = await this.getDocumentationItems();
+
+        // Read the engine's plugin reference; a failed or missing connection contributes no
+        // plugin roots instead of hiding the local documentation.
+        let pluginItems: vscode.TreeItem[] = [];
+
+        try {
+            pluginItems = await this.getPluginTreeItems();
+        } catch {
+            pluginItems = [];
+        }
+
+        return [...extensionItems, ...docsItems, ...pluginItems];
+    }
+
+    // Builds one root folder per installed extension that contributes documentation through
+    // 'contributes.g4Documentation' in its package.json, holding one folder per contributed entry.
+    // Any extension may contribute. Entries are read-only file locations inside the extension's
+    // install folder; an invalid entry (missing title or path, an absolute path, a path that leaves
+    // the extension folder, a folder that does not exist, or a folder without Markdown) is skipped,
+    // so one bad entry never breaks the view.
+    private static async getExtensionDocumentationItems(): Promise<TreeItem[]> {
+        // Tests whether an entry's path stays inside the extension folder: relative, and with no '..'
+        // segment, so a manifest can never point the view at arbitrary files on the machine.
+        const testContainedPath = (relativePath: string): boolean => {
+            const segments = relativePath.split(this._pathSeparatorPattern);
+            const isDrivePath = this._drivePrefixPattern.test(relativePath);
+            const isAbsolute = path.isAbsolute(relativePath) || isDrivePath;
+            const isLeavingFolder = segments.includes('..');
+
+            return !isAbsolute && !isLeavingFolder;
+        };
+
+        // Builds the folder of one contributed entry, or undefined when the entry is invalid or empty.
+        const newEntryFolder = async (extension: vscode.Extension<any>, entry: any): Promise<TreeItem | undefined> => {
+            // Accept only an entry with a non-empty title and a path that stays inside the extension.
+            const hasTitle = typeof entry?.title === 'string' && entry.title.trim() !== '';
+            const hasPath = typeof entry?.path === 'string' && entry.path.trim() !== '';
+            const isEntryUsable = hasTitle && hasPath && testContainedPath(entry.path);
+
+            if (!isEntryUsable) {
+                return undefined;
+            }
+
+            // Resolve the entry inside the extension's install folder; a folder that does not exist
+            // contributes nothing.
+            const entryUri = vscode.Uri.joinPath(extension.extensionUri, ...entry.path.split(this._pathSeparatorPattern));
+
+            try {
+                await vscode.workspace.fs.stat(entryUri);
+            } catch {
+                return undefined;
+            }
+
+            // Build the entry's Markdown tree with the same rules as the project docs; an entry
+            // without Markdown contributes nothing.
+            const children = await this.buildDocsTree(entryUri);
+
+            if (children.length === 0) {
+                return undefined;
+            }
+
+            // Wrap the entry's documents in a collapsed folder titled by the entry.
+            const folder = new TreeItem(entry.title.trim()) as TreeItem & { children?: TreeItem[] };
+            folder.iconPath = new vscode.ThemeIcon('folder');
+            folder.children = children;
+            folder.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+
+            return folder;
+        };
+
+        const roots: TreeItem[] = [];
+
+        for (const extension of vscode.extensions.all) {
+            // Only extensions that declare an array of documentation entries take part.
+            const entries = extension.packageJSON?.contributes?.g4Documentation;
+
+            if (!Array.isArray(entries)) {
+                continue;
+            }
+
+            // Build every entry; an extension whose entries are all invalid or empty gets no root.
+            const built = await Promise.all(entries.map((entry: any) => newEntryFolder(extension, entry)));
+            const entryFolders = built.filter((folder): folder is TreeItem => folder !== undefined);
+
+            if (entryFolders.length === 0) {
+                continue;
+            }
+
+            // Name the root after the extension, and say in its tooltip where the documents come from.
+            const displayName = extension.packageJSON?.displayName;
+            const hasDisplayName = typeof displayName === 'string' && displayName.trim() !== '';
+            const label = hasDisplayName
+                ? displayName.trim()
+                : extension.id;
+            const root = new TreeItem(label) as TreeItem & { children?: TreeItem[] };
+
+            root.iconPath = new vscode.ThemeIcon('folder');
+            root.tooltip = `Documentation contributed by the ${extension.id} extension`;
+            root.children = entryFolders;
+            root.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+            roots.push(root);
+        }
+
+        // Sort the extension roots A-Z, ignoring case, so the order does not depend on install order.
+        return roots.sort((left, right) => {
+            const leftLabel = typeof left.label === 'string' ? left.label : '';
+            const rightLabel = typeof right.label === 'string' ? right.label : '';
+
+            return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
+        });
+    }
+
+    // Builds the engine's plugin reference: one folder per plugin type, each holding its plugins.
+    // Throws when the engine call fails; the caller treats that as "no plugin reference".
+    private static async getPluginTreeItems(): Promise<vscode.TreeItem[]> {
         // Pull the latest cache snapshot from the client.
         const cache = await Global.g4Client.getCache();
 
         // Create the top-level "plugin type" nodes.
-        // (Make sure your factory is actually named `getPluginsTypes` as used here.)
         const tree = this.getPluginsTypes(cache);
 
         // Hydrate each type with its plugin children.
@@ -240,13 +374,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             }
         }
 
-        // Append docs items (from <workspace>/../docs) after the plugin-type roots.
-        const docsItems = await this.getDocumentationItems();
-        if (docsItems.length > 0) {
-            tree.push(...docsItems);
-        }
-
-        // Return the fully hydrated roots.
+        // Return the fully hydrated plugin-type roots.
         return tree;
     }
 

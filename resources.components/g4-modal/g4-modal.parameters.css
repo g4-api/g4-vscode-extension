@@ -1,0 +1,14 @@
+/*
+ * G4 modal parameters: the theme values the visual layer reads, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-modal-backdrop-background: rgba(0, 0, 0, .45);
+    --g4-modal-background: var(--vscode-editor-background);
+    --g4-modal-border-color: var(--vscode-panel-border);
+    --g4-modal-close-background: var(--vscode-button-foreground);
+    --g4-modal-close-foreground: var(--vscode-button-background);
+    --g4-modal-close-hover-foreground: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+    --g4-modal-focus-border-color: var(--vscode-focusBorder);
+    --g4-modal-header-background: var(--vscode-sideBar-background);
+    --g4-modal-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, .36));
+}

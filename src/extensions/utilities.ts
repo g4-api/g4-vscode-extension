@@ -1,10 +1,22 @@
 import * as fs from 'node:fs';
-import { randomInt } from 'node:crypto';
 import os = require('os');
-import * as vscode from 'vscode';
 import path = require('path');
-import { LogSettings } from '../logging/logger-base';
+import * as vscode from 'vscode';
+
+import { randomInt } from 'node:crypto';
+
 import { Global } from '../constants/global';
+
+import { LogSettings } from '../logging/logger-base';
+
+import type { RecorderOptions } from '../services/g4-recording-service';
+
+// A connection failure in HttpClient's error text: refused, unknown host, unreachable, reset, or
+// timed out. Linear: an alternation of literals with no quantifier.
+const HUB_UNREACHABLE_PATTERN = /ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|ECONNRESET|ETIMEDOUT|timed out/i;
+
+// What to check when the Hub could not be reached.
+const HUB_UNREACHABLE_GUIDANCE = 'Check that the Hub is running and the g4Server settings in manifest.json.';
 
 export class Utilities {
     /**
@@ -104,6 +116,36 @@ export class Utilities {
 
         // Decode the byte array as UTF-8 so non-Latin characters are restored correctly.
         return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    /**
+     * Converts a Hub failure that is not a JSON problem body into one readable sentence.
+     *
+     * @remarks
+     * Compute-only. HttpClient resolves network failures with the error's stack trace, so only the
+     * first line is kept. A connection failure (refused, unknown host, unreachable, reset, or timed
+     * out) means the Hub never answered, so it is reported as unreachable rather than as a rejection.
+     *
+     * @param failure - Failure text returned by a G4Client publish call.
+     * @param subject - What was published, for the message ('flow' or 'template').
+     * @returns The sentence for the publish banner.
+     */
+    public static convertToHubFailureText(failure: string, subject: string): string {
+        // Keep the first line: the rest of a network failure is a stack trace the user cannot act on.
+        const lineBreakIndex = failure.indexOf('\n');
+        const firstLineText = lineBreakIndex === -1
+            ? failure
+            : failure.slice(0, lineBreakIndex);
+        const firstLine = firstLineText.trim();
+
+        // A connection failure names its cause, so the user knows to check the Hub, not the form.
+        const unreachableMatch = HUB_UNREACHABLE_PATTERN.exec(firstLine);
+
+        if (unreachableMatch) {
+            return `Could not reach the G4 Hub (${unreachableMatch[0]}). ${HUB_UNREACHABLE_GUIDANCE}`;
+        }
+
+        return `The Hub rejected the ${subject}: ${firstLine}`;
     }
 
     /**
@@ -508,6 +550,91 @@ export class Utilities {
     }
 
     /**
+     * Tests whether a URI points to a supported bot file inside one of the given workspace folders.
+     *
+     * @remarks
+     * Shared by every bot command (Open as JSON, Open in Workflow Editor, Publish as Flow) so the
+     * Explorer menu rules and the command-side checks stay the same. A folder matches by path
+     * segment relative to a workspace folder, so `bots` accepts `bots/x.json` and
+     * `bots/examples/x.json` but not `base.bots/x.json`; callers that also accept recorded/base
+     * definitions pass additional folder names (for example 'base.bots').
+     *
+     * @param uri - Resource to test.
+     * @param extensions - Accepted lower-case file extensions, including the dot (for example '.json').
+     * @param folderNames - Accepted folder names; defaults to 'bots'.
+     * @returns True when the file has an accepted extension and sits under an accepted folder.
+     */
+    public static testBotFile(uri: vscode.Uri, extensions: string[], folderNames: string[] = ['bots']): boolean {
+        // Only local files can be bot files.
+        if (uri.scheme !== 'file') {
+            return false;
+        }
+
+        // The extension must be one of the accepted ones.
+        const supportedExtensions = new Set(extensions);
+
+        if (!supportedExtensions.has(path.extname(uri.fsPath).toLowerCase())) {
+            return false;
+        }
+
+        // Some path segment under a workspace folder must be an accepted folder name.
+        // Separators are runs of forward or back slashes; linear, one character class.
+        const pathSeparatorPattern = /[\\/]+/;
+        const acceptedFolders = new Set(folderNames.map(name => name.toLowerCase()));
+        const folders = vscode.workspace.workspaceFolders ?? [];
+
+        return folders.some(folder => {
+            const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+            const isOutsideFolder = !relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath);
+
+            if (isOutsideFolder) {
+                return false;
+            }
+
+            return relativePath
+                .split(pathSeparatorPattern)
+                .some(segment => acceptedFolders.has(segment.toLowerCase()));
+        });
+    }
+
+    /**
+     * Tests whether a URI points to a saved report under the reports folder of a workspace folder.
+     *
+     * @remarks
+     * Shared by the Explorer menu list, the Open in Report Viewer command, and the report viewer, so
+     * all three accept the same files. Unlike {@link Utilities.testBotFile}, the folder is anchored:
+     * `reports` must be the first segment below a workspace folder, so `reports/a.g4rpt` and
+     * `reports/sub/b.g4rpt` match but `src/reports/c.g4rpt` does not.
+     *
+     * @param uri - Resource to test.
+     * @returns True when the URI is a local .g4rpt file below `<workspace folder>/reports`.
+     */
+    public static testReportFile(uri: vscode.Uri): boolean {
+        // Only local .g4rpt files can be saved reports.
+        if (uri.scheme !== 'file' || path.extname(uri.fsPath).toLowerCase() !== '.g4rpt') {
+            return false;
+        }
+
+        // The first segment below some workspace folder must be the reports folder.
+        // Separators are runs of forward or back slashes; linear, one character class.
+        const pathSeparatorPattern = /[\\/]+/;
+        const folders = vscode.workspace.workspaceFolders ?? [];
+
+        return folders.some(folder => {
+            const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
+            const isOutsideFolder = !relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath);
+
+            if (isOutsideFolder) {
+                return false;
+            }
+
+            const segments = relativePath.split(pathSeparatorPattern);
+
+            return segments.length > 1 && segments[0].toLowerCase() === 'reports';
+        });
+    }
+
+    /**
      * Resolves the absolute path to a specified system folder within the current workspace.
      *
      * @param folder - The folder name to resolve. Valid options:
@@ -624,6 +751,33 @@ export class Utilities {
     }
 
     /**
+     * Resolves a readable message from a thrown value without default object stringification.
+     *
+     * @remarks
+     * Compute-only. An `Error` yields its message and a string is used as-is; any other value gets a JSON
+     * form, so an object never reaches a log or notification as `[object Object]`.
+     *
+     * @param error - The value caught from a failed operation (typed `unknown` in a catch clause).
+     * @returns The most readable message for the value.
+     */
+    public static resolveErrorMessage(error: unknown): string {
+        if (error instanceof Error) {
+            return error.message;
+        }
+
+        if (typeof error === 'string') {
+            return error;
+        }
+
+        // Any other thrown value gets a readable JSON form instead of default object stringification.
+        try {
+            return JSON.stringify(error) ?? 'Unknown error';
+        } catch {
+            return 'Unknown error';
+        }
+    }
+
+    /**
      * Resolves and returns the list of event capture endpoints (recorders) from the project manifest.
      *
      * @remarks
@@ -634,16 +788,7 @@ export class Utilities {
      * @returns {string[]} An array of endpoint URLs in the format `<schema>://<host>:<port>`.
      * If no valid endpoints are found, an empty array is returned.
      */
-    public static resolveEventsCaptureOptions(): {
-        baseUrl: string,
-        mode: string,
-        driverParameters: any,
-        enabled: boolean,
-        thinkTimeSettings: any,
-        useOffset: boolean,
-        preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
-        postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
-    }[] {
+    public static resolveEventsCaptureOptions(): RecorderOptions[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
 
@@ -656,16 +801,7 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: {
-            baseUrl: string,
-            mode: string,
-            driverParameters: any,
-            thinkTimeSettings: any,
-            enabled: boolean,
-            useOffset: boolean,
-            preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
-            postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
-        }[] = [];
+        const endpoints: RecorderOptions[] = [];
 
         // Iterate through each item in the recorders array
         for (const item of recordersEndpoints) {
@@ -733,6 +869,31 @@ export class Utilities {
 
         // Return the normalized manifest file path.
         return manifest;
+    }
+
+    /**
+     * Saves the editor of a file when it is open with unsaved changes.
+     *
+     * @remarks
+     * The publishers publish and write files only from saved state: an editor with pending edits is
+     * saved first, so the edits are never silently skipped. A file that is not open, or has no
+     * pending edits, needs nothing.
+     *
+     * @param filePath - Absolute path of the file.
+     * @returns False only when the file had unsaved changes and saving them failed.
+     */
+    public static async saveOpenDocument(filePath: string): Promise<boolean> {
+        // Find the editor document of this file; paths compare case-insensitively, as Windows does.
+        const normalizedPath = path.normalize(filePath).toLowerCase();
+        const openDocument = vscode.workspace.textDocuments.find((document) => path.normalize(document.uri.fsPath).toLowerCase() === normalizedPath);
+
+        // Nothing is pending when the file is closed or already saved.
+        if (!openDocument?.isDirty) {
+            return true;
+        }
+
+        // Save the pending edits; VS Code reports false when the save did not happen.
+        return openDocument.save();
     }
 
     /**

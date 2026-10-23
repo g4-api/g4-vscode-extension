@@ -7,6 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Utilities } from '../extensions/utilities';
+import { WebviewComponents } from '../extensions/webview-components';
 
 /**
  * Command responsible for opening and displaying a G4 report.
@@ -85,9 +86,8 @@ export class ShowReportCommand extends CommandBase {
                 // Allow scripts to run inside the report webview.
                 enableScripts: true,
 
-                // Allow the component CSS/JS and shared font resources to load.
+                // Allow the component CSS/JS to load.
                 localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
                     vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
                 ],
 
@@ -96,23 +96,65 @@ export class ShowReportCommand extends CommandBase {
             }
         );
 
-        // Build the HTML shim injected into the report <head>.
-        const headerShim = ShowReportCommand.getHeaderShim();
-
-        // Build the HTML shim injected into the report <body>.
-        const bodyShim = ShowReportCommand.getBodyShim();
-
-        // Resolve the report HTML from the command arguments.
-        let html = await ShowReportCommand.setHtml(panel, this.context, args);
-
-        // Inject header dependencies before the closing </head> tag.
-        html = html.replace(/<\/head>/i, headerShim + '</head>');
-
-        // Inject body dependencies before the closing </body> tag.
-        html = html.replace(/<\/body>/i, bodyShim + '</body>');
+        // Resolve the Base64 report payload from the command arguments.
+        const reportData = await ShowReportCommand.getReportData(args);
 
         // Render the final HTML inside the webview.
-        panel.webview.html = html;
+        panel.webview.html = ShowReportCommand.newReportHtml(panel.webview, this.context, reportData);
+    }
+
+    /**
+     * Builds the report viewer HTML for one Base64 report payload.
+     *
+     * @remarks
+     * Shared by this command (the report shown after a run) and the report custom editor (a saved
+     * .g4rpt file), so both render the same page. The webview must allow scripts and the
+     * `resources.components` root.
+     *
+     * @param webview - Webview that will host the report; used to resolve resource URIs.
+     * @param context - The VS Code extension context.
+     * @param reportData - Base64 of the automation result JSON.
+     * @returns The complete report HTML, including the header and body shims.
+     */
+    public static newReportHtml(webview: vscode.Webview, context: vscode.ExtensionContext, reportData: string): string {
+        // Get the URI for the report component stylesheet.
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                context.extensionUri,
+                'resources.components',
+                'automation-report',
+                'automation-report.css'
+            )
+        );
+
+        // Get the URI for the report component script.
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                context.extensionUri,
+                'resources.components',
+                'automation-report',
+                'automation-report.js'
+            )
+        );
+
+        // Load the report component HTML template from the extension resources.
+        const html = WebviewComponents.setComponentHtml({
+            html: Utilities.getResource('resources.components/automation-report/automation-report.html'),
+            rootPath: vscode.Uri.joinPath(context.extensionUri, 'resources.components').fsPath,
+            toUri: (filePath) => webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
+
+        // Inject the decoded report data and the component URIs into the HTML template.
+        return html
+            .replace('{{$ report.data }}', Utilities.convertFromBase64(reportData))
+            .replace('{{$ component.style.uri }}', styleUri.toString())
+            .replace('{{$ component.script.uri }}', scriptUri.toString())
+
+            // Inject header dependencies before the closing </head> tag.
+            .replace(/<\/head>/i, ShowReportCommand.getHeaderShim() + '</head>')
+
+            // Inject body dependencies before the closing </body> tag.
+            .replace(/<\/body>/i, ShowReportCommand.getBodyShim() + '</body>');
     }
 
     // Builds the HTML shim injected into the report document <head>.
@@ -129,8 +171,9 @@ export class ShowReportCommand extends CommandBase {
         <script></script>`;
     }
 
-    // Builds the report webview HTML and injects the report data into it.
-    private static async setHtml(panel: vscode.WebviewPanel, context: vscode.ExtensionContext, args: any): Promise<string> {
+    // Resolves the Base64 report payload from the command arguments: a report file path, a Base64
+    // string, or "e30=" (Base64 for "{}") when neither is given.
+    private static async getReportData(args: any): Promise<string> {
         // Checks whether the provided value is a valid Base64 string.
         //
         // Behavior:
@@ -195,21 +238,21 @@ export class ShowReportCommand extends CommandBase {
             }
         };
 
-        // Reads a file from a VS Code URI string and returns its content.
+        // Reads a file from a file system path and returns its content.
         //
         // Behavior:
-        // - Parses the incoming URI string into a VS Code URI.
+        // - Converts the path into a VS Code file URI. Uri.parse would read a Windows path such as
+        //   "E:\reports\a.g4rpt" as scheme "e", so the path is converted with Uri.file.
         // - Reads the file content using the VS Code workspace file system API.
         // - Converts the file bytes into UTF-8 text.
         // - Returns the file name and content when successful.
         // - Returns an error message when the file cannot be read.
         const readFile = async (
-            uri: string
+            filePath: string
         ): Promise<{ fileName?: string; error?: string; content?: string }> => {
             try {
-                // Parse the incoming URI string.
-                // This supports VS Code URI formats and percent-encoded characters.
-                const fileUri = vscode.Uri.parse(uri);
+                // Convert the path (already confirmed to exist by assertFile) into a file URI.
+                const fileUri = vscode.Uri.file(filePath);
 
                 // Read the file as raw bytes from the workspace file system.
                 const fileBytes = await vscode.workspace.fs.readFile(fileUri);
@@ -255,36 +298,6 @@ export class ShowReportCommand extends CommandBase {
             reportData = content;
         }
 
-        // Get the URI for the report component stylesheet.
-        const styleUri = panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(
-                context.extensionUri,
-                'resources.components',
-                'automation-report',
-                'automation-report.css'
-            )
-        );
-
-        // Get the URI for the report component script.
-        const scriptUri = panel.webview.asWebviewUri(
-            vscode.Uri.joinPath(
-                context.extensionUri,
-                'resources.components',
-                'automation-report',
-                'automation-report.js'
-            )
-        );
-
-        // Load the report component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/automation-report/automation-report.html');
-
-        // Decode the Base64 report payload into UTF-8 text.
-        reportData = Utilities.convertFromBase64(reportData);
-
-        // Inject the report data and font URI into the HTML template and return it.
-        return html
-            .replace('{{$ report.data }}', reportData)
-            .replace('{{$ component.style.uri }}', styleUri.toString())
-            .replace('{{$ component.script.uri }}', scriptUri.toString());
+        return reportData;
     }
 }

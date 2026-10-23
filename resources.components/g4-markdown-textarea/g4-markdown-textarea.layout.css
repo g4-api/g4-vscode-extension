@@ -1,0 +1,151 @@
+/*
+ * G4 Markdown text area layout: the line-number gutter, the text box, and the corner buttons; plus
+ * the Markdown reference table shown in a modal.
+ */
+g4-markdown-textarea {
+    display: flex;
+    flex-direction: column;
+}
+
+.g4-markdown-textarea__box {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+}
+
+/* The box has a fixed size and never wraps; the right padding keeps text clear of the buttons. */
+textarea.g4-markdown-textarea__input {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    min-height: 60px;
+    padding: 6px 100px 6px 8px;
+    font-size: 12px;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    resize: none;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-markdown-textarea__tools {
+    position: absolute;
+    top: 6px;
+    right: 20px;
+    display: flex;
+    gap: 4px;
+}
+
+.g4-markdown-textarea__tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-markdown-textarea__tool svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+/* Markdown reference */
+.g4-markdown-textarea__reference-note {
+    font-size: 11px;
+    margin-bottom: 14px;
+}
+
+.g4-markdown-textarea__reference {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.g4-markdown-textarea__reference th,
+.g4-markdown-textarea__reference td {
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+}
+
+.g4-markdown-textarea__reference thead th {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.g4-markdown-textarea__reference tbody th {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.g4-markdown-textarea__syntax {
+    padding: 4px 8px;
+    font-size: 12px;
+    white-space: pre;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-markdown-textarea__result h3 {
+    font-size: 16px;
+}
+
+.g4-markdown-textarea__result h4 {
+    font-size: 14px;
+}
+
+.g4-markdown-textarea__result h5 {
+    font-size: 12px;
+}
+
+.g4-markdown-textarea__result ul,
+.g4-markdown-textarea__result ol {
+    padding-left: 20px;
+}
+
+.g4-markdown-textarea__result blockquote {
+    padding-left: 10px;
+    border-left-width: 3px;
+    border-left-style: solid;
+}
+
+.g4-markdown-textarea__result pre {
+    padding: 4px 8px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-markdown-textarea__result code {
+    padding: 0 4px;
+    font-size: 12px;
+}
+
+.g4-markdown-textarea__result pre code {
+    padding: 0;
+}
+
+.g4-markdown-textarea__result hr {
+    margin: 6px 0;
+    border-width: 1px 0 0;
+    border-style: solid;
+}
+
+.g4-markdown-textarea__result table {
+    border-collapse: collapse;
+}
+
+.g4-markdown-textarea__result table th,
+.g4-markdown-textarea__result table td {
+    padding: 2px 8px;
+    border-width: 1px;
+    border-style: solid;
+}

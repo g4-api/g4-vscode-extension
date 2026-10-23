@@ -1,0 +1,32 @@
+/*
+ * G4 page header layout: a padded bar with the title over the details line, and items on the right.
+ */
+g4-page-header {
+    display: block;
+}
+
+.g4-page-header__bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 24px;
+    border-bottom-width: 1px;
+    border-bottom-style: solid;
+}
+
+.g4-page-header__title {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.g4-page-header__right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.g4-page-header__meta {
+    font-size: 11px;
+    margin-top: 1px;
+}

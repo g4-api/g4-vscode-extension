@@ -10,14 +10,33 @@ import { CommandBase } from './command-base';
 
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
+import { WebviewComponents } from '../extensions/webview-components';
+
+// Confirmation button of the factory reset dialog; a modal dialog adds its own Cancel.
+const FACTORY_RESET_ACTION = 'Restore Factory Settings';
+
+// What a factory reset changes, shown under the confirmation question.
+const FACTORY_RESET_DETAIL = 'This clears the license token and sandbox path and restores every shipped default. Nothing is written until you click Save.';
 
 /**
- * Command to create a new project structure in VS Code.
- * This command scaffolds a basic project layout with folders, manifests, and sample files.
+ * Command that opens the G4 Settings editor: a webview form over the workspace manifest.json.
+ *
+ * @remarks
+ * The page edits a copy of the manifest and posts it back on Save; the host writes the file and
+ * applies the settings. Only one settings tab is open at a time.
  */
 export class ShowSettingsCommand extends CommandBase {
     /**
-     * Creates a new Show Report command instance.
+     * The open settings tab, if any.
+     *
+     * @remarks
+     * One tab edits one manifest.json; a second tab could save over the first, so running the
+     * command again reveals this tab instead. Cleared when the user closes the tab.
+     */
+    private _panel: vscode.WebviewPanel | undefined;
+
+    /**
+     * Creates a new Show Settings command instance.
      *
      * @param context - The VS Code extension context.
      */
@@ -59,6 +78,7 @@ export class ShowSettingsCommand extends CommandBase {
      * Invokes the Show Settings command and opens the settings inside a VS Code webview.
      *
      * Behavior:
+     * - Reveals the open settings tab instead of opening a second one.
      * - Creates a new webview panel for displaying the settings.
      * - Loads the settings HTML from the extension resources.
      * - Injects the settings header shim before the closing </head> tag.
@@ -68,6 +88,12 @@ export class ShowSettingsCommand extends CommandBase {
      * @returns A promise that resolves after the settings webview is created.
      */
     protected async onInvokeCommand(): Promise<any> {
+        // Reveal the open tab so only one tab can save manifest.json.
+        if (this._panel) {
+            this._panel.reveal();
+            return;
+        }
+
         // Create a new VS Code webview panel for displaying the G4 settings.
         const panel = vscode.window.createWebviewPanel(
             // Internal webview type identifier.
@@ -81,9 +107,8 @@ export class ShowSettingsCommand extends CommandBase {
                 // Allow scripts to run inside the settings webview.
                 enableScripts: true,
 
-                // Allow the component CSS/JS and shared font resources to load.
+                // Allow the component CSS/JS to load.
                 localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.fonts'),
                     vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
                 ],
 
@@ -91,6 +116,13 @@ export class ShowSettingsCommand extends CommandBase {
                 retainContextWhenHidden: true
             }
         );
+
+        // Remember the tab until the user closes it, so the command can reveal it.
+        this._panel = panel;
+
+        panel.onDidDispose(() => {
+            this._panel = undefined;
+        }, undefined, this.context.subscriptions);
 
         // Build the HTML shim injected into the settings <head>.
         const headerShim = ShowSettingsCommand.getHeaderShim();
@@ -128,6 +160,19 @@ export class ShowSettingsCommand extends CommandBase {
                             command: 'setSandboxPath',
                             sandboxPath
                         });
+                    }
+                }
+
+                // A factory reset clears the license token and sandbox path, so the user confirms it
+                // in a modal dialog first; the page applies it only after the confirmation.
+                if (message?.command === 'confirmFactoryReset') {
+                    const choice = await vscode.window.showWarningMessage(
+                        'Restore factory settings?',
+                        { detail: FACTORY_RESET_DETAIL, modal: true },
+                        FACTORY_RESET_ACTION);
+
+                    if (choice === FACTORY_RESET_ACTION) {
+                        await panel.webview.postMessage({ command: 'factoryResetConfirmed' });
                     }
                 }
 
@@ -207,7 +252,7 @@ export class ShowSettingsCommand extends CommandBase {
                 context.extensionUri,
                 'resources.components',
                 'automation-settings',
-                'settings.css'
+                'automation-settings.css'
             )
         );
 
@@ -217,18 +262,28 @@ export class ShowSettingsCommand extends CommandBase {
                 context.extensionUri,
                 'resources.components',
                 'automation-settings',
-                'settings.js'
+                'automation-settings.js'
             )
         );
 
         // Load the current extension manifest.
         const manifest = Utilities.getManifest();
 
-        // Serialize the manifest to a formatted JSON string for injection into the settings HTML.
-        const manifestJson = JSON.stringify(manifest, null, 4);
+        // Serialize the manifest for the #g4-data textarea. A textarea decodes character references
+        // and ends at </textarea>, so `<` and `&` are written as JSON unicode escapes, which
+        // JSON.parse restores unchanged. Keep the escaped backslashes: String.raw`<` is decoded
+        // to '<' by the TypeScript compiler, which would silently disable this escaping.
+        const manifestJson = JSON.stringify(manifest, null, 4)
+            .replaceAll('<', '\\u003c') // NOSONAR
+            .replaceAll('&', '\\u0026'); // NOSONAR
 
-        // Load the settings component HTML template from the extension resources.
-        const html = Utilities.getResource('resources.components/automation-settings/settings.html');
+        // Load the settings component HTML template and fill in the reusable components it uses,
+        // before the manifest is injected, so the manifest is never searched for placeholders.
+        const html = WebviewComponents.setComponentHtml({
+            html: Utilities.getResource('resources.components/automation-settings/automation-settings.html'),
+            rootPath: vscode.Uri.joinPath(context.extensionUri, 'resources.components').fsPath,
+            toUri: (filePath) => panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
 
         // Inject the manifest data and font URI into the HTML template and return it.
         // The manifest is supplied through a replacer function so any literal `$`

@@ -1,0 +1,18 @@
+<!--
+    G4 field: the frame around one control - label, required mark, suffix, hint, the control, and an
+    error line shown only while there is an error. See g4-field.js.
+-->
+<template id="g4-field-template">
+    <label class="g4-field__label" data-part="label" data-test-id="label"><span data-part="label-text"></span><span class="g4-field__suffix" data-part="suffix"></span></label>
+    <div class="g4-field__hint" data-part="hint" data-test-id="hint"></div>
+    <div class="g4-field__control" data-part="control"></div>
+    <div class="g4-field__error"
+         data-part="error"
+         data-test-id="error-message"
+         role="alert"></div>
+</template>
+
+<!-- Required mark, placed after the label text. -->
+<template id="g4-field-required-template">
+    <span class="g4-field__required" data-part="required" aria-hidden="true">*</span>
+</template>

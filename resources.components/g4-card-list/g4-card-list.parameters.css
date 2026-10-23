@@ -1,0 +1,13 @@
+/*
+ * G4 card list parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-card-list-button-background: var(--vscode-button-background);
+    --g4-card-list-button-border-color: var(--vscode-panel-border);
+    --g4-card-list-button-foreground: var(--vscode-foreground);
+    --g4-card-list-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-card-list-button-radius: 2px;
+    --g4-card-list-muted-foreground: var(--vscode-descriptionForeground);
+    --g4-card-list-note-background: var(--vscode-sideBar-background);
+    --g4-card-list-note-border-color: var(--vscode-panel-border);
+}

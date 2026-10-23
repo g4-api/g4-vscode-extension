@@ -1,0 +1,35 @@
+/*
+ * G4 card list layout: cards stacked 12px apart, then the add button.
+ */
+g4-card-list {
+    display: block;
+}
+
+.g4-card-list__items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.g4-card-list__empty {
+    font-size: 11px;
+}
+
+.g4-card-list__empty--note {
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-card-list__add-row {
+    margin-top: 12px;
+}
+
+.g4-card-list__button {
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}

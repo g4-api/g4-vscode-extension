@@ -1,0 +1,22 @@
+<!--
+    G4 action bar: the sticky bar at the bottom of a page - its buttons, then a short note that fades
+    out. See g4-action-bar.js.
+-->
+<template id="g4-action-bar-template">
+    <div class="g4-action-bar__bar" data-test-id="bar">
+        <span class="g4-action-bar__buttons" data-part="buttons"></span>
+        <span class="g4-action-bar__spacer"></span>
+        <span class="g4-action-bar__note"
+              data-part="note"
+              data-test-id="note"
+              aria-live="polite"></span>
+    </div>
+</template>
+
+<!-- One action button. -->
+<template id="g4-action-bar-button-template">
+    <button type="button"
+            class="g4-action-bar__button"
+            data-part="button"
+            data-test-id="action-button"></button>
+</template>

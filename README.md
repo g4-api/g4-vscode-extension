@@ -56,6 +56,33 @@ Two guided **learning paths** take you from zero to productive — each a self-c
 * 📗 **[Quick Start](resources.docs/quick-start/README.md)** — deploy the sandbox, install the extension, and build and record your first automation, click by click.
 * 📘 **[Configure `manifest.json`](resources.docs/configure-manifest/README.md)** — every runtime setting explained: what it does, when to change it, and copy-paste recipes.
 
+### The G4 Documentations view
+
+The **G4 Documentations** view (G4 activity bar) lists, from top to bottom:
+
+1. **Documentation from installed extensions** — one folder per extension that contributes documentation, for example *My Extension › Getting Started*.
+2. **Your project's documents** — the Markdown files of the project's `docs` folder (next to or inside the opened folder).
+3. **Plugin reference** — one folder per plugin type, read from the connected G4 engine.
+
+Select a document to open it in the Markdown preview. **Fetch latest documents version & refresh documentation** (`Update-Documents`) rebuilds the view; it also rebuilds when the engine connects and when extensions are installed or removed.
+
+#### Contribute documentation from another extension
+
+Any extension can add its Markdown documentation to the view by declaring folders in its own `package.json`:
+
+```json
+"contributes": {
+    "g4Documentation": [
+        { "title": "Getting Started", "path": "resources.docs/getting-started" }
+    ]
+}
+```
+
+* `title` — the folder name shown in the view.
+* `path` — a folder inside the extension, relative to its root. Absolute paths and paths that leave the extension (`..`) are ignored.
+* Only `.md`, `.markdown`, and `.mdx` files are listed; folders without Markdown are left out. Documents open from their real location, so relative links and images work.
+* The extension's display name becomes the parent folder; an invalid or empty entry is skipped.
+
 ---
 
 ## Key Capabilities

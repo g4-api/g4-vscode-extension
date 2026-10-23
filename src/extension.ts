@@ -1,35 +1,48 @@
-import * as vscode from 'vscode';
-import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import * as vscode from 'vscode';
+
+import { NotificationService } from './clients/g4-signalr-client';
+
 import { NewProjectCommand } from './commands/new-project';
-import { ShowWorkflowCommand } from './commands/show-workflow';
-import { EventCaptureService, NotificationService } from './clients/g4-signalr-client';
-import { Utilities } from './extensions/utilities';
-import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
-import { Global } from './constants/global';
-import { UpdateEnvironmentCommand } from './commands/update-environment';
-import { UpdateTemplateCommand } from './commands/update-template';
-import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
-import { StartRecorderCommand } from './commands/start-recorder';
-import { StopRecorderCommand } from './commands/stop-recorder';
-import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
-import { SyncCacheCommand } from './commands/sync-cache';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
+import { ShowWorkflowCommand } from './commands/show-workflow';
+import { StartRecorderCommand } from './commands/start-recorder';
+import { StopRecorderCommand } from './commands/stop-recorder';
+import { SyncCacheCommand } from './commands/sync-cache';
+import { UpdateEnvironmentCommand } from './commands/update-environment';
+import { UpdateFlowCommand } from './commands/update-flow';
+import { UpdateTemplateCommand } from './commands/update-template';
+import { UpdateTemplatePublisherCommand } from './commands/update-template-publisher';
+
+import { Global } from './constants/global';
+
+import { Utilities } from './extensions/utilities';
+
+import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
+import { G4RecorderViewProvider } from './providers/g4-recorder-webview-view-provider';
+import { G4ReportCustomEditorProvider } from './providers/g4-report-custom-editor-provider';
+import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
-import { G4HubService, G4ProjectManifest } from './services/g4-hub-service';
+
+import {
+    G4HubService,
+    G4ProjectManifest
+} from './services/g4-hub-service';
+import { G4RecordingService } from './services/g4-recording-service';
 import { G4SettingsService } from './services/g4-settings-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
 
-// Function to initialize connection to the backend hub.
-const captureConnections = new Map<string, EventCaptureService>();
+// Fallback Hub endpoint used when the manifest names no g4Server, matching CommandBase.
+const DEFAULT_HUB_URL = 'http://localhost:9944';
 
-// The recorder command and view instances, captured during registration so the settings service
-// can hot-apply recorder changes (rebuild connections, re-render the panel) without a reload.
+// The recorder command, view, and session owner, captured during registration so the settings service
+// can hot-apply recorder changes (replace recorder settings, re-render the panel) without a reload.
 let recorderCommand: StartRecorderCommand | undefined;
 let recorderViewProvider: G4RecorderViewProvider | undefined;
+let recordingService: G4RecordingService | undefined;
 
 /**
  * Entry point for the VS Code extension.
@@ -52,14 +65,24 @@ export async function activate(context: vscode.ExtensionContext) {
     // and filters applied while listening to editor or UI events.
     const eventsCaptureOptions = Utilities.resolveEventsCaptureOptions();
 
+    // Create the single recording session owner shared by the recorder commands, panel, and settings.
+    // The Hub runs recordings, so it needs the Hub endpoint (or the same fallback CommandBase uses).
+    const hubUrl = baseUri.length > 0
+        ? baseUri
+        : DEFAULT_HUB_URL;
+
+    recordingService = new G4RecordingService({
+        hubUrl,
+        recorders: eventsCaptureOptions
+    });
+
     // Compose a shared options object that is passed to all registration functions.
     // This groups together the core dependencies needed by commands, events and providers.
     const options = {
         context,
         baseUri,
-        eventsCaptureOptions,
         hubConnections,
-        recorderConnections: captureConnections
+        recordingService
     };
 
     // Register all VS Code commands exposed by the extension.
@@ -102,8 +125,8 @@ export function deactivate() {
 const registerCommands = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
-    eventsCaptureOptions: any[],
-    hubConnections: Map<string, NotificationService>
+    hubConnections: Map<string, NotificationService>,
+    recordingService: G4RecordingService
 }) => {
     // Command to create a new G4 project structure.
     new NewProjectCommand(options.context).register();
@@ -120,7 +143,7 @@ const registerCommands = (options: {
         async (uri?: vscode.Uri) => {
             const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 
-            if (!targetUri || !isBotFile(targetUri, ['.g4', '.g4bot'])) {
+            if (!targetUri || !Utilities.testBotFile(targetUri, ['.g4', '.g4bot'])) {
                 vscode.window.showWarningMessage('Select a .g4 or .g4bot file under the bots folder.');
                 return;
             }
@@ -143,7 +166,7 @@ const registerCommands = (options: {
         async (uri?: vscode.Uri) => {
             const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
 
-            if (!targetUri || !isBotFile(targetUri, ['.json'], ['bots', 'base.bots'])) {
+            if (!targetUri || !Utilities.testBotFile(targetUri, ['.json'], ['bots', 'base.bots'])) {
                 vscode.window.showWarningMessage('Select a JSON bot file under the bots or base.bots folder.');
                 return;
             }
@@ -154,6 +177,22 @@ const registerCommands = (options: {
         }
     );
     options.context.subscriptions.push(openBotInWorkflow);
+
+    // Command to open a saved .g4rpt report in the report viewer.
+    const openReportViewer = vscode.commands.registerCommand(
+        'Open-Report-Viewer',
+        async (uri?: vscode.Uri) => {
+            const targetUri = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+            if (!targetUri || !Utilities.testReportFile(targetUri)) {
+                vscode.window.showWarningMessage('Select a .g4rpt file under the reports folder.');
+                return;
+            }
+
+            await vscode.commands.executeCommand('vscode.openWith', targetUri, G4ReportCustomEditorProvider.VIEW_TYPE);
+        }
+    );
+    options.context.subscriptions.push(openReportViewer);
 
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();
@@ -167,56 +206,19 @@ const registerCommands = (options: {
     // Command to fetch or update templates used for new automation workflows.
     new UpdateTemplateCommand(options.context, options.baseUri).register();
 
-    // Initialize the recorder command, which handles UI event recording. Captured in a module
-    // field so the settings service can rebuild its connections when settings are applied.
-    recorderCommand = new StartRecorderCommand(
-        options.context,
-        options.eventsCaptureOptions || []
-    );
+    // Command to publish bot automations from the workspace bots folder as flows.
+    new UpdateFlowCommand(options.context, options.baseUri).register();
 
-    // Retrieve recorder connections from the command instance.
-    const connections = recorderCommand.connections;
+    // Command to publish a template file, or the rules of one bot job, from the workspace as a template.
+    new UpdateTemplatePublisherCommand(options.context, options.baseUri).register();
 
-    // Register the StartRecorderCommand with VS Code.
+    // Initialize the recorder command, which starts Hub recording sessions. Captured in a module
+    // field so the settings service can confirm a stop before applying recorder settings.
+    recorderCommand = new StartRecorderCommand(options.context, options.recordingService);
     recorderCommand.register();
 
-    // Store each recorder connection in the global captureConnections map
-    // for later use by the StopRecorderCommand.
-    for (const [endpoint, service] of connections) {
-        captureConnections.set(endpoint, service);
-    }
-
-    // Command to stop active event recordings and finalize captured data.
-    new StopRecorderCommand(options.context, captureConnections).register();
-};
-
-/**
- * Checks whether a URI points to a supported bot file inside one of the given workspace
- * folders (by folder-name segment). Defaults to the 'bots' folder; callers that also accept
- * recorded/base definitions pass additional folder names (for example 'base.bots').
- */
-const isBotFile = (uri: vscode.Uri, extensions: string[], folderNames: string[] = ['bots']): boolean => {
-    if (uri.scheme !== 'file') {
-        return false;
-    }
-
-    const supportedExtensions = new Set(extensions);
-    if (!supportedExtensions.has(path.extname(uri.fsPath).toLowerCase())) {
-        return false;
-    }
-
-    const acceptedFolders = new Set(folderNames.map(name => name.toLowerCase()));
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    return folders.some(folder => {
-        const relativePath = path.relative(folder.uri.fsPath, uri.fsPath);
-        if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-            return false;
-        }
-
-        return relativePath
-            .split(/[\\/]+/)
-            .some(segment => acceptedFolders.has(segment.toLowerCase()));
-    });
+    // Command to stop the Hub recording session and open the recorded workflow.
+    new StopRecorderCommand(options.context, options.recordingService).register();
 };
 
 /**
@@ -226,15 +228,15 @@ const registerProviders = (options: {
     context: vscode.ExtensionContext,
     baseUri: string,
     hubConnections: Map<string, NotificationService>,
-    recorderConnections: Map<string, EventCaptureService>
+    recordingService: G4RecordingService
 }) => {
     // Register the main G4 webview provider that powers the extension's UI panel.
     new G4WebviewViewProvider(options.context).register();
 
-    // Register the recorder view provider that displays captured UI events and communicates with
-    // the associated EventCaptureService instances. Captured in a module field so the settings
-    // service can re-render it when settings are applied.
-    recorderViewProvider = new G4RecorderViewProvider(options.context, options.recorderConnections);
+    // Register the recorder view provider that shows each recorder's Hub session status and drives
+    // start, stop, suspend, and resume. Captured in a module field so the settings service can
+    // re-render it when settings are applied.
+    recorderViewProvider = new G4RecorderViewProvider(options.context, options.recordingService);
     recorderViewProvider.register();
 
     // Register the documents tree provider that displays workspace or
@@ -243,6 +245,54 @@ const registerProviders = (options: {
 
     // Register the custom workflow editor for G4 bot workflow files.
     new G4WorkflowCustomEditorProvider(options.context, options.baseUri).register();
+
+    // Register the report viewer for saved .g4rpt reports, and keep the Explorer menu's list of
+    // report files current.
+    new G4ReportCustomEditorProvider(options.context).register();
+    registerReportFilesContext(options.context);
+};
+
+/**
+ * Keeps the `g4.reportFiles` context key listing every `<workspace folder>/reports/**\/*.g4rpt` file.
+ *
+ * @remarks
+ * The Explorer menu's `when` clause cannot anchor a folder to a workspace root, so the menu tests
+ * `resourcePath in g4.reportFiles` instead. The list is rebuilt (debounced) whenever anything below
+ * a reports folder is created or deleted, and when workspace folders change.
+ *
+ * @param context - Extension context that owns the watcher and listeners.
+ */
+const registerReportFilesContext = (context: vscode.ExtensionContext): void => {
+    let timer: NodeJS.Timeout | undefined;
+
+    // Publishes the current report files as an object keyed by path, the shape `in` tests.
+    const updateReportFiles = async (): Promise<void> => {
+        const uris = await vscode.workspace.findFiles('**/reports/**/*.g4rpt');
+        const reportFiles = Object.fromEntries(uris
+            .filter(uri => Utilities.testReportFile(uri))
+            .map(uri => [uri.fsPath, true]));
+
+        await vscode.commands.executeCommand('setContext', 'g4.reportFiles', reportFiles);
+    };
+
+    // Coalesces bursts of file events (a run saving, a folder deleted) into one rebuild.
+    const scheduleUpdate = (): void => {
+        clearTimeout(timer);
+        timer = setTimeout(() => void updateReportFiles(), 300);
+    };
+
+    // Watch whole reports trees so folder renames and deletions also refresh the list.
+    const watcher = vscode.workspace.createFileSystemWatcher('**/reports/**');
+
+    context.subscriptions.push(
+        watcher,
+        watcher.onDidCreate(scheduleUpdate),
+        watcher.onDidDelete(scheduleUpdate),
+        vscode.workspace.onDidChangeWorkspaceFolders(scheduleUpdate),
+        { dispose: () => clearTimeout(timer) }
+    );
+
+    void updateReportFiles();
 };
 
 /**
@@ -259,6 +309,7 @@ const registerSettingsService = (context: vscode.ExtensionContext): void => {
     // Copy the module fields into locals so their non-undefined type narrows for the service.
     const startRecorderCommand = recorderCommand;
     const recorderView = recorderViewProvider;
+    const sessionOwner = recordingService;
 
     // The recorder subsystems must exist before the settings service can hot-apply their changes.
     if (startRecorderCommand === undefined) {
@@ -269,11 +320,15 @@ const registerSettingsService = (context: vscode.ExtensionContext): void => {
         return;
     }
 
-    // Build the service over the live recorder subsystems and the shared connection pool.
+    if (sessionOwner === undefined) {
+        return;
+    }
+
+    // Build the service over the live recorder subsystems and the shared session owner.
     const settingsService = new G4SettingsService({
         startRecorderCommand,
         recorderView,
-        recorderConnections: captureConnections
+        recordingService: sessionOwner
     });
 
     // Register Apply-Settings so a manual palette call, or a settings save, hot-applies the

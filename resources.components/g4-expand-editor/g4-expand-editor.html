@@ -1,0 +1,18 @@
+<!--
+    G4 expand editor: a large text editor in a modal, with line numbers and an optional error line.
+    See g4-expand-editor.js.
+-->
+<template id="g4-expand-editor-template" data-dependencies="g4-modal g4-line-numbers">
+    <div class="g4-expand-editor__body">
+        <g4-line-numbers variant="editor"></g4-line-numbers>
+        <textarea class="g4-expand-editor__textarea"
+                  data-part="textarea"
+                  data-test-id="textarea"
+                  spellcheck="false"
+                  wrap="off"></textarea>
+    </div>
+    <div class="g4-expand-editor__error"
+         data-part="error"
+         data-test-id="error-message"
+         role="alert"></div>
+</template>

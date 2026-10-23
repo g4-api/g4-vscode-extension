@@ -1,0 +1,33 @@
+/*
+ * Settings visual language: the page font and colors, muted hints, notes, notices, and links. The
+ * G4 components draw their own look.
+ */
+body {
+    font-family: var(--settings-font-family);
+    background-color: var(--settings-background);
+    color: var(--settings-foreground);
+}
+
+.settings-hint {
+    color: var(--settings-muted-foreground);
+}
+
+.settings-note {
+    color: var(--settings-muted-foreground);
+    background-color: var(--settings-note-background);
+    border-color: var(--settings-note-border-color);
+}
+
+.settings-error {
+    color: var(--settings-error-foreground);
+}
+
+a {
+    color: var(--settings-link-foreground);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--settings-link-active-foreground);
+    text-decoration: underline;
+}

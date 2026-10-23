@@ -1,0 +1,41 @@
+/*
+ * G4 list editor visual language: themed text boxes, ghost buttons, muted empty text, and
+ * error-colored entry errors.
+ */
+.g4-list-editor__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-list-editor-background);
+    border-color: var(--g4-list-editor-border-color);
+    outline: none;
+}
+
+.g4-list-editor__input:focus {
+    border-color: var(--g4-list-editor-focus-border-color);
+}
+
+.g4-list-editor__button {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-list-editor-button-foreground);
+    background-color: var(--g4-list-editor-button-background);
+    border-color: var(--g4-list-editor-button-border-color);
+    border-radius: var(--g4-list-editor-button-radius);
+}
+
+.g4-list-editor__button:hover {
+    background-color: var(--g4-list-editor-button-hover-background);
+}
+
+.g4-list-editor__button:disabled {
+    opacity: var(--g4-list-editor-disabled-opacity);
+    cursor: default;
+}
+
+.g4-list-editor__empty {
+    color: var(--g4-list-editor-muted-foreground);
+}
+
+.g4-list-editor__error {
+    color: var(--g4-list-editor-error-foreground);
+}

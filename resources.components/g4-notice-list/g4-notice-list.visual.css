@@ -1,0 +1,48 @@
+/*
+ * G4 notice list visual language: noted banners with status-colored text and a ghost action
+ * button; warning-colored warning lines that underline when they can be pressed.
+ */
+.g4-notice-list__banner {
+    color: var(--g4-notice-list-muted-foreground);
+    background-color: var(--g4-notice-list-background);
+    border-color: var(--g4-notice-list-border-color);
+}
+
+.g4-notice-list__text--ok {
+    color: var(--g4-notice-list-success-foreground);
+}
+
+.g4-notice-list__text--error {
+    color: var(--g4-notice-list-error-foreground);
+}
+
+.g4-notice-list__action {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-notice-list-button-foreground);
+    background-color: var(--g4-notice-list-button-background);
+    border-color: var(--g4-notice-list-border-color);
+    border-radius: var(--g4-notice-list-button-radius);
+}
+
+.g4-notice-list__action:hover {
+    background-color: var(--g4-notice-list-button-hover-background);
+}
+
+.g4-notice-list__warning {
+    font-family: inherit;
+    color: var(--g4-notice-list-warning-foreground);
+    background: none;
+}
+
+button.g4-notice-list__warning {
+    cursor: pointer;
+}
+
+button.g4-notice-list__warning:hover span {
+    text-decoration: underline;
+}
+
+.g4-notice-list__warning code {
+    font-family: var(--g4-notice-list-code-font-family);
+}

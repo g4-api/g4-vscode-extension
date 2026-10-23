@@ -1,92 +1,60 @@
 /*
- * Command to forward notebook automation events via G4 NotificationService.
+ * Command that stops the G4 Hub recording session and opens the recorded workflow.
  *
  * RESOURCES:
  * VS Code command API reference: https://code.visualstudio.com/api/references/commands
  */
 import * as vscode from 'vscode';
 
-import { EventCaptureService } from '../clients/g4-signalr-client';
-
 import { CommandBase } from './command-base';
 import { ShowWorkflowCommand } from './show-workflow';
 
-import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
-import { G4RecorderSelfIdentityService } from '../services/g4-recorder-self-identity-service';
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
 
-import { Global } from '../constants/global';
+import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
+import { G4RecordingService } from '../services/g4-recording-service';
 
+import type { RecordingJob } from '../clients/g4-recordings-client';
+
+import type {
+    RecorderOptions,
+    RecorderScriptOptions
+} from '../services/g4-recording-service';
+
+/**
+ * Registers and runs the **Stop-Recorder** command, which stops the Hub session and opens its workflow.
+ *
+ * @remarks
+ * The Hub flushes every recorder, converts the events into a native G4 automation, and closes owned
+ * browsers. The extension then applies what only it knows: each recorder's opt-in pre- and post-scripts
+ * (placed through the Hub's job-to-recorder map) and the manifest `settings` block. Post-scripts run on this
+ * machine after the session stopped, exactly as before.
+ */
 export class StopRecorderCommand extends CommandBase {
-    // Alignment emitted with a recorded pointer offset. It must match the origin the recorder
-    // measures the offset from (the element's top-left corner), so the InvokeUser32Click plugin
-    // anchors the offset there instead of its MiddleCenter default.
-    private static readonly _offsetAlignment: string = 'TopLeft';
-
-    // Guards the one-time deprecation warning emitted when an event still uses the legacy event-root offset contract.
-    private static _hasWarnedLegacyOffset: boolean = false;
-
-    // Mapping of keyboard event keys to supported identifiers.
-    // This map is used to determine which special keys should be
-    // emitted as dedicated actions during recording playback.
-    // Virtual-key codes for standalone modifier keys (generic and left/right variants, plus the
-    // Windows keys). The recorder captures a lone modifier press/release as its own event, but a
-    // modifier only has execution meaning as part of a chord (handled by the driver's modified-key
-    // path, not a standalone key). Dropping these during assembly keeps the recorded automation free
-    // of no-op key actions. Detection is by virtual-key code so it is independent of the OS key-name
-    // spelling.
-    private static readonly _modifierVirtualKeys: Set<number> = new Set<number>([
-        0x10, // Shift
-        0x11, // Ctrl
-        0x12, // Alt
-        0x5B, // Left Windows
-        0x5C, // Right Windows
-        0xA0, // Left Shift
-        0xA1, // Right Shift
-        0xA2, // Left Ctrl
-        0xA3, // Right Ctrl
-        0xA4, // Left Alt
-        0xA5  // Right Alt
-    ]);
-
-    // Recorder key labels that represent a typed character rather than a discrete key. The recorder
-    // reports these as multi-character words, so they are mapped back to the single character they
-    // produce before the character-versus-discrete-key classification runs. This is a classification
-    // aid only; it does not normalize to the driver's key vocabulary (the G4 plugin owns that).
-    private static readonly _characterKeyAliasMap: Map<string, string> = new Map<string, string>([
-        ['space', ' ']
-    ]);
-
-    // Dedicated logger for this command instance.
+    /** Dedicated logger for this command instance. */
     private readonly _logger: Logger;
 
     /**
-     * Create a new StopRecorderCommand.
+     * Creates the Stop-Recorder command.
      *
-     * @param _context VS Code extension context (lifecycle & subscriptions).
-     * @param _connections Map of active EventCaptureService connections.
+     * @param _context - VS Code extension context (lifecycle and subscriptions).
+     * @param _recordingService - The shared recording session owner.
      */
     constructor(
         private readonly _context: vscode.ExtensionContext,
-        private readonly _connections: Map<string, EventCaptureService> = new Map<string, EventCaptureService>(),
+        private readonly _recordingService: G4RecordingService
     ) {
-        // Initialize base CommandBase members (logger factory, context, etc.)
+        // Initialize base CommandBase members (logger factory, context, endpoint).
         super(_context);
 
         // Create a dedicated child logger for this command's messages.
-        this._logger = this.logger?.newLogger('G4.StartRecorder');
+        this._logger = this.logger?.newLogger('G4.StopRecorder');
 
         // Command identifier as used in package.json and when invoking via commands.executeCommand.
         this.command = 'Stop-Recorder';
-    }
-
-    /**
-     * Gets the connection pool (read-only map).
-     */
-    public get connections(): Map<string, EventCaptureService> {
-        return this._connections;
     }
 
     /**
@@ -97,10 +65,9 @@ export class StopRecorderCommand extends CommandBase {
         // Register the command and bind it to invokeCommand.
         const disposable = vscode.commands.registerCommand(
             this.command,
-            async (args: any) => {
-                await this.invokeCommand(args);
+            async (commandOptions: any) => {
+                await this.invokeCommand(commandOptions);
             },
-            // `thisArg` ensures `this` inside invokeCommand is this instance
             this
         );
 
@@ -109,286 +76,165 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
-     * Finalizes the recording process by aggregating captured events from all
-     * active connections, building an automation workflow, and displaying it.
+     * Stops the Hub session, completes and shows the recorded workflow, then runs the post-scripts.
+     *
+     * @remarks
+     * A failed stop leaves the session running (unless the Hub lost it), so the post-scripts run only after a
+     * successful stop, when the recorders really stopped capturing.
      */
     protected async onInvokeCommand(_?: any): Promise<void> {
-        // Snapshot and time-order the buffered events, and resolve the connection used for
-        // automation-level defaults, before touching (and closing) the connections.
-        const sortedBuffer = StopRecorderCommand.newSortedBuffer(this._connections);
-        const initialConnection = StopRecorderCommand.getFirstCaptureService(this._connections);
+        // Nothing to stop while idle.
+        if (!this._recordingService.isRecording) {
+            showTemporaryInformationMessage('No recording session is running.');
+            return;
+        }
 
-        // Drop any event whose window belongs to this VS Code instance. The desktop-wide UIA recorder
-        // captures VS Code's own chrome (the recorder panel, the Stop-recording button); VS Code is
-        // only ever automated through the Chromium recorder, so every VS Code window is off-limits to
-        // UIA capture. Filtering here keeps those self-window events out of both the mouse and the
-        // keyboard assemblers.
-        const selfProcessIds = await G4RecorderSelfIdentityService.getSelfProcessIds();
-        const buffer = StopRecorderCommand.rejectSelfWindowEvents(sortedBuffer, selfProcessIds);
+        // Keep the session's recorders before stop returns the service to idle; scripts are resolved from them.
+        const recorders = this._recordingService.sessionRecorders;
 
-        // Build and show the workflow BEFORE stopping the browsers so a slow or failing
-        // browser-stop can never prevent the recorded workflow from reaching the canvas. The
-        // finally block always stops the browsers and closes the connections afterwards.
         try {
-            const automation = this.newRecordedAutomation(buffer, initialConnection);
+            // Stop on the Hub, which returns the automation and the recorder of each job.
+            const stopped = await this._recordingService.stopRecording();
 
-            if (automation) {
+            // An empty recording has nothing to show.
+            const isEmptyRecording = stopped.automation === undefined || stopped.automation === null;
+
+            if (isEmptyRecording) {
+                this._logger.information('No recorded events found.');
+                showTemporaryInformationMessage('Recording stopped. No recorded events found.');
+            } else {
+                // Complete the flow with the extension-owned parts, then open it in the workflow viewer.
+                StopRecorderCommand.setRecordedScripts({
+                    automation: stopped.automation,
+                    jobs: stopped.jobs,
+                    recorders
+                });
+
+                const automation = StopRecorderCommand.newAutomationWithSettings(stopped.automation);
                 this.showRecordedWorkflow(automation);
+                showTemporaryInformationMessage('Recording stopped.');
             }
+        } catch (error: unknown) {
+            // Report the Hub's explanation; the session stays available for a retry unless the Hub lost it.
+            const message = `Failed to stop recording: ${Utilities.resolveErrorMessage(error)}`;
+            this._logger.error(message);
+            vscode.window.showErrorMessage(message);
+            return;
         }
-        catch (error: any) {
-            this.logger.error(error || 'An unknown error occurred while stopping the recorder.');
-        }
-        finally {
-            await StopRecorderCommand.stopRecorderConnections(this._connections);
-        }
+
+        // The recorders stopped capturing, so run their post-scripts on this machine.
+        await this.invokePostScripts(recorders);
     }
 
     /**
-     * Merges every connection's buffered events into one list, tags each with its recorder
-     * endpoint, and orders them by capture time so events from different recorders interleave in
-     * real order. The event timestamp lives on the inner model (item.value.timestamp), not on the
-     * broadcast envelope, so it is read from there.
-     */
-    private static newSortedBuffer(connections: Map<string, EventCaptureService>): any[] {
-        return Array
-            .from(connections.values())
-            .flatMap(service =>
-                service.buffer.map(item => ({
-                    ...item,
-                    baseUrl: service.options.baseUrl
-                }))
-            )
-            .sort((a, b) => (a?.value?.timestamp || 0) - (b?.value?.timestamp || 0));
-    }
-
-    /**
-     * Removes recorded events whose window belongs to this VS Code instance.
+     * Returns the index of the job's CloseBrowser action, or -1 when it has none.
      *
-     * @param buffer - The time-ordered recording buffer.
-     * @param selfProcessIds - Process ids that make up this VS Code executable family.
-     * @returns A new buffer with every self-window event removed.
+     * @param rules - The job's rules.
+     * @returns The CloseBrowser index, or -1.
+     */
+    private static getCloseBrowserIndex(rules: any[]): number {
+        return rules.findIndex(rule => rule?.pluginName === 'CloseBrowser');
+    }
+
+    /**
+     * Finds the recorder's first and last job in the Hub's job-to-recorder map.
      *
      * @remarks
-     * Pure and non-mutating: the input buffer is left untouched. Both the "down" and "up" halves of a
-     * self-window interaction are dropped because the predicate matches each event independently, so
-     * no half-pair survives to confuse the assemblers. Chromium events carry no UIA window chain, so
-     * they never match and pass through unchanged.
+     * Compute-only. Endpoints are compared as origins because the Hub reports them normalized.
+     *
+     * @param jobs - The job map returned with the stopped session.
+     * @param baseUrl - The recorder endpoint from the manifest.
+     * @returns The first and last job indexes, or undefined when the recorder produced no job.
      */
-    private static rejectSelfWindowEvents(buffer: any[], selfProcessIds: Set<number>): any[] {
-        // With no known self process ids there is nothing to exclude; keep the buffer as-is.
-        if (!selfProcessIds || selfProcessIds.size === 0) {
-            return buffer;
+    private static getRecorderJobRange(jobs: RecordingJob[], baseUrl: string): RecorderJobRange | undefined {
+        // Collect this recorder's job positions in flow order.
+        const origin = G4RecordingService.convertToOrigin(baseUrl);
+        const indexes = jobs
+            .filter(job => G4RecordingService.convertToOrigin(job.baseUrl) === origin)
+            .map(job => job.index)
+            .sort((left, right) => left - right);
+
+        if (indexes.length === 0) {
+            return undefined;
         }
 
-        return buffer.filter(event => !StopRecorderCommand.isSelfWindowEvent(event, selfProcessIds));
+        return {
+            firstIndex: indexes[0],
+            lastIndex: indexes.at(-1) ?? indexes[0]
+        };
     }
 
     /**
-     * Determines whether a recorded event targets a window owned by this VS Code instance.
-     *
-     * @param event - A single buffered recording event.
-     * @param selfProcessIds - Process ids that make up this VS Code executable family.
-     * @returns True when the event's window belongs to this VS Code instance.
+     * Runs every session recorder's post-script on this machine after the session stopped.
      *
      * @remarks
-     * The recorder reports the owning process id on the top window and on every chain node, so the
-     * primary test is a process-id match — stable across debug and Marketplace installs, unlike the
-     * window title. The title is used only as a fallback for the Extension Development Host window
-     * when process-id resolution produced nothing to match against.
+     * Failures are surfaced but never block the remaining recorders, since the recorders already stopped and
+     * the stop cannot be undone.
+     *
+     * @param recorders - The recorders that took part in the stopped session.
      */
-    private static isSelfWindowEvent(event: any, selfProcessIds: Set<number>): boolean {
-        const chain = event?.value?.chain;
-
-        // Primary signal: the owning process id of the top-level window the interaction happened in.
-        const topWindowProcessId = Number(chain?.topWindow?.processId);
-
-        if (Number.isInteger(topWindowProcessId) && selfProcessIds.has(topWindowProcessId)) {
-            return true;
-        }
-
-        // Fallback signal: any node in the element chain owned by this VS Code family.
-        const path = Array.isArray(chain?.path) ? chain.path : [];
-        const isSelfOwnedNode = path.some((node: any) => {
-            const nodeProcessId = Number(node?.processId);
-            return Number.isInteger(nodeProcessId) && selfProcessIds.has(nodeProcessId);
-        });
-
-        if (isSelfOwnedNode) {
-            return true;
-        }
-
-        // Last-resort signal for the debug host when no process id matched: the Extension Development
-        // Host window carries that literal in its title, which the locator preserves.
-        const locator = typeof chain?.locator === 'string' ? chain.locator : '';
-        return /Extension Development Host/i.test(locator);
-    }
-
-    /**
-     * Builds the automation workflow from the time-ordered buffer, or returns null (logging why)
-     * when there is nothing to build. A single-job recording runs on the automation-level (real)
-     * driver directly so exactly one browser opens; a multi-job recording uses a no-op
-     * automation-level driver so only the per-job drivers open browsers, avoiding an extra
-     * "shadow" browser alongside the job drivers.
-     */
-    private newRecordedAutomation(buffer: any[], initialConnection: EventCaptureService | undefined): any {
-        // Abort building when there is no connection to source automation defaults from.
-        if (!initialConnection) {
-            this.logger.warning('No active EventCaptureService connections found to stop.');
-            return null;
-        }
-
-        // Group consecutive events by recorder endpoint.
-        const groups = StopRecorderCommand.newBufferGroups(buffer);
-
-        // Abort if no events were recorded.
-        if (!groups || groups.length === 0) {
-            this.logger.information('No recorded events found in the buffers.');
-            return null;
-        }
-
-        // A single job inherits the automation-level (real) driver; multiple jobs use a no-op
-        // automation-level driver so only the per-job drivers open browsers.
-        const isSingleJob = groups.length === 1;
-        const automationDriver = isSingleJob
-            ? (initialConnection.options.driverParameters || {})
-            : { driver: 'NoDriver', driverBinaries: '.' };
-        const manifest = this.manifest;
-        const automation = StopRecorderCommand.newAutomation(
-            manifest,
-            StopRecorderCommand.confirmDriverBinaries(automationDriver)
-        );
-
-        // Precompute the last group index per endpoint (only the final job closes its browser) and
-        // track the launch job index per endpoint (later jobs mount it via "Job(N)").
-        const lastIndexByBaseUrl = StopRecorderCommand.newLastIndexByBaseUrl(groups);
-        const firstIndexByBaseUrl = StopRecorderCommand.newFirstIndexByBaseUrl(groups);
-        const launchJobByBaseUrl = new Map<string, number>();
-
-        // Convert each group into a job and attach it to the automation.
-        for (let i = 0; i < groups.length; i++) {
-            const group = groups[i];
-            const connection = this._connections.get(group.baseUrl || '');
-
-            const job = StopRecorderCommand.newRecordedJob({
-                group,
-                index: i,
-                isSingleJob,
-                connection,
-                launchJobByBaseUrl,
-                lastIndexByBaseUrl,
-                firstIndexByBaseUrl
+    private async invokePostScripts(recorders: RecorderOptions[]): Promise<void> {
+        for (const recorder of recorders) {
+            const result = await G4RecorderScriptService.runRecorderScript({
+                phase: 'post',
+                configuration: recorder.postScript,
+                baseUrl: recorder.baseUrl,
+                mode: recorder.mode,
+                driverParameters: recorder.driverParameters,
+                logger: this._logger
             });
 
-            automation.stages[0].jobs.push(job);
-        }
+            // Only an executed-and-failed post-script is worth a notification.
+            const isPostScriptFailed = result.isExecuted && !result.isSuccess;
 
-        // Finalize the completed definition with a detached authentication snapshot so later
-        // manifest refreshes cannot mutate the workflow already sent to the editor.
-        const manifestAuthentication = manifest.authentication;
-        const isAuthenticationObject =
-            manifestAuthentication !== null &&
-            typeof manifestAuthentication === 'object' &&
-            !Array.isArray(manifestAuthentication);
-
-        if (isAuthenticationObject) {
-            automation.authentication = structuredClone(manifestAuthentication);
-        }
-
-        return automation;
-    }
-
-    /**
-     * Maps each recorder endpoint to the index of the last group that uses it, so only the final
-     * job for a given browser closes it (earlier jobs must leave it open for later reuse).
-     */
-    private static newLastIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
-        const lastIndexByBaseUrl = new Map<string, number>();
-
-        for (let i = 0; i < groups.length; i++) {
-            lastIndexByBaseUrl.set(groups[i].baseUrl || '', i);
-        }
-
-        return lastIndexByBaseUrl;
-    }
-
-    /**
-     * Maps each recorder endpoint to the index of the FIRST group that uses it, so the recorder's
-     * pre-script is attached only to its launch job (a browser reused by a later job keeps its
-     * pre-script on the first job that opened it).
-     */
-    private static newFirstIndexByBaseUrl(groups: BufferGroup[]): Map<string, number> {
-        const firstIndexByBaseUrl = new Map<string, number>();
-
-        for (let i = 0; i < groups.length; i++) {
-            const baseUrl = groups[i].baseUrl || '';
-
-            // Record only the first occurrence so a reused browser keeps its launch (first) index.
-            if (!firstIndexByBaseUrl.has(baseUrl)) {
-                firstIndexByBaseUrl.set(baseUrl, i);
+            if (isPostScriptFailed) {
+                const warning = `Post-script failed for recorder ${recorder.baseUrl}. See the G4 log for details.`;
+                vscode.window.showWarningMessage(warning);
             }
         }
-
-        return firstIndexByBaseUrl;
     }
 
     /**
-     * Attaches the recorder's opt-in pre/post scripts to a job as InvokeScript actions.
+     * Returns a copy of the automation with the manifest `settings` block placed after its driver parameters.
      *
      * @remarks
-     * Runs only for scripts the user flagged with "Add to Automation Flow". The pre-script is
-     * prepended as the job's first action (its launch job); the post-script is inserted immediately
-     * before the job's CloseBrowser (its last job). Scripts that are empty, unflagged, or contain
-     * characters the `{{$ --ScriptBlock:...}}` macro cannot carry are skipped (the settings UI
-     * already surfaces the unsafe-character case). The job's rules array is mutated in place.
+     * Compute-only. The Hub's flow is client-neutral and carries no settings; the extension adds the
+     * project's runtime settings, detached so a later manifest refresh cannot change the open workflow.
      *
-     * @param job - The recorded job whose rules are augmented.
-     * @param options - The recorder connection and this job's first/last-for-browser flags.
+     * @param automation - The automation returned by the Hub.
+     * @returns A new automation object that also carries the manifest settings.
      */
-    private static setRecordedScripts(job: any, options: {
-        connection: EventCaptureService | undefined,
-        isFirstForBrowser: boolean,
-        isLastForBrowser: boolean
-    }): void {
-        const { connection, isFirstForBrowser, isLastForBrowser } = options;
-        const captureOptions = connection?.options;
+    private static newAutomationWithSettings(automation: any): any {
+        // Read the project's runtime settings; an absent block becomes an empty object, as before.
+        const manifestSettings = Utilities.getManifest()?.settings;
+        const isSettingsObject = manifestSettings !== null && typeof manifestSettings === 'object';
+        const settings = isSettingsObject
+            ? structuredClone(manifestSettings)
+            : {};
 
-        // Prepend the pre-script as the first action of the recorder's launch job.
-        if (isFirstForBrowser) {
-            const preRule = StopRecorderCommand.newInvokeScriptRule('pre', captureOptions?.preScript);
-
-            if (preRule) {
-                job.rules.unshift(preRule);
-            }
-        }
-
-        // Insert the post-script immediately before CloseBrowser on the recorder's last job.
-        if (isLastForBrowser) {
-            const postRule = StopRecorderCommand.newInvokeScriptRule('post', captureOptions?.postScript);
-
-            if (postRule) {
-                const closeIndex = StopRecorderCommand.getCloseBrowserIndex(job.rules);
-                const insertIndex = closeIndex >= 0 ? closeIndex : job.rules.length;
-                job.rules.splice(insertIndex, 0, postRule);
-            }
-        }
+        // Keep the familiar key order: authentication, driver parameters, settings, then stages.
+        return {
+            authentication: automation.authentication,
+            driverParameters: automation.driverParameters,
+            settings,
+            ...automation
+        };
     }
 
     /**
      * Builds an InvokeScript action from a recorder script, or null when it must not be injected.
      *
      * @remarks
-     * Returns null when the script is not opted into the automation flow, is empty, or contains
-     * characters that cannot be embedded in the `{{$ --ScriptBlock:...}}` macro (base64 is not yet
-     * supported). Newlines are escaped to the two-character sequence so multi-line scripts survive
-     * the macro. The shell is informational only (InvokeScript runs in the driver session) and is
-     * shown in the display name.
+     * Returns null when the script is not opted into the automation flow, is empty, or contains characters
+     * that cannot be embedded in the `{{$ --ScriptBlock:...}}` macro (base64 is not yet supported). Newlines
+     * are escaped to the two-character sequence so multi-line scripts survive the macro. The shell is
+     * informational only (InvokeScript runs in the driver session) and is shown in the display name.
      *
      * @param phase - Whether this is the 'pre' or 'post' recording script.
      * @param scriptConfig - The recorder's script configuration.
      * @returns The InvokeScript rule, or null when the script must be skipped.
      */
-    private static newInvokeScriptRule(phase: 'pre' | 'post', scriptConfig: any): any {
+    private static newInvokeScriptRule(phase: 'pre' | 'post', scriptConfig: RecorderScriptOptions | undefined): any {
         // Only inject scripts the user explicitly added to the automation flow.
         if (scriptConfig?.addToAutomationFlow !== true) {
             return null;
@@ -426,10 +272,62 @@ export class StopRecorderCommand extends CommandBase {
     }
 
     /**
-     * Returns the index of the job's CloseBrowser action, or -1 when it has none.
+     * Inserts each recorder's opt-in pre- and post-scripts into the jobs the Hub produced for it.
+     *
+     * @remarks
+     * The pre-script becomes the first action of the recorder's first job (the job that launches its
+     * driver); the post-script is inserted immediately before the CloseBrowser of the recorder's last job.
+     * Scripts that are empty, not flagged "Add to Automation Flow", or unsafe for the macro are skipped. The
+     * automation's job rules are mutated in place.
+     *
+     * @param options - The automation, the Hub's job map, and the session recorders.
      */
-    private static getCloseBrowserIndex(rules: any[]): number {
-        return rules.findIndex(rule => rule?.pluginName === 'CloseBrowser');
+    private static setRecordedScripts(options: RecordedScriptsOptions): void {
+        const { automation, jobs, recorders } = options;
+        const flowJobs: any[] = automation?.stages?.[0]?.jobs ?? [];
+
+        for (const recorder of recorders) {
+            // A recorder without events produced no job, so it has nowhere to place its scripts.
+            const range = StopRecorderCommand.getRecorderJobRange(jobs, recorder.baseUrl);
+
+            if (range === undefined) {
+                continue;
+            }
+
+            // Prepend the pre-script to the recorder's first job.
+            const firstJob = flowJobs[range.firstIndex];
+            const preRule = StopRecorderCommand.newInvokeScriptRule('pre', recorder.preScript);
+            const isPreRulePlaced = preRule !== null && Array.isArray(firstJob?.rules);
+
+            if (isPreRulePlaced) {
+                firstJob.rules.unshift(preRule);
+            }
+
+            // Insert the post-script before CloseBrowser on the recorder's last job, or at its end without one.
+            const lastJob = flowJobs[range.lastIndex];
+            const postRule = StopRecorderCommand.newInvokeScriptRule('post', recorder.postScript);
+            const isPostRulePlaced = postRule !== null && Array.isArray(lastJob?.rules);
+
+            if (isPostRulePlaced) {
+                const closeIndex = StopRecorderCommand.getCloseBrowserIndex(lastJob.rules);
+                const insertIndex = closeIndex >= 0
+                    ? closeIndex
+                    : lastJob.rules.length;
+
+                lastJob.rules.splice(insertIndex, 0, postRule);
+            }
+        }
+    }
+
+    /**
+     * Displays the completed workflow in the G4 Workflow Viewer.
+     *
+     * @param automation - The completed automation.
+     */
+    private showRecordedWorkflow(automation: any): void {
+        new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
+            workflow: automation
+        });
     }
 
     /**
@@ -449,1078 +347,32 @@ export class StopRecorderCommand extends CommandBase {
 
         return !isBraceUnsafe && !isArgumentUnsafe;
     }
-
-    /**
-     * Builds one recorded-actions job from a grouped buffer of events, wiring its id, think-time
-     * settings, CloseBrowser placement (only the last job for a browser), the event-to-rule mapping
-     * (chromium vs UIA), and its driver parameters.
-     */
-    private static newRecordedJob(options: {
-        group: BufferGroup,
-        index: number,
-        isSingleJob: boolean,
-        connection: EventCaptureService | undefined,
-        launchJobByBaseUrl: Map<string, number>,
-        lastIndexByBaseUrl: Map<string, number>,
-        firstIndexByBaseUrl: Map<string, number>
-    }): any {
-        const { group, index, isSingleJob, connection, launchJobByBaseUrl, lastIndexByBaseUrl, firstIndexByBaseUrl } = options;
-
-        const baseUrl = group.baseUrl || '';
-        const mode = connection?.options?.mode || 'standard';
-
-        // Whether this recorder opted into carrying the recorded pointer offset on User32 actions.
-        const isOffsetEnabled = connection?.options?.useOffset === true;
-
-        // Include the 1-based job index in the id so two browsers that share a machine name (and
-        // therefore a display name) still produce unique job ids.
-        const id = `recorded-actions-job-${index + 1}-${group.machineName.toLowerCase()}`;
-
-        // Apply think time settings from the connection options if available.
-        group.thinkTimeSettings = connection?.options?.thinkTimeSettings || {
-            enabled: false,
-            minThinkTime: 0,
-            maxThinkTime: 0
-        };
-
-        // Only the last job that uses this browser should close it.
-        const isLastForBrowser = lastIndexByBaseUrl.get(baseUrl) === index;
-
-        // Chromium recorders emit already-resolved, G4-ready actions (InvokeClick, SendKeys, ...),
-        // so they use a direct event-to-rule mapping instead of the UIA up/down assembly pipeline.
-        const isChromium = connection?.isChromium ?? false;
-
-        // Build the job definition from the grouped buffer of events, appending a CloseBrowser
-        // action only on the final job for this browser.
-        const job = StopRecorderCommand.newJob(
-            id,
-            mode,
-            group,
-            isLastForBrowser,
-            isChromium,
-            isOffsetEnabled);
-
-        StopRecorderCommand.setJobDriverParameters(job, {
-            isSingleJob,
-            connection,
-            baseUrl,
-            jobIndex: index + 1,
-            launchJobByBaseUrl
-        });
-
-        // Attach the recorder's opt-in pre/post scripts: the pre-script on its launch (first) job,
-        // the post-script before CloseBrowser on its last job.
-        const isFirstForBrowser = firstIndexByBaseUrl.get(baseUrl) === index;
-
-        StopRecorderCommand.setRecordedScripts(job, {
-            connection,
-            isFirstForBrowser,
-            isLastForBrowser
-        });
-
-        return job;
-    }
-
-    /**
-     * Sets a job's driver parameters. A single-job automation omits the job driver entirely so the
-     * job inherits the automation-level (real) driver and only one browser opens. In a multi-job
-     * automation the automation-level driver is a no-op, so each job carries its own: the first job
-     * for a browser launches it with the recorder's real driver (recording the launch index), and a
-     * later job for the same browser mounts it by referencing the launching job as "Job(N)".
-     */
-    private static setJobDriverParameters(job: any, options: {
-        isSingleJob: boolean,
-        connection: EventCaptureService | undefined,
-        baseUrl: string,
-        jobIndex: number,
-        launchJobByBaseUrl: Map<string, number>
-    }): void {
-        const { isSingleJob, connection, baseUrl, jobIndex, launchJobByBaseUrl } = options;
-
-        // Single-job automation: omit the job driver so it inherits the automation-level driver.
-        if (isSingleJob) {
-            delete job.driverParameters;
-            return;
-        }
-
-        // Multi-job automation: the first job launches its browser; a later job mounts it via "Job(N)".
-        const launchJob = launchJobByBaseUrl.get(baseUrl);
-
-        if (launchJob === undefined) {
-            job.driverParameters = StopRecorderCommand.confirmDriverBinaries(connection?.options.driverParameters || {});
-            launchJobByBaseUrl.set(baseUrl, jobIndex);
-        } else {
-            job.driverParameters = StopRecorderCommand.confirmDriverBinaries({ driver: `Job(${launchJob})` });
-        }
-    }
-
-    /**
-     * Returns a driver-parameters object that satisfies the G4 designer's import gate, which keeps
-     * a driver only when it has both a non-empty `driver` and a non-empty `driverBinaries`. When an
-     * object has a driver but no explicit binaries (for example a `Job(N)` reference), a shallow
-     * copy with `driverBinaries: "."` is returned so the original (possibly shared recorder config)
-     * is never mutated; otherwise the object is returned unchanged.
-     */
-    private static confirmDriverBinaries(driverParameters: any): any {
-        // Nothing to normalize for a missing object.
-        if (!driverParameters) {
-            return driverParameters;
-        }
-
-        const hasDriver = typeof driverParameters.driver === 'string' && driverParameters.driver.length > 0;
-        const hasBinaries = typeof driverParameters.driverBinaries === 'string' && driverParameters.driverBinaries.length > 0;
-
-        // Add a placeholder binaries value only when a driver is set but no binaries were provided.
-        if (hasDriver && !hasBinaries) {
-            return { ...driverParameters, driverBinaries: '.' };
-        }
-
-        return driverParameters;
-    }
-
-    /**
-     * Displays the constructed workflow in the G4 Workflow Viewer.
-     */
-    private showRecordedWorkflow(automation: any): void {
-        new ShowWorkflowCommand(this._context, this.endpoint).invokeCommand({
-            workflow: automation
-        });
-    }
-
-    /**
-     * Stops each recorder's browser and connection, then reports one user-facing notification only
-     * when at least one recorder was connected before cleanup.
-     *
-     * @remarks
-     * Run after the workflow is shown so a slow stop cannot delay the canvas. Errors are swallowed
-     * per recorder so one failing service never blocks the others. Aggregating the transition
-     * results prevents one notification per recorder and suppresses false notices for red services.
-     *
-     * @param connections - Recorder services included in the user-initiated Stop operation.
-     * @returns A promise that resolves after every recorder has been given a chance to stop.
-     */
-    private static async stopRecorderConnections(connections: Map<string, EventCaptureService>): Promise<void> {
-        // Track real connected-to-disconnected transitions across the full recorder pool so the
-        // user receives one summary instead of duplicate per-service notifications.
-        let isAnyConnectionDisconnected = false;
-
-        for (const service of connections.values()) {
-            try {
-                await service.stopBrowser();
-                const isConnectionDisconnected = await service.disconnect();
-
-                if (isConnectionDisconnected) {
-                    isAnyConnectionDisconnected = true;
-                }
-            } catch {
-                // Ignore errors during browser stop / disconnect.
-            }
-
-            // Run this recorder's post-script after teardown. Failures are surfaced but never block
-            // the remaining recorders, since the recorder has already stopped and cannot be undone.
-            const options = service.options;
-            const result = await G4RecorderScriptService.runRecorderScript({
-                phase: 'post',
-                configuration: options.postScript,
-                baseUrl: options.baseUrl,
-                mode: options.mode,
-                driverParameters: options.driverParameters,
-                logger: options.logger
-            });
-
-            if (result.isExecuted && !result.isSuccess) {
-                vscode.window.showWarningMessage(`Post-script failed for recorder ${options.baseUrl}. See the G4 log for details.`);
-            }
-        }
-
-        // Notify only for an actual user-visible transition; already-red services remain silent.
-        if (isAnyConnectionDisconnected) {
-            showTemporaryInformationMessage('Disconnected from G4 event capture services.');
-        }
-    }
-
-    /**
-     * Analyzes and validates a captured UI event to determine whether it
-     * qualifies as a significant "key release" or "mouse up" action.
-     * 
-     * The method ignores "down" events (e.g., keydown or mousedown) and
-     * only processes "up" events that contain a valid UI element path
-     * with bounding information.
-     * 
-     * Returns `null` if the event does not meet the filtering criteria.
-     */
-    private static assertEvent(event: any): any {
-        // Self-window events (VS Code's own chrome) are removed from the buffer before assembly by
-        // rejectSelfWindowEvents, so they never reach this classifier.
-
-        // Skip processing for "down" events (e.g., keydown, mousedown)
-        const isDown = event?.value?.event.match(/down/i);
-        if (isDown) {
-            return null;
-        }
-
-        // Only continue for "up" events (e.g., keyup, mouseup)
-        const isUp = event?.value?.event.match(/up/i);
-        if (!isUp) {
-            return null;
-        }
-
-        // Skip standalone modifier keys (Shift, Ctrl, Alt, Windows). The recorder captures a lone
-        // modifier press/release as its own event, but a modifier only executes as part of a chord,
-        // so emitting it as a discrete key would add a no-op action to the automation.
-        if (StopRecorderCommand.testStandaloneModifier(event)) {
-            return null;
-        }
-
-        // Retrieve the last element in the event's UI path (deepest element)
-        const path = event?.value?.chain?.path || [];
-        const element = path.at(-1) ?? null;
-
-        // Skip events with no target element
-        if (!element) {
-            return null;
-        }
-
-        // Extract bounding rectangle of the target element
-        const bounds = element.bounds || {};
-
-        // Create a simple hash-like ID from the element's geometry
-        const id = `${bounds.height};${bounds.X};${bounds.Y};${bounds.width}`;
-
-        // Attempt to resolve the most specific locator available for this event
-        const fallbackLocator = event?.value?.chain?.fallbackLocator;
-        const locator = event?.value?.chain?.locator;
-        const resolvedLocator = locator || fallbackLocator;
-
-        // Return a normalized event structure for downstream processing
-        return {
-            id,
-            bounds,
-            event,
-            locator: resolvedLocator
-        };
-    }
-
-    /**
-     * Resolves the user-facing name of a recorded interaction from its element chain.
-     *
-     * @remarks
-     * Walks from the target element outward through its ancestors and returns the first node whose
-     * `name` is a non-empty string, verbatim (the recorder already normalizes it). Returns an empty
-     * string when no node in the chain exposes a name. Path orientation differs by recorder, so the
-     * caller states whether the target element is first.
-     *
-     * @param path - The recorded element chain; each node may carry a user-facing `name`.
-     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false when it is
-     *                        last (UIA).
-     * @returns The first non-empty node name from the target outward, or an empty string.
-     */
-    private static getUserFacingName(path: any[] | undefined, isTargetFirst: boolean): string {
-        // No chain means there is nothing to label.
-        if (!Array.isArray(path) || path.length === 0) {
-            return '';
-        }
-
-        // Orient the walk so the target element is visited first regardless of recorder ordering.
-        const orderedPath = isTargetFirst ? path : [...path].reverse();
-
-        // Return the first node (target, then nearest ancestor) that exposes a non-empty name. The
-        // emptiness check trims only to decide presence; the returned value stays verbatim.
-        for (const node of orderedPath) {
-            const name = node?.name;
-            const isNamePresent = typeof name === 'string' && name.trim().length > 0;
-
-            if (isNamePresent) {
-                return name;
-            }
-        }
-
-        return '';
-    }
-
-    /**
-     * Attaches the recorded element's user-facing name to an element-targeted rule.
-     *
-     * @remarks
-     * Sets `capabilities.elementName` (recorder-owned; the designer appends it to the step label)
-     * only when the rule targets an element and a name resolves from the chain. Value-only actions
-     * (no `onElement`) and elements with no name are left unchanged, and an existing name is never
-     * overwritten. The name is attached verbatim.
-     *
-     * @param rule - The rule being built; mutated in place when a name is attached.
-     * @param path - The recorded element chain for the interaction.
-     * @param isTargetFirst - True when the target element is at index 0 (Chromium); false for UIA.
-     */
-    private static setRecordedElementName(rule: any, path: any[] | undefined, isTargetFirst: boolean): void {
-        // Only element-targeted actions get a name; value-only actions stay exactly as they are.
-        if (!rule?.onElement) {
-            return;
-        }
-
-        // Resolve the element's user-facing name; keep the rule unchanged when the chain has none.
-        const elementName = StopRecorderCommand.getUserFacingName(path, isTargetFirst);
-
-        if (elementName.length === 0) {
-            return;
-        }
-
-        // Preserve any existing capabilities, and never overwrite a name that is already present.
-        rule.capabilities = rule.capabilities || {};
-
-        if (!rule.capabilities.elementName) {
-            rule.capabilities.elementName = elementName;
-        }
-    }
-
-    /**
-     * Builds the offset argument fragment for a User32 mouse action, or '' when it does not apply.
-     *
-     * @remarks
-     * Offset is a pointer-position concept, so it applies only to User32 capture mode, only when the
-     * recorder opted in, and only when the recorded offset is non-zero. The value is read from the chain
-     * the recorder attaches to the event (`event.value.chain.mouseOffset`).
-     *
-     * A deprecated backward-compatibility fallback reads the legacy event-root location (`event.value.offset`)
-     * when the current form yields nothing, emitting a one-time warning. That fallback will be removed in a
-     * future version, at which point this method becomes pure again.
-     *
-     * @param mode - The recorder capture mode.
-     * @param event - The recorded event carrying the offset at `value.chain.mouseOffset` (legacy: `value.offset`).
-     * @param isOffsetEnabled - Whether the recorder's "use offset" option is on.
-     * @returns The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
-     */
-    private static getOffsetArguments(mode: string, event: any, isOffsetEnabled: boolean): string {
-        // Offset is a User32 pointer concept and only applies when the recorder opted in.
-        if (mode !== 'user32' || !isOffsetEnabled) {
-            return '';
-        }
-
-        // Read the recorded offset from the chain's mouseOffset, coercing each axis to a number.
-        let offsetX = Number(event?.value?.chain?.mouseOffset?.x) || 0;
-        let offsetY = Number(event?.value?.chain?.mouseOffset?.y) || 0;
-
-        // Backward compatibility: older recorders emitted the offset at the event root (event.value.offset)
-        // instead of on the chain. Fall back to that legacy contract only when the current form yields nothing.
-        // DEPRECATED: this fallback supports older recorders and will be removed in a future version.
-        if (offsetX === 0 && offsetY === 0) {
-            const legacyX = Number(event?.value?.offset?.x) || 0;
-            const legacyY = Number(event?.value?.offset?.y) || 0;
-
-            if (legacyX !== 0 || legacyY !== 0) {
-                StopRecorderCommand.warnLegacyOffsetContract();
-                offsetX = legacyX;
-                offsetY = legacyY;
-            }
-        }
-
-        // A zero offset carries no meaning, so nothing is added.
-        const isOffsetPresent = offsetX !== 0 || offsetY !== 0;
-
-        if (!isOffsetPresent) {
-            return '';
-        }
-
-        // Anchor the offset at the element's top-left corner, which is the origin the recorder
-        // measures the offset from. Without this the InvokeUser32Click plugin defaults to
-        // MiddleCenter and applies the offset from the element's center, landing off target.
-        return ` --OffsetX:${offsetX} --OffsetY:${offsetY} --Alignment:${StopRecorderCommand._offsetAlignment}`;
-    }
-
-    /**
-     * Emits a one-time deprecation warning when an event supplies the pointer offset through the legacy
-     * event-root contract (`value.offset`) instead of the current chain contract (`value.chain.mouseOffset`).
-     *
-     * @remarks
-     * The fallback that calls this exists only to support older recorders and will be removed in a future
-     * version. The warning is emitted once per session so buffer processing does not repeat it per event.
-     */
-    private static warnLegacyOffsetContract(): void {
-        // Suppress the message after it has been emitted once for this session.
-        if (StopRecorderCommand._hasWarnedLegacyOffset) {
-            return;
-        }
-
-        StopRecorderCommand._hasWarnedLegacyOffset = true;
-
-        Global.logger?.warning(
-            "Recorder event provided the pointer offset at the deprecated 'value.offset' location. This " +
-            "backward-compatibility fallback is deprecated and will be removed in a future version; update the " +
-            "recorder to emit the offset on the chain as 'value.chain.mouseOffset'.");
-    }
-
-    /**
-     * Merges an offset argument fragment into a rule's CLI argument macro.
-     *
-     * @remarks
-     * A no-op when the fragment is empty. When the rule has no argument yet (the normal User32
-     * click), a fresh `{{$ ... }}` macro is created; when it already has one, the fragment is spliced
-     * in before the trailing `}}` so existing arguments are preserved.
-     *
-     * @param rule - The rule being built; mutated in place.
-     * @param offsetArguments - The ` --OffsetX:<x> --OffsetY:<y>` fragment, or an empty string.
-     */
-    private static setOffsetArgument(rule: any, offsetArguments: string): void {
-        // Nothing to add when the offset does not apply.
-        if (offsetArguments.length === 0) {
-            return;
-        }
-
-        // Create a fresh macro when the action has no argument yet (the common User32 click case).
-        const existingArgument = typeof rule.argument === 'string' ? rule.argument : '';
-
-        if (existingArgument.length === 0) {
-            rule.argument = `{{$${offsetArguments}}}`;
-            return;
-        }
-
-        // Splice the offset into an existing macro, before its closing braces, so other arguments
-        // are preserved.
-        const closingIndex = existingArgument.lastIndexOf('}}');
-
-        rule.argument = closingIndex >= 0
-            ? existingArgument.slice(0, closingIndex) + offsetArguments + existingArgument.slice(closingIndex)
-            : existingArgument + offsetArguments;
-    }
-
-    /**
-     * Determines which EventCaptureService instance captured the earliest event
-     * based on the timestamps of items in their internal buffers.
-     *
-     * This method is useful when coordinating multiple capture services that may
-     * record events in parallel - ensuring actions are processed in the correct order.
-     */
-    private static getFirstCaptureService(
-        connections: Map<string, EventCaptureService>
-    ): EventCaptureService | undefined {
-
-        // Quick optimization: if there's only one capture service, no need to compare timestamps.
-        if (connections.size === 1) {
-            return Array.from(connections.values())[0];
-        }
-
-        // The service whose buffer contains the earliest event.
-        let earliestService: EventCaptureService | undefined;
-
-        // The earliest buffered event timestamp found across all services.
-        let earliestTimestamp: number | undefined;
-
-        // Iterate through all available capture services.
-        for (const service of connections.values()) {
-
-            // Examine each buffered item in the service. The event timestamp is on the inner
-            // model (item.value.timestamp), not on the broadcast envelope.
-            for (const item of service.buffer) {
-                const timestamp = item?.value?.timestamp;
-
-                // Skip items without a usable timestamp.
-                if (typeof timestamp !== 'number') {
-                    continue;
-                }
-
-                // If this is the first item checked, or if the current item has an earlier
-                // timestamp, record it as the earliest so far.
-                if (earliestTimestamp === undefined || timestamp < earliestTimestamp) {
-                    earliestTimestamp = timestamp;
-                    earliestService = service;
-                }
-            }
-        }
-
-        // Fall back to the first connection when no timestamped event was found, so the caller
-        // still has a service to source automation defaults from instead of aborting entirely.
-        return earliestService ?? Array.from(connections.values())[0];
-    }
-
-    /**
-     * Creates the schema-compatible automation shell that receives recorded jobs and a final
-     * authentication snapshot before being returned to the workflow editor.
-     */
-    private static newAutomation(manifest: any, driverParameters: any): any {
-        // Extract runtime or environment settings, or default to an empty object.
-        const settings = manifest.settings || {};
-
-        // Construct and return a standardized automation definition object.
-        return {
-            // Keep the shell schema-compatible until the completed definition receives the
-            // manifest's detached authentication snapshot.
-            authentication: {
-                token: ""
-            },
-
-            // Parameters that define how and where the automation will execute
-            // (e.g., browser, platform, device, or driver-specific settings).
-            driverParameters: driverParameters || {},
-
-            // Arbitrary key-value pairs defining runtime configuration.
-            settings: settings,
-
-            // Stages define the automation workflow hierarchy.
-            // Each stage can contain multiple jobs that run sequentially or in parallel.
-            stages: [
-                {
-                    reference: {
-                        id: "recorder-stage-01",
-                        name: "Recorded Actions Stage",
-                        description:
-                            "Stage to execute all actions captured during the recording session."
-                    },
-
-                    // Placeholder array for job definitions.
-                    // Jobs will be added dynamically as recording data is processed.
-                    jobs: []
-                }
-            ]
-        };
-    }
-
-    /**
-     * Maps a grouped buffer of Chromium recorder events to executable G4 rules.
-     *
-     * The Chromium extension already resolves each interaction into a G4-ready event whose
-     * `event` field is the plugin name (for example `InvokeClick`, `SendKeys`, `OpenUrl`) and
-     * whose `chain.locator` is the element XPath. Each event therefore maps one-to-one to a
-     * rule, unlike the UIA recorder whose low-level up/down events must be assembled.
-     */
-    private static resolveChromiumEvents(buffer: any[]): any[] {
-        // Accumulates one rule per resolvable recorder event, in capture order.
-        const rules: any[] = [];
-
-        for (const item of buffer) {
-            // The recorder model sits inside the broadcast envelope's `value` property.
-            const model = item?.value;
-
-            // Skip envelopes without a usable event (the event name is the plugin name).
-            if (!model?.event) {
-                continue;
-            }
-
-            rules.push(StopRecorderCommand.newChromiumRule(model));
-        }
-
-        return rules;
-    }
-
-    /**
-     * Builds a single G4 rule from one Chromium recorder event model.
-     *
-     * The event name is used verbatim as the plugin name; the element locator and argument are
-     * resolved per event family so the rule matches the G4 action's expected shape (element vs.
-     * argument-only actions).
-     */
-    private static newChromiumRule(model: any): any {
-        // The element XPath the interaction targeted (empty for navigation/window events).
-        const locator = model?.chain?.locator || '';
-
-        // The event-specific payload (typed text, url, scroll direction, window index, ...).
-        const value = model?.value || {};
-
-        // Every rule is an Action whose plugin name is the recorder's resolved event name, and
-        // carries the capture timestamp so think-time insertion works uniformly with UIA jobs.
-        const rule: any = {
-            $type: 'Action',
-            pluginName: model.event,
-            context: {
-                timestamp: model.timestamp
-            }
-        };
-
-        switch (model.event) {
-            case 'SendKeys':
-                // Typed text targets the focused element; carry the text as the --keys argument.
-                rule.onElement = locator || undefined;
-                rule.argument = `{{$ --keys:${value.text ?? ''}}}`;
-                break;
-
-            case 'OpenUrl':
-                // Address-bar navigation: the destination URL is the argument, no element.
-                rule.argument = value.url ?? '';
-                break;
-
-            case 'UpdatePage':
-            case 'UndoNavigation':
-            case 'RedoNavigation':
-                // Reload / back / forward navigations take neither an element nor an argument.
-                break;
-
-            case 'SwitchWindow':
-            case 'CloseWindow':
-                // Window actions target a window-handle index rather than a DOM element.
-                rule.argument = `${value.index ?? 0}`;
-                break;
-
-            case 'InvokeScroll':
-                // Wheel scroll carries a readable direction and a normalized notch count.
-                rule.onElement = locator || undefined;
-                rule.argument = `{{$ --direction:${value.direction ?? 'Down'} --times:${value.notches ?? 1}}}`;
-                break;
-
-            default:
-                // Element-targeted actions (InvokeClick, InvokeDoubleClick, InvokeContextClick,
-                // MoveMouseCursor, SubmitForm, SwitchFrame, SwitchParentFrame) run against the
-                // recorded locator with no extra argument.
-                if (locator) {
-                    rule.onElement = locator;
-                }
-                break;
-        }
-
-        // Attach the recorded element's user-facing name (the Chromium chain is target-first) so the
-        // designer can label the step; a no-element or unnamed action is left unchanged.
-        StopRecorderCommand.setRecordedElementName(rule, model?.chain?.path, true);
-
-        return rule;
-    }
-
-    /**
-     * Builds a job definition from a grouped buffer of recorded events.
-     * Each job aggregates mouse and keyboard actions into executable rules.
-     */
-    private static newJob(
-        id: string,
-        mode: string,
-        bufferGroup: BufferGroup,
-        appendCloseBrowser: boolean = true,
-        isChromium: boolean = false,
-        isOffsetEnabled: boolean = false
-    ): any {
-        /**
-         * Inserts "think time" delay actions between recorded rules based on the
-         * time difference between consecutive events.
-         * 
-         * Think time represents the natural pause a user takes between actions.
-         * This function detects meaningful gaps between event timestamps and
-         * injects a `WaitFlow` action to simulate that delay during replay.
-         */
-        const addThinkTime = (rules: any[], minThinkTime: number, maxThinkTime: number) => {
-            // Validate input: if not an array or less than 2 items, just return a copy (or empty array).
-            if (!Array.isArray(rules) || rules.length < 2) {
-                return Array.isArray(rules) ? rules.slice() : [];
-            }
-
-            // Output array to hold the resulting sequence with inserted delays.
-            const rulesOut: any[] = [];
-
-            // Iterate over all consecutive rule pairs.
-            for (let i = 0; i < rules.length - 1; i++) {
-                const currentRule = rules[i];
-                const nextRule = rules[i + 1];
-
-                // Always include the current rule.
-                rulesOut.push(currentRule);
-
-                // Extract timestamps from the context (convert to number to ensure numeric comparison).
-                const currentTimestamp = Number(currentRule?.context?.timestamp);
-                const nextTimestamp = Number(nextRule?.context?.timestamp);
-
-                // Skip if either timestamp is invalid.
-                if (!Number.isFinite(currentTimestamp) || !Number.isFinite(nextTimestamp)) {
-                    continue;
-                }
-
-                // Compute time gap between consecutive actions.
-                const delta = nextTimestamp - currentTimestamp;
-
-                // Only insert think time if the gap exceeds the minimum threshold.
-                if (delta > minThinkTime) {
-                    // Cap the delay to the maximum allowed think time.
-                    const duration = Math.min(delta, maxThinkTime);
-
-                    // Convert to seconds with two decimal precision.
-                    const thinkTime = Number((duration / 1000).toFixed(2));
-
-                    // Insert a synthetic "WaitFlow" rule to simulate user pause.
-                    rulesOut.push({
-                        $type: 'Action',
-                        pluginName: 'WaitFlow',
-                        argument: `{{$ --Timeout:${duration}}}`,
-                        capabilities: {
-                            displayName: `Think Time (${thinkTime} seconds)`,
-                        },
-                    });
-                }
-            }
-
-            // Push the final rule (last one in sequence) to complete the list.
-            rulesOut.push(rules.at(-1));
-
-            // Return the modified rule set with think time delays.
-            return rulesOut;
-        };
-
-        // Clone the group's event list to safely consume it
-        const buffer = [...bufferGroup.events];
-
-        // Initialize job-specific parameters and metadata
-        const driverParameters = {};
-        const machineName = bufferGroup.machineName;
-
-        // Define the job structure with identifying reference and rule container
-        const job = {
-            driverParameters: driverParameters,
-            reference: {
-                id: id,
-                name: `Recorded Actions Job (${machineName})`,
-                description: `Job to execute all recorded actions from machine ${machineName}.`
-            },
-            rules: [] as any[]
-        };
-
-        // Chromium recorders push events that are already resolved G4 actions (the event name is
-        // the plugin name and the chain carries the element locator), so each maps directly to a
-        // rule. The UIA recorder instead emits low-level up/down events that must be assembled.
-        if (isChromium) {
-            job.rules = StopRecorderCommand.resolveChromiumEvents(buffer);
-        } else {
-            // Sequentially resolve and classify each recorded UIA event
-            while (buffer.length > 0) {
-                // Safely extract the next buffered event
-                const event = StopRecorderCommand.assertEvent(buffer.shift())?.event;
-
-                // Skip invalid or undefined entries
-                if (!event) {
-                    continue;
-                }
-
-                // Mouse events are translated to UI interaction actions
-                if (event?.value?.type?.match(/mouse/gi)) {
-                    const mouseAction = StopRecorderCommand.resolveMouseEvent(mode, event, isOffsetEnabled);
-                    job.rules.push(mouseAction);
-                    continue;
-                }
-
-                // Keyboard sequences are consolidated into a single input action
-                const keyboardActions = StopRecorderCommand.resolveKeyboardEvent(mode, event, buffer);
-                job.rules.push(...keyboardActions);
-            }
-        }
-
-        // Close the browser at the end only when this is the final job that uses it; a browser
-        // reused by a later job must stay open so that job can mount the same driver.
-        if (appendCloseBrowser) {
-            job.rules.push({
-                $type: 'Action',
-                pluginName: "CloseBrowser"
-            });
-        }
-
-        // Insert think time delays between actions based on recorded timestamps
-        if (bufferGroup.thinkTimeSettings?.enabled) {
-            job.rules = addThinkTime(
-                job.rules,
-                bufferGroup.thinkTimeSettings?.minThinkTime || 0,
-                bufferGroup.thinkTimeSettings?.maxThinkTime || 0
-            );
-        }
-
-        // Return the constructed job definition
-        return job;
-    }
-
-    /**
-     * Resolves a sequence of raw keyboard events into one or more normalized action rules.
-     *
-     * The method groups consecutive typed characters into a combined keys action, while emitting any
-     * discrete key (a label longer than one character) as its own dedicated action carrying the
-     * recorder's raw key label. Normalization of that label to the driver's key vocabulary is deferred
-     * to the G4 plugin layer. It consumes events from the supplied buffer until it reaches a
-     * non-keyboard event or the buffer is exhausted.
-     */
-    private static resolveKeyboardEvent(
-        mode: string,
-        event: any,
-        buffer: any[]
-    ): any[] {
-        /**
-         * Creates a new keyboard-related action rule based on the given mode and input.
-         * 
-         * When the input represents a single logical key, the action uses the keyboard key plugin.
-         * When the input represents a sequence of characters, the action uses the keys plugin.
-         * The mode determines whether the standard plugins or the User32-based plugins are used.
-         */
-        const newKeyboardRule = (
-            mode: string,
-            keys: string, event: any,
-            isKeyboard: boolean
-        ): any => {
-            // Resolve plugin names according to the selected mode
-            const keysAction = mode === 'standard' ? 'SendKeys' : 'SendUser32Keys';
-            const keyboardAction = mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey';
-
-            // Decide whether to use a single-key or multi-key parameter and plugin
-            const parameter = isKeyboard ? 'Key' : 'Keys';
-            const pluginName = isKeyboard ? keyboardAction : keysAction;
-
-            // Build the normalized action object with locator and timestamp context.
-            const rule: any = {
-                $type: 'Action',
-                pluginName: pluginName,
-                onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-                argument: '{{$ --' + parameter + ':' + keys + '}}',
-                context: {
-                    timestamp: event?.value?.timestamp
-                }
-            };
-
-            // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
-            StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
-
-            return rule;
-        };
-
-        // Temporary storage for all sequential character values that will later be combined into a
-        // single keys action.
-        const keysBuffer: string[] = [];
-
-        // Classify the initial event as a typed character or a discrete key. Word-spelled character
-        // keys (for example "Space") are resolved to their glyph first so a run that begins with one
-        // buffers as text rather than emitting a discrete key.
-        const initialKey = StopRecorderCommand.resolveCharacterKey(event?.value?.value?.key);
-        const isInitialDiscreteKey = initialKey.length > 1;
-
-        // A leading discrete key becomes its own dedicated action; the rest of the buffer is left for
-        // the next run, exactly as a mid-sequence discrete key ends this run.
-        if (isInitialDiscreteKey) {
-            return [StopRecorderCommand.newDiscreteKeyRule(mode, event)];
-        }
-
-        // Otherwise seed the buffer with the resolved initial character.
-        keysBuffer.push(initialKey);
-
-        // The event whose element/name/timestamp the buffered-character keys action is attributed to.
-        // It tracks the characters, not a discrete key that may terminate the run, so the keys action
-        // keeps the field the characters were typed in. Seeded from the initial event.
-        let keysEvent = event;
-
-        // Aggregate the following keyboard events. The guard only consumes the next event when it is
-        // a keyboard event: a following mouse click's up event survives assertEvent, so peeking the
-        // type here leaves the click in the buffer for resolveMouseEvent instead of pulling it into
-        // this keys action (which would steal its element and swallow the click). The buffer.length
-        // check also keeps an exhausted buffer from spinning the loop.
-        while (buffer.length > 0 && buffer[0]?.value?.type?.match(/keyboard/i)) {
-            // Read the next event; skip non-target events (for example key-down) without discarding
-            // the last valid event, so the trailing key keeps its locator/timestamp for its rule.
-            const nextEvent = StopRecorderCommand.assertEvent(buffer.shift())?.event;
-
-            if (!nextEvent) {
-                continue;
-            }
-
-            event = nextEvent;
-
-            // Resolve the character form so word-spelled character keys buffer as text, then classify
-            // this event as a typed character or a discrete key.
-            const key = StopRecorderCommand.resolveCharacterKey(event?.value?.value?.key);
-            const isDiscreteKey = key.length > 1;
-
-            // A discrete key ends the current character run: flush any buffered characters as a single
-            // keys action, then append the discrete-key action and finish this run.
-            if (isDiscreteKey) {
-                const bufferedKeys = keysBuffer.filter(i => i !== '').join('');
-
-                const keysRules = bufferedKeys.length > 0
-                    ? [newKeyboardRule(mode, bufferedKeys, keysEvent, false)]
-                    : [];
-
-                return [...keysRules, StopRecorderCommand.newDiscreteKeyRule(mode, event)];
-            }
-
-            // The event is a typed character: add it to the sequence buffer and record its event so
-            // the keys action is attributed to the character keystroke, not a later discrete key.
-            keysBuffer.push(key);
-            keysEvent = event;
-        }
-
-        // No more keyboard events are available. Combine all buffered characters into one keys action,
-        // emitted only when characters were collected so an all-discrete run produces no empty action.
-        const bufferedKeys = keysBuffer.filter(i => i !== '').join('');
-
-        return bufferedKeys.length > 0
-            ? [newKeyboardRule(mode, bufferedKeys, keysEvent, false)]
-            : [];
-    }
-
-    /**
-     * Builds a discrete keyboard-key action rule from a recorded key event.
-     *
-     * @remarks
-     * The recorder's raw key label is used verbatim as the --Key argument; translation to the
-     * driver's canonical key vocabulary is deferred to the G4 plugin layer so every client that
-     * authors automations shares one key vocabulary (for example "Num Enter" becomes "Enter" at
-     * execution time). The mode selects the standard or User32 keyboard plugin and whether a
-     * locator is attached.
-     */
-    private static newDiscreteKeyRule(mode: string, event: any): any {
-        // Use the recorder's raw key label as the key argument; the G4 plugin normalizes it at
-        // execution time so all clients share one key vocabulary.
-        const rawKey = event?.value?.value?.key || '';
-
-        // Construct the standardized action rule.
-        const rule: any = {
-            $type: 'Action',
-            pluginName: mode === 'standard' ? 'SendKeyboardKey' : 'SendUser32KeyboardKey',
-            onElement: mode === 'coordinate' ? undefined : event?.value?.chain?.locator,
-            argument: '{{$ --Key:' + rawKey + '}}',
-            context: {
-                timestamp: event?.value?.timestamp
-            }
-        };
-
-        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the label.
-        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
-
-        return rule;
-    }
-
-    /**
-     * Resolves the character a recorder key label represents, for the character-versus-discrete-key
-     * classification.
-     *
-     * @remarks
-     * Word-spelled character keys (for example "Space") are mapped to the single character they
-     * produce; every other label is returned unchanged. This is a classification aid only and does
-     * not translate to the driver's key vocabulary — the G4 plugin normalizes discrete keys.
-     */
-    private static resolveCharacterKey(rawKey: string): string {
-        // Normalize the lookup to lower case so label casing cannot hide a known character alias.
-        const aliasKey = (rawKey || '').toLowerCase();
-
-        // Map a word-spelled character key to its glyph; otherwise keep the original label verbatim.
-        return StopRecorderCommand._characterKeyAliasMap.get(aliasKey) ?? (rawKey || '');
-    }
-
-    /**
-     * Tests whether a recorded keyboard event is a standalone modifier key press or release.
-     *
-     * @remarks
-     * A lone modifier (Shift, Ctrl, Alt, or a Windows key) has no execution meaning on its own —
-     * modifiers reach the driver only as part of a chord — so such events are dropped during
-     * assembly to avoid emitting no-op key actions. Detection uses the virtual-key code so it is
-     * independent of the operating system's key-name spelling.
-     */
-    private static testStandaloneModifier(event: any): boolean {
-        // Only keyboard events can be modifier keys; anything else is never treated as one.
-        const isKeyboardEvent = /keyboard/i.exec(`${event?.value?.type}`) !== null;
-
-        if (!isKeyboardEvent) {
-            return false;
-        }
-
-        // Compare the captured virtual-key code against the known modifier set.
-        const virtualKey = event?.value?.value?.virtualKey;
-
-        return StopRecorderCommand._modifierVirtualKeys.has(virtualKey);
-    }
-
-    /**
-     * Resolves a recorded mouse event into a standardized action definition
-     * compatible with the automation workflow schema.
-     */
-    private static resolveMouseEvent(mode: string, event: any, isOffsetEnabled: boolean = false): any {
-        // Map normalized mouse event types to corresponding plugin command names
-        const mouseEventMap: Map<string, string> = new Map<string, string>([
-            ['left', (mode === 'standard' ? 'InvokeClick' : 'InvokeUser32Click')],
-            ['middle', (mode === 'standard' ? 'InvokeMiddleClick' : 'InvokeUser32MiddleClick')],
-            ['right', (mode === 'standard' ? 'InvokeContextClick' : 'InvokeUser32ContextClick')]
-        ]);
-
-        // Extract the mouse event type (e.g., "left", "right", "middle") from the event string
-        const mouseEventType = event?.value?.event?.split(' ')[0]?.toLowerCase();
-
-        // Attempt to resolve the most specific locator available for this event
-        const fallbackLocator = event?.value?.chain?.fallbackLocator;
-        const locator = event?.value?.chain?.locator;
-        const resolvedLocator = locator || fallbackLocator || undefined;
-
-        // Construct the action rule based on the mouse event type and mode
-        const rule: any = {
-            $type: 'Action',
-            pluginName: mouseEventMap.get(mouseEventType) || 'None',
-            onElement: resolvedLocator,
-            context: {
-                x: event?.value?.x,
-                y: event?.value?.y,
-                timestamp: event?.value?.timestamp
-            }
-        };
-
-        // Adjust the action for coordinate-based mode
-        if (mode === 'coordinate') {
-            rule.onElement = undefined;
-            rule.argument = `{{$ --X:${event?.value?.value?.x} --Y:${event?.value?.value?.y}}}`;
-        }
-
-        // Carry the recorded pointer offset on User32 mouse actions when the recorder opted in and
-        // the offset is non-zero; the element target is preserved and only the argument is extended.
-        StopRecorderCommand.setOffsetArgument(rule, StopRecorderCommand.getOffsetArguments(mode, event, isOffsetEnabled));
-
-        // Attach the recorded element's user-facing name (the UIA chain is target-last) for the step
-        // label; skipped in coordinate mode (no onElement) and when the element has no name.
-        StopRecorderCommand.setRecordedElementName(rule, event?.value?.chain?.path, false);
-
-        // Return a normalized action object suitable for automation execution
-        return rule;
-    }
-
-    /**
-     * Groups a flat list of recorded event objects into consecutive groups,
-     * where each group represents a continuous sequence of events
-     * coming from the same recorder endpoint (baseUrl).
-     *
-     * Unlike a traditional "group by" operation, this method preserves
-     * **order and continuity** - meaning if the same recorder appears again
-     * later in the buffer, it starts a **new group** rather than merging with
-     * previous occurrences. Grouping by endpoint (rather than machine name)
-     * keeps two browsers hosted on the same machine in separate jobs and lets a
-     * browser that reappears later form a new, mountable job.
-     */
-    private static newBufferGroups(buffer: any[]): BufferGroup[] {
-        // The final list of groups. Each group contains a continuous run of events that
-        // originated from the same recorder endpoint.
-        const groups: BufferGroup[] = [];
-
-        // Tracks the currently active group being populated.
-        let currentGroup: BufferGroup | null = null;
-
-        // Iterate through each event in the buffer in sequential (timestamp) order.
-        for (const event of buffer) {
-            // When encountering the first event, or when the originating recorder endpoint
-            // changes, start a new group with a new incremental ID.
-            if (!currentGroup || currentGroup.baseUrl !== event.baseUrl) {
-                currentGroup = {
-                    id: groups.length + 1,                // Sequential numeric group ID.
-                    baseUrl: event.baseUrl,               // Recorder endpoint defining this group.
-                    machineName: event.value.machineName, // Machine name, kept for display.
-                    events: []                            // Container for grouped events.
-                };
-                groups.push(currentGroup);
-            }
-
-            // Add the current event to the active group.
-            currentGroup.events.push(event);
-        }
-
-        // Return all constructed endpoint-based event groups.
-        return groups;
-    }
+}
+
+// Compile-time contracts are kept after the executable code: interfaces come before type aliases, and within
+// each group a declaration is followed by the contracts it depends on, otherwise the order is A-Z.
+
+/**
+ * Options for placing recorder scripts into a stopped session's automation.
+ */
+interface RecordedScriptsOptions {
+    /** The automation returned by the Hub; its job rules are mutated in place. */
+    automation: any;
+
+    /** The Hub's job-to-recorder map for the automation. */
+    jobs: RecordingJob[];
+
+    /** The recorders that took part in the session. */
+    recorders: RecorderOptions[];
 }
 
 /**
- * Represents a logical grouping of consecutive recorded events
- * originating from the same machine within a recording session.
+ * The first and last job a recorder produced in a stopped session.
  */
-type BufferGroup = {
-    /** Optional base URL of the capture service associated with this group. */
-    baseUrl?: string;
+interface RecorderJobRange {
+    /** Index of the recorder's first job, which receives its pre-script. */
+    firstIndex: number;
 
-    /** Sequential group identifier (1-based index). */
-    id: number;
-
-    /** The machine name associated with the captured events. */
-    machineName: string;
-
-    /** The ordered list of recorded event objects belonging to this group. */
-    events: any[];
-
-    /** Optional think time settings applied to this group. */
-    thinkTimeSettings?: any
-};
+    /** Index of the recorder's last job, which receives its post-script. */
+    lastIndex: number;
+}

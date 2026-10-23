@@ -1,0 +1,34 @@
+/*
+ * G4 section visual language: a bordered section with a surface-colored, clickable header.
+ */
+g4-section {
+    border-color: var(--g4-section-border-color);
+}
+
+.g4-section__header {
+    cursor: pointer;
+    user-select: none;
+    background-color: var(--g4-section-header-background);
+    border-bottom-color: var(--g4-section-border-color);
+}
+
+.g4-section__chevron {
+    font-style: normal;
+}
+
+.g4-section__warning {
+    color: var(--g4-section-warning-foreground);
+}
+
+.g4-section__description,
+.g4-section__status {
+    color: var(--g4-section-muted-foreground);
+}
+
+.g4-section__status--ok {
+    color: var(--g4-section-success-foreground);
+}
+
+.g4-section__status--error {
+    color: var(--g4-section-error-foreground);
+}

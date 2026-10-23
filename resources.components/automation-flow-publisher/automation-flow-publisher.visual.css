@@ -1,0 +1,25 @@
+/*
+ * Flow publisher visual language: the page font and colors, link-colored facts, and links. The G4
+ * components draw their own look.
+ */
+body {
+    font-family: var(--flow-publisher-font-family);
+    background-color: var(--flow-publisher-background);
+    color: var(--flow-publisher-foreground);
+}
+
+/* The Automation facts (size, authentication, encoding) read like the "Will publish as" preview. */
+.flow-publisher-key-preview,
+.flow-publisher-automation-meta {
+    color: var(--flow-publisher-link-foreground);
+}
+
+a {
+    color: var(--flow-publisher-link-foreground);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--flow-publisher-link-active-foreground);
+    text-decoration: underline;
+}

@@ -1,0 +1,16 @@
+/*
+ * G4 list editor parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-list-editor-background: var(--vscode-input-background, transparent);
+    --g4-list-editor-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-list-editor-button-background: var(--vscode-button-background);
+    --g4-list-editor-button-border-color: var(--vscode-panel-border);
+    --g4-list-editor-button-foreground: var(--vscode-foreground);
+    --g4-list-editor-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-list-editor-button-radius: 2px;
+    --g4-list-editor-disabled-opacity: .6;
+    --g4-list-editor-error-foreground: var(--vscode-errorForeground);
+    --g4-list-editor-focus-border-color: var(--vscode-focusBorder);
+    --g4-list-editor-muted-foreground: var(--vscode-descriptionForeground);
+}

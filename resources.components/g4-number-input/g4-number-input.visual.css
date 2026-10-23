@@ -1,0 +1,29 @@
+/*
+ * G4 number input visual language: a themed box and steppers that follow the input colors.
+ */
+.g4-number-input__input {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-number-input-background);
+    border-color: var(--g4-number-input-border-color);
+    outline: none;
+}
+
+.g4-number-input__input:focus {
+    border-color: var(--g4-number-input-focus-border-color);
+}
+
+.g4-number-input__steppers,
+.g4-number-input__step:first-child {
+    border-color: var(--g4-number-input-border-color);
+}
+
+.g4-number-input__step {
+    cursor: pointer;
+    color: var(--g4-number-input-step-foreground);
+    background-color: var(--g4-number-input-background);
+}
+
+.g4-number-input__step:hover {
+    background-color: var(--g4-number-input-step-hover-background);
+}

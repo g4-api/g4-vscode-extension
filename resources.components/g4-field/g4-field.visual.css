@@ -1,0 +1,12 @@
+/*
+ * G4 field visual language: muted hint and suffix, error-colored required mark and error line.
+ */
+.g4-field__hint,
+.g4-field__suffix {
+    color: var(--g4-field-muted-foreground);
+}
+
+.g4-field__required,
+.g4-field__error {
+    color: var(--g4-field-error-foreground);
+}

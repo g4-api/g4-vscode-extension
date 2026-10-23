@@ -1,0 +1,11 @@
+/*
+ * G4 page header visual language: a tab-colored bar with a muted details line.
+ */
+.g4-page-header__bar {
+    background-color: var(--g4-page-header-background);
+    border-bottom-color: var(--g4-page-header-border-color);
+}
+
+.g4-page-header__meta {
+    color: var(--g4-page-header-muted-foreground);
+}

@@ -1,0 +1,8 @@
+/*
+ * G4 page header parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-page-header-background: var(--vscode-editorGroupHeader-tabsBackground);
+    --g4-page-header-border-color: var(--vscode-panel-border);
+    --g4-page-header-muted-foreground: var(--vscode-descriptionForeground);
+}

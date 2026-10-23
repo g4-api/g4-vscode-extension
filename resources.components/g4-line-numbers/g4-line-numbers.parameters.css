@@ -1,0 +1,9 @@
+/*
+ * G4 line numbers parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-line-numbers-background: var(--vscode-sideBar-background);
+    --g4-line-numbers-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-line-numbers-editor-border-color: var(--vscode-panel-border);
+    --g4-line-numbers-foreground: var(--vscode-descriptionForeground);
+}

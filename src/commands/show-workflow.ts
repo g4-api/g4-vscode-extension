@@ -457,7 +457,8 @@ export class ShowWorkflowCommand extends CommandBase {
         };
 
         // Saves a workflow automation result as a timestamped G4 report file
-        // under the current workspace reports folder.
+        // under <reportsFolder>/reports, where reportsFolder comes from the manifest's
+        // clientReportSettings and is resolved against the first workspace folder ("." by default).
         //
         // Report file name format:
         // yyyy-MM-dd-hhmmssfff.g4rpt
@@ -474,14 +475,15 @@ export class ShowWorkflowCommand extends CommandBase {
                     return { id: id };
                 }
 
-                // Build the reports folder path:
-                // <current-workspace>/reports
-                const reportsFolder = path.join(workspaceFolder, 'reports');
+                // Build the reports folder path: <reportsFolder>/reports. The setting is the parent
+                // folder (relative to the workspace, or absolute); "." keeps <current-workspace>/reports.
+                const reportsParent = Utilities.getManifest()?.settings?.clientReportSettings?.reportsFolder || '.';
+                const reportsFolder = path.resolve(workspaceFolder, reportsParent, 'reports');
 
                 // Build the full report file path.
                 const reportFilePath = path.join(reportsFolder, id);
 
-                // Create <current-workspace>/reports if it does not exist.
+                // Create the reports folder if it does not exist.
                 await fs.mkdir(reportsFolder, { recursive: true });
 
                 // Save the report payload as UTF-8 text.
@@ -669,8 +671,8 @@ export class ShowWorkflowCommand extends CommandBase {
         // Ensure the target directory exists (creates parent folders as needed)
         await fs.mkdir(storageDir, { recursive: true });
 
-        // Dynamically import node-fetch for HTTP requests
-        const fetch = (await import('node-fetch')).default;
+        // Requests use the runtime's built-in fetch. A lazy import('node-fetch') was loaded from a separate
+        // webpack chunk, which broke when dist/ was rebuilt while the extension host kept the old bundle.
 
         // Fetch the list of resource file paths from the API endpoint
         const listResponse = await fetch(`${baseUrl}/api/v4/g4/integration/files`);

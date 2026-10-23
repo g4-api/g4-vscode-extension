@@ -1,0 +1,68 @@
+/*
+ * G4 busy button layout: a small button; while busy, its hidden label keeps the width and the
+ * spinner is centered over it.
+ */
+/* The element adds no box of its own, so its button sits in the parent's flow (a line of text,
+   a row of fields, or next to a dropdown, where it stretches to the dropdown's height). */
+g4-busy-button {
+    display: contents;
+}
+
+.g4-busy-button__button {
+    position: relative;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+/* As high as a text box, on one line (for a button at the end of a row of fields). */
+.g4-busy-button__button--field {
+    height: 30px;
+    white-space: nowrap;
+}
+
+.g4-busy-button__spinner {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.g4-busy-button__spinner svg {
+    width: 13px;
+    height: 13px;
+    display: block;
+}
+
+.g4-busy-button__button--busy .g4-busy-button__label {
+    visibility: hidden;
+}
+
+.g4-busy-button__button--busy .g4-busy-button__spinner {
+    display: flex;
+}
+
+/* Icon-only: the refresh icon is the content; the label is only the tooltip. */
+.g4-busy-button__button--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.g4-busy-button__button--icon .g4-busy-button__label {
+    display: none;
+}
+
+.g4-busy-button__button--icon .g4-busy-button__spinner {
+    position: static;
+    display: flex;
+}
+
+.g4-busy-button__button--icon .g4-busy-button__spinner svg {
+    width: 14px;
+    height: 14px;
+}

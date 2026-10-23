@@ -1,6 +1,6 @@
 {
     "name": "g4-engine-client",
-    "displayName": "g4-engine-client",
+    "displayName": "G4 Studio",
     "description": "G4 Engine is a plugin-based automation platform that lets teams orchestrate workflows across web, desktop, API, and enterprise systems with speed, control, and reliability.",
     "version": "0.0.2",
     "engines": {
@@ -75,6 +75,21 @@
                 "command": "Update-Template",
                 "category": "G4",
                 "title": "Update or Create Template Definitions"
+            },
+            {
+                "command": "Update-Flow",
+                "category": "G4",
+                "title": "Open in Flow Publisher"
+            },
+            {
+                "command": "Open-Template-Publisher",
+                "category": "G4",
+                "title": "Open in Template Publisher"
+            },
+            {
+                "command": "Open-Report-Viewer",
+                "category": "G4",
+                "title": "Open in Report Viewer"
             }
         ],
         "grammars": [
@@ -140,18 +155,38 @@
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
-                    "group": "navigation",
+                    "group": "navigation@1",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
-                    "group": "navigation",
+                    "group": "navigation@1",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Update-Flow",
+                    "group": "navigation@2",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Open-Template-Publisher",
+                    "group": "navigation@3",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
+                },
+                {
+                    "command": "Open-Template-Publisher",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])templates([\\\\/]|$)/i"
                 },
                 {
                     "command": "Show-Settings",
                     "group": "navigation",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceFilename == manifest.json"
+                },
+                {
+                    "command": "Open-Report-Viewer",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .g4rpt && resourcePath in g4.reportFiles"
                 }
             ],
             "commandPalette": [
@@ -161,6 +196,18 @@
                 },
                 {
                     "command": "Open-Bot-In-Workflow",
+                    "when": "false"
+                },
+                {
+                    "command": "Update-Flow",
+                    "when": "false"
+                },
+                {
+                    "command": "Open-Template-Publisher",
+                    "when": "false"
+                },
+                {
+                    "command": "Open-Report-Viewer",
                     "when": "false"
                 }
             ]
@@ -181,6 +228,16 @@
                     },
                     {
                         "filenamePattern": "**/bots/**/*.g4bot"
+                    }
+                ],
+                "priority": "default"
+            },
+            {
+                "viewType": "g4.reportViewer",
+                "displayName": "G4 Report Viewer",
+                "selector": [
+                    {
+                        "filenamePattern": "**/reports/**/*.g4rpt"
                     }
                 ],
                 "priority": "default"
@@ -226,7 +283,6 @@
         "resources.components/**",
         "resources.docs/**",
         "resources.examples/**",
-        "resources.fonts/**",
         "languages/**",
         "dist/**",
         "node_modules/**",

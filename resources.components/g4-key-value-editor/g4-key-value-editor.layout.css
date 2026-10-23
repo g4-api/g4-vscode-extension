@@ -1,0 +1,82 @@
+/*
+ * G4 key/value editor layout: entries stacked 8px apart, each a row of a key box (38% of the
+ * width), a value box (the rest), and a trash button as high as the boxes, with its error line
+ * under it; the add button below.
+ */
+g4-key-value-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.g4-key-value-editor__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.g4-key-value-editor__entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.g4-key-value-editor__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.g4-key-value-editor__input {
+    flex: 1;
+    width: 100%;
+    height: 30px;
+    padding: 6px 8px;
+    font-size: 12px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-key-value-editor__input--key {
+    flex: 0 0 38%;
+}
+
+.g4-key-value-editor__button {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.g4-key-value-editor__button--icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+}
+
+.g4-key-value-editor__button--icon svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.g4-key-value-editor__error {
+    font-size: 11px;
+    min-height: 14px;
+}
+
+/* An error line takes space only while it shows an error. */
+.g4-key-value-editor__error:empty {
+    display: none;
+}
+
+.g4-key-value-editor__empty {
+    font-size: 11px;
+}
+
+.g4-key-value-editor__add-row {
+    margin-top: 12px;
+}

@@ -1,0 +1,38 @@
+/*
+ * G4 code text area visual language: a themed box, and the corner button revealed on hover or
+ * focus.
+ */
+textarea.g4-code-textarea__input {
+    font-family: var(--g4-code-textarea-font-family);
+    color: inherit;
+    background-color: var(--g4-code-textarea-background);
+    border-color: var(--g4-code-textarea-border-color);
+    outline: none;
+}
+
+textarea.g4-code-textarea__input:focus {
+    border-color: var(--g4-code-textarea-focus-border-color);
+}
+
+.g4-code-textarea__tools {
+    opacity: 0;
+    transition: var(--g4-code-textarea-tools-transition);
+}
+
+.g4-code-textarea__box:hover .g4-code-textarea__tools,
+.g4-code-textarea__box:focus-within .g4-code-textarea__tools {
+    opacity: 1;
+}
+
+.g4-code-textarea__tool {
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--g4-code-textarea-tool-foreground);
+    background-color: var(--g4-code-textarea-tool-background);
+    border-color: var(--g4-code-textarea-tool-border-color);
+    border-radius: var(--g4-code-textarea-radius);
+}
+
+.g4-code-textarea__tool:hover {
+    background-color: var(--g4-code-textarea-tool-hover-background);
+}

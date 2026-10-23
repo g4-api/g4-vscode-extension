@@ -1,0 +1,7 @@
+/*
+ * G4 field parameters, mapped to VS Code theme variables.
+ */
+:root {
+    --g4-field-error-foreground: var(--vscode-errorForeground);
+    --g4-field-muted-foreground: var(--vscode-descriptionForeground);
+}
