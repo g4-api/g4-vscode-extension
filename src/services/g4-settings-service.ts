@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
 
-import { EventCaptureService } from '../clients/g4-signalr-client';
-
 import { StartRecorderCommand } from '../commands/start-recorder';
 
 import { Utilities } from '../extensions/utilities';
 
 import { G4RecorderViewProvider } from '../providers/g4-recorder-webview-view-provider';
+
+import { G4RecordingService } from './g4-recording-service';
 
 /**
  * Dependencies the settings service needs to hot-apply manifest changes.
@@ -16,17 +16,17 @@ import { G4RecorderViewProvider } from '../providers/g4-recorder-webview-view-pr
  * so applying settings without a window reload requires re-initializing them directly.
  */
 export type SettingsServiceOptions = {
-    /** The recorder command whose connection pool is rebuilt when recorder settings change. */
+    /** The recorder command, read to confirm a stop before recorder settings change. */
     startRecorderCommand: StartRecorderCommand;
 
     /** The recorder view re-rendered so the panel reflects the new recorder settings. */
     recorderView: G4RecorderViewProvider;
 
     /**
-     * The shared recorder connection pool (also held by Stop-Recorder and the recorder view). It
-     * is mutated in place during apply so every holder keeps observing the rebuilt set.
+     * The shared recording session owner (also held by Stop-Recorder and the recorder view). Its
+     * recorder settings are replaced on apply so the next session uses the new endpoints.
      */
-    recorderConnections: Map<string, EventCaptureService>;
+    recordingService: G4RecordingService;
 };
 
 /**
@@ -34,20 +34,20 @@ export type SettingsServiceOptions = {
  *
  * @remarks
  * Save writes the manifest to disk; this service is what makes the change take effect live. It
- * refreshes the global manifest snapshot, rebuilds the recorder connections, and re-renders the
+ * refreshes the global manifest snapshot, applies the recorder settings, and re-renders the
  * recorder view. A few sections (g4Server, external repositories, MCP servers) are cached at
  * activation and cannot be safely re-initialized live, so a change to any of them is surfaced as
  * a window-reload prompt instead.
  */
 export class G4SettingsService {
-    // The recorder command whose connection pool is rebuilt on apply.
+    // The recorder command, read to confirm a stop before recorder settings change.
     private readonly _startRecorderCommand: StartRecorderCommand;
 
     // The recorder view re-rendered on apply.
     private readonly _recorderView: G4RecorderViewProvider;
 
-    // The shared recorder connection pool, mutated in place on apply.
-    private readonly _recorderConnections: Map<string, EventCaptureService>;
+    // The shared recording session owner whose recorder settings are replaced on apply.
+    private readonly _recordingService: G4RecordingService;
 
     /**
      * Creates a new settings service.
@@ -57,7 +57,7 @@ export class G4SettingsService {
     constructor(options: SettingsServiceOptions) {
         this._startRecorderCommand = options.startRecorderCommand;
         this._recorderView = options.recorderView;
-        this._recorderConnections = options.recorderConnections;
+        this._recordingService = options.recordingService;
     }
 
     /**
@@ -75,7 +75,7 @@ export class G4SettingsService {
         // Snapshot the pre-refresh manifest so reload-only sections can be compared after refresh.
         const previousManifest = Utilities.getManifest();
 
-        // Rebuilding recorder connections drops an active session's buffer, so confirm a stop first.
+        // Changing recorder settings during a session would leave the panel out of sync, so confirm a stop first.
         if (this._startRecorderCommand.isRecording) {
             const isStopConfirmed = await this.showStopRecordingPrompt();
 
@@ -83,7 +83,7 @@ export class G4SettingsService {
                 return;
             }
 
-            // Stop the live recording before its connections are torn down and rebuilt.
+            // Stop the live recording before the recorder settings are replaced.
             await vscode.commands.executeCommand('Stop-Recorder');
         }
 
@@ -96,7 +96,7 @@ export class G4SettingsService {
             currentManifest?.settings?.recorderSettings);
 
         if (isRecorderSettingsChanged) {
-            // Rebuild connections and re-render the panel only when its source settings changed.
+            // Replace the recorder settings and re-render the panel only when its source settings changed.
             await this.updateRecorders();
         }
 
@@ -197,26 +197,19 @@ export class G4SettingsService {
     }
 
     /**
-     * Rebuilds the recorder connection pool from the refreshed manifest and re-renders the view.
+     * Applies the refreshed recorder settings and re-renders the view.
      *
      * @remarks
-     * Owns the recorder re-initialization. It rebuilds the command's connections from the new
-     * endpoint options, syncs the shared pool Map in place so Stop-Recorder and the view keep
-     * their reference, and re-renders the recorder panel.
+     * Owns the recorder re-initialization. The Hub owns recorder connections, so applying settings
+     * only replaces the shared service's recorder list (used by the next session) and re-renders the
+     * recorder panel.
      *
-     * @returns A promise that resolves once the pool is rebuilt and the view re-rendered.
+     * @returns A promise that resolves once the settings are applied and the view re-rendered.
      */
     private async updateRecorders(): Promise<void> {
-        // Resolve the recorder endpoints from the refreshed manifest and rebuild the command pool.
+        // Resolve the recorder endpoints from the refreshed manifest for the next session.
         const options = Utilities.resolveEventsCaptureOptions();
-        await this._startRecorderCommand.updateConnections(options);
-
-        // Sync the shared pool in place so other holders observe the rebuilt services.
-        this._recorderConnections.clear();
-
-        for (const [endpoint, service] of this._startRecorderCommand.connections) {
-            this._recorderConnections.set(endpoint, service);
-        }
+        this._recordingService.updateRecorders(options);
 
         // Re-render the recorder panel so it reflects the new endpoints and status.
         this._recorderView.updateView();

@@ -1,9 +1,12 @@
-import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import type { EventCaptureOptions } from '../clients/g4-signalr-client';
+
+import { spawn } from 'node:child_process';
+
 import { G4ServiceHealth } from './g4-service-health';
+
+import type { RecorderOptions } from './g4-recording-service';
 
 // Gives sandboxed recorder services the same bounded startup window used by the hub service.
 const RECORDER_START_TIMEOUT_MILLISECONDS = 30000;
@@ -265,7 +268,7 @@ export class G4RecorderSandboxService {
      */
     private static async startRecorderWhenRequired(
         sandboxPath: string,
-        recorder: EventCaptureOptions
+        recorder: RecorderOptions
     ): Promise<G4RecorderSandboxStartResult> {
         // Resolve the endpoint and driver because both are needed for ping and process selection.
         const baseUri = this.getTrimmedText(recorder.baseUrl);
@@ -472,8 +475,8 @@ export class G4RecorderSandboxService {
  * Startup options for sandboxed recorder services.
  */
 export type G4RecorderSandboxStartOptions = {
-    /** Enabled recorder endpoints that should be checked before SignalR connection startup. */
-    recorders: EventCaptureOptions[];
+    /** Enabled recorder endpoints that should be checked before the Hub connects to them. */
+    recorders: RecorderOptions[];
 
     /** Absolute sandbox root that contains runtime and bot-utilities folders. */
     sandboxPath?: string;

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
-import { EventCaptureService } from '../clients/g4-signalr-client';
+
 import { Utilities } from '../extensions/utilities';
+
+import { G4RecordingService } from '../services/g4-recording-service';
 
 /**
  * Provides and manages the **G4 Recorder** custom Webview panel in VS Code.
@@ -44,14 +46,14 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * Creates a new instance of the recorder view provider.
 	 *
 	 * @param _context - The VS Code extension context (used for lifecycle, paths, etc.)
-	 * @param _recorderConnections - A map of server names -> EventCaptureService instances.
+	 * @param _recordingService - The shared recording session owner; its Hub status drives each recorder row.
 	 */
 	constructor(
 		private readonly _context: vscode.ExtensionContext,
-		private readonly _recorderConnections: Map<string, EventCaptureService>
+		private readonly _recordingService: G4RecordingService
 	) {
-		// Initialize the internal status array based on currently active connections.
-		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recorderConnections);
+		// Initialize the internal status array from the enabled recorders in the manifest.
+		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recordingService);
 
 		// Seed the panel-only override from the manifest so the first start matches saved settings.
 		const settings = Utilities.getManifest()?.settings?.recorderSettings;
@@ -94,9 +96,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * from the current connection pool and, when the view is live, re-renders its HTML.
 	 */
 	public updateView(): void {
-		// Rebuild the status list from the current (possibly rebuilt) connection pool, mutating the
-		// existing array in place so the message handlers keep their reference.
-		const servers = G4RecorderViewProvider.resolveServers(this._recorderConnections);
+		// Rebuild the status list from the refreshed recorder settings, mutating the existing array in
+		// place so the message handlers keep their reference.
+		const servers = G4RecorderViewProvider.resolveServers(this._recordingService);
 		this._serversStatus.length = 0;
 		this._serversStatus.push(...servers);
 
@@ -156,7 +158,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			url: service.url,
 			ok: service.ok,
 			driver: service.driver,
-			suspended: service.service?.isSuspended ?? false
+			suspended: service.suspended
 		}));
 
 		// Send an initial message to the webview to populate server data
@@ -747,47 +749,42 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		// Use optional chaining to safely access the message type
 		switch (message?.type) {
 			case 'recorder:start': {
-				// Trigger VS Code command to start the recorder process
+				// Trigger VS Code command to start the Hub session, then show the connected recorders.
 				await vscode.commands.executeCommand('Start-Recorder', {
 					useSandbox: message.useSandbox === true
 				});
+				await this.testServers(serversStatus);
 				break;
 			}
 
 			case 'recorder:stop': {
-				// Trigger VS Code command to stop the recorder process
+				// Trigger VS Code command to stop the Hub session, then show the recorders as idle.
 				await vscode.commands.executeCommand('Stop-Recorder');
+				await this.testServers(serversStatus);
 				break;
 			}
 
 			case 'recorder:refresh': {
 				// Manually trigger a server status refresh from the webview
-				this.testServers(serversStatus);
+				await this.testServers(serversStatus);
 				break;
 			}
 
 			case 'recorder:suspend':
 			case 'recorder:resume': {
-				// Toggle buffering for the targeted recorder (identified by its base URL). The hub
-				// connection stays open; suspending only drops incoming events until resumed.
-				const service = this._recorderConnections.get(message.url);
-				if (service) {
-					if (message.type === 'recorder:suspend') {
-						service.suspend();
-					} else {
-						service.resume();
-					}
-				}
+				// Toggle buffering for the targeted recorder (identified by its base URL) on the Hub. The
+				// recorder stays connected; suspending only drops its events until resumed.
+				await this.updateRecorderSuspension(message.url, message.type === 'recorder:suspend');
 
 				// Reflect the new suspended state immediately instead of waiting for the heartbeat tick.
-				this.testServers(serversStatus);
+				await this.testServers(serversStatus);
 				break;
 			}
 
 			case 'recorder:useSandbox': {
 				// Store only the panel override; settings remain unchanged until edited in the settings page.
 				this._useSandboxOverride = message.useSandbox === true;
-				this.testServers(serversStatus);
+				await this.testServers(serversStatus);
 				break;
 			}
 
@@ -800,37 +797,30 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	}
 
 	/**
-	 * Resolves a list of server statuses from active recorder connections.
+	 * Resolves one status row per enabled recorder from the manifest settings.
+	 *
+	 * @remarks
+	 * Compute-only. Connection and suspension come from the latest Hub session status, so every row is idle
+	 * until a session runs.
+	 *
+	 * @param recordingService - The shared recording session owner.
+	 * @returns One status row per enabled recorder.
 	 */
-	private static resolveServers(
-		recorderConnections: Map<string, EventCaptureService>
-	): ServerStatus[] {
-		// Initialize the result list
-		const servers: ServerStatus[] = [];
-
-		// Iterate through each entry in the map (connection URL and corresponding service)
-		for (const [connection, service] of recorderConnections) {
-			// Skip invalid or undefined services
-			if (!service) {
-				continue;
-			}
-
-			// Generate a unique ID for this server status entry
+	private static resolveServers(recordingService: G4RecordingService): ServerStatus[] {
+		return recordingService.recorders.map(recorder => {
+			// Generate a unique ID for this server status entry.
 			const id = Utilities.newRandomString(8);
+			const recorderStatus = recordingService.getRecorderStatus(recorder.baseUrl);
 
-			// Push a new server status object for the valid connection
-			servers.push({
+			return {
 				id,
 				name: `Recorder (${id})`,
-				ok: service.connection?.state === 'Connected',
-				service,
-				url: connection,
-				driver: service.options?.driverParameters?.driver || 'Unknown'
-			});
-		}
-
-		// Return the complete list of server statuses
-		return servers;
+				ok: recorderStatus?.connected === true,
+				suspended: recorderStatus?.suspended === true,
+				url: recorder.baseUrl,
+				driver: recorder.driverParameters?.driver || 'Unknown'
+			};
+		});
 	}
 
 	/**
@@ -838,36 +828,45 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 */
 	private startHeartbeat() {
 		// Run an immediate server health check before starting the periodic cycle
-		this.testServers(this._serversStatus);
+		void this.testServers(this._serversStatus);
 
 		// Schedule recurring checks every 5 seconds (5000 ms)
 		this._timer = setInterval(
-			() => this.testServers(this._serversStatus),
+			() => void this.testServers(this._serversStatus),
 			5000
 		);
 	}
 
 	/**
-	 * Tests the connectivity state of all known recorder servers and updates their status.
+	 * Refreshes the session status from the Hub and updates every recorder row in the webview.
+	 *
+	 * @remarks
+	 * While a session runs, the Hub reports each recorder's connection and suspension; while idle, every row
+	 * shows as not connected. A Hub that cannot be reached keeps the previous snapshot and logs the failure,
+	 * so a transient network error does not flicker the panel.
+	 *
+	 * @param serversStatus - The rows to update in place.
+	 * @returns A promise that resolves once the webview received the update.
 	 */
-	private testServers(serversStatus: ServerStatus[]) {
-		// Node 18+ includes global 'fetch', so external calls could be made here if needed.
-		// Currently, this method only checks the local connection state.
+	private async testServers(serversStatus: ServerStatus[]): Promise<void> {
+		// Refresh the Hub snapshot; a failure keeps the previous one so a network blip does not flicker the rows.
+		try {
+			await this._recordingService.updateStatus();
+		} catch (error: unknown) {
+			const reason = Utilities.resolveErrorMessage(error);
+			console.warn(`[G4RecorderViewProvider] Recording status refresh failed: ${reason}`);
+		}
 
-		// Prepare an array to collect updated server status objects
+		// Apply the snapshot to every row and collect detached copies for the webview.
 		const updates: ServerStatus[] = [];
 
-		// Iterate through each server in the provided list
 		for (const status of serversStatus) {
+			const recorderStatus = this._recordingService.getRecorderStatus(status.url);
 
-			// Determine if the server's connection is currently active
-			const ok = status.service?.connection?.state === 'Connected';
+			status.ok = recorderStatus?.connected === true;
+			status.suspended = recorderStatus?.suspended === true;
+			status.lastChecked = Date.now();
 
-			// Update the status object fields
-			status.ok = ok;                     // Reflects whether the connection is healthy
-			status.lastChecked = Date.now();    // Timestamp of the current health check
-
-			// Push a shallow copy of the updated status into the result array
 			updates.push({ ...status });
 		}
 
@@ -881,7 +880,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			url: service.url,
 			ok: service.ok,
 			driver: service.driver,
-			suspended: service.service?.isSuspended ?? false
+			suspended: service.suspended
 		}));
 
 		// Broadcast the updated server statuses back to the webview
@@ -893,6 +892,33 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				servers: servers
 			}
 		});
+	}
+
+	/**
+	 * Suspends or resumes one recorder of the running Hub session.
+	 *
+	 * @remarks
+	 * A rejected request (for example after the session stopped) is shown to the user; the panel then
+	 * refreshes and shows the real state.
+	 *
+	 * @param baseUrl - The recorder endpoint shown in the row.
+	 * @param isSuspended - True to suspend, false to resume.
+	 * @returns A promise that resolves once the Hub answered.
+	 */
+	private async updateRecorderSuspension(baseUrl: string, isSuspended: boolean): Promise<void> {
+		try {
+			// Ask the Hub to change only this recorder; the session and the other recorders continue unchanged.
+			if (isSuspended) {
+				await this._recordingService.suspendRecorder(baseUrl);
+			} else {
+				await this._recordingService.resumeRecorder(baseUrl);
+			}
+		} catch (error: unknown) {
+			// Show the Hub's reason so the user knows why the row did not change (for example a stopped session).
+			const action = isSuspended ? 'suspend' : 'resume';
+			const reason = Utilities.resolveErrorMessage(error);
+			vscode.window.showErrorMessage(`Failed to ${action} recorder ${baseUrl}: ${reason}`);
+		}
 	}
 }
 
@@ -926,11 +952,11 @@ type ServerStatus = {
 	 */
 	ok: boolean;
 
-	/** 
-	 * Reference to the associated EventCaptureService instance, if active.
-	 * May be undefined when no active connection or service instance is attached.
+	/**
+	 * Indicates whether the Hub suspended this recorder; its events are dropped until resumed.
+	 * Always false while no session runs.
 	 */
-	service: EventCaptureService | undefined;
+	suspended: boolean;
 
 	/**
 	 * Base URL of the server.

@@ -1,10 +1,15 @@
 import * as fs from 'node:fs';
-import { randomInt } from 'node:crypto';
 import os = require('os');
-import * as vscode from 'vscode';
 import path = require('path');
-import { LogSettings } from '../logging/logger-base';
+import * as vscode from 'vscode';
+
+import { randomInt } from 'node:crypto';
+
 import { Global } from '../constants/global';
+
+import { LogSettings } from '../logging/logger-base';
+
+import type { RecorderOptions } from '../services/g4-recording-service';
 
 // A connection failure in HttpClient's error text: refused, unknown host, unreachable, reset, or
 // timed out. Linear: an alternation of literals with no quantifier.
@@ -746,6 +751,33 @@ export class Utilities {
     }
 
     /**
+     * Resolves a readable message from a thrown value without default object stringification.
+     *
+     * @remarks
+     * Compute-only. An `Error` yields its message and a string is used as-is; any other value gets a JSON
+     * form, so an object never reaches a log or notification as `[object Object]`.
+     *
+     * @param error - The value caught from a failed operation (typed `unknown` in a catch clause).
+     * @returns The most readable message for the value.
+     */
+    public static resolveErrorMessage(error: unknown): string {
+        if (error instanceof Error) {
+            return error.message;
+        }
+
+        if (typeof error === 'string') {
+            return error;
+        }
+
+        // Any other thrown value gets a readable JSON form instead of default object stringification.
+        try {
+            return JSON.stringify(error) ?? 'Unknown error';
+        } catch {
+            return 'Unknown error';
+        }
+    }
+
+    /**
      * Resolves and returns the list of event capture endpoints (recorders) from the project manifest.
      *
      * @remarks
@@ -756,16 +788,7 @@ export class Utilities {
      * @returns {string[]} An array of endpoint URLs in the format `<schema>://<host>:<port>`.
      * If no valid endpoints are found, an empty array is returned.
      */
-    public static resolveEventsCaptureOptions(): {
-        baseUrl: string,
-        mode: string,
-        driverParameters: any,
-        enabled: boolean,
-        thinkTimeSettings: any,
-        useOffset: boolean,
-        preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
-        postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
-    }[] {
+    public static resolveEventsCaptureOptions(): RecorderOptions[] {
         // Load the project manifest (contains metadata and configurations for this project)
         const manifest = this.resolveProjectManifest();
 
@@ -778,16 +801,7 @@ export class Utilities {
         }
 
         // Container for fully resolved endpoint URLs
-        const endpoints: {
-            baseUrl: string,
-            mode: string,
-            driverParameters: any,
-            thinkTimeSettings: any,
-            enabled: boolean,
-            useOffset: boolean,
-            preScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean },
-            postScript: { enabled: boolean, shell: string, script: string, addToAutomationFlow: boolean }
-        }[] = [];
+        const endpoints: RecorderOptions[] = [];
 
         // Iterate through each item in the recorders array
         for (const item of recordersEndpoints) {
