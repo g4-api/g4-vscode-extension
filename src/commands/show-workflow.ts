@@ -154,13 +154,20 @@ export class ShowWorkflowCommand extends CommandBase {
              *
              * Behavior:
              * - Returns strings as-is.
-             * - Converts non-string values to JSON text.
+             * - Converts an Error to its stack (or name and message), because JSON.stringify
+             *   skips the non-enumerable message and stack and would log '{}'.
+             * - Converts other non-string values to JSON text.
              * - Falls back to String(value) if JSON serialization fails.
              *
              * @param value - The value to convert.
              * @returns The string representation of the provided value.
              */
             const convertFromJson = (value) => {
+                // Describe an Error by its stack, which already starts with its name and message.
+                if (value instanceof Error) {
+                    return value.stack || (value.name + ': ' + value.message);
+                }
+
                 try {
 
                     // If the value is already a string, no conversion is needed,
