@@ -141,7 +141,8 @@
                     "type": "tree",
                     "id": "g4BotsManager",
                     "name": "G4 Bots Manager",
-                    "icon": "resources.assets/g4-bots-icon.svg"
+                    "icon": "resources.assets/g4-bots-icon.svg",
+                    "when": "false"
                 }
             ]
         },
