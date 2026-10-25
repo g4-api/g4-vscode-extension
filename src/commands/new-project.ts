@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { Global } from '../constants/global';
-import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+import { addPendingNotice, showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import { CommandBase } from './command-base';
 
@@ -125,6 +125,12 @@ export class NewProjectCommand extends CommandBase {
         // Copy learning material after the docs root exists, rewriting links against the final
         // friendly destination names during the same stage.
         NewProjectCommand.createDocumentation(projectSelection, this._logger);
+
+        // Opening the folder reloads the window and closes every notification, so the sandbox choice
+        // is stored and shown again once the new project's window has loaded.
+        if (sandboxDirectoryPath !== undefined) {
+            await addPendingNotice(this.context, `The new G4 project uses the G4 sandbox at ${sandboxDirectoryPath}.`);
+        }
 
         // Transition VS Code only after all synchronous scaffold writes have completed.
         NewProjectCommand.openFolder(projectSelection);

@@ -174,6 +174,13 @@ export class StopRecorderCommand extends CommandBase {
      * @param recorders - The recorders that took part in the stopped session.
      */
     private async invokePostScripts(recorders: RecorderOptions[]): Promise<void> {
+        // Scripts from the project settings never run in Restricted Mode; a session can only exist
+        // there if trust was removed while it ran.
+        if (!vscode.workspace.isTrusted) {
+            this._logger.warning('Recorder post-scripts were skipped because this folder is not trusted.');
+            return;
+        }
+
         for (const recorder of recorders) {
             const result = await G4RecorderScriptService.runRecorderScript({
                 phase: 'post',

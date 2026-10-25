@@ -10,6 +10,7 @@ import { G4RecordingsError } from '../clients/g4-recordings-client';
 
 import { CommandBase } from './command-base';
 
+import { showWorkspaceTrustNotice } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
@@ -98,6 +99,13 @@ export class StartRecorderCommand extends CommandBase {
      * @param commandOptions - Optional arguments from the recorder panel.
      */
     protected async onInvokeCommand(commandOptions?: StartRecorderCommandOptions): Promise<void> {
+        // Recording runs pre-scripts and may start recorder services named by the project settings,
+        // so it needs a trusted folder; Restricted Mode explains that instead.
+        if (!vscode.workspace.isTrusted) {
+            showWorkspaceTrustNotice('G4 Studio did not start the recording');
+            return;
+        }
+
         // A second session would fail on the Hub because the recorders are reserved, so explain it here.
         if (this._recordingService.isRecording) {
             const runningMessage = 'A recording session is already running. Stop it before starting a new one.';
