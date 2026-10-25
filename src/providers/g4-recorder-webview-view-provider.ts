@@ -166,6 +166,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			type: 'servers:init',
 			payload: {
 				enabled: enabled,
+				isRecording: this._recordingService.isRecording,
 				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
@@ -595,20 +596,33 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 					setToggleState(false);
 
+					// True from a Start or Stop click until the extension reports the result, so a status
+					// refresh in between cannot flip the button back.
+					var isTogglePending = false;
+
+					// Shows a spinner on the button while the extension starts or stops the session.
+					function setTogglePending(text) {
+						isTogglePending = true;
+						btnToggle.dataset.state = 'pending';
+						btnToggle.setAttribute('aria-label', text);
+						btnToggle.innerHTML = SPINNER_SVG + '<span>' + text + '</span>';
+					}
+
+					// Ask the extension to start or stop; the button changes only when it reports the real
+					// state (recorder:state), so a refused start or a failed stop never shows a wrong state.
 					btnToggle.addEventListener('click', function () {
+						if (isTogglePending) {
+							return;
+						}
+
 						var running = btnToggle.dataset.state === 'running';
+
 						if (running) {
-							btnToggle.setAttribute('aria-label', 'Closing recorder...');
-							btnToggle.innerHTML = SPINNER_SVG + '<span>' + 'Closing...' + '</span>';
-							setTimeout(() => {
-								vscode.postMessage({ type: 'recorder:stop' });
-								vscode.postMessage({ type: 'recorder:refresh' });
-								setToggleState(false);
-							}, 5000);
+							setTogglePending('Closing...');
+							vscode.postMessage({ type: 'recorder:stop' });
 						} else {
+							setTogglePending('Starting...');
 							vscode.postMessage({ type: 'recorder:start', useSandbox: useSandbox });
-							vscode.postMessage({ type: 'recorder:refresh' });
-							setToggleState(true);
 						}
 					});
 
@@ -629,12 +643,22 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							useSandbox = serversData.useSandbox === true;
 							useSandboxToggle.checked = useSandbox;
 						}
-						
+
+						// Follow the real session state (also changed from the palette or the settings
+						// prompt), except while a Start or Stop click waits for its result.
+						if (serversData.isRecording !== undefined && !isTogglePending) {
+							setToggleState(serversData.isRecording === true);
+						}
+
+						// Hide the controls while the recorder is disabled and show them again when it is
+						// enabled; removing them meant only a window reload could bring them back.
+						var controlDisplay = serversData.enabled ? '' : 'none';
+
+						for (var control of document.querySelectorAll('#btnToggle, div.top, #btnRefresh')) {
+							control.style.display = controlDisplay;
+						}
+
 						if(!serversData.enabled) {
-							document.querySelector("#btnToggle")?.remove();
-							document.querySelector("div.top")?.remove();
-							document.querySelector("#btnRefresh")?.remove();
-							
 							const disabledMsg = document.createElement('div');
 							disabledMsg.className = 'small';
 							disabledMsg.textContent = 'Recorder is disabled in settings. In order to enable it, ' +
@@ -732,10 +756,16 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 								render(message.payload || { servers: [] });
 								break;
 							case 'recorder:state':
+								// The result of a Start or Stop click: show the real state and accept clicks again.
+								isTogglePending = false;
 								setToggleState(!!message.running);
 								break;
 						}
 					});
+
+					// Ask for the recorder rows and the session state at once, so a re-rendered panel
+					// (for example after settings were applied) does not wait for the next heartbeat.
+					vscode.postMessage({ type: 'recorder:refresh' });
 				</script>
 			</body>
 
@@ -749,17 +779,29 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		// Use optional chaining to safely access the message type
 		switch (message?.type) {
 			case 'recorder:start': {
-				// Trigger VS Code command to start the Hub session, then show the connected recorders.
-				await vscode.commands.executeCommand('Start-Recorder', {
-					useSandbox: message.useSandbox === true
-				});
+				// Trigger VS Code command to start the Hub session; report the real outcome even when the
+				// start was refused or failed, then show the connected recorders.
+				try {
+					await vscode.commands.executeCommand('Start-Recorder', {
+						useSandbox: message.useSandbox === true
+					});
+				} finally {
+					this.showRecordingState();
+				}
+
 				await this.testServers(serversStatus);
 				break;
 			}
 
 			case 'recorder:stop': {
-				// Trigger VS Code command to stop the Hub session, then show the recorders as idle.
-				await vscode.commands.executeCommand('Stop-Recorder');
+				// Trigger VS Code command to stop the Hub session; report the real outcome even when the
+				// stop failed (the session then keeps running), then show the recorders.
+				try {
+					await vscode.commands.executeCommand('Stop-Recorder');
+				} finally {
+					this.showRecordingState();
+				}
+
 				await this.testServers(serversStatus);
 				break;
 			}
@@ -883,14 +925,30 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			suspended: service.suspended
 		}));
 
-		// Broadcast the updated server statuses back to the webview
+		// Broadcast the updated server statuses and the session state back to the webview, so a session
+		// started or stopped elsewhere (the palette, the settings prompt) corrects the button.
 		this._view?.webview.postMessage({
 			type: 'servers:update',
 			payload: {
 				enabled: enabled,
+				isRecording: this._recordingService.isRecording,
 				useSandbox: this._useSandboxOverride,
 				servers: servers
 			}
+		});
+	}
+
+	/**
+	 * Sends the real recording state to the webview after a Start or Stop click.
+	 *
+	 * @remarks
+	 * The button shows a spinner from the click until this message arrives, so it never shows a
+	 * guessed state: a refused start stays on Start and a failed stop stays on Stop.
+	 */
+	private showRecordingState(): void {
+		void this._view?.webview.postMessage({
+			type: 'recorder:state',
+			running: this._recordingService.isRecording
 		});
 	}
 
