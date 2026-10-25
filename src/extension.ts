@@ -355,10 +355,24 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
         return '';
     }
 
+    // Keep one status bar message for the whole flow: each update disposes the previous one, so the
+    // retry loop cannot stack a new message every 5 seconds.
+    let statusMessage: vscode.Disposable | undefined;
+
+    const setConnectionStatus = (text: string, timeoutMilliseconds?: number): void => {
+        // Remove the previous message before showing the next one.
+        statusMessage?.dispose();
+
+        // A timeout lets a final message clear itself; a progress message stays until it is replaced.
+        statusMessage = timeoutMilliseconds === undefined
+            ? vscode.window.setStatusBarMessage(text)
+            : vscode.window.setStatusBarMessage(text, timeoutMilliseconds);
+    };
+
     // Keep retrying until the SignalR connection is successfully established.
     while (true) {
         // Show a progress message while attempting to connect to the G4 engine.
-        vscode.window.setStatusBarMessage('$(sync~spin) Waiting for G4 Engine Connection...');
+        setConnectionStatus('$(sync~spin) Waiting for G4 Engine Connection...');
 
         // Create a fresh SignalR notification client for the current connection attempt.
         const client = new NotificationService({
@@ -377,17 +391,15 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
                 continue;
             }
 
-            // Notify the user that the SignalR hub connection succeeded.
-            vscode.window.setStatusBarMessage('Connected to G4 Engine SignalR Hub');
-
             // Show progress while synchronizing externals and MCP servers into the G4 cache.
-            vscode.window.setStatusBarMessage('$(sync~spin) Loading G4 Engine Externals and MCPs...');
+            setConnectionStatus('$(sync~spin) Loading G4 Engine Externals and MCPs...');
 
             // Perform an additional synchronization of tools to ensure the latest tool definitions are available.
             const command = new SyncCacheCommand(context, baseUri);
             await command.invokeCommand({ restart: false });
 
-            vscode.window.setStatusBarMessage('G4 Engine is Connected and Ready');
+            // Show the connected state; it stays until the next connection status replaces it.
+            setConnectionStatus('G4 Engine is Connected and Ready');
 
             // Store the connected G4 hub base URL globally for later use.
             Global.baseHubUrl = baseUri;
@@ -405,7 +417,7 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             return baseUri;
         } catch {
             // Show a retry message when the SignalR connection attempt fails.
-            vscode.window.setStatusBarMessage('$(sync~spin)G4 Engine SignalR Connection Failed. Retrying...');
+            setConnectionStatus('$(sync~spin) G4 Engine SignalR Connection Failed. Retrying...');
 
             // Wait briefly before starting the next retry attempt.
             await new Promise(resolve => setTimeout(resolve, 5000));

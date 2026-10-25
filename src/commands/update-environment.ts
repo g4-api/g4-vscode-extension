@@ -73,7 +73,7 @@ export class UpdateEnvironmentCommand extends CommandBase {
         const options = Object.keys(environments).sort((a, b) => a.localeCompare(b));
 
         // Configure the Quick Pick UI for multi-select
-        const pickOption: vscode.QuickPickOptions = {
+        const pickOption: vscode.QuickPickOptions & { canPickMany: true } = {
             title: 'Select an environment to create or update',
             placeHolder: 'Select an environment',
             canPickMany: true,
@@ -87,77 +87,32 @@ export class UpdateEnvironmentCommand extends CommandBase {
             return;
         }
 
-        // Indicate progress in the status bar
-        vscode.window.setStatusBarMessage('$(sync~spin) Updating environments...');
+        // Upload the selected environments under one status bar progress item that clears itself.
+        const progressOptions = {
+            location: vscode.ProgressLocation.Window,
+            title: 'Updating environments'
+        };
 
-        // Iterate over each chosen environment name
-        for (const name of selected) {
-            // Lookup the file path for this environment
-            const environmentFilePath = environments[name];
+        const failures = await vscode.window.withProgress(
+            progressOptions,
+            () => this.updateEnvironments(selected, environments));
 
-            // Read and parse the environment file into a JSON object
-            const environment = UpdateEnvironmentCommand.convertToJson(environmentFilePath, this._logger);
-            
-            // Show error if parsing failed, then continue to next
-            if (!environment) {
-                vscode.window.setStatusBarMessage(`Failed to read or parse environment: ${name}`);
-                this._logger.error(`Failed to read or parse environment: ${name}`);
-                continue;
-            }
+        // Confirm a full success in the status bar for 5 seconds, so it cannot outlive a later failure.
+        if (failures.length === 0) {
+            const names = selected.map((name) => `'${name}'`).join(', ');
+            const successMessage = selected.length === 1
+                ? `Environment ${names} updated successfully.`
+                : `Environments ${names} updated successfully.`;
 
-            // Send the update request to the backend client
-            await this._client.updateEnvironment(name, true, environment);
-
-            // Notify success for this environment
-            vscode.window.setStatusBarMessage(`Environment '${name}' updated successfully.`);
-            this._logger.information(`Environment '${name}' updated successfully.`);
+            vscode.window.setStatusBarMessage(successMessage, 5000);
+            return;
         }
-    }
 
-    /**
-     * Reads an environment file (key=value format) and converts its contents into a JSON object.
-     * Blank lines and lines beginning with "#" are ignored.
-     */
-    private static convertToJson(environmentFilePath: string, logger: Logger): any {
-        try {
-            // Read the entire file contents as a UTF-8 encoded string
-            const data = fs.readFileSync(environmentFilePath, 'utf8');
+        // Show every failure with its reason, so a failed upload is never reported as a success.
+        const failureMessage = `Could not update ${failures.length} of ${selected.length} environment(s). `
+            + failures.join(' ');
 
-            // Split the file text into individual lines
-            const lines = data.split('\n');
-
-            // Prepare the object to hold parsed key/value pairs
-            const json: Record<string, string> = {};
-
-            // Iterate through each line to extract key and value
-            for (const line of lines) {
-                // Remove leading/trailing whitespace
-                const trimmedLine = line.trim();
-
-                // Skip empty lines or comment lines starting with "#"
-                if (!trimmedLine || trimmedLine.startsWith('#')) {
-                    continue;
-                }
-
-                // Split on the first "=" to separate key from value
-                const [key, value] = trimmedLine.split('=');
-
-                // If either key or value is missing, ignore this malformed line
-                if (!(key && value)) {
-                    continue;
-                }
-
-                // Trim whitespace around key and value, then store in the result
-                json[key.trim()] = value.trim();
-            }
-
-            // Return the populated JSON-like object
-            return json;
-
-        } catch (error: any) {
-            // Log any errors encountered and return undefined
-            logger?.error(error.message, error);
-        }
+        void vscode.window.showErrorMessage(failureMessage);
     }
 
     /**
@@ -185,5 +140,131 @@ export class UpdateEnvironmentCommand extends CommandBase {
 
         // Return the completed environment map
         return environments;
+    }
+
+    /**
+     * Reads one environment file into the object uploaded to the Hub.
+     *
+     * @remarks
+     * A `.json` file must hold one JSON object. Any other file uses `KEY=value` lines: the line is
+     * split at the first `=`, so a value may contain `=`, and `KEY=` stores an empty value, so a
+     * value can be cleared. Blank lines, lines beginning with "#", and lines without a key are
+     * ignored. An empty result is refused, so an unreadable file is never uploaded as `{}`.
+     *
+     * @param environmentFilePath - Full path of the environment file.
+     * @returns The environment, or the reason it cannot be uploaded.
+     */
+    private static readEnvironment(environmentFilePath: string): { environment?: Record<string, unknown>; error?: string; } {
+        // Read the file without its UTF-8 BOM, which would break JSON.parse and join the first key;
+        // a read failure is reported for this environment only.
+        let data: string;
+
+        try {
+            const text = fs.readFileSync(environmentFilePath, 'utf8');
+            data = text.startsWith('\uFEFF') ? text.slice(1) : text;
+        } catch (error) {
+            return { error: `The file cannot be read: ${Utilities.resolveErrorMessage(error)}` };
+        }
+
+        // Parse a JSON environment file as one object.
+        const isJsonFile = path.extname(environmentFilePath).toLowerCase() === '.json';
+
+        if (isJsonFile) {
+            return UpdateEnvironmentCommand.readJsonEnvironment(data);
+        }
+
+        // Parse KEY=value lines, splitting each line at its first "=".
+        const environment: Record<string, string> = {};
+
+        for (const line of data.split('\n')) {
+            // Skip blank lines and comment lines starting with "#".
+            const trimmedLine = line.trim();
+
+            if (!trimmedLine || trimmedLine.startsWith('#')) {
+                continue;
+            }
+
+            // Skip a line without "=" or without a key; it cannot name a parameter.
+            const separatorIndex = trimmedLine.indexOf('=');
+
+            if (separatorIndex <= 0) {
+                continue;
+            }
+
+            // Store the trimmed key and value; an empty value clears the parameter.
+            const key = trimmedLine.slice(0, separatorIndex).trim();
+            environment[key] = trimmedLine.slice(separatorIndex + 1).trim();
+        }
+
+        // Refuse an empty environment, so a wrong file is not uploaded as {}.
+        return Object.keys(environment).length === 0
+            ? { error: 'The file has no KEY=value lines.' }
+            : { environment };
+    }
+
+    // Parses the text of a .json environment file; it must be a non-empty JSON object.
+    private static readJsonEnvironment(data: string): { environment?: Record<string, unknown>; error?: string; } {
+        // Parse the file; a syntax error is reported for this environment only.
+        let parsed: unknown;
+
+        try {
+            parsed = JSON.parse(data);
+        } catch (error) {
+            return { error: `The file is not valid JSON: ${Utilities.resolveErrorMessage(error)}` };
+        }
+
+        // Accept only a non-empty object, which maps parameter names to values.
+        const environment = parsed as Record<string, unknown> | null;
+        const isObject = environment !== null && typeof environment === 'object' && !Array.isArray(environment);
+
+        if (!isObject) {
+            return { error: 'The file must hold one JSON object of parameter names and values.' };
+        }
+
+        return Object.keys(environment).length === 0
+            ? { error: 'The JSON object is empty.' }
+            : { environment };
+    }
+
+    /**
+     * Reads and uploads each selected environment, and collects the failures.
+     *
+     * @remarks
+     * One environment that cannot be read or is rejected by the Hub fails alone; the rest are still
+     * uploaded. Each outcome is logged.
+     *
+     * @param selected - Environment names chosen by the user.
+     * @param environments - Map of environment names to file paths.
+     * @returns One "name: reason" line per environment that was not stored.
+     */
+    private async updateEnvironments(selected: string[], environments: Record<string, string>): Promise<string[]> {
+        // Collect one line per environment that was not stored, for the final notification.
+        const failures: string[] = [];
+
+        for (const name of selected) {
+            // Read the file; a file that cannot be uploaded is reported and skipped.
+            const { environment, error } = UpdateEnvironmentCommand.readEnvironment(environments[name]);
+
+            if (!environment) {
+                this._logger.error(`Environment '${name}' was not uploaded: ${error}`);
+                failures.push(`'${name}': ${error}`);
+                continue;
+            }
+
+            // Upload the environment and record the Hub's answer.
+            const result = await this._client.updateEnvironment(name, true, environment);
+
+            if (!result.ok) {
+                const reason = G4Client.getFailureMessage(result);
+
+                this._logger.error(`Environment '${name}' was not updated: ${reason}`);
+                failures.push(`'${name}': ${reason}`);
+                continue;
+            }
+
+            this._logger.information(`Environment '${name}' updated successfully.`);
+        }
+
+        return failures;
     }
 }
