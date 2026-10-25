@@ -2,7 +2,8 @@
  * G4(TM) section component: <g4-section>.
  *
  * A foldable page section: chevron, title, and an optional warning in the header; a description,
- * the content, and an optional status line in the body. Clicking the header folds or unfolds it.
+ * the content, and an optional status line in the body. Clicking the header, or pressing Enter or
+ * Space on it, folds or unfolds it; the header is a focusable button that reports aria-expanded.
  *
  * Contract:
  * - Children: the section content (placed between the description and the status line);
@@ -42,8 +43,21 @@
                 return;
             }
 
-            this.open = !this.open;
-            this.dispatchEvent(new CustomEvent('g4-toggle', { bubbles: true, detail: { open: this.open } }));
+            this.#toggleOpen();
+        };
+
+        // Folds or unfolds the section from the keyboard: Enter or Space on the focused header itself,
+        // so typing in a header control (a filter box) is never taken as a toggle.
+        #onHeaderKeyDown = (event) => {
+            const isToggleKey = event.key === 'Enter' || event.key === ' ';
+
+            if (!isToggleKey || event.target !== event.currentTarget) {
+                return;
+            }
+
+            // Space would otherwise scroll the page.
+            event.preventDefault();
+            this.#toggleOpen();
         };
 
         /**
@@ -91,6 +105,7 @@
             // Title and header clicks; the description is left out when empty.
             content.querySelector('[data-part="title"]').textContent = this.getAttribute('section-title') ?? '';
             content.querySelector('[data-part="header"]').addEventListener('click', this.#onHeaderClick);
+            content.querySelector('[data-part="header"]').addEventListener('keydown', this.#onHeaderKeyDown);
 
             if (descriptionText === '') {
                 description.remove();
@@ -209,6 +224,7 @@
 
             this.#getPart('chevron').classList.toggle('g4-section__chevron--open', this.open);
             this.#getPart('header').classList.toggle('g4-section__header--open', this.open);
+            this.#getPart('header').setAttribute('aria-expanded', String(this.open));
             this.#getPart('body').classList.toggle('g4-section__body--collapsed', !this.open);
 
             // The warning holder is rebuilt only when its label changes.
@@ -224,6 +240,14 @@
             }
 
             warningHolder.title = this.getAttribute('warning-tooltip') ?? '';
+        }
+
+        /**
+         * Folds or unfolds the section for the user, from a click or a key, and tells the page.
+         */
+        #toggleOpen() {
+            this.open = !this.open;
+            this.dispatchEvent(new CustomEvent('g4-toggle', { bubbles: true, detail: { open: this.open } }));
         }
     }
 
