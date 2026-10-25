@@ -132,6 +132,14 @@ export class NewProjectCommand extends CommandBase {
             await addPendingNotice(this.context, `The new G4 project uses the G4 sandbox at ${sandboxDirectoryPath}.`);
         }
 
+        // Without a sandbox, the Chrome base bot uses the installed Chrome and looks for ChromeDriver next to
+        // the engine, so say where to point it at a browser and driver.
+        if (sandboxDirectoryPath === undefined) {
+            await addPendingNotice(this.context, 'The new G4 project has no G4 sandbox. To run Chrome automations, set '
+                + '"binary" and "driverBinaries" in src/base.bots/chrome-automation-base.json to your Chrome and '
+                + 'ChromeDriver folders.');
+        }
+
         // Transition VS Code only after all synchronous scaffold writes have completed.
         NewProjectCommand.openFolder(projectSelection);
     }
