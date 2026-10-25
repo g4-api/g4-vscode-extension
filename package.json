@@ -261,6 +261,7 @@
         "pretest": "npm run compile-tests && npm run compile && npm run lint",
         "lint": "eslint src",
         "test": "vscode-test",
+        "test:unit": "tsc -p tsconfig.test.json && mocha --require out/test/unit/vscode-stub.js \"out/test/unit/**/*.test.js\"",
         "rebuild:electron": "npx @electron/rebuild -f -w uiohook-napi -v 37.2.3"
     },
     "devDependencies": {

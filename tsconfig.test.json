@@ -1,0 +1,11 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"outDir": "out",
+		"skipLibCheck": true,
+		"types": ["mocha", "node"]
+	},
+	"include": [
+		"src/test/unit/**/*.ts"
+	]
+}
