@@ -77,6 +77,9 @@ const PUBLISH_ANYWAY_ACTION = 'Publish Anyway';
 // Tab title of a template made from a bot while its File Name box is empty.
 const NEW_TEMPLATE_TITLE = 'New template';
 
+// Webview type of the publisher tab; also the type VS Code restores after an extension-host restart.
+const VIEW_TYPE = 'g4-template-publisher';
+
 // Server messages (from TemplatesClient.AddTemplate and ConfirmTemplate) mapped onto form fields.
 const CIRCULAR_REFERENCE_PATTERN = /circular reference/i;
 const ALIAS_CONFLICT_PATTERN = /template alias/i;
@@ -132,7 +135,13 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             this
         );
 
-        this.context.subscriptions.push(disposable);
+        // Rebuild a publisher tab that was open during an extension-host restart, so its Publish
+        // button keeps working instead of silently doing nothing.
+        const serializer = vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, {
+            deserializeWebviewPanel: (panel: vscode.WebviewPanel, state: unknown) => this.restorePublisher(panel, state)
+        });
+
+        this.context.subscriptions.push(disposable, serializer);
     }
 
     /**
@@ -597,6 +606,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
                 kind: source.kind
             },
             isSchemaFallback,
+            restoreState: { filePath: source.filePath, kind: source.kind },
             rules: { rulesText: JSON.stringify(source.rules, null, 4) },
             schemas,
             source: { label: source.label },
@@ -655,27 +665,32 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * data, and wires the message handler.
      *
      * @param source - The template or bot job to publish.
+     * @param restoredPanel - A tab VS Code restored after an extension-host restart; a new tab is
+     *     created when omitted.
      */
-    private async openPublisher(source: PublisherSource): Promise<void> {
+    private async openPublisher(source: PublisherSource, restoredPanel?: vscode.WebviewPanel): Promise<void> {
         // Read the schema and the stored template (if any) behind a progress notification, since the
         // Hub calls can take up to their timeouts when the Hub is down.
         const [schemaResult, existingTemplate] = await vscode.window.withProgress(
             { location: vscode.ProgressLocation.Notification, title: `Opening template publisher for ${source.label}…` },
             () => Promise.all([this.getTemplateSchema(), this._client.getTemplate(source.defaults.key as string)]));
 
-        // Create the tab with access to the component and font resources only.
-        const panel = vscode.window.createWebviewPanel(
-            'g4-template-publisher',
+        // Create the tab with access to the component and font resources only, or reuse the restored tab.
+        const webviewOptions = {
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
+            ]
+        };
+        const panel = restoredPanel ?? vscode.window.createWebviewPanel(
+            VIEW_TYPE,
             UpdateTemplatePublisherCommand.getPanelTitle(source),
             vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
-                ],
-                retainContextWhenHidden: true
-            }
+            { ...webviewOptions, retainContextWhenHidden: true }
         );
+
+        panel.webview.options = webviewOptions;
+        panel.title = UpdateTemplatePublisherCommand.getPanelTitle(source);
 
         // Track the tab per source, and forget it when the user closes it. The key is read when the
         // tab closes, because a bot job's tab is moved to its template file's key once it is saved.
@@ -853,6 +868,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             file: saveResult.isSaved ? { fileName: source.fileName, isExisting: true, kind: 'template' } : undefined,
             isSuccess: true,
             message: `Published ${templateName}.${saveResult.note}`,
+            restoreState: saveResult.isSaved ? { filePath: source.filePath, kind: source.kind } : undefined,
             savedRulesText: saveResult.isSaved ? JSON.stringify(rules, null, 4) : undefined,
             savedValues: saveResult.isSaved ? savedValues : undefined,
             source: { label: source.label }
@@ -1001,6 +1017,52 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
             panelKey: UpdateTemplatePublisherCommand.getPanelKey(filePath),
             rules: Array.isArray(manifest.rules) ? manifest.rules : []
         };
+    }
+
+    /**
+     * Rebuilds a publisher tab that VS Code restored after an extension-host restart.
+     *
+     * @remarks
+     * The page records its file and kind as webview state. A template file is re-read and the tab is
+     * rebuilt from it (unpublished edits in the old tab are gone, as they were with the dead tab). A
+     * template still being made from a bot job cannot be rebuilt without asking for the stage and job
+     * again, so that tab is closed with a note saying how to reopen it. The tab is also closed when
+     * the state is missing, the file is already open in another tab, or it can no longer be read.
+     *
+     * @param panel - The restored tab.
+     * @param state - The state the page recorded.
+     */
+    private async restorePublisher(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
+        // Read the file and kind the page recorded.
+        const restoreState = state as { filePath?: unknown; kind?: unknown; } | undefined;
+        const filePath = restoreState?.filePath;
+        const isFilePath = typeof filePath === 'string' && fs.existsSync(filePath);
+
+        if (!isFilePath) {
+            panel.dispose();
+            return;
+        }
+
+        // A bot job's template needs the stage and job picked again, so only say how to reopen it.
+        if (restoreState?.kind !== 'template') {
+            panel.dispose();
+            const relativePath = UpdateTemplatePublisherCommand.getRelativePath(filePath, BOTS_FOLDER);
+
+            void vscode.window.showInformationMessage(
+                `The template publisher for bots/${relativePath} was closed by the extension restart. `
+                + 'Open it again from the bot file.');
+            return;
+        }
+
+        // Re-read the template file; an unreadable file is reported by readTemplateSource and the tab is closed.
+        const source = this.readTemplateSource(filePath);
+
+        if (!source || this._panels.has(source.panelKey)) {
+            panel.dispose();
+            return;
+        }
+
+        await this.openPublisher(source, panel);
     }
 
     /**
