@@ -23,6 +23,10 @@
 const KEY_CLOSE = '}}';
 const KEY_OPEN = '{{';
 
+// Path of a repository Name field, whose card title follows it ('...externalRepositories.2.name' -> 2).
+// Linear: anchored, one digit run.
+const REPOSITORY_NAME_PATH_PATTERN = /^settings\.pluginsSettings\.externalRepositories\.(\d+)\.name$/;
+
 // Valid TCP port range; 0 means "any free port", which a saved endpoint cannot use.
 const PORT_MAXIMUM = 65535;
 const PORT_MINIMUM = 1;
@@ -1060,6 +1064,17 @@ function onAppInput(event) {
     // A recorder script, or its "Add to Automation Flow" switch, re-checks the script.
     if (dataset.recorderIndex !== undefined) {
         updateRecorderScriptError(Number(dataset.recorderIndex), dataset.phase);
+    }
+
+    // A repository card's title follows its Name as it is typed, as an MCP card follows its server
+    // name; an empty Name shows the numbered default title again.
+    const repositoryNameMatch = typeof path === 'string' ? REPOSITORY_NAME_PATH_PATTERN.exec(path) : null;
+
+    if (repositoryNameMatch) {
+        const nameText = typeof value === 'string' ? value.trim() : '';
+        const cardTitle = nameText || `Repository ${Number(repositoryNameMatch[1]) + 1}`;
+
+        event.target.closest('g4-card')?.setAttribute('card-title', cardTitle);
     }
 }
 
@@ -2741,7 +2756,7 @@ function writeRecorderCard(recorder, index) {
         ${writeToggle({
         path: `${base}.preScript.enabled`,
         label: 'Run a Script Before Recording Starts',
-        hint: 'Runs once on this machine before capture begins. It stays in the recorder and never becomes part of the automation.'
+        hint: 'Runs once on this machine before capture begins. Turn on Add to Automation Flow to also add it to the recorded automation.'
     })}
         ${writeSelect({
         path: `${base}.preScript.shell`,
@@ -2767,7 +2782,7 @@ function writeRecorderCard(recorder, index) {
         ${writeToggle({
         path: `${base}.postScript.enabled`,
         label: 'Run a Script After Recording Stops',
-        hint: 'Runs once on this machine after capture ends. It stays in the recorder and never becomes part of the automation.'
+        hint: 'Runs once on this machine after capture ends. Turn on Add to Automation Flow to also add it to the recorded automation.'
     })}
         ${writeSelect({
         path: `${base}.postScript.shell`,
