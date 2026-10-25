@@ -379,48 +379,56 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             logger: Global.logger
         });
 
+        // Make one connection attempt; the loop owns retrying, so only one client exists at a time.
+        let isConnected = false;
+
         try {
-            // Start the SignalR connection to the G4 hub.
             await client.start();
-
-            // Retry when the client did not reach the connected state.
-            if (client.connection.state !== 'Connected') {
-                await new Promise(resolve => setTimeout(resolve, 5000));
-                continue;
-            }
-
-            // Show progress while synchronizing externals and MCP servers into the G4 cache.
-            setConnectionStatus('$(sync~spin) Loading G4 Engine Externals and MCPs...');
-
-            // Perform an additional synchronization of tools to ensure the latest tool definitions are available.
-            const command = new SyncCacheCommand(context, baseUri);
-            await command.invokeCommand({ restart: false });
-
-            // Show the connected state; it stays until the next connection status replaces it.
-            setConnectionStatus('G4 Engine is Connected and Ready');
-
-            // Store the connected G4 hub base URL globally for later use.
-            Global.baseHubUrl = baseUri;
-
-            // The G4 cache is now populated. Rebuild the documentation tree so its
-            // plugin-type nodes (and docs) render against the connected engine. Guarded
-            // so a not-yet-registered command can never fail the connection flow.
-            try {
-                await vscode.commands.executeCommand('Update-Documents');
-            } catch {
-                // Ignore: the documents view/command may not be registered yet.
-            }
-
-            // Return the configured base URI after a successful connection.
-            return baseUri;
+            isConnected = client.connection.state === 'Connected';
         } catch {
-            // Show a retry message when the SignalR connection attempt fails.
-            setConnectionStatus('$(sync~spin) G4 Engine SignalR Connection Failed. Retrying...');
+            isConnected = false;
+        }
 
-            // Wait briefly before starting the next retry attempt.
+        // Discard a failed client before the next attempt, so failed clients cannot pile up and
+        // all connect at once when the Hub comes back.
+        if (!isConnected) {
+            await client.stop();
+
+            // Show a retry message, then wait briefly before the next attempt.
+            setConnectionStatus('$(sync~spin) G4 Engine SignalR Connection Failed. Retrying...');
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue;
         }
+
+        // Show progress while synchronizing externals and MCP servers into the G4 cache.
+        setConnectionStatus('$(sync~spin) Loading G4 Engine Externals and MCPs...');
+
+        // Synchronize the cache and tools. A failure is reported by the command and must not
+        // start a second client next to this connected one.
+        try {
+            const command = new SyncCacheCommand(context, baseUri);
+            await command.invokeCommand({ restart: false });
+        } catch (error) {
+            Global.logger.error(`Loading G4 Engine externals and MCPs failed: ${Utilities.resolveErrorMessage(error)}`);
+        }
+
+        // Show the connected state; it stays until the next connection status replaces it.
+        setConnectionStatus('G4 Engine is Connected and Ready');
+
+        // Store the connected G4 hub base URL globally for later use.
+        Global.baseHubUrl = baseUri;
+
+        // The G4 cache is now populated. Rebuild the documentation tree so its
+        // plugin-type nodes (and docs) render against the connected engine. Guarded
+        // so a not-yet-registered command can never fail the connection flow.
+        try {
+            await vscode.commands.executeCommand('Update-Documents');
+        } catch {
+            // Ignore: the documents view/command may not be registered yet.
+        }
+
+        // Return the configured base URI after a successful connection.
+        return baseUri;
     }
 };
 
