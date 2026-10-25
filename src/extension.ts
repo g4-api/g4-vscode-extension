@@ -30,7 +30,7 @@ import {
     G4ProjectManifest
 } from './services/g4-hub-service';
 import { G4RecordingService } from './services/g4-recording-service';
-import { G4SettingsService } from './services/g4-settings-service';
+import { ApplySettingsOptions, G4SettingsService } from './services/g4-settings-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -335,9 +335,7 @@ const registerSettingsService = (context: vscode.ExtensionContext): void => {
     // on-disk manifest without a window reload.
     const disposable = vscode.commands.registerCommand(
         'Apply-Settings',
-        async () => {
-            await settingsService.updateSettings();
-        });
+        (options?: ApplySettingsOptions) => settingsService.updateSettings(options));
 
     context.subscriptions.push(disposable);
 };
