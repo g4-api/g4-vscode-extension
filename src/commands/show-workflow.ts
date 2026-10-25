@@ -382,29 +382,111 @@ export class ShowWorkflowCommand extends CommandBase {
                 }, interval);
             });
 
+            // Delay between the last designer edit and its report, so typing in a property box sends
+            // one update instead of one per keystroke; also how long an import may keep re-rendering.
+            const CHANGE_REPORT_DELAY_MILLISECONDS = 300;
+
+            // Pending report of a designer edit, replaced by every newer edit.
+            let changeReportTimer = null;
+
+            // True while an imported definition settles, so its re-render is not reported as an edit.
+            let isImportSettling = false;
+
+            // Automation the designer last showed or reported, as JSON text. A change event that
+            // leaves the automation unchanged (an import, a selection, a re-render) is not reported.
+            let lastAutomationText = null;
+
+            /**
+             * Builds the bot automation from the designer's current definition.
+             *
+             * The definition is cloned first because the conversion normalizes some settings in
+             * place, and the designer state must not change just because it was read.
+             *
+             * @returns The automation object, or null when the definition cannot be converted.
+             */
+            const getAutomation = () => {
+                try {
+                    return _client.newAutomation(structuredClone(_designer.getDefinition()));
+                } catch {
+                    return null;
+                }
+            };
+
+            /**
+             * Reports the designer's automation to the extension when it differs from the last one.
+             *
+             * The custom editor writes it into the bot document, so the tab becomes dirty, Undo
+             * works, and Save writes the edit to the file.
+             */
+            const sendAutomationChange = () => {
+                changeReportTimer = null;
+
+                // Skip a definition that cannot be converted, and one that did not really change.
+                const automation = getAutomation();
+                const automationText = automation === null ? null : JSON.stringify(automation);
+
+                if (automationText === null || automationText === lastAutomationText) {
+                    return;
+                }
+
+                // Remember what was reported, then send it.
+                lastAutomationText = automationText;
+                vscode.postMessage({ type: 'workflow:changed', payload: { automation } });
+            };
+
+            /**
+             * Schedules a change report after a designer edit; ignored while an import settles.
+             */
+            const onDefinitionChanged = () => {
+                if (isImportSettling) {
+                    return;
+                }
+
+                clearTimeout(changeReportTimer);
+                changeReportTimer = setTimeout(sendAutomationChange, CHANGE_REPORT_DELAY_MILLISECONDS);
+            };
+
             /**
              * Applies a workflow definition to the designer and resets the viewport.
+             *
+             * The imported automation becomes the baseline once the canvas has settled, so opening
+             * a bot (or reloading it after Undo or an outside edit) never reports an edit back.
              *
              * @param definition - The parsed workflow definition to render.
              */
             const applyDefinition = (definition) => {
+                // Drop any pending edit report: the imported definition replaces it.
+                clearTimeout(changeReportTimer);
+                isImportSettling = true;
+
                 // Observe the workspace so 'resetView' can recenter once the canvas repaints.
                 const workspaceElement = document.querySelector('.sqd-workspace');
                 const workspaceObserver = new Observer(workspaceElement);
 
-                // Render the definition and reset the viewport, returning on any failure.
+                // Render the definition and reset the viewport; on failure keep the last baseline.
                 try {
                     setDefinition(definition);
                     resetView(workspaceObserver);
                 } catch (applyErr) {
+                    isImportSettling = false;
                     return;
                 }
+
+                // Take the baseline after the canvas settled, then report edits again.
+                setTimeout(() => {
+                    const automation = getAutomation();
+
+                    lastAutomationText = automation === null ? null : JSON.stringify(automation);
+                    isImportSettling = false;
+                }, CHANGE_REPORT_DELAY_MILLISECONDS);
             };
 
-            // Notify the extension only once the designer can actually accept a definition.
+            // Notify the extension only once the designer can actually accept a definition, after
+            // the edit reports are wired, so the first import is already guarded.
             window.addEventListener('DOMContentLoaded', () => {
                 waitForDesigner().then(isReady => {
                     if (isReady) {
+                        _designer.onDefinitionChanged.subscribe(onDefinitionChanged);
                         vscode.postMessage({ type: 'webview:ready' });
                     } else {
                         console.warn('Workflow designer was not ready in time; ready signal skipped.');
@@ -513,6 +595,24 @@ export class ShowWorkflowCommand extends CommandBase {
         // and send its content back to the webview.
         if (message.type === 'workflow:import') {
             await this.importWorkflowFile(panel, message.payload.fileUri);
+
+            // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // A custom editor imports its open document, which may hold unsaved edits the file on disk lacks.
+        if (message.type === 'webview:ready' && typeof args?.getContent === 'function') {
+            const fileName = typeof args.fileUri === 'string'
+                ? path.basename(vscode.Uri.parse(args.fileUri).fsPath)
+                : 'G4 Workflow';
+
+            panel.webview.postMessage({
+                type: 'workflow:import',
+                payload: {
+                    fileName,
+                    content: args.getContent()
+                }
+            });
 
             // No further handling is needed for this message, so we can exit early.
             return;
