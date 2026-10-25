@@ -22,8 +22,7 @@
     ],
     "capabilities": {
         "untrustedWorkspaces": {
-            "supported": "limited",
-            "description": "In Restricted Mode, G4 Studio does not start the sandbox Hub or recorder services and does not run recorder scripts from the project settings. Trust the folder to use them."
+            "supported": true
         }
     },
     "license": "Apache-2.0",

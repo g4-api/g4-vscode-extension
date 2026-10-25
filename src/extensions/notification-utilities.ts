@@ -5,9 +5,6 @@ import { setTimeout } from 'node:timers/promises';
 // Keeps transient success and lifecycle notices visible long enough to be read without lingering.
 const INFORMATION_MESSAGE_TIMEOUT_MILLISECONDS = 5000;
 
-// Button of the Restricted Mode notice; it opens the VS Code workspace trust editor.
-const MANAGE_TRUST_ACTION = 'Manage Workspace Trust';
-
 // Global state key of the notices waiting for the next window load.
 const PENDING_NOTICES_KEY = 'g4.pendingNotices';
 
@@ -79,26 +76,4 @@ export function showTemporaryInformationMessage(message: string): void {
         },
         () => setTimeout(INFORMATION_MESSAGE_TIMEOUT_MILLISECONDS)
     );
-}
-
-/**
- * Explains that a feature needs a trusted folder, and offers to open the workspace trust editor.
- *
- * @remarks
- * G4 Studio runs in Restricted Mode with limited support: it does not start processes or run
- * scripts named in the project settings until the user trusts the folder. This notice says which
- * feature is held back.
- *
- * @param featureText - What was not done, for example 'G4 Studio did not start the sandbox Hub'.
- */
-export function showWorkspaceTrustNotice(featureText: string): void {
-    // Name the held-back feature, then offer the trust editor.
-    const message = `${featureText} because this folder is not trusted. `
-        + 'Trust the folder to let G4 start the Hub and recorders and run recorder scripts.';
-
-    void vscode.window.showWarningMessage(message, MANAGE_TRUST_ACTION).then((choice) => {
-        if (choice === MANAGE_TRUST_ACTION) {
-            void vscode.commands.executeCommand('workbench.trust.manage');
-        }
-    });
 }

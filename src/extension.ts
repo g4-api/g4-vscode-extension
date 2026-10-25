@@ -17,7 +17,7 @@ import { UpdateTemplatePublisherCommand } from './commands/update-template-publi
 
 import { Global } from './constants/global';
 
-import { showPendingNotices, showWorkspaceTrustNotice } from './extensions/notification-utilities';
+import { showPendingNotices } from './extensions/notification-utilities';
 import { Utilities } from './extensions/utilities';
 
 import { DocumentsTreeProvider } from './providers/g4-documents-tree-provider';
@@ -61,12 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Start the sandboxed hub opportunistically without delaying activation events.
     void startSandboxHubFromManifest().catch(() => undefined);
-
-    // In Restricted Mode the Hub is not started; start it as soon as the user trusts the folder,
-    // so the waiting connection loop below connects without a reload.
-    context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => {
-        void startSandboxHubFromManifest().catch(() => undefined);
-    }));
 
     // Show notices stored before the window reloaded, such as the sandbox chosen by New-Project.
     void showPendingNotices(context);
@@ -480,18 +474,6 @@ const startSandboxHubFromManifest = async (): Promise<void> => {
     const manifest = await readProjectManifest();
 
     if (manifest === null) {
-        return;
-    }
-
-    // In Restricted Mode, never start a process named by the project settings; say why the Hub
-    // does not start when the project expects a sandbox Hub. Trusting the folder starts it.
-    const isSandboxConfigured = typeof manifest.sandbox === 'string' && manifest.sandbox.trim().length > 0;
-
-    if (!vscode.workspace.isTrusted) {
-        if (isSandboxConfigured) {
-            showWorkspaceTrustNotice('G4 Studio did not start the sandbox Hub');
-        }
-
         return;
     }
 
