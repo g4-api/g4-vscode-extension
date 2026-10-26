@@ -15,8 +15,16 @@
         "Other"
     ],
     "activationEvents": [
-        "onStartupFinished"
+        "onStartupFinished",
+        "onWebviewPanel:g4-flow-publisher",
+        "onWebviewPanel:g4-settings",
+        "onWebviewPanel:g4-template-publisher"
     ],
+    "capabilities": {
+        "untrustedWorkspaces": {
+            "supported": true
+        }
+    },
     "license": "Apache-2.0",
     "main": "./dist/extension.js",
     "contributes": {
@@ -133,7 +141,8 @@
                     "type": "tree",
                     "id": "g4BotsManager",
                     "name": "G4 Bots Manager",
-                    "icon": "resources.assets/g4-bots-icon.svg"
+                    "icon": "resources.assets/g4-bots-icon.svg",
+                    "when": "false"
                 }
             ]
         },
@@ -261,6 +270,7 @@
         "pretest": "npm run compile-tests && npm run compile && npm run lint",
         "lint": "eslint src",
         "test": "vscode-test",
+        "test:unit": "tsc -p tsconfig.test.json && mocha --require out/test/unit/vscode-stub.js \"out/test/unit/**/*.test.js\"",
         "rebuild:electron": "npx @electron/rebuild -f -w uiohook-napi -v 37.2.3"
     },
     "devDependencies": {

@@ -9,7 +9,7 @@
  * model, state, checks, parameter token warnings, and the host messages.
  *
  * Host contract (update-flow.ts):
- * - Injected #g4-data: { automation, defaults, existingFlow, isSchemaFallback, schemas, summaryTemplate }.
+ * - Injected #g4-data: { automation, defaults, existingFlow, isSchemaFallback, restoreState, schemas, summaryTemplate }.
  * - Webview → host: { command: 'lookupFlow', requestId, namespace, key }
  *                   { command: 'publish', automationText, values, warnings }
  * - Host → webview: { command: 'flowLookup', requestId, existingFlow }
@@ -202,6 +202,12 @@ globalThis.INJECTED = (() => {
         return null;
     }
 })();
+
+// Record which file this tab publishes, so VS Code hands it back when it restores the tab after an
+// extension-host restart and the host can rebuild a working tab instead of a dead one.
+if (globalThis.VSCODE && globalThis.INJECTED?.restoreState) {
+    globalThis.VSCODE.setState(globalThis.INJECTED.restoreState);
+}
 
 // Page state. Module-level because the webview is one page with one form: every render reads from
 // it and every component event writes to it, and the delegated listeners have no other shared owner.

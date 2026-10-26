@@ -282,8 +282,9 @@ export class G4RecorderSandboxService {
             });
         }
 
-        // If the recorder already answers ping, leave it alone and continue recording startup.
-        const isRecorderRunning = await G4ServiceHealth.testPing(baseUri);
+        // If the recorder already answers (any HTTP status, since recorders do not serve the Hub ping
+        // route), leave it alone, so a second process is never started on its port.
+        const isRecorderRunning = await G4ServiceHealth.testPing(baseUri, true);
 
         if (isRecorderRunning) {
             return {
@@ -320,10 +321,11 @@ export class G4RecorderSandboxService {
             });
         }
 
-        // Once a process is spawned, wait briefly so callers know whether startup reached the ping endpoint.
+        // Once a process is spawned, wait briefly so callers know whether the recorder started answering.
         const isReady = await G4ServiceHealth.waitForPing(
             baseUri,
-            RECORDER_START_TIMEOUT_MILLISECONDS
+            RECORDER_START_TIMEOUT_MILLISECONDS,
+            true
         );
 
         return {
@@ -333,7 +335,7 @@ export class G4RecorderSandboxService {
             isStarted: launchResult.isStarted,
             message: isReady
                 ? undefined
-                : `Recorder sandbox process started but ${baseUri} did not answer ping in time.`
+                : `Recorder sandbox process started but ${baseUri} did not answer in time.`
         };
     }
 

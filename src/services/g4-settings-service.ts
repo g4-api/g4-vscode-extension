@@ -9,6 +9,18 @@ import { G4RecorderViewProvider } from '../providers/g4-recorder-webview-view-pr
 import { G4RecordingService } from './g4-recording-service';
 
 /**
+ * Options of one Apply-Settings run.
+ *
+ * @remarks
+ * Passed by the Settings editor, which must write manifest.json only after the recording prompt,
+ * so a cancelled prompt leaves the file unchanged. The palette command passes none.
+ */
+export type ApplySettingsOptions = {
+    /** Writes manifest.json; resolves false when nothing was written (cancelled or failed), which stops the apply. */
+    saveManifest?: () => Promise<boolean>;
+};
+
+/**
  * Dependencies the settings service needs to hot-apply manifest changes.
  *
  * @remarks
@@ -64,14 +76,18 @@ export class G4SettingsService {
      * Hot-applies the current on-disk settings to the running extension.
      *
      * @remarks
-     * Owns the apply flow: it guards an in-progress recording, refreshes the global manifest
-     * snapshot, rebuilds the recorder subsystem only when its settings changed, and prompts for a
-     * window reload only when a change touches a section that is cached at activation. Safe to run
-     * from the Save action or the Apply Settings command.
+     * Owns the apply flow: it guards an in-progress recording, lets the Settings editor write the
+     * file, refreshes the global manifest snapshot, rebuilds the recorder subsystem only when its
+     * settings changed, and prompts for a window reload only when a change touches a section that
+     * is cached at activation. Safe to run from the Save action or the Apply Settings command.
      *
-     * @returns A promise that resolves once the settings have been applied (or the user cancels).
+     * The recording prompt comes before the write, so cancelling it leaves the file unchanged and
+     * the file and the applied settings never disagree.
+     *
+     * @param options - Optional save step of the Settings editor, run after the recording prompt.
+     * @returns True when the settings were applied; false when the user cancelled or the save failed.
      */
-    public async updateSettings(): Promise<void> {
+    public async updateSettings(options?: ApplySettingsOptions): Promise<boolean> {
         // Snapshot the pre-refresh manifest so reload-only sections can be compared after refresh.
         const previousManifest = Utilities.getManifest();
 
@@ -80,11 +96,20 @@ export class G4SettingsService {
             const isStopConfirmed = await this.showStopRecordingPrompt();
 
             if (!isStopConfirmed) {
-                return;
+                return false;
             }
 
-            // Stop the live recording before the recorder settings are replaced.
+            // Stop the live recording before the recorder settings are replaced, then re-render the
+            // panel so it no longer shows Stop, whether or not the recorder settings change.
             await vscode.commands.executeCommand('Stop-Recorder');
+            this._recorderView.updateView();
+        }
+
+        // Let the Settings editor write the file now that nothing can cancel the apply.
+        const isSaved = options?.saveManifest === undefined || await options.saveManifest();
+
+        if (!isSaved) {
+            return false;
         }
 
         // Refresh the global snapshot so every getManifest() consumer sees the new values.
@@ -106,6 +131,8 @@ export class G4SettingsService {
         if (isReloadRequired) {
             await this.showReloadPrompt();
         }
+
+        return true;
     }
 
     /**
@@ -178,20 +205,18 @@ export class G4SettingsService {
      *
      * @remarks
      * Owns a modal UI prompt. Returns the user's intent so the caller decides whether to proceed;
-     * it does not stop the recording itself.
+     * it does not stop the recording itself. The modal dialog adds its own Cancel button.
      *
      * @returns A promise resolving to true when the user chose to stop and apply.
      */
     private async showStopRecordingPrompt(): Promise<boolean> {
         const stopAction = 'Stop & Apply';
-        const cancelAction = 'Cancel';
         const message = 'A recording is in progress. Stop it and apply the settings?';
 
         const choice = await vscode.window.showWarningMessage(
             message,
             { modal: true },
-            stopAction,
-            cancelAction);
+            stopAction);
 
         return choice === stopAction;
     }
