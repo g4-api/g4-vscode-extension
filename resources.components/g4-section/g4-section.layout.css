@@ -23,6 +23,13 @@ g4-section {
     border-bottom-style: solid;
 }
 
+/* Keyboard focus on the header: an outline inside the header, so it is not clipped by the section. */
+.g4-section__header:focus-visible {
+    outline-width: 1px;
+    outline-style: solid;
+    outline-offset: -1px;
+}
+
 .g4-section__chevron {
     display: inline-flex;
     align-items: center;

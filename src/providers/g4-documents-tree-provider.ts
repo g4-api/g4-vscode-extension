@@ -138,16 +138,14 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
      * Registers the documents tree view and its related command(s) with VS Code.
      *
      * Side effects:
-     * - Binds this instance as the data provider for the "g4Documentations" view.
      * - Registers the "Update-Documents" command (idempotently) to refresh the tree.
-     * - Creates the actual TreeView instance and tracks it for automatic disposal.
+     * - Creates the TreeView for the "g4Documentations" view with this instance as its data provider,
+     *   and tracks it for automatic disposal. (A separate registerTreeDataProvider call created a
+     *   second, never-disposed tree for the same view.)
      *
      * @returns {any} No explicit return value; registration is performed via side effects.
      */
     public register(): any {
-        // Ensure the view id "g4Documentations" is associated with this provider.
-        vscode.window.registerTreeDataProvider('g4Documentations', this);
-
         // Toggle a folder-like tree item's icon and state when it expands/collapses.
         const setFolderIcon = (item: TreeItem, expanded: boolean) => {
             // Augment the runtime object with an optional expansion marker we control.

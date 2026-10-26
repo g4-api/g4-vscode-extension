@@ -1,10 +1,18 @@
-import { Global } from "../constants/global";
-import { HttpClient, HttpCommand } from "./http-client";
+import { HttpClient, HttpCommand, HttpResult } from "./http-client";
+
+// Timeout of a cache sync. The Hub loads every external repository and MCP server before it
+// answers; one MCP server and one repository already took 9.2 s, so 5 s failed on every activation.
+const SYNC_CACHE_TIMEOUT_MILLISECONDS = 60000;
 
 /**
  * Client for interacting with the G4 server API.
  *
  * Wraps HTTP operations and provides methods to register and fetch resources.
+ *
+ * @remarks
+ * HttpClient never rejects; it resolves an HttpResult. The read methods turn a failure into
+ * `undefined`, and the write methods return the result (or its failure text) so callers can report
+ * the real outcome instead of assuming success.
  */
 export class G4Client {
     /**
@@ -24,15 +32,39 @@ export class G4Client {
     }
 
     /**
+     * Builds a one-line failure message for a failed request, for notifications and the log.
+     *
+     * @remarks
+     * A timeout or network failure (status 0) already carries its reason as text. A Hub response
+     * is reduced to its status plus the problem title and field messages.
+     *
+     * @param result - The failed request outcome.
+     * @returns The message to show the user.
+     */
+    public static getFailureMessage(result: HttpResult): string {
+        // A request that got no response carries the failure reason as its body.
+        if (result.status === 0) {
+            return typeof result.body === 'string' ? result.body : 'No response from the G4 Hub.';
+        }
+
+        // A Hub response is described by its status and the reason in its problem body.
+        const problemText = HttpClient.getProblemText(result.body);
+
+        return problemText === ''
+            ? `The G4 Hub answered ${result.status}.`
+            : `The G4 Hub answered ${result.status}: ${problemText}`;
+    }
+
+    /**
      * Retrieve the G4 integration cache from the Hub API.
      *
      * Sends an HTTP GET request to:
      *   `api/v{version}/g4/integration/cache`
      * using a 5-second timeout. On success, resolves with the cache payload
-     * returned by the server. On failure, logs the error and resolves `undefined`.
+     * returned by the server. On failure (already logged by HttpClient), resolves `undefined`.
      *
      * Notes:
-     * - This method **does not throw** on failure; it catches and logs the error.
+     * - This method **does not throw** on failure.
      * - The resolved type is `any` because the cache shape is dynamic; narrow it
      *   at call sites if you have a known interface.
      *
@@ -51,13 +83,11 @@ export class G4Client {
         // Fail the request if it exceeds 5 seconds.
         command.timeout = 5000;
 
-        try {
-            // Dispatch the request via the shared HTTP client; return the server payload.
-            return await this.httpClient.sendAsync(command);
-        } catch (err: any) {
-            // Swallow the error after logging; caller will receive `undefined`.
-            Global.logger.error(err.message);
-        }
+        // Only a successful object response is a cache; a failure must never be read as one.
+        const result = await this.httpClient.sendAsync(command);
+        const isCache = result.ok && result.body !== null && typeof result.body === 'object';
+
+        return isCache ? result.body : undefined;
     }
 
     /**
@@ -65,9 +95,10 @@ export class G4Client {
      *
      * @param syncOptions The synchronization payload that contains external repositories
      * and server definitions to send to the integration endpoint.
-     * @returns A promise that resolves when the synchronization request completes.
+     * @returns The request outcome; `ok` is false when the Hub rejected the sync or did not answer
+     *     within 60 seconds.
      */
-    public async syncCache(syncOptions: { repositories: [any], servers: any }): Promise<void> {
+    public async syncCache(syncOptions: { repositories: [any], servers: any }): Promise<HttpResult> {
         // Create the HTTP command object that will be sent to the integration API.
         const command = new HttpCommand();
 
@@ -83,36 +114,29 @@ export class G4Client {
         // Use HTTP POST to trigger cache synchronization.
         command.method = 'POST';
 
-        // Abort the request if it takes longer than 5 seconds.
-        command.timeout = 5000;
+        // Allow the Hub time to load every external repository and MCP server.
+        command.timeout = SYNC_CACHE_TIMEOUT_MILLISECONDS;
 
-        try {
-            // Send the request using the shared HTTP client.
-            await this.httpClient.sendAsync(command);
-        } catch (err: any) {
-            // Log the failure and suppress the exception so the caller receives no result.
-            Global.logger.error(err.message);
-        }
+        // Send the request; the caller reports the outcome.
+        return this.httpClient.sendAsync(command);
     }
 
     /**
      * Synchronizes tools with the remote server by sending an HTTP GET request
      * to the tool synchronization endpoint. The request uses a 5-second timeout.
-     * Any errors encountered during the request are logged.
      *
      * @remarks
-     * This method constructs an HTTP command targeting the environment update endpoint
-     * and executes it asynchronously using the configured HTTP client.
+     * This method constructs an HTTP command targeting the MCP tool synchronization endpoint
+     * and executes it asynchronously using the configured HTTP client. Failures are logged by
+     * HttpClient and returned to the caller.
      *
-     * @returns {Promise<void>} A promise that resolves when the synchronization completes.
-     *
-     * @throws Will log an error if the HTTP request fails.
+     * @returns The request outcome.
      *
      * @example
-     * await client.syncTools();
+     * const result = await client.syncTools();
      */
-    public async syncTools(): Promise<void> {
-        // Construct a new HTTP command for the environment update endpoint
+    public async syncTools(): Promise<HttpResult> {
+        // Construct a new HTTP command for the tool synchronization endpoint
         const command = new HttpCommand();
 
         // Build the request URL path for tool synchronization
@@ -124,13 +148,8 @@ export class G4Client {
         // Set a timeout of 5 seconds for the request
         command.timeout = 5000;
 
-        try {
-            // Execute the HTTP request asynchronously
-            await this.httpClient.sendAsync(command);
-        } catch (err: any) {
-            // Log any errors encountered during the request
-            Global.logger.error(err.message);
-        }
+        // Send the request; the caller reports the outcome.
+        return this.httpClient.sendAsync(command);
     }
 
     /**
@@ -139,10 +158,10 @@ export class G4Client {
      * @param name        - The unique name of the environment to update.
      * @param encode      - Whether the server should encode the response (true/false).
      * @param environment - The environment payload object to send in the request body.
-     * 
-     * @returns A Promise that resolves when the update completes (errors are logged).
+     *
+     * @returns The request outcome, so the caller can report whether the environment was stored.
      */
-    public async updateEnvironment(name: string, encode: boolean, environment: any): Promise<void> {
+    public async updateEnvironment(name: string, encode: boolean, environment: any): Promise<HttpResult> {
         // Construct a new HTTP command for the environment update endpoint
         const command = new HttpCommand();
 
@@ -161,13 +180,8 @@ export class G4Client {
         // Set a timeout of 5 seconds for the request
         command.timeout = 5000;
 
-        try {
-            // Execute the HTTP request asynchronously
-            await this.httpClient.sendAsync(command);
-        } catch (err: any) {
-            // Log any errors encountered during the request
-            Global.logger.error(err.message);
-        }
+        // Send the request; the caller reports the outcome.
+        return this.httpClient.sendAsync(command);
     }
 
     /**
@@ -175,9 +189,8 @@ export class G4Client {
      *
      * @remarks
      * Used by the flow publisher to detect that a key already exists (so publishing would
-     * overwrite it) and to pre-fill the form from the stored values. HttpClient resolves failures
-     * with their error text instead of rejecting, so any non-object response (404 Not Found,
-     * timeout, Hub unreachable) is treated as "no stored flow".
+     * overwrite it) and to pre-fill the form from the stored values. Any failure (404 Not Found,
+     * timeout, Hub unreachable) or a response that is not a manifest is treated as "no stored flow".
      *
      * @param flowNamespace - Flow namespace, matched case-insensitively by the server.
      * @param key - Flow key or alias.
@@ -190,11 +203,10 @@ export class G4Client {
         command.method = 'GET';
         command.timeout = 5000;
 
-        // Only a JSON object with a key is a stored manifest; everything else means "not available".
-        const response = await this.httpClient.sendAsync(command);
-        const isManifest = response !== null && typeof response === 'object' && typeof response.key === 'string';
+        // Only a successful JSON object with a key is a stored manifest; everything else means "not available".
+        const result = await this.httpClient.sendAsync(command);
 
-        return isManifest ? response : undefined;
+        return G4Client.testManifest(result) ? result.body : undefined;
     }
 
     /**
@@ -216,22 +228,18 @@ export class G4Client {
         command.timeout = 5000;
 
         // Accept the document only when it actually carries the flow manifest schema.
-        const response = await this.httpClient.sendAsync(command);
-        const schemas = response?.components?.schemas;
-        const isFlowSchema = schemas !== null && typeof schemas === 'object' && schemas.G4FlowManifestModel !== undefined;
+        const result = await this.httpClient.sendAsync(command);
 
-        return isFlowSchema ? schemas : undefined;
+        return G4Client.getSchemas(result, 'G4FlowManifestModel');
     }
 
     /**
      * Sends a PUT request that creates or overwrites one flow in the G4 Hub.
      *
      * @remarks
-     * The flows endpoint answers 204 No Content on success, and HttpClient resolves every request
-     * (it never rejects) with either the response body or the error text. An empty response
-     * therefore means success, and any other response carries the server's failure details, such
-     * as a 400 validation error or a timeout message. That lets callers count and report failures,
-     * which the log-only pattern of the other update methods cannot do.
+     * The flows endpoint answers 204 No Content on success. Any failure is returned as text: the
+     * JSON problem body of a Hub response (such as a 400 validation error), or the reason of a
+     * timeout or network failure. That lets callers count and report failures.
      *
      * @param manifest - G4FlowManifestModel payload whose `automation` is Base64-encoded.
      * @returns `undefined` when the flow was stored; otherwise the failure text.
@@ -245,32 +253,23 @@ export class G4Client {
         command.addHeader('Content-Type', 'application/json');
         command.timeout = 5000;
 
-        // Send the request; a 204 resolves with an empty body, while failures resolve with their error text.
-        const response = await this.httpClient.sendAsync(command);
-        const isStored = response === '' || response === null || response === undefined;
+        // Send the request; only a failure carries text back to the publisher.
+        const result = await this.httpClient.sendAsync(command);
 
-        if (isStored) {
-            return undefined;
-        }
-
-        // Surface the failure text verbatim; structured bodies are already serialized by HttpClient.
-        return typeof response === 'string'
-            ? response
-            : JSON.stringify(response);
+        return result.ok ? undefined : G4Client.getFailureText(result);
     }
 
     /**
      * Sends a PUT request that creates or overwrites one template in the G4 Hub.
      *
      * @remarks
-     * Used by the Update-Template command. Failures are only logged, so the caller cannot tell
-     * whether the template was stored; the template publisher uses `publishTemplate`, which
-     * returns the failure text, instead.
+     * Used by the Update-Template command, which reports the outcome per template; the template
+     * publisher uses `publishTemplate`, which returns the failure text for its form.
      *
      * @param template - G4PluginAttribute payload to send in the request body.
-     * @returns A Promise that resolves when the update completes (errors are logged).
+     * @returns The request outcome, so the caller can report whether the template was stored.
      */
-    public async updateTemplate(template: any): Promise<void> {
+    public async updateTemplate(template: any): Promise<HttpResult> {
         // Construct a new HTTP command for the template update endpoint
         const command = new HttpCommand();
 
@@ -289,13 +288,8 @@ export class G4Client {
         // Set a timeout of 5 seconds for the request
         command.timeout = 5000;
 
-        try {
-            // Execute the HTTP request asynchronously
-            await this.httpClient.sendAsync(command);
-        } catch (err: any) {
-            // Log any errors encountered during the request
-            Global.logger.error(err.message);
-        }
+        // Send the request; the caller reports the outcome.
+        return this.httpClient.sendAsync(command);
     }
 
     /**
@@ -304,8 +298,8 @@ export class G4Client {
      * @remarks
      * Used by the template publisher to detect that a key already exists (so publishing would
      * overwrite it) and to pre-fill the form from the stored values. The Hub identifies a template
-     * by key alone. HttpClient resolves failures with their error text instead of rejecting, so any
-     * non-object response (404 Not Found, timeout, Hub unreachable) is treated as "no stored template".
+     * by key alone. Any failure (404 Not Found, timeout, Hub unreachable) or a response that is not
+     * a manifest is treated as "no stored template".
      *
      * @param key - Template key, matched case-insensitively by the server.
      * @returns The stored G4PluginAttribute manifest, or `undefined` when none is available.
@@ -317,11 +311,10 @@ export class G4Client {
         command.method = 'GET';
         command.timeout = 5000;
 
-        // Only a JSON object with a key is a stored manifest; everything else means "not available".
-        const response = await this.httpClient.sendAsync(command);
-        const isManifest = response !== null && typeof response === 'object' && typeof response.key === 'string';
+        // Only a successful JSON object with a key is a stored manifest; everything else means "not available".
+        const result = await this.httpClient.sendAsync(command);
 
-        return isManifest ? response : undefined;
+        return G4Client.testManifest(result) ? result.body : undefined;
     }
 
     /**
@@ -343,22 +336,19 @@ export class G4Client {
         command.timeout = 5000;
 
         // Accept the document only when it actually carries the template manifest schema.
-        const response = await this.httpClient.sendAsync(command);
-        const schemas = response?.components?.schemas;
-        const isTemplateSchema = schemas !== null && typeof schemas === 'object' && schemas.G4PluginAttribute !== undefined;
+        const result = await this.httpClient.sendAsync(command);
 
-        return isTemplateSchema ? schemas : undefined;
+        return G4Client.getSchemas(result, 'G4PluginAttribute');
     }
 
     /**
      * Sends a PUT request that creates or overwrites one template in the G4 Hub and reports failures.
      *
      * @remarks
-     * The templates endpoint answers 204 No Content on success, and HttpClient resolves every request
-     * (it never rejects) with either the response body or the error text. An empty response
-     * therefore means success, and any other response carries the server's failure details, such
-     * as a 400 validation error, a 409 invalid manifest, or a timeout message. Unlike
-     * `updateTemplate`, which only logs, this lets the publisher report the failure on the form.
+     * The templates endpoint answers 204 No Content on success. Any failure is returned as text: the
+     * JSON problem body of a Hub response (such as a 400 validation error or a 409 invalid
+     * manifest), or the reason of a timeout or network failure. Unlike `updateTemplate`, this lets
+     * the publisher report the failure on the form.
      *
      * @param manifest - G4PluginAttribute payload; `rules` is a JSON array of rules.
      * @returns `undefined` when the template was stored; otherwise the failure text.
@@ -372,17 +362,54 @@ export class G4Client {
         command.addHeader('Content-Type', 'application/json');
         command.timeout = 5000;
 
-        // Send the request; a 204 resolves with an empty body, while failures resolve with their error text.
-        const response = await this.httpClient.sendAsync(command);
-        const isStored = response === '' || response === null || response === undefined;
+        // Send the request; only a failure carries text back to the publisher.
+        const result = await this.httpClient.sendAsync(command);
 
-        if (isStored) {
+        return result.ok ? undefined : G4Client.getFailureText(result);
+    }
+
+    /**
+     * Converts a failed request into the text the publishers parse.
+     *
+     * @remarks
+     * The publishers read a JSON problem body for field errors, and read any other text through
+     * `Utilities.convertToHubFailureText`, which recognises timeouts and refused connections. An
+     * empty failure body is replaced by its status, so a failure is never mistaken for success.
+     *
+     * @param result - The failed request outcome.
+     * @returns The JSON problem body, the failure text, or the status when the body is empty.
+     */
+    private static getFailureText(result: HttpResult): string {
+        // A structured problem body stays JSON, so the publishers can read its field errors.
+        if (result.body !== null && typeof result.body === 'object') {
+            return JSON.stringify(result.body);
+        }
+
+        // A text body is used as-is unless it is empty.
+        const isText = typeof result.body === 'string' && result.body.trim() !== '';
+
+        return isText ? result.body as string : `The G4 Hub answered ${result.status} with no details.`;
+    }
+
+    // Reads `components.schemas` from a successful OpenAPI response that carries the named model.
+    private static getSchemas(result: HttpResult, modelName: string): Record<string, any> | undefined {
+        // A failed request has no document to read.
+        if (!result.ok) {
             return undefined;
         }
 
-        // Surface the failure text verbatim; structured bodies are already serialized by HttpClient.
-        return typeof response === 'string'
-            ? response
-            : JSON.stringify(response);
+        // Accept the schemas map only when it carries the expected model.
+        const schemas = (result.body as { components?: { schemas?: unknown; }; } | undefined)?.components?.schemas;
+        const isSchemas = schemas !== null && typeof schemas === 'object';
+        const schemasMap = schemas as Record<string, any>;
+
+        return isSchemas && schemasMap[modelName] !== undefined ? schemasMap : undefined;
+    }
+
+    // Tests that a request returned a stored manifest: a successful JSON object with a string key.
+    private static testManifest(result: HttpResult): boolean {
+        const manifest = result.body as { key?: unknown; } | null;
+
+        return result.ok && manifest !== null && typeof manifest === 'object' && typeof manifest.key === 'string';
     }
 }

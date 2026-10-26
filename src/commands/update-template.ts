@@ -73,7 +73,7 @@ export class UpdateTemplateCommand extends CommandBase {
         const options = Object.keys(templates).sort((a, b) => a.localeCompare(b));
 
         // Configure the Quick Pick UI for multi-select
-        const pickOption: vscode.QuickPickOptions = {
+        const pickOption: vscode.QuickPickOptions & { canPickMany: true } = {
             title: 'Select a template to create or update',
             placeHolder: 'Select a template',
             canPickMany: true,
@@ -87,37 +87,53 @@ export class UpdateTemplateCommand extends CommandBase {
             return;
         }
 
-        // Indicate progress in the status bar
-        vscode.window.setStatusBarMessage('$(sync~spin) Updating templates...');
+        // Upload the selected templates under one status bar progress item that clears itself.
+        const progressOptions = {
+            location: vscode.ProgressLocation.Window,
+            title: 'Updating templates'
+        };
 
-        // Iterate over each chosen template name
-        for (const name of selected) {
-            // Lookup the file path for this template
-            const templateFilePath = templates[name];
+        const { failures, storedCount } = await vscode.window.withProgress(
+            progressOptions,
+            () => this.updateTemplates(selected, templates));
 
-            // Read the entire file contents as a UTF-8 encoded string
-            const template = fs.readFileSync(templateFilePath, 'utf8');
+        // Show every failure with its reason, so a failed upload is never reported as a success.
+        if (failures.length > 0) {
+            const failureMessage = `Could not update ${failures.length} of ${selected.length} template(s). `
+                + failures.join(' ');
 
-            // Show error if reading failed, then continue to next
-            if (!template) {
-                vscode.window.setStatusBarMessage(`Failed to read or parse template: ${name}`);
-                this._logger.error(`Failed to read or parse template: ${name}`);
-                continue;
-            }
-
-            // Send the update request to the backend client for this template
-            await this._client.updateTemplate(JSON.parse(template));
-
-            // Notify success for this template
-            vscode.window.setStatusBarMessage(`Template '${name}' updated successfully.`);
-            this._logger.information(`Template '${name}' updated successfully.`);
+            void vscode.window.showErrorMessage(failureMessage);
         }
 
-        // Synchronize tools after updating the template
-        await this._client.syncTools().then(async () => {
-            // Restart the extension host to apply changes
-            await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
-        });
+        // Stop when nothing was stored: the tools did not change, so a restart would only close open views.
+        if (storedCount === 0) {
+            return;
+        }
+
+        // Confirm a full success in the status bar for 5 seconds; the restart below may replace it sooner.
+        if (failures.length === 0) {
+            const names = selected.map((name) => `'${name}'`).join(', ');
+            const successMessage = selected.length === 1
+                ? `Template ${names} updated successfully.`
+                : `Templates ${names} updated successfully.`;
+
+            vscode.window.setStatusBarMessage(successMessage, 5000);
+        }
+
+        // Refresh the Hub tools from the stored templates; a failed refresh keeps the extension host running.
+        const toolsResult = await this._client.syncTools();
+
+        if (!toolsResult.ok) {
+            const toolsFailure = G4Client.getFailureMessage(toolsResult);
+            const toolsMessage = `Templates were stored, but the G4 tool sync failed: ${toolsFailure}`;
+
+            this._logger.error(toolsMessage);
+            void vscode.window.showErrorMessage(toolsMessage);
+            return;
+        }
+
+        // Restart the extension host to apply changes
+        await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
     }
 
     /**
@@ -145,5 +161,58 @@ export class UpdateTemplateCommand extends CommandBase {
 
         // Return the completed template map
         return templates;
+    }
+
+    /**
+     * Reads, parses and uploads each selected template, and collects the failures.
+     *
+     * @remarks
+     * One template that cannot be read, is not valid JSON, or is rejected by the Hub fails alone;
+     * the rest are still uploaded. Each outcome is logged.
+     *
+     * @param selected - Template names chosen by the user.
+     * @param templates - Map of template names to file paths.
+     * @returns One "name: reason" line per template that was not stored, and the stored count.
+     */
+    private async updateTemplates(
+        selected: string[],
+        templates: Record<string, string>): Promise<{ failures: string[]; storedCount: number; }> {
+
+        // Collect the failures for the final notification and count the stored templates, so the
+        // caller syncs and restarts only when something changed.
+        const failures: string[] = [];
+        let storedCount = 0;
+
+        for (const name of selected) {
+            // Read and parse the file; a bad file is reported and skipped, so the batch continues.
+            let template: unknown;
+
+            try {
+                template = JSON.parse(fs.readFileSync(templates[name], 'utf8'));
+            } catch (error) {
+                const reason = `The file cannot be read as JSON: ${Utilities.resolveErrorMessage(error)}`;
+
+                this._logger.error(`Template '${name}' was not uploaded: ${reason}`);
+                failures.push(`'${name}': ${reason}`);
+                continue;
+            }
+
+            // Upload the template and record the Hub's answer.
+            const result = await this._client.updateTemplate(template);
+
+            if (!result.ok) {
+                const reason = G4Client.getFailureMessage(result);
+
+                this._logger.error(`Template '${name}' was not updated: ${reason}`);
+                failures.push(`'${name}': ${reason}`);
+                continue;
+            }
+
+            // Count and log the stored template.
+            storedCount++;
+            this._logger.information(`Template '${name}' updated successfully.`);
+        }
+
+        return { failures, storedCount };
     }
 }

@@ -23,6 +23,17 @@
 const KEY_CLOSE = '}}';
 const KEY_OPEN = '{{';
 
+// Path of a repository Name field, whose card title follows it ('...externalRepositories.2.name' -> 2).
+// Linear: anchored, one digit run.
+const REPOSITORY_NAME_PATH_PATTERN = /^settings\.pluginsSettings\.externalRepositories\.(\d+)\.name$/;
+
+// Valid TCP port range; 0 means "any free port", which a saved endpoint cannot use.
+const PORT_MAXIMUM = 65535;
+const PORT_MINIMUM = 1;
+
+// A port is whole digits only, so '80.5', '1e3' and ' 80' are refused. Linear: one character class.
+const PORT_PATTERN = /^\d+$/;
+
 // Recorder capture modes supported by EventCaptureService.
 const RECORDER_MODE_CHOICES = [
     { value: 'standard', text: 'Standard' },
@@ -1054,6 +1065,17 @@ function onAppInput(event) {
     if (dataset.recorderIndex !== undefined) {
         updateRecorderScriptError(Number(dataset.recorderIndex), dataset.phase);
     }
+
+    // A repository card's title follows its Name as it is typed, as an MCP card follows its server
+    // name; an empty Name shows the numbered default title again.
+    const repositoryNameMatch = typeof path === 'string' ? REPOSITORY_NAME_PATH_PATTERN.exec(path) : null;
+
+    if (repositoryNameMatch) {
+        const nameText = typeof value === 'string' ? value.trim() : '';
+        const cardTitle = nameText || `Repository ${Number(repositoryNameMatch[1]) + 1}`;
+
+        event.target.closest('g4-card')?.setAttribute('card-title', cardTitle);
+    }
 }
 
 /**
@@ -1257,16 +1279,18 @@ function resolveSectionId(path) {
  *
  * Behavior:
  * - Checks everything first, so every problem is shown at once: empty required fields get
- *   "Required." and repeated or keyless entries are marked; their sections and cards open.
+ *   "Required.", repeated or keyless entries are marked, and ports outside 1-65535 are marked;
+ *   their sections and cards open.
  * - Builds a clean manifest from the current state and posts it to the host.
  * - Briefly shows a "Settings sent." note regardless of host wiring.
  */
 function save() {
     const isRequiredMissing = showRequiredErrors();
     const isEntryInvalid = showEntryErrors();
+    const isPortInvalid = showPortErrors();
 
     // Nothing is saved while any problem remains.
-    if (isRequiredMissing || isEntryInvalid) {
+    if (isRequiredMissing || isEntryInvalid || isPortInvalid) {
         return;
     }
 
@@ -1601,6 +1625,54 @@ function showItem(cardId) {
     card.open = true;
     card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     card.querySelector('input[type=text], input[type=number], input[type=password], textarea, select')?.focus();
+}
+
+/**
+ * Marks every port field whose value is not a whole number from 1 to 65535, and opens the
+ * sections and cards that hold them.
+ *
+ * @remarks
+ * Ports are stored as text, so the check reads the stored value rather than trusting the number
+ * box: an empty box or 70000 would otherwise be saved and break the next connection.
+ *
+ * @returns {boolean} True when a port is not valid.
+ */
+function showPortErrors() {
+    const portMessage = `Enter a port from ${PORT_MINIMUM} to ${PORT_MAXIMUM}.`;
+
+    // Collect the field of every port whose stored text is not a valid port.
+    const invalidFields = [...document.querySelectorAll('#app g4-number-input[data-kind="port"]')]
+        .filter((input) => {
+            // The manifest may hold the port as text or as a number; anything else is not a port.
+            const storedPort = getPath(globalThis.STATE, input.dataset.path);
+            const isPortValue = typeof storedPort === 'string' || typeof storedPort === 'number';
+            const portText = isPortValue ? String(storedPort).trim() : '';
+            const port = Number(portText);
+            const isPort = PORT_PATTERN.test(portText) && port >= PORT_MINIMUM && port <= PORT_MAXIMUM;
+
+            return !isPort;
+        })
+        .map((input) => input.closest('g4-field'))
+        .filter((field) => field !== null);
+
+    // Mark each field, and open the card and section that hold it.
+    for (const field of invalidFields) {
+        field.error = portMessage;
+
+        const card = field.closest('g4-card');
+        const section = field.closest('g4-section');
+
+        if (card) {
+            card.open = true;
+        }
+
+        if (section) {
+            section.open = true;
+            setSectionStatus(section.dataset.sectionId, 'Fix the highlighted ports before saving.', 'error');
+        }
+    }
+
+    return invalidFields.length > 0;
 }
 
 /**
@@ -1982,7 +2054,8 @@ function writeConnectionSection() {
         ${writeText({
         path: 'g4Server.host',
         label: 'Engine Address',
-        hint: 'The computer running G4. "localhost" means this machine.'
+        hint: 'The computer running G4. "localhost" means this machine.',
+        required: true
     })}
         ${writePort({
         path: 'g4Server.port',
@@ -2575,6 +2648,8 @@ function writePort({ path, label, hint }) {
         control: `
         <g4-number-input data-kind="port"
                          data-path="${getEscapedText(path)}"
+                         max="${PORT_MAXIMUM}"
+                         min="${PORT_MINIMUM}"
                          test-id="${slug}-port"
                          value="${getEscapedText(value ?? '')}"></g4-number-input>`
     });
@@ -2681,7 +2756,7 @@ function writeRecorderCard(recorder, index) {
         ${writeToggle({
         path: `${base}.preScript.enabled`,
         label: 'Run a Script Before Recording Starts',
-        hint: 'Runs once on this machine before capture begins. It stays in the recorder and never becomes part of the automation.'
+        hint: 'Runs once on this machine before capture begins. Turn on Add to Automation Flow to also add it to the recorded automation.'
     })}
         ${writeSelect({
         path: `${base}.preScript.shell`,
@@ -2707,7 +2782,7 @@ function writeRecorderCard(recorder, index) {
         ${writeToggle({
         path: `${base}.postScript.enabled`,
         label: 'Run a Script After Recording Stops',
-        hint: 'Runs once on this machine after capture ends. It stays in the recorder and never becomes part of the automation.'
+        hint: 'Runs once on this machine after capture ends. Turn on Add to Automation Flow to also add it to the recorded automation.'
     })}
         ${writeSelect({
         path: `${base}.postScript.shell`,

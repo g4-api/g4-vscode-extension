@@ -6,6 +6,9 @@ import { Utilities } from '../extensions/utilities';
 // Strict Base64 alphabet with optional end padding; linear, no nested quantifiers.
 const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 
+// Characters escaped before a file name is placed in HTML. Linear: one character class.
+const HTML_SPECIAL_CHARACTER_PATTERN = /["&'<>]/g;
+
 /**
  * Opens saved G4 reports (.g4rpt files) in the report viewer.
  *
@@ -80,12 +83,17 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
             return;
         }
 
-        // Read the payload; a file that cannot be shown closes its tab after the warning.
+        // Read the payload; a file that cannot be shown gets a short error page in its tab and a warning.
+        // Disposing the panel VS Code handed over made VS Code raise its own 'OverlayWebview has been
+        // disposed' error next to the warning.
         const reportData = await G4ReportCustomEditorProvider.readReportData(document.uri);
 
         if (reportData === undefined) {
-            webviewPanel.dispose();
-            vscode.window.showWarningMessage(`${path.basename(document.uri.fsPath)} is not a readable G4 report.`);
+            const fileName = path.basename(document.uri.fsPath);
+
+            webviewPanel.webview.options = { enableScripts: false };
+            webviewPanel.webview.html = G4ReportCustomEditorProvider.newUnreadableReportHtml(fileName);
+            vscode.window.showWarningMessage(`${fileName} is not a readable G4 report.`);
 
             return;
         }
@@ -99,6 +107,39 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
         };
 
         webviewPanel.webview.html = ShowReportCommand.newReportHtml(webviewPanel.webview, this._context, reportData);
+    }
+
+    /**
+     * Builds the page shown in the tab of a report file that cannot be read.
+     *
+     * @remarks
+     * Compute-only. A static page without scripts, styled with the VS Code theme variables, that
+     * names the file and says how to look at it as text. The file name is HTML-escaped.
+     *
+     * @param fileName - Name of the report file.
+     * @returns The page HTML.
+     */
+    private static newUnreadableReportHtml(fileName: string): string {
+        // Escape the name, which comes from the file system, before placing it in the markup.
+        const htmlEntities: Record<string, string> = { '"': '&quot;', '&': '&amp;', '\'': '&#39;', '<': '&lt;', '>': '&gt;' };
+        const safeFileName = fileName.replaceAll(HTML_SPECIAL_CHARACTER_PATTERN, (character) => htmlEntities[character]);
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+    <style>
+        body { padding: 24px; color: var(--vscode-foreground); font-family: var(--vscode-font-family); }
+        h1 { font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <h1 data-test-id="unreadable-report-title">${safeFileName} is not a readable G4 report.</h1>
+    <p data-test-id="unreadable-report-hint">A G4 report holds Base64 of an automation result in JSON. To see what this
+        file holds, right-click it in the Explorer, choose Open With..., and pick Text Editor.</p>
+</body>
+</html>`;
     }
 
     /**

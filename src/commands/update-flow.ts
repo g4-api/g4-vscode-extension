@@ -44,6 +44,17 @@ const SUMMARY_TEMPLATE = 'Runs the {key} bot automation.';
 // Confirmation button of the parameter warnings dialog; a modal dialog adds its own Cancel.
 const PUBLISH_ANYWAY_ACTION = 'Publish Anyway';
 
+// Buttons of the dialog shown when the bot file changed after the tab opened; a modal dialog adds its own Cancel.
+const OVERWRITE_FILE_ACTION = 'Publish and Overwrite';
+const RELOAD_FILE_ACTION = 'Reload from File';
+
+// What each choice of the changed-file dialog does, shown under the question.
+const CHANGED_FILE_DETAIL = 'Publish and Overwrite publishes the automation in this tab and replaces the file with it. '
+    + 'Reload from File discards the unpublished edits in this tab and loads the file. Cancel changes nothing.';
+
+// Webview type of the publisher tab; also the type VS Code restores after an extension-host restart.
+const VIEW_TYPE = 'g4-flow-publisher';
+
 /**
  * Command that publishes one selected bot file as a flow in the G4 Hub through a webview form.
  *
@@ -64,6 +75,15 @@ export class UpdateFlowCommand extends CommandBase {
 
     /** Hub client used for the schema, lookups, and publishing. */
     private readonly _client: G4Client;
+
+    /**
+     * The bot automation each open tab was built from, keyed by bot file path.
+     *
+     * @remarks
+     * Publish compares the file with this copy, so an edit made in the text editor after the tab
+     * opened is never overwritten without asking. Replaced after every save or reload.
+     */
+    private readonly _openedAutomations = new Map<string, any>();
 
     /** Open publisher tabs keyed by bot file path, so picking the same bot reveals its tab. */
     private readonly _panels = new Map<string, vscode.WebviewPanel>();
@@ -94,7 +114,13 @@ export class UpdateFlowCommand extends CommandBase {
             this
         );
 
-        this.context.subscriptions.push(disposable);
+        // Rebuild a publisher tab that was open during an extension-host restart, so its Publish
+        // button keeps working instead of silently doing nothing.
+        const serializer = vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, {
+            deserializeWebviewPanel: (panel: vscode.WebviewPanel, state: unknown) => this.restorePublisher(panel, state)
+        });
+
+        this.context.subscriptions.push(disposable, serializer);
     }
 
     /**
@@ -407,6 +433,7 @@ export class UpdateFlowCommand extends CommandBase {
             defaults: UpdateFlowCommand.newDefaultValues(botFile),
             existingFlow: existingFlow ?? null,
             isSchemaFallback,
+            restoreState: { filePath: botFile.filePath },
             schemas,
             summaryTemplate: SUMMARY_TEMPLATE
         };
@@ -477,42 +504,43 @@ export class UpdateFlowCommand extends CommandBase {
      *
      * @param botFile - Selected bot.
      * @param automation - Parsed bot JSON.
+     * @param restoredPanel - A tab VS Code restored after an extension-host restart; a new tab is
+     *     created when omitted.
      */
-    private async openPublisher(botFile: BotFile, automation: any): Promise<void> {
-        // Read the schema and the stored flow (if any) behind a progress notification, since the
-        // Hub calls can take up to their timeouts when the Hub is down.
-        const [schemaResult, existingFlow] = await vscode.window.withProgress(
-            { location: vscode.ProgressLocation.Notification, title: `Opening flow publisher for bots/${botFile.relativePath}…` },
-            () => Promise.all([this.getFlowSchema(), this._client.getFlow(FLOW_NAMESPACE, botFile.key)]));
-
-        // Create the tab with access to the component and font resources only.
-        const panel = vscode.window.createWebviewPanel(
-            'g4-flow-publisher',
+    private async openPublisher(botFile: BotFile, automation: any, restoredPanel?: vscode.WebviewPanel): Promise<void> {
+        // Create the tab with access to the component and font resources only, or reuse the restored tab.
+        const webviewOptions = {
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
+            ]
+        };
+        const panel = restoredPanel ?? vscode.window.createWebviewPanel(
+            VIEW_TYPE,
             UpdateFlowCommand.getPanelTitle(botFile.key, botFile),
             vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                localResourceRoots: [
-                    vscode.Uri.joinPath(this.context.extensionUri, 'resources.components')
-                ],
-                retainContextWhenHidden: true
-            }
+            { ...webviewOptions, retainContextWhenHidden: true }
         );
 
-        // Track the tab per bot, and forget it when the user closes it.
+        panel.webview.options = webviewOptions;
+
+        // Track the tab and the automation it was built from per bot, and forget both when the user closes it.
         this._panels.set(botFile.filePath, panel);
-        panel.onDidDispose(() => this._panels.delete(botFile.filePath), undefined, this.context.subscriptions);
+        this._openedAutomations.set(botFile.filePath, automation);
+        panel.onDidDispose(() => {
+            this._panels.delete(botFile.filePath);
+            this._openedAutomations.delete(botFile.filePath);
+        }, undefined, this.context.subscriptions);
 
-        // Inject the data and render the component.
-        const data = UpdateFlowCommand.newPublisherData({ automation, botFile, existingFlow, ...schemaResult });
-        panel.webview.html = this.getPublisherHtml(panel, data);
-
-        // Route every page message through one handler.
+        // Route every page message through one handler; it stays wired when the page is reloaded.
         panel.webview.onDidReceiveMessage(
             (message) => this.onPublisherMessage({ automation, botFile, message, panel }),
             undefined,
             this.context.subscriptions
         );
+
+        // Render the page from the automation.
+        await this.setPublisherHtml(panel, botFile, automation);
     }
 
     /**
@@ -548,12 +576,48 @@ export class UpdateFlowCommand extends CommandBase {
     }
 
     /**
+     * Rebuilds a publisher tab that VS Code restored after an extension-host restart.
+     *
+     * @remarks
+     * The page records its bot file path as webview state. The tab is rebuilt from the file as it
+     * is now (unpublished edits in the old tab are gone, as they were with the dead tab), and is
+     * closed when the state is missing, the bot is already open in another tab, or the file can no
+     * longer be read.
+     *
+     * @param panel - The restored tab.
+     * @param state - The state the page recorded.
+     */
+    private async restorePublisher(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
+        // Read the bot file path the page recorded.
+        const filePath = (state as { filePath?: unknown; } | undefined)?.filePath;
+        const isFilePath = typeof filePath === 'string' && fs.existsSync(filePath);
+
+        if (!isFilePath || this._panels.has(filePath)) {
+            panel.dispose();
+            return;
+        }
+
+        // Re-read the bot; an unreadable file is reported by readBotAutomation and the tab is closed.
+        const botFile = UpdateFlowCommand.newBotFile(filePath);
+        const automation = this.readBotAutomation(botFile);
+
+        if (!automation) {
+            panel.dispose();
+            return;
+        }
+
+        await this.openPublisher(botFile, automation, panel);
+    }
+
+    /**
      * Saves the published automation back to the bot file, with its authentication block restored.
      *
      * @remarks
      * The file is written only when its JSON actually changes, with a 4-space indent and the file's
-     * trailing newline kept. The caller saved any open editor of the bot before publishing, so the
-     * page's automation is written over saved state: the page is the source of what is published.
+     * trailing newline kept. The caller saved any open editor of the bot before publishing and had
+     * the user confirm any change made to the file after the tab opened, so the page's automation
+     * is written over saved state: the page is the source of what is published. The saved
+     * automation becomes the tab's baseline for the next publish.
      *
      * @param botFile - The tab's bot.
      * @param editedAutomation - Automation that was just published.
@@ -578,8 +642,9 @@ export class UpdateFlowCommand extends CommandBase {
         const { authentication: _authentication, ...savedWithoutAuthentication } = savedAutomation;
         const savedAutomationText = JSON.stringify(savedWithoutAuthentication, null, 4);
 
-        // Nothing changed: leave the file and its formatting alone.
+        // Nothing changed: leave the file and its formatting alone. The file is the tab's new baseline.
         if (JSON.stringify(savedAutomation) === JSON.stringify(fileAutomation)) {
+            this._openedAutomations.set(botFile.filePath, savedAutomation);
             return { note: '', savedAutomationText };
         }
 
@@ -594,9 +659,99 @@ export class UpdateFlowCommand extends CommandBase {
             return { note: ` bots/${botFile.relativePath} was not saved: ${reason}.` };
         }
 
+        // The written automation is the tab's new baseline, so the next publish does not see a change.
+        this._openedAutomations.set(botFile.filePath, savedAutomation);
         this._logger.information(`Saved the published automation to 'bots/${botFile.relativePath}'.`);
 
         return { note: ` Saved bots/${botFile.relativePath}.`, savedAutomationText };
+    }
+
+    /**
+     * Reads the schema and the stored flow, then renders the publisher page for an automation.
+     *
+     * @remarks
+     * Used when a tab opens and when Publish reloads the tab from the file. Assigning the HTML
+     * reloads the page, so any unpublished edit in the tab is replaced.
+     *
+     * @param panel - The publisher tab.
+     * @param botFile - The tab's bot.
+     * @param automation - Parsed bot JSON to show.
+     */
+    private async setPublisherHtml(panel: vscode.WebviewPanel, botFile: BotFile, automation: any): Promise<void> {
+        // Read the schema and the stored flow (if any) behind a progress notification, since the
+        // Hub calls can take up to their timeouts when the Hub is down.
+        const [schemaResult, existingFlow] = await vscode.window.withProgress(
+            { location: vscode.ProgressLocation.Notification, title: `Opening flow publisher for bots/${botFile.relativePath}…` },
+            () => Promise.all([this.getFlowSchema(), this._client.getFlow(FLOW_NAMESPACE, botFile.key)]));
+
+        // Inject the data and render the component.
+        const data = UpdateFlowCommand.newPublisherData({ automation, botFile, existingFlow, ...schemaResult });
+        panel.webview.html = this.getPublisherHtml(panel, data);
+    }
+
+    /**
+     * Asks before Publish replaces a bot file that changed after the tab opened.
+     *
+     * @remarks
+     * The file is compared with the automation the tab was built from (or last saved). A file that
+     * is unchanged or no longer exists needs no question. A file that changed, or that no longer
+     * holds valid JSON, offers Publish and Overwrite, Reload from File, or Cancel; only the first
+     * continues. Reload rebuilds the tab from the file, which needs valid JSON.
+     *
+     * @param options - The tab, its bot, and the automation the tab was built from.
+     * @returns True when publishing should continue.
+     */
+    private async showChangedFilePrompt(options: ChangedFilePromptOptions): Promise<boolean> {
+        const { botFile, openedAutomation, panel } = options;
+
+        // Read the file as it is now; a missing file is recreated by the save, so it is no conflict.
+        let fileText: string;
+
+        try {
+            fileText = fs.readFileSync(botFile.filePath, 'utf8');
+        } catch {
+            return true;
+        }
+
+        // Compare the parsed file with the tab's baseline; text that no longer parses is a change too.
+        let isFileChanged: boolean;
+
+        try {
+            isFileChanged = JSON.stringify(JSON.parse(fileText)) !== JSON.stringify(openedAutomation);
+        } catch {
+            isFileChanged = true;
+        }
+
+        if (!isFileChanged) {
+            return true;
+        }
+
+        // Let the user choose; the modal dialog adds its own Cancel.
+        const choice = await vscode.window.showWarningMessage(
+            `bots/${botFile.relativePath} changed after this publisher tab opened.`,
+            { detail: CHANGED_FILE_DETAIL, modal: true },
+            OVERWRITE_FILE_ACTION,
+            RELOAD_FILE_ACTION);
+
+        if (choice === OVERWRITE_FILE_ACTION) {
+            return true;
+        }
+
+        // Reload rebuilds the tab from the file; an unreadable file is reported and the tab is left as it is.
+        if (choice === RELOAD_FILE_ACTION) {
+            const fileAutomation = this.readBotAutomation(botFile);
+
+            if (fileAutomation) {
+                this._openedAutomations.set(botFile.filePath, fileAutomation);
+                await this.setPublisherHtml(panel, botFile, fileAutomation);
+                return false;
+            }
+        }
+
+        // Cancel (or a failed reload) unlocks the page without publishing.
+        await panel.webview.postMessage({ command: 'publishResult', isCancelled: true, isSuccess: false, message: '' });
+
+        return false;
     }
 
     /**
@@ -630,7 +785,10 @@ export class UpdateFlowCommand extends CommandBase {
      * @param options - The tab, its bot, the automation read when the tab opened, and the publish message.
      */
     private async updateFlow(options: PublisherMessageOptions): Promise<void> {
-        const { automation: openedAutomation, botFile, message, panel } = options;
+        const { botFile, message, panel } = options;
+
+        // Compare against the automation the tab was last built from or saved, not the first one.
+        const openedAutomation = this._openedAutomations.get(botFile.filePath) ?? options.automation;
 
         // Parse the edited automation; the page validates it too, so this only guards the contract.
         let automation: any;
@@ -691,6 +849,14 @@ export class UpdateFlowCommand extends CommandBase {
             return;
         }
 
+        // Ask before replacing a bot file that changed after the tab opened (for example in the text
+        // editor), so that edit is neither lost nor left unpublished without the user knowing.
+        const isPublishConfirmed = await this.showChangedFilePrompt({ botFile, openedAutomation, panel });
+
+        if (!isPublishConfirmed) {
+            return;
+        }
+
         // Send the manifest; the client returns the server's failure text when the Hub rejects it.
         vscode.window.setStatusBarMessage(`$(sync~spin) Updating flow '${flowName}'...`, 5000);
         const failure = await this._client.updateFlow(manifest);
@@ -728,6 +894,20 @@ export class UpdateFlowCommand extends CommandBase {
 
 // Contracts are kept after executable code; interfaces precede type aliases, and local dependency
 // chains take priority over A-Z sorting.
+
+/**
+ * Inputs of the prompt shown when the bot file changed after the tab opened.
+ */
+interface ChangedFilePromptOptions {
+    /** The tab's bot. */
+    botFile: BotFile;
+
+    /** Bot JSON the tab was built from or last saved; the file is compared with it. */
+    openedAutomation: any;
+
+    /** The publisher tab, reloaded or unlocked depending on the choice. */
+    panel: vscode.WebviewPanel;
+}
 
 /**
  * Inputs for the component data injected into #g4-data.

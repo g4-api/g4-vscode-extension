@@ -144,9 +144,19 @@ export class ShowReportCommand extends CommandBase {
             toUri: (filePath) => webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
         });
 
-        // Inject the decoded report data and the component URIs into the HTML template.
+        // Decode the report for the #g4-data textarea. A textarea decodes character references and
+        // ends at </textarea>, so `<` and `&` (which in JSON appear only inside strings) are written
+        // as JSON unicode escapes, which JSON.parse restores unchanged. Keep the escaped backslashes
+        // (the same rule as show-settings.ts): the TypeScript compiler decodes the escape inside a
+        // String.raw template to '<', which silently disables this escaping.
+        const reportJson = Utilities.convertFromBase64(reportData)
+            .replaceAll('<', '\\u003c') // NOSONAR
+            .replaceAll('&', '\\u0026'); // NOSONAR
+
+        // Inject the component URIs and shims first and the report data last, so no later replacement
+        // can match text inside the report. The data goes through a replacer function so a literal `$`
+        // in the report (for example `$'` in an error message) is never read as a replacement pattern.
         return html
-            .replace('{{$ report.data }}', Utilities.convertFromBase64(reportData))
             .replace('{{$ component.style.uri }}', styleUri.toString())
             .replace('{{$ component.script.uri }}', scriptUri.toString())
 
@@ -154,7 +164,10 @@ export class ShowReportCommand extends CommandBase {
             .replace(/<\/head>/i, ShowReportCommand.getHeaderShim() + '</head>')
 
             // Inject body dependencies before the closing </body> tag.
-            .replace(/<\/body>/i, ShowReportCommand.getBodyShim() + '</body>');
+            .replace(/<\/body>/i, ShowReportCommand.getBodyShim() + '</body>')
+
+            // Inject the escaped report data last, through a replacer function.
+            .replace('{{$ report.data }}', () => reportJson);
     }
 
     // Builds the HTML shim injected into the report document <head>.

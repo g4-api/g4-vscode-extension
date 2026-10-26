@@ -9,7 +9,6 @@
             "alwaysMatch": {
                 "browserName": "chrome",
                 "goog:chromeOptions": {
-                    "binary": "C:\\g4-sandbox\\g4-sandbox-v2026.05.10.68\\browsers\\chrome\\chrome.exe",
                     "args": [
                         "--disable-gpu"
                     ]
@@ -17,7 +16,7 @@
             }
         },
         "driver": "ChromeDriver",
-        "driverBinaries": "C:\\g4-sandbox\\g4-sandbox-v2026.05.10.68\\drivers\\chrome",
+        "driverBinaries": ".",
         "firstMatch": [
             {}
         ]

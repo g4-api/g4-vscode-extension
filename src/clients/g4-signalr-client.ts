@@ -6,6 +6,7 @@ import {
 } from '@microsoft/signalr';
 
 import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
 
@@ -112,10 +113,16 @@ export class NotificationService {
 
     /**
      * Starts the SignalR connection to the G4 notifications hub.
-     * Displays an information message on successful connection.
-     * On error, shows an error message and schedules a retry after a delay.
+     * Logs the outcome; a failed start is logged and rethrown.
      *
-     * @returns A promise that resolves after the connection start attempt completes or the retry is scheduled.
+     * @remarks
+     * This method makes exactly one attempt. The caller owns retrying, and must stop a failed
+     * client before it creates the next one: a client that retried on its own kept running next
+     * to every new one, so the number of clients grew every 5 seconds while the Hub was down and
+     * they all connected at once when it came back.
+     *
+     * @returns A promise that resolves once the connection is started.
+     * @throws The connection error when the Hub cannot be reached.
      */
     public async start(): Promise<void> {
         try {
@@ -126,15 +133,28 @@ export class NotificationService {
             this._options.logger.information(
                 `Connected to G4 notifications hub at ${this._options.baseUrl}`
             );
-        } catch (err: any) {
-            // Log the error details for debugging purposes
+        } catch (error) {
+            // Log the error details for debugging purposes, then let the caller decide on a retry.
             this._options.logger.error(
-                `Failed to connect to G4 notifications hub at ${this._options.baseUrl}: ${err?.message || err}`
+                `Failed to connect to G4 notifications hub at ${this._options.baseUrl}: ${Utilities.resolveErrorMessage(error)}`
             );
 
-            // Retry connection automatically after 5 seconds
-            setTimeout(() => this.start(), 5000);
+            throw error;
         }
+    }
+
+    /**
+     * Stops the connection without telling the user, for a client that never connected.
+     *
+     * @remarks
+     * Used by the connection loop to discard a failed attempt before the next one, so only one
+     * client exists at a time. Unlike `dispose`, it shows no notification and ignores errors.
+     *
+     * @returns A promise that resolves once the connection is stopped.
+     */
+    public async stop(): Promise<void> {
+        // A connection that never started stops at once; any error is irrelevant for a discarded client.
+        await this._connection.stop().catch(() => undefined);
     }
 
     /**

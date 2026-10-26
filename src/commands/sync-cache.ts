@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { G4Client } from '../clients/g4-client';
+import { HttpResult } from '../clients/http-client';
 import { Utilities } from '../extensions/utilities';
 
 export class SyncCacheCommand extends CommandBase {
@@ -57,6 +58,12 @@ export class SyncCacheCommand extends CommandBase {
     /**
      * Executes the cache synchronization flow and restarts the extension host after completion.
      *
+     * @remarks
+     * The status bar shows progress while the Hub syncs (up to 60 seconds). A failed cache or tool
+     * sync is logged and shown as an error notification, and the extension host restarts only when
+     * the tool sync succeeded, because a restart cannot load tools the Hub did not refresh.
+     *
+     * @param args - Optional `{ restart: boolean }`; activation passes `false`, the command default is `true`.
      * @returns A promise that resolves when the synchronization and restart flow completes.
      */
     protected async onInvokeCommand(args: any): Promise<void> {
@@ -66,23 +73,49 @@ export class SyncCacheCommand extends CommandBase {
         // Read the configured MCP servers from the current manifest.
         const mcpServers = Utilities.getManifest()?.settings?.pluginsSettings?.servers || {};
 
-        // Synchronize configured external repositories and MCP servers with the G4 engine cache.
-        await this._client.syncCache({
-            repositories: externals,
-            servers: mcpServers
-        }).catch((error) => {
-            // Log synchronization failures without aborting the established connection flow.
-            this._logger.error(`Error syncing cache with G4 Engine: ${error}`);
+        // Sync the cache, then the tools, under one status bar progress item that clears itself.
+        const progressOptions = {
+            location: vscode.ProgressLocation.Window,
+            title: 'Syncing the G4 cache'
+        };
+
+        const { cacheResult, toolsResult } = await vscode.window.withProgress(progressOptions, async () => {
+            // Synchronize configured external repositories and MCP servers with the G4 engine cache.
+            const cacheResult = await this._client.syncCache({
+                repositories: externals,
+                servers: mcpServers
+            });
+
+            // Synchronize tools with the G4 engine; it still runs after a failed cache sync, so
+            // templates stored in the Hub stay available as tools.
+            const toolsResult = await this._client.syncTools();
+
+            return { cacheResult, toolsResult };
         });
 
-        // Synchronize tools with the G4 engine.
-        await this._client.syncTools().then(async () => {
-            const restart = args?.restart ?? true;
-            
-            // Restart the extension host so the refreshed tools are reloaded.
-            if (restart) {
-                await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
-            }
-        });
+        // Report each failure with its reason, without aborting the established connection flow.
+        this.showFailure('The G4 cache sync failed', cacheResult);
+        this.showFailure('The G4 tool sync failed', toolsResult);
+
+        // Restart the extension host so the refreshed tools are reloaded, only when they were refreshed.
+        const isRestart = (args?.restart ?? true) && toolsResult.ok;
+
+        if (isRestart) {
+            await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+        }
+    }
+
+    // Logs a failed sync and shows it as an error notification; a successful result is ignored.
+    private showFailure(subject: string, result: HttpResult): void {
+        // Nothing to report for a successful sync.
+        if (result.ok) {
+            return;
+        }
+
+        // Log and show the same message, so the notification and the G4 Extension log agree.
+        const message = `${subject}: ${G4Client.getFailureMessage(result)}`;
+
+        this._logger.error(message);
+        void vscode.window.showErrorMessage(message);
     }
 }

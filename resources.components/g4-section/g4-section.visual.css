@@ -12,6 +12,10 @@ g4-section {
     border-bottom-color: var(--g4-section-border-color);
 }
 
+.g4-section__header:focus-visible {
+    outline-color: var(--g4-section-focus-border-color);
+}
+
 .g4-section__chevron {
     font-style: normal;
 }

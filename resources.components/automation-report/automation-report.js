@@ -967,6 +967,10 @@ function writePlugin(plugin, options) {
     const reference = plugin.performancePoint?.reference || {};
     const rule = plugin.rule || {};
     const displayName = rule.capabilities?.displayName || reference.name || rule.pluginName || '?';
+
+    // The filter matches the display name and the plugin name, so 'Assert' finds an Assert step that
+    // was renamed (for example 'Check The Mock Text').
+    const searchText = [displayName, rule.pluginName].map(convertToText).join(' ').toLowerCase();
     const runTime = plugin.performancePoint?.runTime || 0;
     const exceptions = plugin.exceptions || [];
     const children = plugin.plugins || [];
@@ -1004,7 +1008,7 @@ function writePlugin(plugin, options) {
     return `
     <div id="${nodeId}"
          class="automation-report-plugin"
-         data-name="${convertToEscapedHtml(convertToText(displayName).toLowerCase())}"
+         data-name="${convertToEscapedHtml(searchText)}"
          data-test-id="plugin-tree-node">
         <div class="automation-report-plugin-row"
              style="--automation-report-plugin-depth: ${depth}"

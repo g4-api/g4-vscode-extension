@@ -16,12 +16,15 @@ export class G4ServiceHealth {
      * Sends one ping request to a configured G4 service.
      *
      * @param baseUri - The configured service base URI.
-     * @returns True when the ping endpoint returns a 2xx response.
+     * @param isAnyStatusAlive - True to count any HTTP answer as alive. Recorders do not serve the Hub's
+     *     ping route (the UIA recorder answers 404 there), so for them an answer of any status proves the
+     *     process is up; the Hub itself must answer 2xx.
+     * @returns True when the ping endpoint returns a 2xx response, or any response when isAnyStatusAlive is set.
      *
      * @remarks
      * Uses local callback handlers so request lifecycle, timeout cleanup, and error handling stay readable.
      */
-    public static async testPing(baseUri: string): Promise<boolean> {
+    public static async testPing(baseUri: string, isAnyStatusAlive = false): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             let pingRequest: ClientRequest;
 
@@ -29,11 +32,11 @@ export class G4ServiceHealth {
                 // Drain the response so Node can reuse or close the socket cleanly.
                 response.resume();
 
-                // Treat any successful HTTP response as proof that the service is alive.
+                // Treat a successful HTTP response (or, when asked, any response) as proof that the service is alive.
                 const statusCode = response.statusCode ?? 0;
                 const isSuccessStatus = statusCode >= 200 && statusCode <= 299;
 
-                resolve(isSuccessStatus);
+                resolve(isSuccessStatus || (isAnyStatusAlive && statusCode > 0));
             };
 
             const onPingTimeout = (): void => {
@@ -72,17 +75,19 @@ export class G4ServiceHealth {
      *
      * @param baseUri - The configured service base URI.
      * @param timeoutMilliseconds - Maximum duration to poll before giving up.
+     * @param isAnyStatusAlive - True to count any HTTP answer as alive (see testPing).
      * @returns True when the service becomes healthy before the timeout.
      */
     public static async waitForPing(
         baseUri: string,
-        timeoutMilliseconds: number
+        timeoutMilliseconds: number,
+        isAnyStatusAlive = false
     ): Promise<boolean> {
         // Poll until the startup deadline so slow machines still get a chance to bind the port.
         const deadline = Date.now() + timeoutMilliseconds;
 
         while (Date.now() < deadline) {
-            const isServiceRunning = await this.testPing(baseUri);
+            const isServiceRunning = await this.testPing(baseUri, isAnyStatusAlive);
 
             if (isServiceRunning) {
                 return true;

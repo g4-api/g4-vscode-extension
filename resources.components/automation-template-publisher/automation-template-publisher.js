@@ -9,12 +9,12 @@
  * the form model, state, checks, token warnings, and the host messages.
  *
  * Host contract (update-template-publisher.ts):
- * - Injected #g4-data: { defaults, existingTemplate, file, isSchemaFallback, rules, schemas, source, summaryTemplate }.
+ * - Injected #g4-data: { defaults, existingTemplate, file, isSchemaFallback, restoreState, rules, schemas, source, summaryTemplate }.
  * - Webview → host: { command: 'lookupTemplate', requestId, namespace, key, fileName }
  *                   { command: 'publish', fileName, rulesText, values, warnings }
  * - Host → webview: { command: 'templateLookup', requestId, existingTemplate, isFileExisting }
  *                   { command: 'publishResult', isSuccess, isCancelled, message, fieldErrors, existingTemplate,
- *                     file, savedRulesText, savedValues, source }
+ *                     file, restoreState, savedRulesText, savedValues, source }
  *
  * Tokens: the rules reference a parameter as `{{$ Parameters.Name }}` and a property as
  * `{{$ Properties.Name }}`; the words and the names are matched ignoring case. Unused parameters or
@@ -256,6 +256,12 @@ globalThis.INJECTED = (() => {
         return null;
     }
 })();
+
+// Record which file this tab publishes, so VS Code hands it back when it restores the tab after an
+// extension-host restart and the host can rebuild a working tab instead of a dead one.
+if (globalThis.VSCODE && globalThis.INJECTED?.restoreState) {
+    globalThis.VSCODE.setState(globalThis.INJECTED.restoreState);
+}
 
 // Page state. Module-level because the webview is one page with one form: every render reads from
 // it and every component event writes to it, and the delegated listeners have no other shared owner.
@@ -1521,6 +1527,11 @@ function onHostMessage(event) {
         injected.file = message.file ?? injected.file;
         state.fileName = convertToSafeText(injected.file?.fileName) || state.fileName;
         state.isFileExisting = false;
+
+        // The tab now edits the saved template file, so a restore after a restart reopens that file.
+        if (globalThis.VSCODE && message.restoreState) {
+            globalThis.VSCODE.setState(message.restoreState);
+        }
     }
 
     // The header names the template's source; a bot job's template now names its template file.

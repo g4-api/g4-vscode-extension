@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 import { Global } from '../constants/global';
-import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
+import { addPendingNotice, showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import { CommandBase } from './command-base';
 
@@ -17,6 +17,15 @@ const DOCUMENTATION_DIRECTORY_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const EXTERNAL_LINK_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 const MARKDOWN_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx']);
+
+// Buttons of the dialog shown when the folder already holds a project; a modal dialog adds its own Cancel.
+const OPEN_EXISTING_PROJECT_ACTION = 'Open Existing Project';
+const OVERWRITE_PROJECT_ACTION = 'Overwrite Project';
+
+// What overwriting replaces, shown under the existing-project question.
+const EXISTING_PROJECT_DETAIL = 'Overwrite Project rewrites every generated file, including src/manifest.json '
+    + 'with its license token, sandbox and server settings, the base bots and base templates, the .vscode '
+    + 'configuration and the documentation. Files in bots, templates and environments are kept.';
 
 /**
  * Creates a complete G4 project in a user-selected folder.
@@ -73,6 +82,14 @@ export class NewProjectCommand extends CommandBase {
             return;
         }
 
+        // Ask before scaffolding over an existing project, because every generated file is
+        // rewritten, including the manifest with its token and sandbox settings.
+        const isCreationConfirmed = await NewProjectCommand.showExistingProjectPrompt(projectSelection);
+
+        if (!isCreationConfirmed) {
+            return;
+        }
+
         // Resolve optional runtime dependencies independently so skipping the sandbox still
         // produces a portable project from packaged defaults.
         const sandboxDirectoryPath = await NewProjectCommand.resolveSandboxLocation();
@@ -108,6 +125,20 @@ export class NewProjectCommand extends CommandBase {
         // Copy learning material after the docs root exists, rewriting links against the final
         // friendly destination names during the same stage.
         NewProjectCommand.createDocumentation(projectSelection, this._logger);
+
+        // Opening the folder reloads the window and closes every notification, so the sandbox choice
+        // is stored and shown again once the new project's window has loaded.
+        if (sandboxDirectoryPath !== undefined) {
+            await addPendingNotice(this.context, `The new G4 project uses the G4 sandbox at ${sandboxDirectoryPath}.`);
+        }
+
+        // Without a sandbox, the Chrome base bot uses the installed Chrome and looks for ChromeDriver next to
+        // the engine, so say where to point it at a browser and driver.
+        if (sandboxDirectoryPath === undefined) {
+            await addPendingNotice(this.context, 'The new G4 project has no G4 sandbox. To run Chrome automations, set '
+                + '"binary" and "driverBinaries" in src/base.bots/chrome-automation-base.json to your Chrome and '
+                + 'ChromeDriver folders.');
+        }
 
         // Transition VS Code only after all synchronous scaffold writes have completed.
         NewProjectCommand.openFolder(projectSelection);
@@ -1143,6 +1174,42 @@ export class NewProjectCommand extends CommandBase {
             // Treat malformed optional base content as recoverable because it must not prevent the
             // remaining scaffold from being generated.
         }
+    }
+
+    /**
+     * Asks what to do when the selected folder already holds a G4 project.
+     *
+     * @remarks
+     * Owns a modal prompt and, for Open Existing Project, the workspace transition. A folder is a
+     * project when it has `src/manifest.json`. The scaffold rewrites every generated file, so an
+     * existing project is overwritten only after the user chooses Overwrite Project; the token is
+     * never read or copied here.
+     *
+     * @param projectSelection - Folder selected as the project root.
+     * @returns True when the project should be created (new folder, or Overwrite Project chosen).
+     */
+    private static async showExistingProjectPrompt(projectSelection: ProjectSelection): Promise<boolean> {
+        // A folder without a manifest is not a project yet, so there is nothing to overwrite.
+        const manifestPath = path.join(this.getPath(projectSelection), 'src', 'manifest.json');
+
+        if (!fs.existsSync(manifestPath)) {
+            return true;
+        }
+
+        // Let the user open the project, overwrite it, or cancel (the modal dialog adds Cancel).
+        const choice = await vscode.window.showWarningMessage(
+            'This folder already holds a G4 project.',
+            { detail: EXISTING_PROJECT_DETAIL, modal: true },
+            OPEN_EXISTING_PROJECT_ACTION,
+            OVERWRITE_PROJECT_ACTION);
+
+        // Opening the existing project creates nothing.
+        if (choice === OPEN_EXISTING_PROJECT_ACTION) {
+            this.openFolder(projectSelection);
+            return false;
+        }
+
+        return choice === OVERWRITE_PROJECT_ACTION;
     }
 
     /**
