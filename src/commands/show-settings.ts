@@ -9,7 +9,6 @@ import * as vscode from 'vscode';
 
 import { CommandBase } from './command-base';
 
-import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
 
@@ -339,9 +338,7 @@ export class ShowSettingsCommand extends CommandBase {
             return false;
         }
 
-        // Confirm the save to the user.
-        showTemporaryInformationMessage('G4 settings saved.');
-
+        // Apply-Settings confirms the save: with a short notification, or inside its reload prompt.
         return true;
     }
 
