@@ -841,8 +841,15 @@ function newManifest() {
         }
     }
 
-    // Return the cleaned manifest; an empty repository list stays an empty array, like the bot base
-    // manifests store it, so every reader gets a list.
+    // Store the repository list as an array, like the bot base manifests do, so every reader gets a list:
+    // an empty list stays [], and a missing list (null in manifests saved by earlier versions) becomes [].
+    const pluginsSettings = manifest.settings?.pluginsSettings;
+
+    if (pluginsSettings && !Array.isArray(pluginsSettings.externalRepositories)) {
+        pluginsSettings.externalRepositories = [];
+    }
+
+    // Return the cleaned manifest.
     return manifest;
 }
 
