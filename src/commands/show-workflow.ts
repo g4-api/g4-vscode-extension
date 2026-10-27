@@ -200,6 +200,23 @@ export class ShowWorkflowCommand extends CommandBase {
     }
 
     /**
+     * Reads the license token a designer run uses when it has none of its own.
+     *
+     * @remarks
+     * Compute-only. Returns the manifest's `authentication.token` when it is text, otherwise ''.
+     * The caller sends it only to the run that asked, so the token stays out of the workflow and
+     * the bot file; it is never logged.
+     *
+     * @param manifest - The project manifest, as Utilities.getManifest returns it.
+     * @returns The token, or '' when the manifest has none.
+     */
+    public static getManifestToken(manifest: unknown): string {
+        const token = (manifest as { authentication?: { token?: unknown; }; } | undefined)?.authentication?.token;
+
+        return typeof token === 'string' ? token : '';
+    }
+
+    /**
      * Describes why the designer download failed, for the failure message.
      *
      * @remarks
@@ -570,12 +587,88 @@ export class ShowWorkflowCommand extends CommandBase {
                 }, CHANGE_REPORT_DELAY_MILLISECONDS);
             };
 
+            // How long a starting run waits for the extension to answer with the manifest token; a
+            // run that gets no answer starts with the token it has, so it is never held up.
+            const TOKEN_REQUEST_TIMEOUT_MILLISECONDS = 3000;
+
+            // Token requests waiting for the extension's answer, keyed by request id.
+            const pendingTokenRequests = new Map();
+            let nextTokenRequestId = 0;
+
+            /**
+             * Asks the extension for the license token of the project manifest.
+             *
+             * Resolves the token, or '' when the manifest has none or no answer arrives in time.
+             */
+            const requestManifestToken = () => new Promise(resolve => {
+                // Number the request, so the answer reaches the run that asked.
+                nextTokenRequestId += 1;
+                const requestId = nextTokenRequestId;
+
+                // Give up after the timeout, so a missing answer cannot block the run.
+                const timer = setTimeout(() => {
+                    pendingTokenRequests.delete(requestId);
+                    resolve('');
+                }, TOKEN_REQUEST_TIMEOUT_MILLISECONDS);
+
+                // Wait for the answer, then send the request.
+                pendingTokenRequests.set(requestId, token => {
+                    clearTimeout(timer);
+                    resolve(token);
+                });
+
+                vscode.postMessage({ type: 'workflow:token:get', payload: { requestId } });
+            });
+
+            /**
+             * Fills a starting run's license token from the project manifest when the run has none.
+             *
+             * A token in the bot or typed into the designer always wins. The manifest token goes
+             * only into this run's request; it never enters the designer's definition, so it is
+             * never written back to the bot file.
+             */
+            const setDefaultToken = async (automation) => {
+                // Keep a token the user provided.
+                const token = automation?.authentication?.token;
+                const isTokenSet = typeof token === 'string' && token.trim() !== '';
+
+                if (!automation || isTokenSet) {
+                    return;
+                }
+
+                // Use the manifest token, when the project has one.
+                const manifestToken = await requestManifestToken();
+
+                if (manifestToken === '') {
+                    return;
+                }
+
+                automation.authentication = { ...(automation.authentication || {}), token: manifestToken };
+            };
+
+            /**
+             * Routes every StartAutomation request through setDefaultToken, so a designer run
+             * without its own token uses the project's token, as Test Wright runs do.
+             */
+            const enableDefaultToken = () => {
+                const invoke = _connection.invoke.bind(_connection);
+
+                _connection.invoke = async (methodName, ...methodArguments) => {
+                    if (methodName === 'StartAutomation') {
+                        await setDefaultToken(methodArguments[0]);
+                    }
+
+                    return invoke(methodName, ...methodArguments);
+                };
+            };
+
             // Notify the extension only once the designer can actually accept a definition, after
             // the edit reports are wired, so the first import is already guarded.
             window.addEventListener('DOMContentLoaded', () => {
                 waitForDesigner().then(isReady => {
                     if (isReady) {
                         _designer.onDefinitionChanged.subscribe(onDefinitionChanged);
+                        enableDefaultToken();
                         vscode.postMessage({ type: 'webview:ready' });
                     } else {
                         console.warn('Workflow designer was not ready in time; ready signal skipped.');
@@ -587,6 +680,20 @@ export class ShowWorkflowCommand extends CommandBase {
             window.addEventListener('message', event => {
                 // Extract the message type from the event data
                 const type = event.data?.type;
+
+                // Hand the extension's token answer to the run that asked for it.
+                if (type === 'workflow:token') {
+                    const requestId = event.data?.payload?.requestId;
+                    const answer = pendingTokenRequests.get(requestId);
+                    const token = event.data?.payload?.token;
+
+                    if (answer) {
+                        pendingTokenRequests.delete(requestId);
+                        answer(typeof token === 'string' ? token : '');
+                    }
+
+                    return;
+                }
 
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
@@ -605,6 +712,7 @@ export class ShowWorkflowCommand extends CommandBase {
      *
      * Supported message types:
      * - workflow:import - Reads a workflow file and sends its content back to the webview.
+     * - workflow:token:get - Answers with the manifest's license token for a run that has none.
      * - webview:ready   - Sends an initial workflow to the webview when available.
      * - workflow:result - Opens the generated workflow report.
      * - console         - Writes webview console messages to the extension logger.
@@ -686,6 +794,21 @@ export class ShowWorkflowCommand extends CommandBase {
             await this.importWorkflowFile(panel, message.payload.fileUri);
 
             // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // A designer run that has no token of its own asks for the project's token. The answer goes
+        // only into that run's request: it never enters the workflow or the bot file, and it is
+        // never logged.
+        if (message.type === 'workflow:token:get') {
+            await panel.webview.postMessage({
+                type: 'workflow:token',
+                payload: {
+                    requestId: message.payload?.requestId,
+                    token: ShowWorkflowCommand.getManifestToken(Utilities.getManifest())
+                }
+            });
+
             return;
         }
 
