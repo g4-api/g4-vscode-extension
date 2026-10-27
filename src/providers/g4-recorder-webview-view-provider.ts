@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { Utilities } from '../extensions/utilities';
 
 import { G4RecordingService } from '../services/g4-recording-service';
+import { G4ServiceHealth } from '../services/g4-service-health';
 
 /**
  * Provides and manages the **G4 Recorder** custom Webview panel in VS Code.
@@ -157,6 +158,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
+			reachable: service.reachable,
 			driver: service.driver,
 			suspended: service.suspended
 		}));
@@ -297,6 +299,11 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						animation: bulbPulse 1.2s ease-in-out infinite;
 						background: #3c3;
 						will-change: box-shadow;
+					}
+
+					.bulb.ready {
+						background: #3c3;
+						box-shadow: 0 0 4px #3c3;
 					}
 
 					.bulb.suspended {
@@ -686,8 +693,26 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							left.className = 'left';
 
 							const bulb = document.createElement('span');
-							// Disconnected -> red (no class); connected + suspended -> amber; connected + active -> green.
-							bulb.className = 'bulb' + (server.ok ? (server.suspended ? ' suspended' : ' on') : '');
+
+							// Connected to the session -> pulsing green (amber when suspended); running but not in a
+							// session -> steady green; neither -> red. The tooltip says which one it is.
+							let bulbClass = '';
+							let bulbTitle = 'Not running, or not reachable';
+
+							if (server.ok && server.suspended) {
+								bulbClass = ' suspended';
+								bulbTitle = 'Suspended by the G4 Hub';
+							} else if (server.ok) {
+								bulbClass = ' on';
+								bulbTitle = 'Connected to the recording session';
+							} else if (server.reachable) {
+								bulbClass = ' ready';
+								bulbTitle = 'Running; not in a recording session';
+							}
+
+							bulb.className = 'bulb' + bulbClass;
+							bulb.title = bulbTitle;
+							bulb.setAttribute('data-test-id', 'recorder-status-light');
 							left.appendChild(bulb);
 
 							const meta = document.createElement('div');
@@ -858,6 +883,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				id,
 				name: `Recorder (${id})`,
 				ok: recorderStatus?.connected === true,
+				reachable: false,
 				suspended: recorderStatus?.suspended === true,
 				url: recorder.baseUrl,
 				driver: recorder.driverParameters?.driver || 'Unknown'
@@ -883,9 +909,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * Refreshes the session status from the Hub and updates every recorder row in the webview.
 	 *
 	 * @remarks
-	 * While a session runs, the Hub reports each recorder's connection and suspension; while idle, every row
-	 * shows as not connected. A Hub that cannot be reached keeps the previous snapshot and logs the failure,
-	 * so a transient network error does not flicker the panel.
+	 * While a session runs, the Hub reports each recorder's connection and suspension; while idle, each
+	 * recorder is pinged directly, so a running recorder shows as reachable before Start. A Hub that cannot
+	 * be reached keeps the previous snapshot and logs the failure, so a transient network error does not
+	 * flicker the panel.
 	 *
 	 * @param serversStatus - The rows to update in place.
 	 * @returns A promise that resolves once the webview received the update.
@@ -899,13 +926,21 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			console.warn(`[G4RecorderViewProvider] Recording status refresh failed: ${reason}`);
 		}
 
+		// While no session runs the Hub reports nothing about the recorders, so ping each one directly;
+		// any HTTP answer means the recorder process is running. During a session the Hub's view is used.
+		const isRecording = this._recordingService.isRecording;
+		const reachability = isRecording
+			? serversStatus.map(() => false)
+			: await Promise.all(serversStatus.map(status => G4ServiceHealth.testPing(status.url, true)));
+
 		// Apply the snapshot to every row and collect detached copies for the webview.
 		const updates: ServerStatus[] = [];
 
-		for (const status of serversStatus) {
+		for (const [index, status] of serversStatus.entries()) {
 			const recorderStatus = this._recordingService.getRecorderStatus(status.url);
 
 			status.ok = recorderStatus?.connected === true;
+			status.reachable = reachability[index];
 			status.suspended = recorderStatus?.suspended === true;
 			status.lastChecked = Date.now();
 
@@ -921,6 +956,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
+			reachable: service.reachable,
 			driver: service.driver,
 			suspended: service.suspended
 		}));
@@ -1009,6 +1045,13 @@ type ServerStatus = {
 	 * false -> server is unreachable or returned an error.
 	 */
 	ok: boolean;
+
+	/**
+	 * Indicates whether the recorder process answered a ping while no session runs.
+	 * Lets the panel show a running recorder before Start; always false during a session, when the Hub's
+	 * connection state (ok) is shown instead.
+	 */
+	reachable: boolean;
 
 	/**
 	 * Indicates whether the Hub suspended this recorder; its events are dropped until resumed.

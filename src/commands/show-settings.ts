@@ -9,7 +9,6 @@ import * as vscode from 'vscode';
 
 import { CommandBase } from './command-base';
 
-import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
 
@@ -116,8 +115,13 @@ export class ShowSettingsCommand extends CommandBase {
      *
      * Behavior:
      * - Reveals the open settings tab instead of opening a second one.
+     * - Replaces a settings tab that VS Code restored but has not revived yet (see below).
      * - Creates a new webview panel for displaying the settings.
      * - Loads the settings from manifest.json on disk, then wires the tab.
+     *
+     * After an extension host restart, VS Code revives a hidden webview tab only when it is shown, so
+     * the extension does not know that tab yet. The API cannot bring such a tab to the front, so it is
+     * closed and a fresh tab is opened; nothing is lost, since the form is always rendered from the file.
      *
      * @returns A promise that resolves after the settings webview is created.
      */
@@ -126,6 +130,15 @@ export class ShowSettingsCommand extends CommandBase {
         if (this._panel) {
             this._panel.reveal();
             return;
+        }
+
+        // Close a restored settings tab that was never revived, so the new tab stays the only one.
+        const unrevivedTabs = vscode.window.tabGroups.all
+            .flatMap((tabGroup) => tabGroup.tabs)
+            .filter((tab) => ShowSettingsCommand.testSettingsTab(tab));
+
+        if (unrevivedTabs.length > 0) {
+            await vscode.window.tabGroups.close(unrevivedTabs);
         }
 
         // Create a new VS Code webview panel for displaying the G4 settings.
@@ -339,9 +352,7 @@ export class ShowSettingsCommand extends CommandBase {
             return false;
         }
 
-        // Confirm the save to the user.
-        showTemporaryInformationMessage('G4 settings saved.');
-
+        // Apply-Settings confirms the save: with a short notification, or inside its reload prompt.
         return true;
     }
 
@@ -486,5 +497,26 @@ export class ShowSettingsCommand extends CommandBase {
         if (choice === RELOAD_ACTION && this._panel === panel) {
             await this.setPanelHtml(panel);
         }
+    }
+
+    /**
+     * Tests whether an editor tab shows the G4 Settings webview.
+     *
+     * @remarks
+     * Compute-only. VS Code reports a webview tab's view type with its own `mainThreadWebview-`
+     * prefix, so both the bare and the prefixed form are accepted.
+     *
+     * @param tab - The editor tab to test.
+     * @returns True when the tab is a G4 Settings tab.
+     */
+    private static testSettingsTab(tab: vscode.Tab): boolean {
+        // Only webview tabs carry a view type.
+        if (!(tab.input instanceof vscode.TabInputWebview)) {
+            return false;
+        }
+
+        const viewType = tab.input.viewType;
+
+        return viewType === VIEW_TYPE || viewType === `mainThreadWebview-${VIEW_TYPE}`;
     }
 }

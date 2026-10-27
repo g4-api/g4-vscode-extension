@@ -74,30 +74,57 @@ export class ShowWorkflowCommand extends CommandBase {
             ShowWorkflowCommand.getWebviewOptions(this.context, path.join(this.context.globalStorageUri.fsPath, 'webapp'))
         );
 
-        await this.renderWorkflowWebview(panel, args);
+        // Close the tab this command opened when the designer could not be loaded; the failure was
+        // already reported, so no empty G4 Workflow tab is left behind.
+        const isRendered = await this.renderWorkflowWebview(panel, args);
+
+        if (!isRendered) {
+            panel.dispose();
+        }
     }
 
     /**
      * Renders the embedded workflow application into an existing webview panel.
+     *
+     * @remarks
+     * The designer is downloaded from the G4 Hub on every open. When that fails (the Hub is down or
+     * answers with an error), the panel shows what happened instead of staying blank, the failure is
+     * logged and shown as an error notification naming the Hub URL and the reason, and the method
+     * returns false, so a caller that opened the panel itself can close it.
+     *
+     * @returns True when the designer was rendered; false when it could not be loaded from the Hub.
      */
-    public async renderWorkflowWebview(panel: vscode.WebviewPanel, args: any): Promise<void> {
+    public async renderWorkflowWebview(panel: vscode.WebviewPanel, args: any): Promise<boolean> {
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
         // Cache the webapp resources before rendering. The panel is already open but blank while the
         // files download, so surface a built-in VS Code progress notification to signal the wait.
         // The in-webview spinner then takes over once the HTML is assigned at the end of this method.
-        await vscode.window.withProgress(
-            {
-                cancellable: false,
-                location: vscode.ProgressLocation.Notification,
-                title: 'Opening G4 Workflow editor…'
-            },
-            async (progress) => {
-                // Download and patch all integration resources into the storage directory.
-                await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir, progress);
-            }
-        );
+        try {
+            await vscode.window.withProgress(
+                {
+                    cancellable: false,
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Opening G4 Workflow editor…'
+                },
+                async (progress) => {
+                    // Download and patch all integration resources into the storage directory.
+                    await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir, progress);
+                }
+            );
+        } catch (error) {
+            // Explain the failure in the tab and in a notification, instead of leaving a blank tab
+            // behind the generic error VS Code shows for a command that throws.
+            const reason = ShowWorkflowCommand.getLoadFailureReason(error);
+            const message = `The G4 Workflow designer could not be loaded from the G4 Hub at ${this._baseUrl}: ${reason}`;
+
+            this._logger.error(message);
+            panel.webview.html = ShowWorkflowCommand.getLoadFailureHtml(message);
+            void vscode.window.showErrorMessage(message);
+
+            return false;
+        }
 
         // Path to the main HTML entry point of the web application
         const indexPath = path.join(storageDir, 'views', 'canvas.html');
@@ -131,6 +158,110 @@ export class ShowWorkflowCommand extends CommandBase {
 
         // Finally, assign the processed HTML to the webview to render the app
         panel.webview.html = html;
+
+        return true;
+    }
+
+    /**
+     * Returns the page a designer tab shows when the designer could not be loaded from the Hub.
+     *
+     * @remarks
+     * Compute-only. The message is HTML-escaped, and the page uses the VS Code theme colors, so it
+     * reads like the rest of the editor.
+     *
+     * @param message - The failure message, naming the Hub URL and the reason.
+     * @returns The page markup.
+     */
+    public static getLoadFailureHtml(message: string): string {
+        // Escape the text, since the reason comes from the network stack or the Hub.
+        const escapedMessage = message
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;');
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+    <title>G4 Workflow</title>
+    <style>
+        body { color: var(--vscode-foreground); font-family: var(--vscode-font-family); padding: 2rem; }
+        h1 { font-size: 1.2rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <h1 data-test-id="workflow-load-failure-title">The G4 Workflow designer could not be loaded</h1>
+    <p data-test-id="workflow-load-failure-message">${escapedMessage}</p>
+    <p data-test-id="workflow-load-failure-hint">Start the G4 Hub (or check its address in G4 Settings), then open the designer again.</p>
+</body>
+</html>`;
+    }
+
+    /**
+     * Masks credential values in a text that the designer page logs.
+     *
+     * @remarks
+     * Compute-only. The designer logs automation requests and events as JSON text, and the run's
+     * `authentication` carries the license token and password. Every `"token"` and `"password"`
+     * value is replaced with `***`, in plain JSON and in JSON nested as an escaped string
+     * (`\"token\":\"...\"`). The value pattern stops at a quote or a backslash, so the scan is
+     * linear. Text that is not a string is returned as an empty string.
+     *
+     * @param text - The console text from the designer page.
+     * @returns The text with every credential value masked.
+     */
+    public static convertToMaskedText(text: unknown): string {
+        // Only text can be logged; anything else carries nothing to show.
+        if (typeof text !== 'string') {
+            return '';
+        }
+
+        // Match a credential key with its opening quote (escaped or not), then the value up to its end.
+        const credentialPattern = /(\\?"(?:token|password)\\?"\s*:\s*\\?")[^"\\]*/gi;
+
+        return text.replaceAll(credentialPattern, '$1***');
+    }
+
+    /**
+     * Reads the license token a designer run uses when it has none of its own.
+     *
+     * @remarks
+     * Compute-only. Returns the manifest's `authentication.token` when it is text, otherwise ''.
+     * The caller sends it only to the run that asked, so the token stays out of the workflow and
+     * the bot file; it is never logged.
+     *
+     * @param manifest - The project manifest, as Utilities.getManifest returns it.
+     * @returns The token, or '' when the manifest has none.
+     */
+    public static getManifestToken(manifest: unknown): string {
+        const token = (manifest as { authentication?: { token?: unknown; }; } | undefined)?.authentication?.token;
+
+        return typeof token === 'string' ? token : '';
+    }
+
+    /**
+     * Describes why the designer download failed, for the failure message.
+     *
+     * @remarks
+     * Compute-only. Node's fetch reports a refused or unreachable server only as "fetch failed" and
+     * keeps the real cause (for example `connect ECONNREFUSED 127.0.0.1:9944`) on `error.cause`, so
+     * the cause is preferred when it carries text.
+     *
+     * @param error - The value the download threw.
+     * @returns The reason text.
+     */
+    public static getLoadFailureReason(error: unknown): string {
+        // Prefer the underlying network error, which names what actually went wrong.
+        const cause = error instanceof Error ? error.cause : undefined;
+        const causeMessage = cause instanceof Error ? cause.message : '';
+
+        if (causeMessage.length > 0) {
+            return causeMessage;
+        }
+
+        return Utilities.resolveErrorMessage(error);
     }
 
     /**
@@ -481,12 +612,88 @@ export class ShowWorkflowCommand extends CommandBase {
                 }, CHANGE_REPORT_DELAY_MILLISECONDS);
             };
 
+            // How long a starting run waits for the extension to answer with the manifest token; a
+            // run that gets no answer starts with the token it has, so it is never held up.
+            const TOKEN_REQUEST_TIMEOUT_MILLISECONDS = 3000;
+
+            // Token requests waiting for the extension's answer, keyed by request id.
+            const pendingTokenRequests = new Map();
+            let nextTokenRequestId = 0;
+
+            /**
+             * Asks the extension for the license token of the project manifest.
+             *
+             * Resolves the token, or '' when the manifest has none or no answer arrives in time.
+             */
+            const requestManifestToken = () => new Promise(resolve => {
+                // Number the request, so the answer reaches the run that asked.
+                nextTokenRequestId += 1;
+                const requestId = nextTokenRequestId;
+
+                // Give up after the timeout, so a missing answer cannot block the run.
+                const timer = setTimeout(() => {
+                    pendingTokenRequests.delete(requestId);
+                    resolve('');
+                }, TOKEN_REQUEST_TIMEOUT_MILLISECONDS);
+
+                // Wait for the answer, then send the request.
+                pendingTokenRequests.set(requestId, token => {
+                    clearTimeout(timer);
+                    resolve(token);
+                });
+
+                vscode.postMessage({ type: 'workflow:token:get', payload: { requestId } });
+            });
+
+            /**
+             * Fills a starting run's license token from the project manifest when the run has none.
+             *
+             * A token in the bot or typed into the designer always wins. The manifest token goes
+             * only into this run's request; it never enters the designer's definition, so it is
+             * never written back to the bot file.
+             */
+            const setDefaultToken = async (automation) => {
+                // Keep a token the user provided.
+                const token = automation?.authentication?.token;
+                const isTokenSet = typeof token === 'string' && token.trim() !== '';
+
+                if (!automation || isTokenSet) {
+                    return;
+                }
+
+                // Use the manifest token, when the project has one.
+                const manifestToken = await requestManifestToken();
+
+                if (manifestToken === '') {
+                    return;
+                }
+
+                automation.authentication = { ...(automation.authentication || {}), token: manifestToken };
+            };
+
+            /**
+             * Routes every StartAutomation request through setDefaultToken, so a designer run
+             * without its own token uses the project's token, as Test Wright runs do.
+             */
+            const enableDefaultToken = () => {
+                const invoke = _connection.invoke.bind(_connection);
+
+                _connection.invoke = async (methodName, ...methodArguments) => {
+                    if (methodName === 'StartAutomation') {
+                        await setDefaultToken(methodArguments[0]);
+                    }
+
+                    return invoke(methodName, ...methodArguments);
+                };
+            };
+
             // Notify the extension only once the designer can actually accept a definition, after
             // the edit reports are wired, so the first import is already guarded.
             window.addEventListener('DOMContentLoaded', () => {
                 waitForDesigner().then(isReady => {
                     if (isReady) {
                         _designer.onDefinitionChanged.subscribe(onDefinitionChanged);
+                        enableDefaultToken();
                         vscode.postMessage({ type: 'webview:ready' });
                     } else {
                         console.warn('Workflow designer was not ready in time; ready signal skipped.');
@@ -498,6 +705,20 @@ export class ShowWorkflowCommand extends CommandBase {
             window.addEventListener('message', event => {
                 // Extract the message type from the event data
                 const type = event.data?.type;
+
+                // Hand the extension's token answer to the run that asked for it.
+                if (type === 'workflow:token') {
+                    const requestId = event.data?.payload?.requestId;
+                    const answer = pendingTokenRequests.get(requestId);
+                    const token = event.data?.payload?.token;
+
+                    if (answer) {
+                        pendingTokenRequests.delete(requestId);
+                        answer(typeof token === 'string' ? token : '');
+                    }
+
+                    return;
+                }
 
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
@@ -516,6 +737,7 @@ export class ShowWorkflowCommand extends CommandBase {
      *
      * Supported message types:
      * - workflow:import - Reads a workflow file and sends its content back to the webview.
+     * - workflow:token:get - Answers with the manifest's license token for a run that has none.
      * - webview:ready   - Sends an initial workflow to the webview when available.
      * - workflow:result - Opens the generated workflow report.
      * - console         - Writes webview console messages to the extension logger.
@@ -597,6 +819,21 @@ export class ShowWorkflowCommand extends CommandBase {
             await this.importWorkflowFile(panel, message.payload.fileUri);
 
             // No further handling is needed for this message, so we can exit early.
+            return;
+        }
+
+        // A designer run that has no token of its own asks for the project's token. The answer goes
+        // only into that run's request: it never enters the workflow or the bot file, and it is
+        // never logged.
+        if (message.type === 'workflow:token:get') {
+            await panel.webview.postMessage({
+                type: 'workflow:token',
+                payload: {
+                    requestId: message.payload?.requestId,
+                    token: ShowWorkflowCommand.getManifestToken(Utilities.getManifest())
+                }
+            });
+
             return;
         }
 
@@ -682,7 +919,10 @@ export class ShowWorkflowCommand extends CommandBase {
         // These messages are written to the extension logger using the matching level.
         if (message.type === 'console') {
             const level = message.payload.level;
-            const text = message.payload.text;
+
+            // The designer logs every automation request it sends, credentials included; mask them before
+            // anything reaches the log, which is written to disk.
+            const text = ShowWorkflowCommand.convertToMaskedText(message.payload.text);
 
             switch (level) {
                 case 'debug':

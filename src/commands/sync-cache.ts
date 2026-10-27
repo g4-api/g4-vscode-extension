@@ -9,6 +9,7 @@ import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { G4Client } from '../clients/g4-client';
 import { HttpResult } from '../clients/http-client';
+import { addPendingWarning } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 
 export class SyncCacheCommand extends CommandBase {
@@ -61,7 +62,10 @@ export class SyncCacheCommand extends CommandBase {
      * @remarks
      * The status bar shows progress while the Hub syncs (up to 60 seconds). A failed cache or tool
      * sync is logged and shown as an error notification, and the extension host restarts only when
-     * the tool sync succeeded, because a restart cannot load tools the Hub did not refresh.
+     * the tool sync succeeded, because a restart cannot load tools the Hub did not refresh. A cache
+     * sync that succeeded can still report an MCP server that was not synchronized or tools the
+     * engine rejected: each is logged as a warning, and shown as a warning after the restart (or at
+     * once when no restart follows); the sync at activation only logs them.
      *
      * @param args - Optional `{ restart: boolean }`; activation passes `false`, the command default is `true`.
      * @returns A promise that resolves when the synchronization and restart flow completes.
@@ -97,11 +101,39 @@ export class SyncCacheCommand extends CommandBase {
         this.showFailure('The G4 cache sync failed', cacheResult);
         this.showFailure('The G4 tool sync failed', toolsResult);
 
+        // Log every source the Hub could not synchronize and every tool the engine rejected; a
+        // successful sync still reports them in its body.
+        const syncIssues = cacheResult.ok
+            ? G4Client.getCacheSyncIssues(cacheResult.body)
+            : [];
+
+        for (const syncIssue of syncIssues) {
+            this._logger.warning(syncIssue);
+        }
+
         // Restart the extension host so the refreshed tools are reloaded, only when they were refreshed.
-        const isRestart = (args?.restart ?? true) && toolsResult.ok;
+        const isUserSync = args?.restart ?? true;
+        const isRestart = isUserSync && toolsResult.ok;
 
         if (isRestart) {
+            // The restart closes notifications and empties the log channel, so keep the problems for
+            // the next activation, which shows and logs them again.
+            for (const syncIssue of syncIssues) {
+                await addPendingWarning(this.context, syncIssue);
+            }
+
             await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
+            return;
+        }
+
+        // Without a restart, show the problems now when the user ran the sync; the sync at activation
+        // only logs them, so a known unreachable server does not raise a warning on every start.
+        if (!isUserSync) {
+            return;
+        }
+
+        for (const syncIssue of syncIssues) {
+            void vscode.window.showWarningMessage(syncIssue);
         }
     }
 

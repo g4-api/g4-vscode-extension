@@ -1,5 +1,6 @@
 /*
- * G4 action bar visual language: a tab-colored bar, filled primary and ghost secondary buttons,
+ * G4 action bar visual language: a tab-colored bar, primary buttons and secondary buttons in the theme's
+ * button colors (secondary ones are ghost buttons where a theme has no secondary colors),
  * and a note that fades in and out.
  */
 .g4-action-bar__bar {
@@ -21,6 +22,7 @@
 
 .g4-action-bar__button--secondary {
     color: var(--g4-action-bar-secondary-foreground);
+    background-color: var(--g4-action-bar-secondary-background);
     border-color: var(--g4-action-bar-border-color);
 }
 

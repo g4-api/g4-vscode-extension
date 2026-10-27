@@ -62,8 +62,9 @@ export async function activate(context: vscode.ExtensionContext) {
     // Start the sandboxed hub opportunistically without delaying activation events.
     void startSandboxHubFromManifest().catch(() => undefined);
 
-    // Show notices stored before the window reloaded, such as the sandbox chosen by New-Project.
-    void showPendingNotices(context);
+    // Show notices stored before the window reloaded or the extension host restarted, such as the sandbox
+    // chosen by New-Project or a cache sync problem; warnings are also written to the new log channel.
+    void showPendingNotices(context, Global.logger);
 
     // Resolve configuration options related to events capture, such as recording behavior
     // and filters applied while listening to editor or UI events.

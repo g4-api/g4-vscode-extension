@@ -9,6 +9,10 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { G4Client } from '../clients/g4-client';
+import {
+    addPendingNotice,
+    addPendingWarning
+} from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import path from 'node:path';
 
@@ -63,6 +67,11 @@ export class UpdateTemplateCommand extends CommandBase {
      * Prompts the user to select one or more template names, reads each template file,
      * and sends an update request for each selected template to the G4 Hub.
      *
+     * @remarks
+     * When at least one template was stored, the Hub tools are refreshed and the extension host
+     * restarts, which closes notifications and clears the status bar. The success message and any
+     * failure are therefore also stored as pending notices and shown again after the restart.
+     *
      * @returns A Promise that resolves when all selected templates have been processed.
      */
     protected async onInvokeCommand(): Promise<void> {
@@ -98,10 +107,11 @@ export class UpdateTemplateCommand extends CommandBase {
             () => this.updateTemplates(selected, templates));
 
         // Show every failure with its reason, so a failed upload is never reported as a success.
-        if (failures.length > 0) {
-            const failureMessage = `Could not update ${failures.length} of ${selected.length} template(s). `
-                + failures.join(' ');
+        const failureMessage = failures.length > 0
+            ? `Could not update ${failures.length} of ${selected.length} template(s). ${failures.join(' ')}`
+            : '';
 
+        if (failureMessage !== '') {
             void vscode.window.showErrorMessage(failureMessage);
         }
 
@@ -111,9 +121,12 @@ export class UpdateTemplateCommand extends CommandBase {
         }
 
         // Confirm a full success in the status bar for 5 seconds; the restart below may replace it sooner.
+        let successMessage = '';
+
         if (failures.length === 0) {
             const names = selected.map((name) => `'${name}'`).join(', ');
-            const successMessage = selected.length === 1
+
+            successMessage = selected.length === 1
                 ? `Template ${names} updated successfully.`
                 : `Templates ${names} updated successfully.`;
 
@@ -130,6 +143,16 @@ export class UpdateTemplateCommand extends CommandBase {
             this._logger.error(toolsMessage);
             void vscode.window.showErrorMessage(toolsMessage);
             return;
+        }
+
+        // The restart closes notifications and clears the status bar message within a moment, so keep
+        // the outcome for the next activation, which shows it again.
+        if (successMessage !== '') {
+            await addPendingNotice(this.context, successMessage);
+        }
+
+        if (failureMessage !== '') {
+            await addPendingWarning(this.context, failureMessage);
         }
 
         // Restart the extension host to apply changes

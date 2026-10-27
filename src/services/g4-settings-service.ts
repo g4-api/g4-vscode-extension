@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 
 import { StartRecorderCommand } from '../commands/start-recorder';
 
+import { Global } from '../constants/global';
+
+import { showTemporaryInformationMessage } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 
 import { G4RecorderViewProvider } from '../providers/g4-recorder-webview-view-provider';
@@ -106,7 +109,9 @@ export class G4SettingsService {
         }
 
         // Let the Settings editor write the file now that nothing can cancel the apply.
-        const isSaved = options?.saveManifest === undefined || await options.saveManifest();
+        const saveManifest = options?.saveManifest;
+        const isSaveRequested = saveManifest !== undefined;
+        const isSaved = saveManifest === undefined || await saveManifest();
 
         if (!isSaved) {
             return false;
@@ -125,11 +130,19 @@ export class G4SettingsService {
             await this.updateRecorders();
         }
 
-        // Sections cached at activation cannot be re-initialized live; offer a reload for those.
+        // Sections cached at activation cannot be re-initialized live; offer a reload for those. The
+        // prompt also confirms the save: a short-lived "saved" notification closing next to it would
+        // take the prompt off the screen, so a click meant for Reload Window would miss it.
         const isReloadRequired = G4SettingsService.testReloadRequired(previousManifest, currentManifest);
 
         if (isReloadRequired) {
-            await this.showReloadPrompt();
+            await this.showReloadPrompt(isSaveRequested);
+            return true;
+        }
+
+        // Confirm a save that needs no reload with a short notification.
+        if (isSaveRequested) {
+            showTemporaryInformationMessage('G4 settings saved.');
         }
 
         return true;
@@ -167,9 +180,11 @@ export class G4SettingsService {
             previousManifest?.g4Server,
             currentManifest?.g4Server);
 
+        // A missing list and an empty list both mean "no repositories" (older manifests stored null),
+        // so switching between them is not a change that needs a reload.
         const isExternalRepositoriesChanged = !G4SettingsService.testDeepEqual(
-            previousManifest?.settings?.pluginsSettings?.externalRepositories,
-            currentManifest?.settings?.pluginsSettings?.externalRepositories);
+            previousManifest?.settings?.pluginsSettings?.externalRepositories ?? [],
+            currentManifest?.settings?.pluginsSettings?.externalRepositories ?? []);
 
         const isServersChanged = !G4SettingsService.testDeepEqual(
             previousManifest?.settings?.pluginsSettings?.servers,
@@ -183,20 +198,27 @@ export class G4SettingsService {
      *
      * @remarks
      * Owns a UI prompt and an optional reload side effect. Choosing Later leaves the on-disk
-     * settings in place so they take effect on the next window load.
+     * settings in place so they take effect on the next window load. After a save the prompt also
+     * confirms it, since no separate "saved" notification is shown next to it.
      *
+     * @param isSaved - True when the Settings editor just saved, so the prompt starts with the confirmation.
      * @returns A promise that resolves after the user chooses (and any reload is triggered).
      */
-    private async showReloadPrompt(): Promise<void> {
+    private async showReloadPrompt(isSaved: boolean): Promise<void> {
         const reloadAction = 'Reload Window';
         const laterAction = 'Later';
-        const message = 'Changes to the G4 server, external repositories, or MCP servers need a '
+        const savedText = isSaved ? 'G4 settings saved. ' : '';
+        const message = `${savedText}Changes to the G4 server, external repositories, or MCP servers need a `
             + 'window reload to refresh the cache. Reload now?';
 
         const choice = await vscode.window.showWarningMessage(message, reloadAction, laterAction);
 
+        // Record the answer, so a reload that does not happen can be traced to the prompt or the command.
+        Global.logger.information(`Settings reload prompt answered: ${choice ?? 'dismissed'}.`);
+
         if (choice === reloadAction) {
             await vscode.commands.executeCommand('workbench.action.reloadWindow');
+            Global.logger.information('Settings reload prompt: the window reload was requested.');
         }
     }
 

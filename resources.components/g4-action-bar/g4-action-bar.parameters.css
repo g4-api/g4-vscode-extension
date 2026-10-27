@@ -11,6 +11,7 @@
     --g4-action-bar-disabled-opacity: .6;
     --g4-action-bar-note-foreground: var(--vscode-descriptionForeground);
     --g4-action-bar-note-transition: opacity .2s;
-    --g4-action-bar-secondary-foreground: var(--vscode-foreground);
-    --g4-action-bar-secondary-hover-background: var(--vscode-list-hoverBackground);
+    --g4-action-bar-secondary-background: var(--vscode-button-secondaryBackground, transparent);
+    --g4-action-bar-secondary-foreground: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    --g4-action-bar-secondary-hover-background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
 }

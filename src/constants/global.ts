@@ -147,7 +147,7 @@ export class Global {
                 "returnPerformancePoints": true
             },
             "pluginsSettings": {
-                "externalRepositories": null,
+                "externalRepositories": [],
                 "forceRuleReference": true
             },
             "screenshotsSettings": {

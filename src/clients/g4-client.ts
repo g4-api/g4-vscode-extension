@@ -32,6 +32,55 @@ export class G4Client {
     }
 
     /**
+     * Describes the problems a successful cache sync reported, one line per problem.
+     *
+     * @remarks
+     * Compute-only: reads the body of `POST cache/sync` and returns text, so the command decides
+     * where it is shown. The Hub answers 200 even when a source failed, with one result per MCP
+     * server: a server that was not synchronized (unreachable, timed out) and every tool the engine
+     * rejected are reported. The Hub omits default values, so a missing `isSynced` means the server
+     * was not synchronized. A body without that shape (an older Hub answering 204) reports nothing.
+     *
+     * @param body - The parsed response body of the cache sync.
+     * @returns The problem lines; empty when every server synchronized without rejections.
+     */
+    public static getCacheSyncIssues(body: unknown): string[] {
+        // Read the per-server results; anything else carries no problems to report.
+        const servers = (body as CacheSyncResult | undefined)?.servers;
+
+        if (!Array.isArray(servers)) {
+            return [];
+        }
+
+        // Describe each server that failed, and each tool the engine rejected from a server that synced.
+        const issues: string[] = [];
+
+        for (const server of servers) {
+            const serverText = G4Client.getServerText(server);
+
+            if (server?.isSynced !== true) {
+                const reason = typeof server?.error === 'string' && server.error.length > 0
+                    ? server.error
+                    : 'no reason was given';
+
+                issues.push(`MCP server ${serverText} was not synchronized: ${reason}`);
+                continue;
+            }
+
+            for (const [toolName, reason] of Object.entries(server.rejectedPlugins ?? {})) {
+                // Use the reason only when it is text, so an odd value never prints as "[object Object]".
+                const reasonText = typeof reason === 'string' && reason.length > 0
+                    ? reason
+                    : 'no reason was given';
+
+                issues.push(`MCP server ${serverText}: the tool '${toolName}' was rejected: ${reasonText}`);
+            }
+        }
+
+        return issues;
+    }
+
+    /**
      * Builds a one-line failure message for a failed request, for notifications and the log.
      *
      * @remarks
@@ -406,10 +455,63 @@ export class G4Client {
         return isSchemas && schemasMap[modelName] !== undefined ? schemasMap : undefined;
     }
 
+    // Names a server for a sync problem line: its quoted name, plus its URL when the Hub sent one.
+    private static getServerText(server: McpServerSyncResult | undefined): string {
+        const name = typeof server?.name === 'string' && server.name.length > 0
+            ? server.name
+            : 'unnamed';
+
+        // Add the URL only when known, so the line never shows an empty pair of brackets.
+        const isUrl = typeof server?.url === 'string' && server.url.length > 0;
+
+        return isUrl
+            ? `'${name}' (${server?.url})`
+            : `'${name}'`;
+    }
+
     // Tests that a request returned a stored manifest: a successful JSON object with a string key.
     private static testManifest(result: HttpResult): boolean {
         const manifest = result.body as { key?: unknown; } | null;
 
         return result.ok && manifest !== null && typeof manifest === 'object' && typeof manifest.key === 'string';
     }
+}
+
+// Compile-time contracts stay after the executable code: interfaces come before type aliases, and a
+// caller precedes the interfaces it depends on before A-Z order resumes.
+
+/**
+ * Body of a successful `POST cache/sync`, as the Hub returns it.
+ *
+ * @remarks
+ * Models only the per-server MCP results the cache sync command reports; the Hub reports nothing
+ * per external repository yet.
+ */
+interface CacheSyncResult {
+    /** One result per MCP server in the request, in request order; absent when the Hub sent no body. */
+    servers?: McpServerSyncResult[];
+}
+
+/**
+ * Outcome of one MCP server in a cache sync.
+ *
+ * @remarks
+ * The Hub omits default values, so `isSynced` is absent for a server that was not synchronized and
+ * `rejectedPlugins` may be absent when nothing was rejected.
+ */
+interface McpServerSyncResult {
+    /** Why the server was not synchronized; absent for a synchronized server. */
+    error?: string;
+
+    /** True when the server answered and its tools were synchronized; absent means false. */
+    isSynced?: boolean;
+
+    /** The server key from the manifest. */
+    name?: string;
+
+    /** The tools the engine rejected, keyed by tool name, with the reason as the value. */
+    rejectedPlugins?: Record<string, string>;
+
+    /** The server URL, when the server is remote. */
+    url?: string;
 }
