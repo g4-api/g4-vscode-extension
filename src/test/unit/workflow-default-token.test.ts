@@ -97,6 +97,29 @@ const startShim = async (): Promise<{
     return { connection, invokedCalls, postedMessages };
 };
 
+describe('Designer console credential masking', () => {
+    it('masks the token and password in a logged automation request', () => {
+        const text = '{"type":"Automation","value":{"authentication":{"password":"secret","token":"abc+/=","username":"u"}}}';
+
+        assert.equal(
+            ShowWorkflowCommand.convertToMaskedText(text),
+            '{"type":"Automation","value":{"authentication":{"password":"***","token":"***","username":"u"}}}');
+    });
+
+    it('masks credentials in JSON nested as an escaped string', () => {
+        const text = String.raw`{"message":"{\"authentication\":{\"token\":\"abc\",\"password\":\"p\"}}"}`;
+
+        assert.equal(
+            ShowWorkflowCommand.convertToMaskedText(text),
+            String.raw`{"message":"{\"authentication\":{\"token\":\"***\",\"password\":\"***\"}}"}`);
+    });
+
+    it('leaves text without credentials unchanged, and logs nothing for non-text', () => {
+        assert.equal(ShowWorkflowCommand.convertToMaskedText('Workflow designer ready.'), 'Workflow designer ready.');
+        assert.equal(ShowWorkflowCommand.convertToMaskedText({ token: 'abc' }), '');
+    });
+});
+
 describe('Designer default license token', () => {
     it('reads the token from the manifest, and nothing when the manifest has none', () => {
         assert.equal(ShowWorkflowCommand.getManifestToken({ authentication: { token: 'abc' } }), 'abc');

@@ -200,6 +200,31 @@ export class ShowWorkflowCommand extends CommandBase {
     }
 
     /**
+     * Masks credential values in a text that the designer page logs.
+     *
+     * @remarks
+     * Compute-only. The designer logs automation requests and events as JSON text, and the run's
+     * `authentication` carries the license token and password. Every `"token"` and `"password"`
+     * value is replaced with `***`, in plain JSON and in JSON nested as an escaped string
+     * (`\"token\":\"...\"`). The value pattern stops at a quote or a backslash, so the scan is
+     * linear. Text that is not a string is returned as an empty string.
+     *
+     * @param text - The console text from the designer page.
+     * @returns The text with every credential value masked.
+     */
+    public static convertToMaskedText(text: unknown): string {
+        // Only text can be logged; anything else carries nothing to show.
+        if (typeof text !== 'string') {
+            return '';
+        }
+
+        // Match a credential key with its opening quote (escaped or not), then the value up to its end.
+        const credentialPattern = /(\\?"(?:token|password)\\?"\s*:\s*\\?")[^"\\]*/gi;
+
+        return text.replaceAll(credentialPattern, '$1***');
+    }
+
+    /**
      * Reads the license token a designer run uses when it has none of its own.
      *
      * @remarks
@@ -894,7 +919,10 @@ export class ShowWorkflowCommand extends CommandBase {
         // These messages are written to the extension logger using the matching level.
         if (message.type === 'console') {
             const level = message.payload.level;
-            const text = message.payload.text;
+
+            // The designer logs every automation request it sends, credentials included; mask them before
+            // anything reaches the log, which is written to disk.
+            const text = ShowWorkflowCommand.convertToMaskedText(message.payload.text);
 
             switch (level) {
                 case 'debug':
