@@ -1,5 +1,6 @@
 /*
- * G4 busy button visual language: a ghost button whose refresh icon spins while busy.
+ * G4 busy button visual language: a secondary button, in the theme's secondary button colors (a ghost
+ * button where a theme has none), whose refresh icon spins while busy.
  */
 .g4-busy-button__button {
     font-family: inherit;

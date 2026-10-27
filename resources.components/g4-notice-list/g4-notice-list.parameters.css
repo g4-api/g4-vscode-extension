@@ -4,9 +4,9 @@
 :root {
     --g4-notice-list-background: var(--vscode-sideBar-background);
     --g4-notice-list-border-color: var(--vscode-panel-border);
-    --g4-notice-list-button-background: var(--vscode-button-background);
-    --g4-notice-list-button-foreground: var(--vscode-foreground);
-    --g4-notice-list-button-hover-background: var(--vscode-list-hoverBackground);
+    --g4-notice-list-button-background: var(--vscode-button-secondaryBackground, transparent);
+    --g4-notice-list-button-foreground: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+    --g4-notice-list-button-hover-background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
     --g4-notice-list-button-radius: 2px;
     --g4-notice-list-code-font-family: var(--vscode-editor-font-family, monospace);
     --g4-notice-list-error-foreground: var(--vscode-errorForeground);
