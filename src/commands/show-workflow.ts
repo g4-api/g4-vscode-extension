@@ -74,30 +74,57 @@ export class ShowWorkflowCommand extends CommandBase {
             ShowWorkflowCommand.getWebviewOptions(this.context, path.join(this.context.globalStorageUri.fsPath, 'webapp'))
         );
 
-        await this.renderWorkflowWebview(panel, args);
+        // Close the tab this command opened when the designer could not be loaded; the failure was
+        // already reported, so no empty G4 Workflow tab is left behind.
+        const isRendered = await this.renderWorkflowWebview(panel, args);
+
+        if (!isRendered) {
+            panel.dispose();
+        }
     }
 
     /**
      * Renders the embedded workflow application into an existing webview panel.
+     *
+     * @remarks
+     * The designer is downloaded from the G4 Hub on every open. When that fails (the Hub is down or
+     * answers with an error), the panel shows what happened instead of staying blank, the failure is
+     * logged and shown as an error notification naming the Hub URL and the reason, and the method
+     * returns false, so a caller that opened the panel itself can close it.
+     *
+     * @returns True when the designer was rendered; false when it could not be loaded from the Hub.
      */
-    public async renderWorkflowWebview(panel: vscode.WebviewPanel, args: any): Promise<void> {
+    public async renderWorkflowWebview(panel: vscode.WebviewPanel, args: any): Promise<boolean> {
         // Determine where to cache downloaded webapp files
         const storageDir = path.join(this.context.globalStorageUri.fsPath, 'webapp');
 
         // Cache the webapp resources before rendering. The panel is already open but blank while the
         // files download, so surface a built-in VS Code progress notification to signal the wait.
         // The in-webview spinner then takes over once the HTML is assigned at the end of this method.
-        await vscode.window.withProgress(
-            {
-                cancellable: false,
-                location: vscode.ProgressLocation.Notification,
-                title: 'Opening G4 Workflow editor…'
-            },
-            async (progress) => {
-                // Download and patch all integration resources into the storage directory.
-                await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir, progress);
-            }
-        );
+        try {
+            await vscode.window.withProgress(
+                {
+                    cancellable: false,
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Opening G4 Workflow editor…'
+                },
+                async (progress) => {
+                    // Download and patch all integration resources into the storage directory.
+                    await ShowWorkflowCommand.resolveResources(this._baseUrl, storageDir, progress);
+                }
+            );
+        } catch (error) {
+            // Explain the failure in the tab and in a notification, instead of leaving a blank tab
+            // behind the generic error VS Code shows for a command that throws.
+            const reason = ShowWorkflowCommand.getLoadFailureReason(error);
+            const message = `The G4 Workflow designer could not be loaded from the G4 Hub at ${this._baseUrl}: ${reason}`;
+
+            this._logger.error(message);
+            panel.webview.html = ShowWorkflowCommand.getLoadFailureHtml(message);
+            void vscode.window.showErrorMessage(message);
+
+            return false;
+        }
 
         // Path to the main HTML entry point of the web application
         const indexPath = path.join(storageDir, 'views', 'canvas.html');
@@ -131,6 +158,68 @@ export class ShowWorkflowCommand extends CommandBase {
 
         // Finally, assign the processed HTML to the webview to render the app
         panel.webview.html = html;
+
+        return true;
+    }
+
+    /**
+     * Returns the page a designer tab shows when the designer could not be loaded from the Hub.
+     *
+     * @remarks
+     * Compute-only. The message is HTML-escaped, and the page uses the VS Code theme colors, so it
+     * reads like the rest of the editor.
+     *
+     * @param message - The failure message, naming the Hub URL and the reason.
+     * @returns The page markup.
+     */
+    public static getLoadFailureHtml(message: string): string {
+        // Escape the text, since the reason comes from the network stack or the Hub.
+        const escapedMessage = message
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;');
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+    <title>G4 Workflow</title>
+    <style>
+        body { color: var(--vscode-foreground); font-family: var(--vscode-font-family); padding: 2rem; }
+        h1 { font-size: 1.2rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <h1 data-test-id="workflow-load-failure-title">The G4 Workflow designer could not be loaded</h1>
+    <p data-test-id="workflow-load-failure-message">${escapedMessage}</p>
+    <p data-test-id="workflow-load-failure-hint">Start the G4 Hub (or check its address in G4 Settings), then open the designer again.</p>
+</body>
+</html>`;
+    }
+
+    /**
+     * Describes why the designer download failed, for the failure message.
+     *
+     * @remarks
+     * Compute-only. Node's fetch reports a refused or unreachable server only as "fetch failed" and
+     * keeps the real cause (for example `connect ECONNREFUSED 127.0.0.1:9944`) on `error.cause`, so
+     * the cause is preferred when it carries text.
+     *
+     * @param error - The value the download threw.
+     * @returns The reason text.
+     */
+    public static getLoadFailureReason(error: unknown): string {
+        // Prefer the underlying network error, which names what actually went wrong.
+        const cause = error instanceof Error ? error.cause : undefined;
+        const causeMessage = cause instanceof Error ? cause.message : '';
+
+        if (causeMessage.length > 0) {
+            return causeMessage;
+        }
+
+        return Utilities.resolveErrorMessage(error);
     }
 
     /**
