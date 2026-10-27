@@ -841,14 +841,8 @@ function newManifest() {
         }
     }
 
-    // Mirror the base manifest: an empty repository list is stored as null.
-    const repositories = manifest.settings?.pluginsSettings?.externalRepositories;
-
-    if (Array.isArray(repositories) && repositories.length === 0) {
-        manifest.settings.pluginsSettings.externalRepositories = null;
-    }
-
-    // Return the cleaned manifest.
+    // Return the cleaned manifest; an empty repository list stays an empty array, like the bot base
+    // manifests store it, so every reader gets a list.
     return manifest;
 }
 

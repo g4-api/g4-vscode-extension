@@ -167,9 +167,11 @@ export class G4SettingsService {
             previousManifest?.g4Server,
             currentManifest?.g4Server);
 
+        // A missing list and an empty list both mean "no repositories" (older manifests stored null),
+        // so switching between them is not a change that needs a reload.
         const isExternalRepositoriesChanged = !G4SettingsService.testDeepEqual(
-            previousManifest?.settings?.pluginsSettings?.externalRepositories,
-            currentManifest?.settings?.pluginsSettings?.externalRepositories);
+            previousManifest?.settings?.pluginsSettings?.externalRepositories ?? [],
+            currentManifest?.settings?.pluginsSettings?.externalRepositories ?? []);
 
         const isServersChanged = !G4SettingsService.testDeepEqual(
             previousManifest?.settings?.pluginsSettings?.servers,
