@@ -1,0 +1,47 @@
+/*
+ * G4 toggle dropdown visual language: a themed trigger like g4-select, a chevron that turns when
+ * the list opens, and a list surface whose rows light up under the mouse.
+ */
+.g4-toggle-dropdown__trigger {
+    font-family: inherit;
+    color: inherit;
+    cursor: pointer;
+    background-color: var(--g4-toggle-dropdown-background);
+    border-color: var(--g4-toggle-dropdown-border-color);
+    outline: none;
+}
+
+.g4-toggle-dropdown__trigger:focus-visible,
+.g4-toggle-dropdown__trigger[aria-expanded="true"] {
+    border-color: var(--g4-toggle-dropdown-focus-border-color);
+}
+
+.g4-toggle-dropdown__trigger:disabled {
+    cursor: default;
+    opacity: .6;
+}
+
+.g4-toggle-dropdown__summary--placeholder {
+    color: var(--g4-toggle-dropdown-placeholder-foreground);
+}
+
+.g4-toggle-dropdown__chevron {
+    transition: var(--g4-toggle-dropdown-chevron-transition);
+}
+
+.g4-toggle-dropdown__trigger[aria-expanded="true"] .g4-toggle-dropdown__chevron {
+    transform: var(--g4-toggle-dropdown-chevron-open-transform);
+}
+
+.g4-toggle-dropdown__panel {
+    background-color: var(--g4-toggle-dropdown-panel-background);
+    border-color: var(--g4-toggle-dropdown-panel-border-color);
+}
+
+.g4-toggle-dropdown__option:hover {
+    background-color: var(--g4-toggle-dropdown-option-hover-background);
+}
+
+.g4-toggle-dropdown__empty {
+    color: var(--g4-toggle-dropdown-placeholder-foreground);
+}

@@ -47,8 +47,14 @@ export class Global {
                 "reportsFolder": ".",
                 "saveReports": true
             },
+            "autonomousSettings": {
+                "harnesses": [],
+                "runsFolder": "autonomous-runs",
+                "timeoutMinutes": 60
+            },
             "recorderSettings": {
                 "enabled": true,
+                "disableChromeNetworkSandbox": false,
                 "useSandbox": false,
                 "recorders": [
                     {

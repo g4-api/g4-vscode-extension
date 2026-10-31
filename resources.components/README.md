@@ -1,6 +1,6 @@
 # G4 webview components
 
-The webview pages of the extension (the flow publisher, the template publisher, the settings editor, and the report) are
+The webview pages of the extension (the flow publisher, the template publisher, the settings editor, the autonomous run, and the report) are
 built from reusable components. Each component is a complete unit in its own folder: its markup,
 styles, icons, and behavior.
 
@@ -11,6 +11,7 @@ styles, icons, and behavior.
 | `automation-flow-publisher/` | The flow publisher page. |
 | `automation-template-publisher/` | The template publisher page. |
 | `automation-settings/` | The settings editor page. |
+| `automation-autonomous/` | The autonomous exploratory run page: an agent harness explores the application and records one flow per scenario. |
 | `automation-report/` | The report page. |
 | `g4-*/` | Reusable components, used by the pages and by each other. |
 
@@ -39,9 +40,10 @@ Every component folder holds six files named after the component:
 | `g4-text-input` | Text or URL box; a URL box is checked while typing. | |
 | `g4-number-input` | Number box with themed steppers. | |
 | `g4-secret-input` | Masked box with a show/hide button. | |
-| `g4-path-input` | Folder path box with Browse and an optional detect button. | |
+| `g4-path-input` | Folder or file path box (`mode`) with Browse and an optional detect button. | |
 | `g4-select` | Themed dropdown, optionally followed by buttons. | |
 | `g4-toggle` | On/off switch with a label and hint. | |
+| `g4-toggle-dropdown` | Dropdown that opens a list of on/off switches, for picking several choices. | `g4-toggle` |
 | `g4-busy-button` | Button that shows a spinning icon while its work runs. | |
 | `g4-list-editor` | Text entries with add, trash, and optional move buttons. | |
 | `g4-key-value-editor` | Key/value entries with add and trash buttons. | |

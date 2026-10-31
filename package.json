@@ -16,6 +16,7 @@
     ],
     "activationEvents": [
         "onStartupFinished",
+        "onWebviewPanel:g4-autonomous",
         "onWebviewPanel:g4-flow-publisher",
         "onWebviewPanel:g4-settings",
         "onWebviewPanel:g4-template-publisher"
@@ -48,6 +49,11 @@
                 "command": "Show-Settings",
                 "category": "G4",
                 "title": "Open Settings Editor"
+            },
+            {
+                "command": "Show-Autonomous",
+                "category": "G4",
+                "title": "Start Autonomous Exploratory Run"
             },
             {
                 "command": "Apply-Settings",
@@ -289,6 +295,7 @@
     },
     "files": [
         "resources.assets/**",
+    "resources.autonomous/**",
         "resources.base/**",
         "resources.components/**",
         "resources.docs/**",

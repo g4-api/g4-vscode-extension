@@ -1,0 +1,469 @@
+/*
+ * Autonomous run layout: the launcher that fills the tab behind the dialog, and the three views of the
+ * dialog (form, running, result). The dialog has one fixed size, so no view and no click changes it: each
+ * view fills the dialog, its buttons stay at the bottom, and only inner areas (the form body, the scenarios,
+ * the console) scroll. Each G4 component lays out its own inside.
+ */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    font-size: 13px;
+    line-height: 1.5;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.component-data {
+    display: none;
+    position: absolute;
+    left: -9999px;
+}
+
+/* Launcher: centered in the tab, shown behind the dialog and after it closes. */
+.autonomous__launcher {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+}
+
+.autonomous__launcher-icon {
+    width: 72px;
+    height: 72px;
+}
+
+.autonomous__launcher-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.autonomous__launcher-text {
+    max-width: 460px;
+}
+
+/* The dialog's view fills the fixed dialog; the view inside it decides what scrolls. */
+.autonomous__view {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Form: the fields scroll in the body above the buttons, so a notice never grows the dialog. */
+.autonomous__form {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    padding: 4px 0 0;
+}
+
+.autonomous__form-body {
+    flex: 1;
+    min-height: 0;
+    padding-right: 4px;
+    overflow-y: auto;
+}
+
+.autonomous__intro {
+    margin-bottom: 16px;
+}
+
+.autonomous__field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    column-gap: 16px;
+}
+
+/* Buttons: a bar pinned to the bottom of every view. */
+.autonomous__actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+    padding-top: 12px;
+}
+
+.autonomous__actions--center {
+    justify-content: center;
+}
+
+.autonomous__actions-note {
+    flex: 1;
+    font-size: 12px;
+}
+
+.autonomous__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 96px;
+    padding: 6px 14px;
+    font-size: 13px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__button-icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* Running view: the robot, title, status, and facts on top, the scenarios and the console filling the rest,
+   and Stop at the bottom. */
+.autonomous__running {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-height: 0;
+    padding: 4px 0 0;
+    text-align: center;
+}
+
+/* The robot follows the window height, so a short window keeps room for the scenarios, the console, and Stop. */
+.autonomous__stage {
+    flex: 0 0 auto;
+    height: clamp(56px, 18vh, 150px);
+    aspect-ratio: 820 / 800;
+}
+
+/* A very short window gives the room of the robot and the title to the scenarios and the console. */
+@media (max-height: 600px) {
+    .autonomous__stage,
+    .autonomous__running-title {
+        display: none;
+    }
+}
+
+.autonomous__robot {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.autonomous__running-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* The latest step can be long; it keeps one line, so the view never grows with it, and the rest is in
+   its tooltip. */
+.autonomous__status {
+    width: 100%;
+    height: 1.5em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.autonomous__facts {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    width: 100%;
+}
+
+.autonomous__fact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 10px;
+    text-align: left;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__fact-name {
+    font-size: 11px;
+}
+
+.autonomous__fact-value {
+    font-weight: 600;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Running and result views: the scenarios beside the console, both taking all the height that is left. */
+.autonomous__panes {
+    display: grid;
+    flex: 1 1 0;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 12px;
+    width: 100%;
+    min-height: 0;
+    margin-top: 4px;
+    text-align: left;
+}
+
+/* A narrow window stacks the two panes, each still scrolling inside its half. */
+@media (max-width: 640px) {
+    .autonomous__panes {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+
+.autonomous__panel,
+.autonomous__console-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Both panes start with a header row of the same height, so their boxes line up. */
+.autonomous__pane-header {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 28px;
+}
+
+.autonomous__section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.autonomous__pane-count {
+    font-size: 12px;
+}
+
+/* The scenarios fill their pane and scroll, so planned scenarios never grow the view. */
+.autonomous__scenarios-box {
+    flex: 1;
+    min-height: 0;
+    padding: 6px;
+    overflow-y: auto;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__empty {
+    font-size: 12px;
+}
+
+.autonomous__scenarios {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    list-style: none;
+}
+
+.autonomous__scenario {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 8px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__scenario-index {
+    flex: 0 0 auto;
+    min-width: 1.5em;
+    font-size: 12px;
+    text-align: right;
+}
+
+.autonomous__scenario-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.autonomous__scenario-name,
+.autonomous__scenario-detail {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.autonomous__scenario-detail {
+    font-size: 11px;
+}
+
+.autonomous__badge {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    font-size: 11px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+/* Line icons */
+.autonomous__icon {
+    display: block;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+/* Harness select with its refresh button beside it. */
+.autonomous__select-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.autonomous__select-row > g4-select {
+    flex: 1;
+    min-width: 0;
+}
+
+.autonomous__icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-width: 1px;
+    border-style: solid;
+}
+
+/* Console: a header row with the line count and the tools, over the lines that fill the pane and scroll. */
+.autonomous__console {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.autonomous__console-title {
+    flex: 0 0 auto;
+}
+
+.autonomous__console-count {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+}
+
+.autonomous__console-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 5px;
+    font-size: 12px;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__console-tool[hidden] {
+    display: none;
+}
+
+.autonomous__console-lines {
+    flex: 1;
+    min-height: 0;
+    padding: 4px 0;
+    overflow-y: auto;
+    list-style: none;
+    border-width: 1px;
+    border-style: solid;
+}
+
+.autonomous__console-line {
+    display: flex;
+    gap: 8px;
+    padding: 1px 8px;
+    font-size: 12px;
+    line-height: 18px;
+    border-left-width: 2px;
+    border-left-style: solid;
+}
+
+.autonomous__console-time {
+    flex: 0 0 auto;
+}
+
+.autonomous__console-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.autonomous__console--wrapped .autonomous__console-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Result view: the outcome and facts on top (scrolling when the outcome is long), the panes, then the buttons. */
+.autonomous__result {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    padding: 4px 0 0;
+}
+
+.autonomous__result-summary {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 40%;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.autonomous__actions--wrap {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.autonomous__actions-spacer {
+    flex: 1;
+}
+
+.autonomous__button--small {
+    min-width: 0;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+/* A notice list with notices keeps a gap to the first field; an empty list takes no space. */
+.autonomous__form-body > g4-notice-list:not(:empty) {
+    margin-bottom: 12px;
+}

@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { NotificationService } from './clients/g4-signalr-client';
 
 import { NewProjectCommand } from './commands/new-project';
+import { ShowAutonomousCommand } from './commands/show-autonomous';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
 import { ShowWorkflowCommand } from './commands/show-workflow';
@@ -26,6 +27,7 @@ import { G4ReportCustomEditorProvider } from './providers/g4-report-custom-edito
 import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
 
+import { G4AutonomousRunService } from './services/g4-autonomous-run-service';
 import {
     G4HubService,
     G4ProjectManifest
@@ -44,6 +46,9 @@ const DEFAULT_HUB_URL = 'http://localhost:9944';
 let recorderCommand: StartRecorderCommand | undefined;
 let recorderViewProvider: G4RecorderViewProvider | undefined;
 let recordingService: G4RecordingService | undefined;
+
+// The owner of the autonomous exploratory run, kept so deactivation can end a running agent.
+let autonomousRunService: G4AutonomousRunService | undefined;
 
 /**
  * Entry point for the VS Code extension.
@@ -81,11 +86,18 @@ export async function activate(context: vscode.ExtensionContext) {
         recorders: eventsCaptureOptions
     });
 
+    // Create the autonomous run owner; it reads the recording service to refuse a run during a manual recording.
+    autonomousRunService = new G4AutonomousRunService({
+        logger: Global.logger.newLogger('G4.Autonomous'),
+        recordingService
+    });
+
     // Compose a shared options object that is passed to all registration functions.
     // This groups together the core dependencies needed by commands, events and providers.
     const options = {
         context,
         baseUri,
+        autonomousRunService,
         hubConnections,
         recordingService
     };
@@ -117,17 +129,25 @@ export async function activate(context: vscode.ExtensionContext) {
  * extension is reloaded or VS Code is closed.
  */
 export function deactivate() {
+    // End a running autonomous agent with its whole process tree; on Windows a child process outlives
+    // the extension host otherwise, and it would keep driving the desktop.
+    const autonomousRunStopped = autonomousRunService?.stopRun();
+
     // Clean up any resources or connections here.
     // Examples:
     // - Dispose event subscriptions
     // - Close hub or recorder connections
     // - Clear timers or intervals
+
+    // Let VS Code wait for the agent to end before the extension host goes away.
+    return autonomousRunStopped;
 }
 
 /**
  * Registers all VS Code commands exposed by the extension.
  */
 const registerCommands = (options: {
+    autonomousRunService: G4AutonomousRunService,
     context: vscode.ExtensionContext,
     baseUri: string,
     hubConnections: Map<string, NotificationService>,
@@ -141,6 +161,9 @@ const registerCommands = (options: {
 
     // Command to open or visualize the G4 settings in the UI.
     new ShowSettingsCommand(options.context).register();
+
+    // Command to open the autonomous exploratory run tab, where an agent explores and records scenarios.
+    new ShowAutonomousCommand(options.context, options.autonomousRunService).register();
 
     // Command to open a bot definition as a regular JSON/text document.
     const openBotAsJson = vscode.commands.registerCommand(

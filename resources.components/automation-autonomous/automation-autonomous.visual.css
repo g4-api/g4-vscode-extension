@@ -1,0 +1,392 @@
+/*
+ * Autonomous run visual language: the page font and colors, the buttons, and the running view's
+ * motion: a turning ring around a robot that bobs, scans with its eyes, chases lights across its
+ * mouth, and sends a signal from its antenna. The G4 components draw their own look.
+ */
+body {
+    font-family: var(--autonomous-font-family);
+    background-color: var(--autonomous-background);
+    color: var(--autonomous-foreground);
+}
+
+.autonomous__launcher-icon {
+    color: var(--autonomous-muted-foreground);
+}
+
+.autonomous__launcher-text,
+.autonomous__intro,
+.autonomous__actions-note,
+.autonomous__status,
+.autonomous__fact-name {
+    color: var(--autonomous-muted-foreground);
+}
+
+/* Buttons */
+.autonomous__button {
+    font-family: inherit;
+    cursor: pointer;
+    border-color: transparent;
+    border-radius: var(--autonomous-button-radius);
+    outline: none;
+}
+
+.autonomous__button:focus-visible {
+    outline: 1px solid var(--autonomous-focus-border-color);
+    outline-offset: 2px;
+}
+
+.autonomous__button:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.autonomous__button--primary {
+    color: var(--autonomous-primary-foreground);
+    background-color: var(--autonomous-primary-background);
+}
+
+.autonomous__button--primary:not(:disabled):hover {
+    background-color: var(--autonomous-primary-hover-background);
+}
+
+.autonomous__button--secondary {
+    color: var(--autonomous-secondary-foreground);
+    background-color: var(--autonomous-secondary-background);
+}
+
+.autonomous__button--secondary:not(:disabled):hover {
+    background-color: var(--autonomous-secondary-hover-background);
+}
+
+.autonomous__button--stop {
+    color: var(--autonomous-stop-foreground);
+    background-color: transparent;
+    border-color: var(--autonomous-stop-border-color);
+}
+
+.autonomous__button--stop:hover {
+    background-color: var(--autonomous-stop-hover-background);
+}
+
+/* Running view: facts */
+.autonomous__fact {
+    background-color: var(--autonomous-fact-background);
+    border-color: var(--autonomous-fact-border-color);
+    border-radius: var(--autonomous-fact-radius);
+}
+
+.autonomous__fact-value--time {
+    font-family: var(--autonomous-time-font-family);
+}
+
+/* A new status line slides up into place. */
+.autonomous__status--fresh {
+    animation: autonomous-status-enter var(--autonomous-status-duration) ease-out;
+}
+
+/* Running view: ring. A faint full track with a bright arc turning around it. */
+.autonomous__ring-track,
+.autonomous__ring-arc {
+    fill: none;
+    stroke-width: 14;
+}
+
+.autonomous__ring-track {
+    stroke: var(--autonomous-ring-track-color);
+}
+
+.autonomous__ring-arc {
+    stroke: var(--autonomous-ring-arc-color);
+    stroke-dasharray: 22 78;
+    stroke-linecap: round;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: autonomous-ring-turn var(--autonomous-ring-duration) linear infinite;
+}
+
+/* Running view: antenna signal. Two rings, half a beat apart, grow and fade above the head. */
+.autonomous__signal {
+    fill: none;
+    stroke: var(--autonomous-robot-light);
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: autonomous-signal-pulse var(--autonomous-robot-signal-duration) ease-out infinite;
+}
+
+.autonomous__signal--late {
+    animation-delay: calc(var(--autonomous-robot-signal-duration) / 2);
+}
+
+/* Running view: robot */
+.autonomous__robot-body {
+    animation: autonomous-robot-bob var(--autonomous-robot-bob-duration) ease-in-out infinite alternate;
+}
+
+.autonomous__robot-shape {
+    fill: var(--autonomous-robot-color);
+}
+
+.autonomous__robot-eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: autonomous-robot-scan var(--autonomous-robot-eyes-duration) ease-in-out infinite;
+}
+
+.autonomous__robot-pupil,
+.autonomous__robot-mouth {
+    fill: var(--autonomous-robot-light);
+    filter: var(--autonomous-robot-light-glow);
+}
+
+.autonomous__robot-mouth {
+    opacity: .2;
+    animation: autonomous-robot-chase var(--autonomous-robot-mouth-duration) ease-in-out infinite;
+}
+
+.autonomous__robot-mouth--second {
+    animation-delay: calc(var(--autonomous-robot-mouth-duration) / 4);
+}
+
+.autonomous__robot-mouth--third {
+    animation-delay: calc(var(--autonomous-robot-mouth-duration) / 2);
+}
+
+/* Motion stays out for users who ask the system for less of it; the view still reads as busy. */
+@media (prefers-reduced-motion: reduce) {
+    .autonomous__status--fresh,
+    .autonomous__icon-button--busy .autonomous__icon,
+    .autonomous__ring-arc,
+    .autonomous__signal,
+    .autonomous__robot-body,
+    .autonomous__robot-eyes,
+    .autonomous__robot-mouth {
+        animation: none;
+    }
+
+    .autonomous__robot-mouth {
+        opacity: 1;
+    }
+}
+
+@keyframes autonomous-ring-turn {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes autonomous-signal-pulse {
+    0% {
+        opacity: .8;
+        transform: scale(1);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(4.5);
+    }
+}
+
+@keyframes autonomous-robot-bob {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(-18px);
+    }
+}
+
+/* The eyes look left, then right, return, and blink once per loop. */
+@keyframes autonomous-robot-scan {
+    0%,
+    100% {
+        transform: translateX(0) scaleY(1);
+    }
+
+    25% {
+        transform: translateX(-14px) scaleY(1);
+    }
+
+    50% {
+        transform: translateX(14px) scaleY(1);
+    }
+
+    70% {
+        transform: translateX(0) scaleY(1);
+    }
+
+    74% {
+        transform: translateX(0) scaleY(.1);
+    }
+
+    78% {
+        transform: translateX(0) scaleY(1);
+    }
+}
+
+@keyframes autonomous-robot-chase {
+    0%,
+    100% {
+        opacity: .2;
+    }
+
+    40% {
+        opacity: 1;
+    }
+}
+
+@keyframes autonomous-status-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Scenarios and badges */
+.autonomous__section-title,
+.autonomous__pane-count,
+.autonomous__scenario-index,
+.autonomous__scenario-detail,
+.autonomous__empty {
+    color: var(--autonomous-muted-foreground);
+}
+
+.autonomous__scenarios-box {
+    border-color: var(--autonomous-scenarios-border-color);
+    border-radius: var(--autonomous-scenarios-radius);
+}
+
+.autonomous__scenario {
+    background-color: var(--autonomous-fact-background);
+    border-color: var(--autonomous-fact-border-color);
+    border-radius: var(--autonomous-fact-radius);
+}
+
+.autonomous__badge {
+    color: var(--autonomous-badge-foreground);
+    border-color: var(--autonomous-badge-border-color);
+    border-radius: var(--autonomous-badge-radius);
+}
+
+.autonomous__badge--recording {
+    color: var(--autonomous-badge-active-foreground);
+    border-color: var(--autonomous-badge-active-foreground);
+}
+
+.autonomous__badge--saved,
+.autonomous__badge--passed {
+    color: var(--autonomous-badge-ok-foreground);
+    border-color: var(--autonomous-badge-ok-foreground);
+}
+
+.autonomous__badge--failed,
+.autonomous__badge--aborted {
+    color: var(--autonomous-badge-error-foreground);
+    border-color: var(--autonomous-badge-error-foreground);
+}
+
+/* Line icons take the color of their button. */
+.autonomous__icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Solid console tool icons (clear, copy, transcript, wrap) are filled shapes in the button color. */
+.autonomous__icon--solid {
+    fill: currentColor;
+    stroke: none;
+}
+
+/* Icon and console tool buttons: quiet until hovered. */
+.autonomous__icon-button,
+.autonomous__console-tool {
+    font-family: inherit;
+    color: var(--autonomous-foreground);
+    cursor: pointer;
+    background-color: var(--autonomous-icon-button-background);
+    border-color: var(--autonomous-icon-button-border-color);
+    border-radius: var(--autonomous-button-radius);
+    outline: none;
+}
+
+.autonomous__icon-button:not(:disabled):hover,
+.autonomous__console-tool:hover {
+    background-color: var(--autonomous-icon-button-hover-background);
+}
+
+.autonomous__icon-button:focus-visible,
+.autonomous__console-tool:focus-visible {
+    outline: 1px solid var(--autonomous-focus-border-color);
+    outline-offset: -1px;
+}
+
+.autonomous__icon-button:disabled {
+    cursor: default;
+    opacity: var(--autonomous-icon-button-disabled-opacity);
+}
+
+/* A pressed tool (wrap on) shows as switched on. */
+.autonomous__console-tool[aria-pressed="true"] {
+    color: var(--autonomous-console-accent-color);
+    border-color: var(--autonomous-console-accent-color);
+}
+
+/* The refresh icon turns while the host re-reads the manifest. */
+.autonomous__icon-button--busy .autonomous__icon {
+    animation: autonomous-refresh-turn var(--autonomous-refresh-duration) linear infinite;
+}
+
+/* Console: the lines sit in a terminal-colored box under a plain header row. */
+.autonomous__console-count,
+.autonomous__console-time {
+    color: var(--autonomous-muted-foreground);
+}
+
+.autonomous__console-lines {
+    font-family: var(--autonomous-console-font-family);
+    background-color: var(--autonomous-console-background);
+    border-color: var(--autonomous-console-border-color);
+    border-radius: var(--autonomous-console-radius);
+}
+
+.autonomous__console-line {
+    color: var(--autonomous-foreground);
+    border-left-color: var(--autonomous-console-line-border-color);
+}
+
+.autonomous__console-line--tool {
+    color: var(--autonomous-muted-foreground);
+    border-left-color: var(--autonomous-console-accent-color);
+}
+
+/* The agent's start (its tools and tool servers) stands out from its steps. */
+.autonomous__console-line--ready {
+    color: var(--autonomous-console-accent-color);
+    border-left-color: var(--autonomous-console-accent-color);
+}
+
+.autonomous__console-line--result {
+    border-left-color: var(--autonomous-console-result-color);
+}
+
+.autonomous__console-line--error {
+    color: var(--autonomous-console-error-color);
+    border-left-color: var(--autonomous-console-error-color);
+}
+
+@keyframes autonomous-refresh-turn {
+    to {
+        transform: rotate(360deg);
+    }
+}

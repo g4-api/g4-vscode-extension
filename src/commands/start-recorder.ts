@@ -34,11 +34,20 @@ import type { RecorderOptions } from '../services/g4-recording-service';
  *   recorder's pre-script before the session starts.
  */
 export class StartRecorderCommand extends CommandBase {
+    // Chrome options key that holds the browser's command-line arguments in the recorder's capabilities.
+    private static readonly _chromeOptionsKey: string = 'goog:chromeOptions';
+
     // HTTP status the Hub returns when a requested recorder is already recording in another session.
     private static readonly _conflictStatusCode: number = 409;
 
     // Window-title fragment of the VS Code Extension Development Host, excluded when its process ids are unknown.
     private static readonly _developmentHostTitle: string = 'Extension Development Host';
+
+    // Chrome command-line switch that lists the browser features to turn off.
+    private static readonly _disableFeaturesSwitch: string = '--disable-features=';
+
+    // Chrome feature that runs the network service inside Chrome's app sandbox.
+    private static readonly _networkSandboxFeature: string = 'NetworkServiceSandbox';
 
     /** Dedicated logger instance for this command. */
     private readonly _logger: Logger;
@@ -71,6 +80,61 @@ export class StartRecorderCommand extends CommandBase {
      */
     public get isRecording(): boolean {
         return this._recordingService.isRecording;
+    }
+
+    /**
+     * Returns copies of the recorders in which every Chromium recorder starts Chrome with its network sandbox off.
+     *
+     * @remarks
+     * Compute-only: the manifest's recorder objects are never changed, so turning the switch off again restores
+     * the plain launch on the next start. A Chromium recorder is any recorder whose driver name contains
+     * "chrome", the rule the Hub uses to launch a browser. The feature is merged into an existing
+     * `--disable-features=` argument instead of adding a second one, because Chrome reads only one of them;
+     * other recorders are returned unchanged.
+     *
+     * @param recorders - The recorders that will join the session.
+     * @returns The recorders to send to the Hub.
+     */
+    public static addNetworkSandboxSwitch(recorders: RecorderOptions[]): RecorderOptions[] {
+        return recorders.map(recorder => {
+            // Leave desktop and other non-Chromium recorders exactly as configured.
+            const driver: unknown = recorder.driverParameters?.driver;
+            const isChromium = typeof driver === 'string' && driver.toLowerCase().includes('chrome');
+
+            if (!isChromium) {
+                return recorder;
+            }
+
+            // Work on a copy and make sure the Chrome arguments list exists along the whole path.
+            const driverParameters = structuredClone(recorder.driverParameters ?? {});
+            const capabilities = driverParameters.capabilities ??= {};
+            const alwaysMatch = capabilities.alwaysMatch ??= {};
+            const chromeOptions = alwaysMatch[StartRecorderCommand._chromeOptionsKey] ??= {};
+            const argumentsList: unknown[] = Array.isArray(chromeOptions.args) ? chromeOptions.args : [];
+
+            // Add the feature to the existing disable-features argument, or append a new argument when none exists.
+            const switchPrefix = StartRecorderCommand._disableFeaturesSwitch;
+            const feature = StartRecorderCommand._networkSandboxFeature;
+            const switchIndex = argumentsList.findIndex(argument =>
+                typeof argument === 'string' && argument.startsWith(switchPrefix));
+
+            if (switchIndex < 0) {
+                argumentsList.push(`${switchPrefix}${feature}`);
+            } else {
+                const features = (argumentsList[switchIndex] as string)
+                    .substring(switchPrefix.length)
+                    .split(',')
+                    .filter(name => name.length > 0);
+                const mergedFeatures = features.includes(feature) ? features : [...features, feature];
+
+                argumentsList[switchIndex] = `${switchPrefix}${mergedFeatures.join(',')}`;
+            }
+
+            // Store the arguments on the copy and hand back a recorder that shares nothing mutable with the manifest.
+            chromeOptions.args = argumentsList;
+
+            return { ...recorder, driverParameters };
+        });
     }
 
     /**
@@ -124,8 +188,19 @@ export class StartRecorderCommand extends CommandBase {
             return;
         }
 
+        // Turn Chrome's network sandbox off for the Chromium recorders when the manifest or the panel asks for it,
+        // for machines where that sandbox cannot start and every recorder page stays blank.
+        const isNetworkSandboxDisabled = StartRecorderCommand.testNetworkSandboxDisabled(commandOptions);
+        const sessionRecorders = isNetworkSandboxDisabled
+            ? StartRecorderCommand.addNetworkSandboxSwitch(startedRecorders)
+            : startedRecorders;
+
+        if (isNetworkSandboxDisabled) {
+            this._logger.information('Chrome network sandbox is off for the Chromium recorders of this session.');
+        }
+
         // Ask the Hub to start the session; it reports each recorder's connection outcome.
-        await this.startSession(startedRecorders);
+        await this.startSession(sessionRecorders);
     }
 
     /**
@@ -301,6 +376,30 @@ export class StartRecorderCommand extends CommandBase {
         }
     }
 
+    /**
+     * Tests whether this start turns Chrome's network sandbox off for the Chromium recorders.
+     *
+     * @remarks
+     * Compute-only over the manifest snapshot: the recorder panel's in-memory switch wins when it was sent,
+     * otherwise `settings.recorderSettings.disableChromeNetworkSandbox` decides; a missing value means off.
+     *
+     * @param commandOptions - Optional command arguments from the recorder panel.
+     * @returns True when the network sandbox must be turned off.
+     */
+    private static testNetworkSandboxDisabled(commandOptions?: StartRecorderCommandOptions): boolean {
+        // Prefer the panel's switch, which is never written back to the manifest.
+        const override = commandOptions?.disableChromeNetworkSandbox;
+        const isOverrideConfigured = override !== null && override !== undefined;
+
+        if (isOverrideConfigured) {
+            return override === true;
+        }
+
+        // Fall back to the manifest setting, which is off unless set to true.
+        const recorderSettings = Utilities.getManifest()?.settings?.recorderSettings;
+
+        return recorderSettings?.disableChromeNetworkSandbox === true;
+    }
 }
 
 // Compile-time contracts are kept after the executable code: interfaces come before type aliases, and within
@@ -310,6 +409,12 @@ export class StartRecorderCommand extends CommandBase {
  * Optional Start-Recorder command arguments sent by the recorder panel.
  */
 type StartRecorderCommandOptions = {
+    /**
+     * Memory-only switch from the recorder panel that turns Chrome's network sandbox off for this start; absent
+     * when the command runs from the palette, so the manifest setting applies.
+     */
+    disableChromeNetworkSandbox?: boolean;
+
     /** Memory-only sandbox override selected in the recorder panel. */
     useSandbox?: boolean;
 };

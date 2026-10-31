@@ -1,19 +1,20 @@
 /*
  * G4(TM) path input component: <g4-path-input>.
  *
- * A folder path box with a Browse button (search icon) and an optional text button that finds the
- * path automatically. The page owns the folder picker and the detection (the webview has no file
- * system access) and writes the result back through the value property.
+ * A folder or file path box with a Browse button (search icon) and an optional text button that finds
+ * the path automatically. The page owns the picker and the detection (the webview has no file system
+ * access) and writes the result back through the value property.
  *
  * Contract:
- * - Attributes: value (initial path), browse-label (Browse tooltip and accessible name), detect-label
- *   (text of the detect button; no button when missing), detect-title (its tooltip), label
- *   (accessible name and tooltip of the box when it is not in a <g4-field>), test-id (prefix of
- *   every part's data-test-id).
+ * - Attributes: value (initial path), mode ('folder', the default, or 'file': which picker the page
+ *   should open, reported with g4-browse), placeholder (hint text of the empty box), browse-label
+ *   (Browse tooltip and accessible name), detect-label (text of the detect button; no button when
+ *   missing), detect-title (its tooltip), label (accessible name and tooltip of the box when it is not
+ *   in a <g4-field>), test-id (prefix of every part's data-test-id).
  * - Properties: value (the path).
  * - Methods: focus().
- * - Events (bubble): g4-input { value } on every edit; g4-browse when Browse is pressed; g4-detect
- *   when the detect button is pressed.
+ * - Events (bubble): g4-input { value } on every edit; g4-browse { mode, value } when Browse is
+ *   pressed; g4-detect when the detect button is pressed.
  */
 (() => {
     'use strict';
@@ -24,16 +25,30 @@
     // Browse tooltip when the page does not set one.
     const DEFAULT_BROWSE_LABEL = 'Browse';
 
+    // Picker kinds a page can be asked for; anything else asks for a folder, as before modes existed.
+    const BROWSE_MODES = new Set(['file', 'folder']);
+    const DEFAULT_BROWSE_MODE = 'folder';
+
     /**
-     * Folder path box element.
+     * Folder or file path box element.
      */
     class G4PathInput extends HTMLElement {
         // Whether the template has been rendered into this element.
         #isRendered = false;
 
-        // Asks the page to open its folder picker.
+        // Asks the page to open its picker, saying which kind and where the path points now, so the
+        // picker can start beside the current file or folder.
         #onBrowseClick = () => {
-            this.dispatchEvent(new CustomEvent('g4-browse', { bubbles: true }));
+            // An unknown or missing mode asks for a folder, as the box did before it had modes.
+            const modeText = this.getAttribute('mode') ?? '';
+            const mode = BROWSE_MODES.has(modeText)
+                ? modeText
+                : DEFAULT_BROWSE_MODE;
+
+            // Report the request with the current path, so the picker can start beside it.
+            const detail = { mode, value: this.value };
+
+            this.dispatchEvent(new CustomEvent('g4-browse', { bubbles: true, detail }));
         };
 
         // Asks the page to find the path.
@@ -94,8 +109,15 @@
             const detectLabel = this.getAttribute('detect-label') ?? '';
             const accessibleName = this.getAttribute('label') || this.closest('g4-field')?.getAttribute('label');
 
-            // The box starts from a value set in code, or the value attribute.
+            // The box starts from a value set in code, or the value attribute, with an optional example
+            // path while it is empty.
             input.value = this.#pendingValue ?? this.getAttribute('value') ?? '';
+
+            const placeholder = this.getAttribute('placeholder');
+
+            if (placeholder) {
+                input.placeholder = placeholder;
+            }
 
             if (accessibleName) {
                 input.title = accessibleName;
@@ -118,7 +140,7 @@
                 detect.addEventListener('click', this.#onDetectClick);
             }
 
-            // Typing reports the path; Browse asks the page to pick a folder.
+            // Typing reports the path; Browse asks the page to pick a folder or a file.
             input.addEventListener('input', this.#onInputInput);
             browse.addEventListener('click', this.#onBrowseClick);
             this.replaceChildren(content);

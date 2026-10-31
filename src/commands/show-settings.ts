@@ -26,6 +26,12 @@ const RELOAD_ACTION = 'Reload Settings';
 const CHANGED_FILE_DETAIL = 'Overwrite replaces those changes with the values in this editor. '
     + 'Reload Settings discards the unsaved values in this editor and loads the file.';
 
+// File types offered when picking a harness launcher or executable; All Files keeps a bare command possible.
+const HARNESS_EXECUTABLE_FILTERS: Record<string, string[]> = {
+    'Launchers and Executables': ['cmd', 'bat', 'exe'],
+    'All Files': ['*']
+};
+
 // Webview type of the settings tab; also the type VS Code restores after an extension-host restart.
 const VIEW_TYPE = 'g4-settings';
 
@@ -161,6 +167,27 @@ export class ShowSettingsCommand extends CommandBase {
         await this.openPanel(panel);
     }
 
+    /**
+     * Resolves where the harness file picker starts and which file types it offers.
+     *
+     * @remarks
+     * Compute-only. An absolute path starts the picker in its folder; an empty field or a bare
+     * command (claude) starts it in the workspace.
+     *
+     * @param currentPath - The path the field holds now.
+     * @param workspaceFolder - The workspace folder, or an empty string.
+     * @returns The picker options.
+     */
+    private static getHarnessPickerOptions(currentPath: string, workspaceFolder: string): HarnessPickerOptions {
+        // An absolute path starts the picker in its folder; anything else falls back to the workspace.
+        const trimmedPath = currentPath.trim();
+        const startFolder = path.isAbsolute(trimmedPath)
+            ? path.dirname(trimmedPath)
+            : workspaceFolder;
+
+        return { filters: HARNESS_EXECUTABLE_FILTERS, startFolder };
+    }
+
     // Builds the HTML shim injected into the settings document <head>.
     private static getHeaderShim(): string {
         // Placeholder for future head-level report scripts/styles.
@@ -218,6 +245,26 @@ export class ShowSettingsCommand extends CommandBase {
                 await panel.webview.postMessage({
                     command: 'setSandboxPath',
                     sandboxPath
+                });
+            }
+        }
+
+        // Let the settings page fill a harness Executable field from a file picker; the field's path
+        // goes back with the answer, so the card that asked gets the file.
+        const isHarnessBrowseRequest = message?.command === 'browseHarnessExecutable'
+            && typeof message.path === 'string';
+
+        if (isHarnessBrowseRequest) {
+            const currentPath = typeof message.value === 'string'
+                ? message.value
+                : '';
+            const executable = await ShowSettingsCommand.selectHarnessExecutable(currentPath);
+
+            if (executable) {
+                await panel.webview.postMessage({
+                    command: 'setHarnessExecutable',
+                    executable,
+                    path: message.path
                 });
             }
         }
@@ -388,6 +435,39 @@ export class ShowSettingsCommand extends CommandBase {
     }
 
     /**
+     * Opens a file picker for a harness launcher or executable.
+     *
+     * @remarks
+     * The picker starts beside the path the field holds, or in the workspace when the field is empty
+     * or holds a bare command; cancelling leaves the field as it is.
+     *
+     * @param currentPath - The path the field holds now.
+     * @returns The picked file, or `undefined` when the user cancelled.
+     */
+    private static async selectHarnessExecutable(currentPath: string): Promise<string | undefined> {
+        // Resolve where the picker starts and which file types it offers.
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+        const pickerOptions = ShowSettingsCommand.getHarnessPickerOptions(currentPath, workspaceFolder);
+        const defaultUri = pickerOptions.startFolder
+            ? vscode.Uri.file(pickerOptions.startFolder)
+            : undefined;
+
+        // Ask for one file; a folder is never a harness.
+        const selection = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            defaultUri,
+            filters: pickerOptions.filters,
+            openLabel: 'Select Launcher or Executable',
+            title: 'Harness Launcher or Executable'
+        });
+
+        // Treat cancellation as no answer; fsPath gives a native path.
+        return selection?.[0]?.fsPath;
+    }
+
+    /**
      * Renders the settings form from manifest.json on disk.
      *
      * @remarks
@@ -519,4 +599,19 @@ export class ShowSettingsCommand extends CommandBase {
 
         return viewType === VIEW_TYPE || viewType === `mainThreadWebview-${VIEW_TYPE}`;
     }
+}
+
+// The contract below is compile-time only, so it follows the executable code. Interfaces come before
+// type aliases; inside each group a declaration comes before the ones it uses (dependency first), and
+// A-Z order decides otherwise.
+
+/**
+ * Where the harness file picker starts and which file types it offers.
+ */
+interface HarnessPickerOptions {
+    /** The file type filters, by their display name; each lists extensions without the dot. */
+    filters: Record<string, string[]>;
+
+    /** The folder the picker opens in, or an empty string to let VS Code choose. */
+    startFolder: string;
 }

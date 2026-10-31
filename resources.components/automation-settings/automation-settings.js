@@ -11,8 +11,9 @@
  * - Injected #g4-data: the manifest JSON.
  * - Webview → host: { command: 'saveSettings', manifest }, { command: 'openExternal', url },
  *                   { command: 'browseSandbox' }, { command: 'autoDetectSandbox' },
- *                   { command: 'confirmFactoryReset' }
- * - Host → webview: { command: 'setSandboxPath', sandboxPath }, { command: 'factoryResetConfirmed' }
+ *                   { command: 'browseHarnessExecutable', path, value }, { command: 'confirmFactoryReset' }
+ * - Host → webview: { command: 'setSandboxPath', sandboxPath }, { command: 'factoryResetConfirmed' },
+ *                   { command: 'setHarnessExecutable', path, executable }
  *
  * Every control carries data-path (the dotted state path it edits) and data-kind (how its value is
  * stored); one delegated listener per component event writes the value into state.
@@ -26,6 +27,16 @@ const KEY_OPEN = '{{';
 // Path of a repository Name field, whose card title follows it ('...externalRepositories.2.name' -> 2).
 // Linear: anchored, one digit run.
 const REPOSITORY_NAME_PATH_PATTERN = /^settings\.pluginsSettings\.externalRepositories\.(\d+)\.name$/;
+
+// Path of a harness Executable field ('...autonomousSettings.harnesses.2.executable'); only such a path
+// may receive a file the host picked. Linear: anchored, one digit run.
+const HARNESS_EXECUTABLE_PATH_PATTERN = /^settings\.autonomousSettings\.harnesses\.\d+\.executable$/;
+
+// The last segment of a harness Executable path; dropping it gives the harness entry the field belongs to.
+const HARNESS_EXECUTABLE_SUFFIX = '.executable';
+
+// Example shown in an empty harness Executable box: a partition launcher, which runs the agent sandboxed.
+const HARNESS_EXECUTABLE_PLACEHOLDER = String.raw`C:\agents\partitions\g4-explorer\start-claude.cmd`;
 
 // Valid TCP port range; 0 means "any free port", which a saved endpoint cannot use.
 const PORT_MAXIMUM = 65535;
@@ -53,6 +64,9 @@ const RECORDER_SHELL_CHOICES = [
     { value: 'cmd', text: 'Command Prompt (cmd)' }
 ];
 
+// Reasoning efforts a new harness offers; the user trims them to what the tool accepts.
+const DEFAULT_HARNESS_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+
 // How long the "Settings sent." note stays in the action bar.
 const SAVE_NOTE_DURATION_MILLISECONDS = 2000;
 
@@ -74,7 +88,8 @@ globalThis.SECTION_STATUS = {
     screenshots: { message: '', tone: '' },
     plugins: { message: '', tone: '' },
     mcp: { message: '', tone: '' },
-    recorders: { message: '', tone: '' }
+    recorders: { message: '', tone: '' },
+    autonomous: { message: '', tone: '' }
 };
 
 /**
@@ -125,8 +140,14 @@ globalThis.DEFAULTS = {
         "environmentsSettings": {
             "returnEnvironments": true
         },
+        "autonomousSettings": {
+            "harnesses": [],
+            "runsFolder": "autonomous-runs",
+            "timeoutMinutes": 60
+        },
         "recorderSettings": {
             "enabled": true,
+            "disableChromeNetworkSandbox": false,
             "useSandbox": false,
             "recorders": [
                 {
@@ -291,8 +312,45 @@ globalThis.SECTION_BUILDERS = {
     screenshots: writeScreenshotsSection,
     plugins: writePluginsSection,
     mcp: writeMcpSection,
-    recorders: writeRecordersSection
+    recorders: writeRecordersSection,
+    autonomous: writeAutonomousSection
 };
+
+/**
+ * Adds a new autonomous run harness with a unique placeholder name.
+ *
+ * Behavior:
+ * - Seeds a Claude Code harness with the common reasoning efforts and no executable yet, so the
+ *   user only fills in the launcher or executable path and the models.
+ * - Re-renders the autonomous section and opens and reveals the new card.
+ */
+function addHarness() {
+    // Resolve the current harness list.
+    const existing = getPath(globalThis.STATE, 'settings.autonomousSettings.harnesses');
+    const harnesses = Array.isArray(existing) ? existing : [];
+
+    // Find a unique default name so two new harnesses don't collide.
+    const getDefaultName = (position) => `harness-${position}`;
+    let position = harnesses.length + 1;
+
+    while (harnesses.some((harness) => harness?.name === getDefaultName(position))) {
+        position++;
+    }
+
+    // Append the harness, store it, re-render, and reveal the new card.
+    harnesses.push({
+        name: getDefaultName(position),
+        type: 'claude',
+        executable: '',
+        models: [],
+        efforts: [...DEFAULT_HARNESS_EFFORTS],
+        requiredToolServers: [],
+        arguments: []
+    });
+    setPath(globalThis.STATE, 'settings.autonomousSettings.harnesses', harnesses);
+    updateSection('autonomous');
+    showItem(`harness-${harnesses.length - 1}`);
+}
 
 /**
  * Adds a new desktop recorder seeded from the shipped recorder template.
@@ -841,6 +899,28 @@ function newManifest() {
         }
     }
 
+    // Harness lists are edited one entry per box as well, and the names and paths are trimmed; a value that
+    // is not text (a hand edit) becomes empty instead of '[object Object]'.
+    const getCleanText = (value) => (typeof value === 'string' ? value.trim() : '');
+    const harnesses = manifest.settings?.autonomousSettings?.harnesses;
+    const harnessList = Array.isArray(harnesses) ? harnesses : [];
+
+    for (const harness of harnessList) {
+        // A hand-edited entry that is not an object has no fields to clean; the extension reports it.
+        const isHarnessObject = harness !== null && typeof harness === 'object';
+
+        if (!isHarnessObject) {
+            continue;
+        }
+
+        harness.name = getCleanText(harness.name);
+        harness.executable = getCleanText(harness.executable);
+        harness.models = getCleanList(harness.models);
+        harness.efforts = getCleanList(harness.efforts);
+        harness.requiredToolServers = getCleanList(harness.requiredToolServers);
+        harness.arguments = getCleanList(harness.arguments);
+    }
+
     // Store the repository list as an array, like the bot base manifests do, so every reader gets a list:
     // an empty list stays [], and a missing list (null in manifests saved by earlier versions) becomes [].
     const pluginsSettings = manifest.settings?.pluginsSettings;
@@ -876,6 +956,27 @@ function onActionBarAction(event) {
 }
 
 /**
+ * Opens the picker a path box asked for: the sandbox folder, or a harness launcher or executable.
+ *
+ * @param {CustomEvent<{ mode: string, value: string }>} event - g4-browse of a g4-path-input.
+ */
+function onAppBrowse(event) {
+    // The box's state path decides which picker the host opens.
+    const path = event.target.dataset?.path ?? '';
+
+    // A harness Executable box asks for a file, starting beside the path it holds.
+    if (HARNESS_EXECUTABLE_PATH_PATTERN.test(path)) {
+        selectHarnessExecutable(path, event.detail?.value ?? '');
+        return;
+    }
+
+    // The sandbox box asks for a folder.
+    if (path === 'sandbox') {
+        selectSandboxFolder();
+    }
+}
+
+/**
  * Applies a card list change: add, move, or remove a recorder, repository, or MCP server. The
  * section is rendered again and every card keeps its own open state.
  *
@@ -884,6 +985,11 @@ function onActionBarAction(event) {
 function onAppCardListChange(event) {
     const listName = event.target.dataset.list;
     const lists = {
+        harnesses: {
+            add: addHarness,
+            path: 'settings.autonomousSettings.harnesses',
+            sectionId: 'autonomous'
+        },
         recorders: {
             add: addRecorder,
             path: 'settings.recorderSettings.recorders',
@@ -902,7 +1008,7 @@ function onAppCardListChange(event) {
     };
     const list = lists[listName];
 
-    // Only the three card lists of this page change state here.
+    // Only the card lists of this page change state here.
     if (!list) {
         return;
     }
@@ -1102,6 +1208,12 @@ function onHostMessage(event) {
         return;
     }
 
+    // A file picked by the host fills the harness Executable field that asked for it.
+    if (message?.command === 'setHarnessExecutable') {
+        setHarnessExecutable(message.path, message.executable);
+        return;
+    }
+
     // A sandbox path picked or detected by the host fills the sandbox field.
     if (message?.command !== 'setSandboxPath' || !message.sandboxPath) {
         return;
@@ -1261,6 +1373,11 @@ function resolveSectionId(path) {
         return 'plugins';
     }
 
+    // Autonomous run settings belong to the autonomous section.
+    if (path.startsWith('settings.autonomousSettings')) {
+        return 'autonomous';
+    }
+
     // Recorder settings belong to the recorders section.
     if (path.startsWith('settings.recorderSettings')) {
         return 'recorders';
@@ -1307,6 +1424,28 @@ function save() {
 
     // Give the user immediate feedback regardless of host wiring.
     showSaveNote('Settings sent.');
+}
+
+/**
+ * Requests a launcher or executable file picker from the extension host for one harness card.
+ *
+ * Behavior:
+ * - Uses the host file picker so the webview never needs filesystem permissions.
+ * - Sends the box's path back with the request, so the answer fills the card that asked.
+ * - Leaves the current field value unchanged when the picker is cancelled.
+ *
+ * @param {string} path - State path of the harness Executable field.
+ * @param {string} value - The path the box holds now; the picker starts in its folder.
+ */
+function selectHarnessExecutable(path, value) {
+    // The webview cannot open a native file picker directly.
+    if (!globalThis.VSCODE) {
+        setSectionStatus('autonomous', 'Browse is available only inside VS Code.');
+        return;
+    }
+
+    // Ask the host to open a file picker.
+    globalThis.VSCODE.postMessage({ command: 'browseHarnessExecutable', path, value });
 }
 
 /**
@@ -1421,6 +1560,49 @@ function setCredentialsType(path, type) {
 
     // Re-render the owning section so the matching inputs appear.
     updateSection(resolveSectionId(path));
+}
+
+/**
+ * Fills a harness Executable field with the file the host picked.
+ *
+ * Behavior:
+ * - Accepts only a harness Executable path, so a stray message cannot write anywhere else.
+ * - Updates the state and the visible box, which follows normal Save behavior.
+ *
+ * @param {unknown} path - State path of the field that asked.
+ * @param {unknown} executable - The picked file.
+ */
+function setHarnessExecutable(path, executable) {
+    // Refuse anything but a harness Executable path and a picked file.
+    const isRequestValid = typeof path === 'string'
+        && HARNESS_EXECUTABLE_PATH_PATTERN.test(path)
+        && typeof executable === 'string'
+        && executable !== '';
+
+    if (!isRequestValid) {
+        return;
+    }
+
+    // The picker is modal, so the card cannot move while it is open; still, never create a harness that is
+    // gone (for example after a settings reload), since setPath would add an empty entry.
+    const harness = getPath(globalThis.STATE, path.slice(0, -HARNESS_EXECUTABLE_SUFFIX.length));
+    const isHarnessPresent = harness !== null && typeof harness === 'object';
+
+    if (!isHarnessPresent) {
+        return;
+    }
+
+    // Store the path, then show it in the box that asked.
+    setPath(globalThis.STATE, path, executable);
+
+    const input = document.querySelector(`g4-path-input[data-path="${CSS.escape(path)}"]`);
+
+    if (input) {
+        input.value = executable;
+    }
+
+    // Tell the user the value is staged and still follows normal Save behavior.
+    setSectionStatus('autonomous', 'Launcher or executable set. Click Save to apply it.', 'ok');
 }
 
 /**
@@ -1749,7 +1931,8 @@ function showSettings() {
         writeScreenshotsSection(),
         writePluginsSection(),
         writeMcpSection(),
-        writeRecordersSection()
+        writeRecordersSection(),
+        writeAutonomousSection()
     ].join('');
 
     document.getElementById('app').innerHTML = `
@@ -1833,7 +2016,7 @@ function startSettings() {
     app.addEventListener('g4-add', onAppCardListChange);
     app.addEventListener('g4-move', onAppCardListChange);
     app.addEventListener('g4-remove', onAppCardListChange);
-    app.addEventListener('g4-browse', selectSandboxFolder);
+    app.addEventListener('g4-browse', onAppBrowse);
     app.addEventListener('g4-detect', findSandboxFolder);
     app.addEventListener('click', onAppClick);
     document.getElementById('g4-actionbar').addEventListener('g4-action', onActionBarAction);
@@ -2013,6 +2196,54 @@ function updateSection(id) {
         if (card) {
             card.open = true;
         }
+    });
+}
+
+/**
+ * Builds the "Autonomous Runs" section: where run folders go, how long a run may take, and the agent
+ * harnesses (Claude Code, Codex, OpenCode) a run can start.
+ *
+ * @returns {string} HTML markup for the section.
+ */
+function writeAutonomousSection() {
+    // Resolve the configured harnesses.
+    const existing = getPath(globalThis.STATE, 'settings.autonomousSettings.harnesses');
+    const harnesses = Array.isArray(existing) ? existing : [];
+    const cards = harnesses.map((harness, index) => writeHarnessCard(harness, index)).join('');
+
+    // Build the run folder and time limit, then the harness list and add button.
+    const body = `
+    <div class="settings-field-row">
+        ${writeText({
+        path: 'settings.autonomousSettings.runsFolder',
+        label: 'Runs Folder',
+        hint: 'Where each run gets its own folder (flows, brief, transcript). Relative to the workspace.',
+        testId: 'autonomous-runs-folder'
+    })}
+        ${writeText({
+        path: 'settings.autonomousSettings.timeoutMinutes',
+        label: 'Time Limit',
+        suffix: '(minutes)',
+        type: 'number',
+        minimum: 1,
+        hint: 'The agent is stopped when a run takes longer. Default 60.',
+        testId: 'autonomous-timeout-minutes'
+    })}
+    </div>
+    <div class="settings-subheader">Harnesses</div>
+    <div class="settings-hint settings-hint-block">The agent tools a run can start. A partition launcher (start-claude.cmd) runs the agent inside its sandbox; an executable (claude.exe) runs it on this machine with your own login.</div>
+    <g4-card-list data-list="harnesses"
+                  add-label="+ Add Harness"
+                  empty-style="note"
+                  empty-text="No harnesses yet. Add one to start autonomous runs."
+                  test-id="harnesses">${cards}</g4-card-list>`;
+
+    // Wrap the body in the collapsible section shell.
+    return writeSection({
+        id: 'autonomous',
+        title: 'Autonomous Runs',
+        desc: 'Let an agent explore the application and record one flow per scenario.',
+        body
     });
 }
 
@@ -2220,6 +2451,97 @@ function writeField({ label, hint, suffix, required, testId, control }) {
     return `
     <g4-field${hintAttribute}
               label="${getEscapedText(label)}"${requiredAttribute}${suffixAttribute}${testIdAttribute}>${control}</g4-field>`;
+}
+
+/**
+ * Builds one harness card: its name, tool, executable, the models and efforts it offers, the tool
+ * servers a run requires, and its extra arguments.
+ *
+ * @param {object} harness - The harness entry.
+ * @param {number} index - The entry's position.
+ * @returns {string} HTML markup for the card.
+ */
+function writeHarnessCard(harness, index) {
+    // Resolve the card's state base path and display title.
+    const base = `settings.autonomousSettings.harnesses.${index}`;
+    const title = harness?.name || `Harness ${index + 1}`;
+    const testId = `harness-${index}`;
+    const executablePath = `${base}${HARNESS_EXECUTABLE_SUFFIX}`;
+    const typeChoices = [
+        { value: 'claude', text: 'Claude Code' },
+        { value: 'codex', text: 'Codex' },
+        { value: 'opencode', text: 'OpenCode' }
+    ];
+
+    // A foldable card (closed by default): the identity fields, then the choice lists.
+    return `
+    <g4-card card-id="harness-${index}"
+             card-title="${getEscapedText(title)}"
+             item-label="harness ${index + 1}"
+             test-id="${testId}">
+        <div class="settings-field-row">
+            ${writeText({
+        path: `${base}.name`,
+        label: 'Name',
+        required: true,
+        maxLength: 80,
+        hint: 'Shown in the run form, for example "Claude (g4-explorer sandbox)".',
+        testId: `${testId}-name`
+    })}
+            ${writeSelect({
+        path: `${base}.type`,
+        label: 'Tool',
+        choices: typeChoices,
+        hint: 'Which agent command-line tool this is.'
+    })}
+        </div>
+        ${writeField({
+        label: 'Launcher or Executable',
+        hint: 'A .cmd/.bat partition launcher runs sandboxed; any other path or command runs on this machine.',
+        required: true,
+        testId: `${testId}-executable-field`,
+        control: `
+        <g4-path-input data-path="${getEscapedText(executablePath)}"
+                       browse-label="Browse for the Launcher or Executable"
+                       label="Launcher or Executable"
+                       mode="file"
+                       placeholder="${getEscapedText(HARNESS_EXECUTABLE_PLACEHOLDER)}"
+                       test-id="${testId}-executable"
+                       value="${getEscapedText(harness?.executable ?? '')}"></g4-path-input>`
+    })}
+        ${writeListRows({
+        path: `${base}.models`,
+        label: 'Models',
+        hint: "Offered in the run form; the first is the default. Empty uses the tool's own default.",
+        isUnique: true,
+        emptyText: "No models. The tool's default model is used.",
+        testId: `${testId}-models`
+    })}
+        ${writeListRows({
+        path: `${base}.efforts`,
+        label: 'Reasoning Efforts',
+        hint: "Offered in the run form; the first is the default. Empty uses the tool's own default.",
+        isUnique: true,
+        emptyText: "No efforts. The tool's default effort is used.",
+        testId: `${testId}-efforts`
+    })}
+        ${writeListRows({
+        path: `${base}.requiredToolServers`,
+        label: 'Required Tool Servers',
+        hint: 'MCP server names, for example g4-uia-recorder for the screen tools. A Claude Code run stops at once when one does not connect.',
+        isUnique: true,
+        emptyText: 'No required tool servers. Nothing is checked at the start.',
+        testId: `${testId}-required-tool-servers`
+    })}
+        ${writeListRows({
+        path: `${base}.arguments`,
+        label: 'Extra Arguments',
+        hint: "Advanced. Placed before the run's own arguments, for example a permission mode for a machine run.",
+        isOrdered: true,
+        emptyText: 'No extra arguments.',
+        testId: `${testId}-arguments`
+    })}
+    </g4-card>`;
 }
 
 /**
@@ -2833,6 +3155,11 @@ function writeRecordersSection() {
         path: 'settings.recorderSettings.useSandbox',
         label: 'Use Sandbox Recorders',
         hint: 'Start bundled recorder services from the configured sandbox when they are not already running.'
+    })}
+    ${writeToggle({
+        path: 'settings.recorderSettings.disableChromeNetworkSandbox',
+        label: 'Turn Off the Chrome Network Sandbox',
+        hint: 'Starts the recorder\'s Chrome without its network sandbox. Use it only when recorder pages stay blank.'
     })}
     <g4-card-list data-list="recorders"
                   add-label="+ Add Machine"

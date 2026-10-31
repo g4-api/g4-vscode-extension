@@ -6,8 +6,9 @@
  * does nothing, so a stray click never closes an editor.
  *
  * Contract:
- * - Attributes: modal-title (header text), size ('editor' | 'reference' | none), test-id (prefix of
- *   every part's data-test-id).
+ * - Attributes: modal-title (header text), size ('editor' | 'fixed' | 'reference' | none), test-id (prefix
+ *   of every part's data-test-id). 'fixed' keeps one size whatever the content, shrinking only with the
+ *   window; its content fills the dialog and scrolls its own inner areas.
  * - Children: elements with data-slot="tools" go to the header; every other child is the content.
  * - Methods: show(focusReturnElement) opens the modal over the page; close() removes it and gives
  *   focus back to focusReturnElement.
