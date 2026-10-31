@@ -12,6 +12,7 @@ When something's off, scan this table for your symptom, then check the likely ca
 | "Session not created" / driver errors | Driver service down or version mismatch | Confirm the Selenium/UIA hub is up at `driverBinaries`; match driver version to browser version ([Module 3](03-pick-your-driver.md)) |
 | Workflows hang a long time before failing | Timeouts too high | Lower `loadTimeout` / `searchTimeout` while debugging ([Module 4](04-tune-workflow-behavior.md)) |
 | Reports don't appear where expected | Reports go inside a `reports/` subfolder | Look in `reportsFolder/reports/` ([Module 6](06-control-your-output.md)) |
+| Every page in the recorder's Chrome stays blank | Chrome's network sandbox cannot read the Chrome folder | Republish the sandbox (it grants the sandbox read access), or set `recorderSettings.disableChromeNetworkSandbox: true` ([Module 7](07-set-up-recording.md)) |
 | Recordings replay with weird long pauses | `maxThinkTime` too high, or `min == max` long | Lower `maxThinkTime`; widen the range between `minThinkTime` and `maxThinkTime` ([Module 7](07-set-up-recording.md)) |
 | Recordings replay too fast and break the app | Think time disabled or too low | Set `thinkTimeSettings.enabled: true` and raise `minThinkTime` ([Module 7](07-set-up-recording.md)) |
 | Huge response payloads, client struggles | Screenshots embedded as base64 | Set `convertToBase64: false`; consider `onExceptionOnly: true` ([Module 6](06-control-your-output.md)) |

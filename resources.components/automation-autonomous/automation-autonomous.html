@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="g4-components" content="g4-modal g4-notice-list g4-field g4-select g4-toggle-dropdown g4-markdown-textarea">
+    <title>G4(TM) Autonomous Exploratory Run</title>
+    {{$ components.styles }}
+    <link rel="stylesheet" href="{{$ component.style.uri }}">
+</head>
+
+<body>
+    <!-- Shown behind the dialog, and on its own after the dialog is closed, so the tab can open it again. -->
+    <main id="app"
+          class="autonomous__launcher"
+          data-test-id="autonomous-launcher-region"
+          aria-label="Autonomous exploratory run">
+        <svg class="autonomous__launcher-icon"
+             aria-hidden="true"
+             viewBox="0 0 640 640"
+             xmlns="http://www.w3.org/2000/svg"><path d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 128L192 128C139 128 96 171 96 224L96 448C96 501 139 544 192 544L448 544C501 544 544 501 544 448L544 224C544 171 501 128 448 128L352 128L352 64zM160 432C160 418.7 170.7 408 184 408L216 408C229.3 408 240 418.7 240 432C240 445.3 229.3 456 216 456L184 456C170.7 456 160 445.3 160 432zM280 432C280 418.7 290.7 408 304 408L336 408C349.3 408 360 418.7 360 432C360 445.3 349.3 456 336 456L304 456C290.7 456 280 445.3 280 432zM400 432C400 418.7 410.7 408 424 408L456 408C469.3 408 480 418.7 480 432C480 445.3 469.3 456 456 456L424 456C410.7 456 400 445.3 400 432zM224 240C250.5 240 272 261.5 272 288C272 314.5 250.5 336 224 336C197.5 336 176 314.5 176 288C176 261.5 197.5 240 224 240zM368 288C368 261.5 389.5 240 416 240C442.5 240 464 261.5 464 288C464 314.5 442.5 336 416 336C389.5 336 368 314.5 368 288zM64 288C64 270.3 49.7 256 32 256C14.3 256 0 270.3 0 288L0 384C0 401.7 14.3 416 32 416C49.7 416 64 401.7 64 384L64 288zM608 256C590.3 256 576 270.3 576 288L576 384C576 401.7 590.3 416 608 416C625.7 416 640 401.7 640 384L640 288C640 270.3 625.7 256 608 256z" fill="currentColor"/></svg>
+        <h1 class="autonomous__launcher-title" data-test-id="autonomous-launcher-title">Autonomous Exploratory Run</h1>
+        <p class="autonomous__launcher-text" data-test-id="autonomous-launcher-text">
+            An agent explores your application and records each scenario you ask for as its own flow.
+        </p>
+        <button type="button"
+                id="open-autonomous-dialog-button"
+                class="autonomous__button autonomous__button--primary"
+                title="Open the autonomous run dialog"
+                data-test-id="open-autonomous-run-dialog-button">
+            Open Run Dialog
+        </button>
+    </main>
+
+    <div id="g4-modal" data-test-id="autonomous-modal-region"></div>
+    <textarea id="g4-data" class="component-data" data-test-id="autonomous-injected-data">
+        {{$ autonomous.data }}
+    </textarea>
+
+    <!--
+        Running view: the robot (bobbing, eyes scanning, mouth lights chasing, antenna signal) inside a
+        turning ring, the agent's latest step, what the run uses, the elapsed time, the scenarios as the
+        agent records them beside the console that streams the agent's steps, and Stop. The view fills
+        the fixed dialog: the scenarios and the console scroll inside their panes, and Stop stays at the
+        bottom.
+        automation-autonomous.js fills the parts marked with data-part.
+    -->
+    <template id="autonomous-running-template">
+        <section class="autonomous__running"
+                 data-test-id="autonomous-running-panel"
+                 aria-busy="true"
+                 aria-label="Autonomous run in progress">
+            <div class="autonomous__stage" data-test-id="autonomous-running-spinner">
+                <svg class="autonomous__robot"
+                     aria-hidden="true"
+                     viewBox="-90 -100 820 800"
+                     xmlns="http://www.w3.org/2000/svg">
+                    <circle class="autonomous__ring-track"
+                            cx="320"
+                            cy="300"
+                            r="370"/>
+                    <circle class="autonomous__ring-arc"
+                            cx="320"
+                            cy="300"
+                            pathLength="100"
+                            r="370"/>
+                    <circle class="autonomous__signal"
+                            cx="320"
+                            cy="44"
+                            r="24"/>
+                    <circle class="autonomous__signal autonomous__signal--late"
+                            cx="320"
+                            cy="44"
+                            r="24"/>
+                    <g class="autonomous__robot-body">
+                        <path class="autonomous__robot-shape" d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 128L192 128C139 128 96 171 96 224L96 448C96 501 139 544 192 544L448 544C501 544 544 501 544 448L544 224C544 171 501 128 448 128L352 128L352 64zM160 432C160 418.7 170.7 408 184 408L216 408C229.3 408 240 418.7 240 432C240 445.3 229.3 456 216 456L184 456C170.7 456 160 445.3 160 432zM280 432C280 418.7 290.7 408 304 408L336 408C349.3 408 360 418.7 360 432C360 445.3 349.3 456 336 456L304 456C290.7 456 280 445.3 280 432zM400 432C400 418.7 410.7 408 424 408L456 408C469.3 408 480 418.7 480 432C480 445.3 469.3 456 456 456L424 456C410.7 456 400 445.3 400 432zM224 240C250.5 240 272 261.5 272 288C272 314.5 250.5 336 224 336C197.5 336 176 314.5 176 288C176 261.5 197.5 240 224 240zM368 288C368 261.5 389.5 240 416 240C442.5 240 464 261.5 464 288C464 314.5 442.5 336 416 336C389.5 336 368 314.5 368 288zM64 288C64 270.3 49.7 256 32 256C14.3 256 0 270.3 0 288L0 384C0 401.7 14.3 416 32 416C49.7 416 64 401.7 64 384L64 288zM608 256C590.3 256 576 270.3 576 288L576 384C576 401.7 590.3 416 608 416C625.7 416 640 401.7 640 384L640 288C640 270.3 625.7 256 608 256z"/>
+                        <g class="autonomous__robot-eyes">
+                            <circle class="autonomous__robot-pupil"
+                                    cx="224"
+                                    cy="288"
+                                    r="26"/>
+                            <circle class="autonomous__robot-pupil"
+                                    cx="416"
+                                    cy="288"
+                                    r="26"/>
+                        </g>
+                        <rect class="autonomous__robot-mouth autonomous__robot-mouth--first"
+                              height="32"
+                              rx="16"
+                              width="64"
+                              x="168"
+                              y="416"/>
+                        <rect class="autonomous__robot-mouth autonomous__robot-mouth--second"
+                              height="32"
+                              rx="16"
+                              width="64"
+                              x="288"
+                              y="416"/>
+                        <rect class="autonomous__robot-mouth autonomous__robot-mouth--third"
+                              height="32"
+                              rx="16"
+                              width="64"
+                              x="408"
+                              y="416"/>
+                    </g>
+                </svg>
+            </div>
+
+            <h2 class="autonomous__running-title" data-test-id="autonomous-running-title">Exploring your application</h2>
+            <p class="autonomous__status"
+               data-part="status"
+               data-test-id="autonomous-running-status-text"
+               aria-live="polite"></p>
+
+            <dl class="autonomous__facts" data-test-id="autonomous-running-facts">
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Harness</dt>
+                    <dd class="autonomous__fact-value" data-part="harness" data-test-id="autonomous-running-harness-text"></dd>
+                </div>
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Model</dt>
+                    <dd class="autonomous__fact-value" data-part="model" data-test-id="autonomous-running-model-text"></dd>
+                </div>
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Reasoning</dt>
+                    <dd class="autonomous__fact-value" data-part="effort" data-test-id="autonomous-running-effort-text"></dd>
+                </div>
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Recorders</dt>
+                    <dd class="autonomous__fact-value" data-part="recorders" data-test-id="autonomous-running-recorders-text"></dd>
+                </div>
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Elapsed</dt>
+                    <dd class="autonomous__fact-value autonomous__fact-value--time"
+                        data-part="elapsed"
+                        data-test-id="autonomous-running-elapsed-text"></dd>
+                </div>
+            </dl>
+
+            <div class="autonomous__panes" data-test-id="autonomous-running-panes">
+                <section class="autonomous__panel"
+                         data-test-id="autonomous-running-scenarios-region"
+                         aria-label="Scenarios">
+                    <div class="autonomous__pane-header">
+                        <h3 class="autonomous__section-title">Scenarios</h3>
+                        <span class="autonomous__pane-count"
+                              data-part="scenario-count"
+                              data-test-id="autonomous-running-scenario-count-text"></span>
+                    </div>
+                    <div class="autonomous__scenarios-box" data-part="scenarios" data-test-id="autonomous-running-scenarios-box"></div>
+                </section>
+
+                <div class="autonomous__console-slot" data-part="console" data-test-id="autonomous-running-console-slot"></div>
+            </div>
+
+            <div class="autonomous__actions autonomous__actions--center">
+                <button type="button"
+                        class="autonomous__button autonomous__button--stop"
+                        title="Stop the agent; a recording it left open is stopped and saved"
+                        data-action="stop"
+                        data-test-id="stop-autonomous-run-button">
+                    <svg class="autonomous__button-icon"
+                         aria-hidden="true"
+                         viewBox="0 0 640 640"
+                         xmlns="http://www.w3.org/2000/svg"><rect fill="currentColor"
+                                                                  height="320"
+                                                                  rx="48"
+                                                                  width="320"
+                                                                  x="160"
+                                                                  y="160"/></svg>
+                    Stop
+                </button>
+            </div>
+        </section>
+    </template>
+
+    {{$ components.templates }}
+    {{$ components.scripts }}
+    <script src="{{$ component.script.uri }}"></script>
+</body>
+
+</html>

@@ -32,6 +32,18 @@
     max-height: 85vh;
 }
 
+/* A fixed dialog: one size whatever it shows, shrinking only with the window. Its content fills the
+   dialog and lays itself out, so the content decides which inner areas scroll. */
+.g4-modal__dialog--fixed {
+    width: min(940px, 100%);
+    height: min(760px, 100%);
+}
+
+.g4-modal__dialog--fixed .g4-modal__content {
+    padding: 16px;
+    overflow: hidden;
+}
+
 /* The right padding keeps header tools clear of the corner Close button. */
 .g4-modal__header {
     display: flex;

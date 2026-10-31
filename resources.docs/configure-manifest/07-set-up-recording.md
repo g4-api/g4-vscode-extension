@@ -9,6 +9,7 @@ The recorder is how G4 **watches a user click around a desktop application** and
 ```json
 "recorderSettings": {
     "enabled": true,
+    "disableChromeNetworkSandbox": false,
     "useSandbox": false,
     "recorders": [ { "...": "UIA on 9955" }, { "...": "Chromium on 9956" } ]
 }
@@ -26,6 +27,7 @@ In this module, you will:
 
 - **`enabled`** — the master on/off switch for *all* recorders. If `false`, no recording happens no matter what's inside the list.
 - **`useSandbox`** — when `true`, G4 **auto-starts the bundled recorder services from your sandbox** for you (this is the manifest form of the **Use Sandbox** toggle in the recorder panel). Set it `false` when you run the recorder service yourself, locally or on another machine.
+- **`disableChromeNetworkSandbox`** — when `true`, the Chromium recorder starts Chrome **without its network sandbox** (it adds `--disable-features=NetworkServiceSandbox` to the browser arguments at Start; your manifest is not changed). Leave it `false` unless every page in the recorder's Chrome stays blank; that happens when Chrome cannot read its own folder from its sandbox. This is the manifest form of the **Chrome Network Sandbox Off** toggle in the recorder panel.
 - **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA** recorder and a **Chromium** recorder.
 
 **When to use multiple recorders:**

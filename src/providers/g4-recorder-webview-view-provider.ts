@@ -3,7 +3,6 @@ import * as vscode from 'vscode';
 import { Utilities } from '../extensions/utilities';
 
 import { G4RecordingService } from '../services/g4-recording-service';
-import { G4ServiceHealth } from '../services/g4-service-health';
 
 /**
  * Provides and manages the **G4 Recorder** custom Webview panel in VS Code.
@@ -32,6 +31,12 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	private _timer?: NodeJS.Timeout;
 
 	/**
+	 * Memory-only switch that turns Chrome's network sandbox off for the Chromium recorders on the next start.
+	 * Starts from the manifest value but is never written back to manifest.json.
+	 */
+	private _disableNetworkSandboxOverride: boolean;
+
+	/**
 	 * Memory-only sandbox override used by the recorder panel.
 	 * Starts from the manifest value but is never written back to manifest.json.
 	 */
@@ -56,9 +61,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		// Initialize the internal status array from the enabled recorders in the manifest.
 		this._serversStatus = G4RecorderViewProvider.resolveServers(this._recordingService);
 
-		// Seed the panel-only override from the manifest so the first start matches saved settings.
+		// Seed the panel-only overrides from the manifest so the first start matches saved settings.
 		const settings = Utilities.getManifest()?.settings?.recorderSettings;
 		this._useSandboxOverride = settings?.useSandbox === true;
+		this._disableNetworkSandboxOverride = settings?.disableChromeNetworkSandbox === true;
 	}
 
 	/**
@@ -103,9 +109,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		this._serversStatus.length = 0;
 		this._serversStatus.push(...servers);
 
-		// Re-seed the panel-only sandbox override from the refreshed manifest.
+		// Re-seed the panel-only overrides from the refreshed manifest.
 		const settings = Utilities.getManifest()?.settings?.recorderSettings;
 		this._useSandboxOverride = settings?.useSandbox === true;
+		this._disableNetworkSandboxOverride = settings?.disableChromeNetworkSandbox === true;
 
 		// Re-render the webview when it is live so the new recorder list and status are shown.
 		if (this._view) {
@@ -158,7 +165,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
-			reachable: service.reachable,
 			driver: service.driver,
 			suspended: service.suspended
 		}));
@@ -167,6 +173,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		this._view?.webview.postMessage({
 			type: 'servers:init',
 			payload: {
+				disableChromeNetworkSandbox: this._disableNetworkSandboxOverride,
 				enabled: enabled,
 				isRecording: this._recordingService.isRecording,
 				useSandbox: this._useSandboxOverride,
@@ -299,11 +306,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						animation: bulbPulse 1.2s ease-in-out infinite;
 						background: #3c3;
 						will-change: box-shadow;
-					}
-
-					.bulb.ready {
-						background: #3c3;
-						box-shadow: 0 0 4px #3c3;
 					}
 
 					.bulb.suspended {
@@ -542,6 +544,19 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							<span class="toggle-hint">Applies only to future starts.</span>
 						</span>
 					</label>
+					<label class="toggle"
+					       title="Start the recorder's Chrome without its network sandbox. Use it only when recorder pages stay blank."
+					       data-test-id="disable-chrome-network-sandbox-toggle">
+						<input type="checkbox"
+						       id="disableNetworkSandboxToggle"
+						       data-test-id="disable-chrome-network-sandbox-checkbox"
+						       aria-label="Turn off the Chrome network sandbox" />
+						<span class="switch"></span>
+						<span class="toggle-text">
+							<span class="toggle-label">Chrome Network Sandbox Off</span>
+							<span class="toggle-hint">Only if pages stay blank. Applies to future starts.</span>
+						</span>
+					</label>
 				</div>
 
 				<div class="panel">
@@ -568,7 +583,9 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 					const footerElement = document.getElementById('footer');
 					const btnToggle = document.getElementById('btnToggle');
 					const useSandboxToggle = document.getElementById('useSandboxToggle');
+					const disableNetworkSandboxToggle = document.getElementById('disableNetworkSandboxToggle');
 					let useSandbox = false;
+					let isNetworkSandboxDisabled = false;
 
 					// Inline SVGs (using normal strings)
 					var PLAY_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="20" height="20" class="svg-inline">' +
@@ -629,13 +646,26 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 							vscode.postMessage({ type: 'recorder:stop' });
 						} else {
 							setTogglePending('Starting...');
-							vscode.postMessage({ type: 'recorder:start', useSandbox: useSandbox });
+							vscode.postMessage({
+								type: 'recorder:start',
+								disableChromeNetworkSandbox: isNetworkSandboxDisabled,
+								useSandbox: useSandbox
+							});
 						}
 					});
 
 					useSandboxToggle.addEventListener('change', function () {
 						useSandbox = useSandboxToggle.checked === true;
 						vscode.postMessage({ type: 'recorder:useSandbox', useSandbox: useSandbox });
+					});
+
+					// Keep the network-sandbox switch in the extension's memory so a re-rendered panel shows it again.
+					disableNetworkSandboxToggle.addEventListener('change', function () {
+						isNetworkSandboxDisabled = disableNetworkSandboxToggle.checked === true;
+						vscode.postMessage({
+							type: 'recorder:disableChromeNetworkSandbox',
+							disableChromeNetworkSandbox: isNetworkSandboxDisabled
+						});
 					});
 
 					document.getElementById('btnRefresh').addEventListener('click', function () {
@@ -649,6 +679,12 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 						if (serversData.useSandbox !== undefined) {
 							useSandbox = serversData.useSandbox === true;
 							useSandboxToggle.checked = useSandbox;
+						}
+
+						// Show the extension's network-sandbox switch, which also follows manifest edits.
+						if (serversData.disableChromeNetworkSandbox !== undefined) {
+							isNetworkSandboxDisabled = serversData.disableChromeNetworkSandbox === true;
+							disableNetworkSandboxToggle.checked = isNetworkSandboxDisabled;
 						}
 
 						// Follow the real session state (also changed from the palette or the settings
@@ -694,20 +730,20 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 							const bulb = document.createElement('span');
 
-							// Connected to the session -> pulsing green (amber when suspended); running but not in a
-							// session -> steady green; neither -> red. The tooltip says which one it is.
+							// The light is the go / no-go of the recording, not of the recorder process: pulsing
+							// green only while this recorder records in the session (amber when suspended), red
+							// otherwise - before Start, after Stop, or when it did not join the session.
 							let bulbClass = '';
-							let bulbTitle = 'Not running, or not reachable';
+							let bulbTitle = serversData.isRecording === true
+								? 'Not recording: this recorder is not connected to the session'
+								: 'Not recording';
 
 							if (server.ok && server.suspended) {
 								bulbClass = ' suspended';
-								bulbTitle = 'Suspended by the G4 Hub';
+								bulbTitle = 'Recording paused: suspended by the G4 Hub';
 							} else if (server.ok) {
 								bulbClass = ' on';
-								bulbTitle = 'Connected to the recording session';
-							} else if (server.reachable) {
-								bulbClass = ' ready';
-								bulbTitle = 'Running; not in a recording session';
+								bulbTitle = 'Recording';
 							}
 
 							bulb.className = 'bulb' + bulbClass;
@@ -808,6 +844,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				// start was refused or failed, then show the connected recorders.
 				try {
 					await vscode.commands.executeCommand('Start-Recorder', {
+						disableChromeNetworkSandbox: message.disableChromeNetworkSandbox === true,
 						useSandbox: message.useSandbox === true
 					});
 				} finally {
@@ -848,6 +885,13 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				break;
 			}
 
+			case 'recorder:disableChromeNetworkSandbox': {
+				// Store only the panel switch; the manifest stays unchanged until edited in the settings page.
+				this._disableNetworkSandboxOverride = message.disableChromeNetworkSandbox === true;
+				await this.testServers(serversStatus);
+				break;
+			}
+
 			case 'recorder:useSandbox': {
 				// Store only the panel override; settings remain unchanged until edited in the settings page.
 				this._useSandboxOverride = message.useSandbox === true;
@@ -883,7 +927,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 				id,
 				name: `Recorder (${id})`,
 				ok: recorderStatus?.connected === true,
-				reachable: false,
 				suspended: recorderStatus?.suspended === true,
 				url: recorder.baseUrl,
 				driver: recorder.driverParameters?.driver || 'Unknown'
@@ -909,10 +952,10 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 	 * Refreshes the session status from the Hub and updates every recorder row in the webview.
 	 *
 	 * @remarks
-	 * While a session runs, the Hub reports each recorder's connection and suspension; while idle, each
-	 * recorder is pinged directly, so a running recorder shows as reachable before Start. A Hub that cannot
-	 * be reached keeps the previous snapshot and logs the failure, so a transient network error does not
-	 * flicker the panel.
+	 * Each row's light is the go / no-go of the recording: it follows only the Hub's session status (connected,
+	 * suspended), never whether the recorder process is running, so it is red before Start and turns red as
+	 * soon as Stop ends the session. A Hub that cannot be reached keeps the previous snapshot and logs the
+	 * failure, so a transient network error does not flicker the panel.
 	 *
 	 * @param serversStatus - The rows to update in place.
 	 * @returns A promise that resolves once the webview received the update.
@@ -926,21 +969,13 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			console.warn(`[G4RecorderViewProvider] Recording status refresh failed: ${reason}`);
 		}
 
-		// While no session runs the Hub reports nothing about the recorders, so ping each one directly;
-		// any HTTP answer means the recorder process is running. During a session the Hub's view is used.
-		const isRecording = this._recordingService.isRecording;
-		const reachability = isRecording
-			? serversStatus.map(() => false)
-			: await Promise.all(serversStatus.map(status => G4ServiceHealth.testPing(status.url, true)));
-
-		// Apply the snapshot to every row and collect detached copies for the webview.
+		// Apply the session snapshot to every row; an idle service has none, so every row is off after Stop.
 		const updates: ServerStatus[] = [];
 
-		for (const [index, status] of serversStatus.entries()) {
+		for (const status of serversStatus) {
 			const recorderStatus = this._recordingService.getRecorderStatus(status.url);
 
 			status.ok = recorderStatus?.connected === true;
-			status.reachable = reachability[index];
 			status.suspended = recorderStatus?.suspended === true;
 			status.lastChecked = Date.now();
 
@@ -956,7 +991,6 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 			name: service.name,
 			url: service.url,
 			ok: service.ok,
-			reachable: service.reachable,
 			driver: service.driver,
 			suspended: service.suspended
 		}));
@@ -966,6 +1000,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 		this._view?.webview.postMessage({
 			type: 'servers:update',
 			payload: {
+				disableChromeNetworkSandbox: this._disableNetworkSandboxOverride,
 				enabled: enabled,
 				isRecording: this._recordingService.isRecording,
 				useSandbox: this._useSandboxOverride,
@@ -1039,19 +1074,12 @@ type ServerStatus = {
 	 */
 	name: string;
 
-	/** 
-	 * Indicates whether the server is reachable and healthy.
-	 * true  -> server responded successfully to health check.
-	 * false -> server is unreachable or returned an error.
+	/**
+	 * Indicates whether this recorder is connected to the running recording session, as the Hub reports it.
+	 * Drives the row's go / no-go light; always false while no session runs, even when the recorder process
+	 * is up.
 	 */
 	ok: boolean;
-
-	/**
-	 * Indicates whether the recorder process answered a ping while no session runs.
-	 * Lets the panel show a running recorder before Start; always false during a session, when the Hub's
-	 * connection state (ok) is shown instead.
-	 */
-	reachable: boolean;
 
 	/**
 	 * Indicates whether the Hub suspended this recorder; its events are dropped until resumed.

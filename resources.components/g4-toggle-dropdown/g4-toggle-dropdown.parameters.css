@@ -1,0 +1,15 @@
+/*
+ * G4 toggle dropdown parameters, mapped to VS Code theme variables. The trigger matches g4-select,
+ * so a toggle dropdown and a dropdown look alike side by side.
+ */
+:root {
+    --g4-toggle-dropdown-background: var(--vscode-input-background, transparent);
+    --g4-toggle-dropdown-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-toggle-dropdown-chevron-transition: transform .15s;
+    --g4-toggle-dropdown-chevron-open-transform: rotate(180deg);
+    --g4-toggle-dropdown-focus-border-color: var(--vscode-focusBorder);
+    --g4-toggle-dropdown-option-hover-background: var(--vscode-list-hoverBackground, transparent);
+    --g4-toggle-dropdown-panel-background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --g4-toggle-dropdown-panel-border-color: var(--vscode-dropdown-border, var(--vscode-panel-border));
+    --g4-toggle-dropdown-placeholder-foreground: var(--vscode-descriptionForeground);
+}

@@ -48,6 +48,11 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                 if (message.type === 'settings:show') {
                     await vscode.commands.executeCommand('Show-Settings');
                 }
+
+                // Open the autonomous exploratory run tab (a mock until the autonomous engine exists).
+                if (message.type === 'autonomous:show') {
+                    await vscode.commands.executeCommand('Show-Autonomous');
+                }
             }
         );
     }
@@ -162,6 +167,15 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                 </button>
             </div>
 
+            <div class="btn-container">
+                <button id="showAutonomousBtn"
+                        class="btn"
+                        title="Open a dialog that starts an agent exploring your application through the selected recorders."
+                        data-test-id="start-autonomous-exploratory-run-button">
+                    Start Autonomous Exploratory Run
+                </button>
+            </div>
+
             <script>
                 const vscode = acquireVsCodeApi();
                 document.getElementById('showWorkflowBtn').addEventListener('click', () =>
@@ -170,6 +184,10 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
 
                 document.getElementById('showSettingsBtn').addEventListener('click', () =>
                     vscode.postMessage({ type: 'settings:show', payload: {} })
+                );
+
+                document.getElementById('showAutonomousBtn').addEventListener('click', () =>
+                    vscode.postMessage({ type: 'autonomous:show', payload: {} })
                 );
             </script>
       </body>
