@@ -71,6 +71,17 @@ export class ShowReportCommand extends CommandBase {
      * @returns A promise that resolves after the report webview is created.
      */
     protected async onInvokeCommand(args: any): Promise<any> {
+        // Resolve the Base64 report payload before the tab opens, so a failure never leaves an
+        // empty report tab behind; report the failure instead of leaving the promise unhandled.
+        let reportData: string;
+        try {
+            reportData = await ShowReportCommand.getReportData(args);
+        } catch (error: any) {
+            this.logger.error(`Show-Report could not read the report: ${error?.message}`, undefined, error);
+            vscode.window.showErrorMessage(`G4 could not open the report: ${error?.message}`);
+            return;
+        }
+
         // Create a new VS Code webview panel for displaying the G4 report.
         const panel = vscode.window.createWebviewPanel(
             // Internal webview type identifier.
@@ -95,9 +106,6 @@ export class ShowReportCommand extends CommandBase {
                 retainContextWhenHidden: true
             }
         );
-
-        // Resolve the Base64 report payload from the command arguments.
-        const reportData = await ShowReportCommand.getReportData(args);
 
         // Render the final HTML inside the webview.
         panel.webview.html = ShowReportCommand.newReportHtml(panel.webview, this.context, reportData);
@@ -192,43 +200,22 @@ export class ShowReportCommand extends CommandBase {
         // Behavior:
         // - Rejects empty or non-string values.
         // - Requires the Base64 length to be divisible by 4.
-        // - Validates the string against a strict Base64 pattern.
         // - Performs a decode/re-encode check to ensure the value is actually valid Base64.
+        //
+        // No regular expression is used: a pattern over the whole payload overflows the stack
+        // (RangeError: Maximum call stack size exceeded) on reports of a few megabytes.
         const assertBase64 = (value: string): boolean => {
-            // Base64 input must be a non-empty string.
-            if (!value || typeof value !== 'string') {
+            // Base64 input must be a non-empty string whose length is divisible by 4.
+            if (!value || typeof value !== 'string' || value.length % 4 !== 0) {
                 return false;
             }
 
-            // Strict Base64 strings must have a length divisible by 4.
-            if (value.length % 4 !== 0) {
-                return false;
-            }
-
-            // Validate the Base64 structure:
-            // - Uses A-Z, a-z, 0-9, +, and / characters.
-            // - Allows optional padding at the end using = or ==.
-            // - Does not allow invalid padding in the middle of the string.
-            const base64Regex =
-                /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-
-            // Reject values that do not match the strict Base64 format.
-            if (!base64Regex.test(value)) {
-                return false;
-            }
-
-            try {
-                // Decode and re-encode the value.
-                // If the result matches the original string, the Base64 value is valid
-                // and uses the expected canonical representation.
-                return Buffer
-                    .from(value, 'base64')
-                    .toString('base64') === value;
-
-            } catch {
-                // Treat decoding failures as invalid Base64.
-                return false;
-            }
+            // Decode and re-encode the value. Decoding skips characters outside the Base64
+            // alphabet (including the URL-safe - and _) and re-encoding writes canonical
+            // padding, so only a valid, canonical Base64 string comes back unchanged.
+            return Buffer
+                .from(value, 'base64')
+                .toString('base64') === value;
         };
 
         // Checks whether a file or path exists and is accessible.
@@ -298,17 +285,18 @@ export class ShowReportCommand extends CommandBase {
         // Default value "e30=" keeps the report data as an empty JSON object.
         let reportData = 'e30=';
 
+        // If the content is valid Base64, use it directly as the report payload. This is checked
+        // first so a multi-megabyte payload is never passed to the file system as a path; a path
+        // holds ':' or '\', which are outside the Base64 alphabet, so it is never taken for data.
+        if (assertBase64(content)) {
+            reportData = content;
+        }
+
         // If the content points to an existing file, read the report data from disk.
-        if (await assertFile(content)) {
+        else if (await assertFile(content)) {
             // Read the file and use its content as the report payload.
             // If reading succeeds but no content is returned, fall back to "{}".
             reportData = (await readFile(content)).content || 'e30=';
-        }
-
-        // If the content is not a file but is valid Base64,
-        // use it directly as the report payload.
-        else if (assertBase64(content)) {
-            reportData = content;
         }
 
         return reportData;
