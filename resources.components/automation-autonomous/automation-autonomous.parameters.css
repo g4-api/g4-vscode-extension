@@ -3,8 +3,8 @@
  *
  * The page is built from the reusable G4 components (resources.components/g4-*), which carry their
  * own parameters; these values cover only what the page itself draws: the launcher behind the
- * dialog, the form's buttons and notes, the running view (robot, ring, status, facts, scenarios, the
- * console), and the result view.
+ * dialog, the form's buttons and notes, the running view (robot, storm ring and lightning, status,
+ * facts, scenarios, the console), and the result view.
  */
 :root {
     /* Typography */
@@ -31,17 +31,19 @@
 
     /* Running view: robot */
     --autonomous-robot-color: var(--vscode-editor-foreground);
-    --autonomous-robot-light: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    --autonomous-robot-light-glow: drop-shadow(0 0 18px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
-    --autonomous-robot-bob-duration: 2.4s;
-    --autonomous-robot-eyes-duration: 3.2s;
-    --autonomous-robot-mouth-duration: 1.2s;
-    --autonomous-robot-signal-duration: 2s;
+    --autonomous-robot-flash-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+    --autonomous-robot-flash-duration: 4s;
+    --autonomous-robot-flash-glow: drop-shadow(0 0 22px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-robot-rest-glow: drop-shadow(0 0 0 transparent);
 
-    /* Running view: ring */
-    --autonomous-ring-track-color: var(--vscode-panel-border);
-    --autonomous-ring-arc-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    --autonomous-ring-duration: 1.6s;
+    /* Running view: storm ring and lightning */
+    --autonomous-spark-core-color: color-mix(in srgb, var(--vscode-progressBar-background, var(--vscode-focusBorder)) 20%, #ffffff);
+    --autonomous-spark-glow: drop-shadow(0 0 5px var(--vscode-progressBar-background, var(--vscode-focusBorder))) drop-shadow(0 0 14px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-storm-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+    --autonomous-storm-duration: 3s;
+    --autonomous-storm-flicker-duration: .24s;
+    --autonomous-storm-glow: drop-shadow(0 0 8px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-storm-turn-duration: 16s;
 
     /* Running view: status and facts */
     --autonomous-status-duration: .4s;
@@ -75,4 +77,9 @@
     --autonomous-icon-button-disabled-opacity: .6;
     --autonomous-icon-button-hover-background: var(--vscode-toolbar-hoverBackground, transparent);
     --autonomous-refresh-duration: .9s;
+}
+
+/* A white-hot spark core disappears on a light editor, so light themes draw the core in the lightning color. */
+body.vscode-light {
+    --autonomous-spark-core-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
 }

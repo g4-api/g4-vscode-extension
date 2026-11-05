@@ -1,7 +1,8 @@
 /*
  * Autonomous run visual language: the page font and colors, the buttons, and the running view's
- * motion: a turning ring around a robot that bobs, scans with its eyes, chases lights across its
- * mouth, and sends a signal from its antenna. The G4 components draw their own look.
+ * motion: a flat robot inside a crackling storm ring, shooting lightning from its antenna and arms
+ * and flashing the lightning color with a three-bolt burst now and then. The G4 components draw their
+ * own look.
  */
 body {
     font-family: var(--autonomous-font-family);
@@ -84,157 +85,210 @@ body {
     animation: autonomous-status-enter var(--autonomous-status-duration) ease-out;
 }
 
-/* Running view: ring. A faint full track with a bright arc turning around it. */
-.autonomous__ring-track,
-.autonomous__ring-arc {
-    fill: none;
-    stroke-width: 14;
-}
-
-.autonomous__ring-track {
-    stroke: var(--autonomous-ring-track-color);
-}
-
-.autonomous__ring-arc {
-    stroke: var(--autonomous-ring-arc-color);
-    stroke-dasharray: 22 78;
-    stroke-linecap: round;
+/* Running view: storm ring. Two jagged rings take turns, so the loop crackles while it turns slowly. */
+.autonomous__storm {
     transform-box: fill-box;
     transform-origin: center;
-    animation: autonomous-ring-turn var(--autonomous-ring-duration) linear infinite;
+    animation: autonomous-storm-turn var(--autonomous-storm-turn-duration) linear infinite;
 }
 
-/* Running view: antenna signal. Two rings, half a beat apart, grow and fade above the head. */
-.autonomous__signal {
+.autonomous__storm-ring {
     fill: none;
-    stroke: var(--autonomous-robot-light);
-    stroke-width: 3;
-    vector-effect: non-scaling-stroke;
+    stroke: var(--autonomous-storm-color);
+    stroke-width: 6;
+    stroke-linejoin: round;
+    filter: var(--autonomous-storm-glow);
+    animation: autonomous-storm-flicker var(--autonomous-storm-flicker-duration) steps(1) infinite;
+}
+
+.autonomous__storm-ring--late {
+    animation-delay: calc(var(--autonomous-storm-flicker-duration) / -2);
+}
+
+/* Running view: lightning. Each bolt draws outward from the antenna or an arm, flickers, and fades; the
+   at-N classes place a bolt, or the flash where it lands, N percent into the storm's beat. */
+.autonomous__bolt {
+    fill: none;
+    stroke: var(--autonomous-spark-core-color);
+    stroke-width: 12;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    opacity: 0;
+    filter: var(--autonomous-spark-glow);
+    animation: autonomous-bolt-strike var(--autonomous-storm-duration) linear infinite;
+}
+
+.autonomous__strike-flash {
+    fill: var(--autonomous-spark-core-color);
     opacity: 0;
     transform-box: fill-box;
     transform-origin: center;
-    animation: autonomous-signal-pulse var(--autonomous-robot-signal-duration) ease-out infinite;
+    filter: var(--autonomous-spark-glow);
+    animation: autonomous-strike-flash var(--autonomous-storm-duration) ease-out infinite;
 }
 
-.autonomous__signal--late {
-    animation-delay: calc(var(--autonomous-robot-signal-duration) / 2);
+.autonomous__strike--at-4 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .04);
 }
 
-/* Running view: robot */
-.autonomous__robot-body {
-    animation: autonomous-robot-bob var(--autonomous-robot-bob-duration) ease-in-out infinite alternate;
+.autonomous__strike--at-20 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .2);
 }
 
+.autonomous__strike--at-24 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .24);
+}
+
+.autonomous__strike--at-40 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .4);
+}
+
+.autonomous__strike--at-44 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .44);
+}
+
+.autonomous__strike--at-55 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .55);
+}
+
+.autonomous__strike--at-59 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .59);
+}
+
+.autonomous__strike--at-70 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .7);
+}
+
+.autonomous__strike--at-74 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .74);
+}
+
+.autonomous__strike--at-85 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .85);
+}
+
+.autonomous__strike--at-89 {
+    animation-delay: calc(var(--autonomous-storm-duration) * .89);
+}
+
+/* The burst: three bolts at once, on the robot's flash beat, landing a moment after they leave. */
+.autonomous__bolt--burst {
+    animation-duration: var(--autonomous-robot-flash-duration);
+}
+
+.autonomous__strike-flash--burst {
+    animation-duration: var(--autonomous-robot-flash-duration);
+    animation-delay: calc(var(--autonomous-robot-flash-duration) * .02);
+}
+
+/* Running view: robot. Flat, with the eyes and mouth cut out, and a double flash on the burst. */
 .autonomous__robot-shape {
     fill: var(--autonomous-robot-color);
+    fill-rule: evenodd;
+    filter: var(--autonomous-robot-rest-glow);
+    animation: autonomous-robot-flash var(--autonomous-robot-flash-duration) linear infinite;
 }
 
-.autonomous__robot-eyes {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: autonomous-robot-scan var(--autonomous-robot-eyes-duration) ease-in-out infinite;
-}
-
-.autonomous__robot-pupil,
-.autonomous__robot-mouth {
-    fill: var(--autonomous-robot-light);
-    filter: var(--autonomous-robot-light-glow);
-}
-
-.autonomous__robot-mouth {
-    opacity: .2;
-    animation: autonomous-robot-chase var(--autonomous-robot-mouth-duration) ease-in-out infinite;
-}
-
-.autonomous__robot-mouth--second {
-    animation-delay: calc(var(--autonomous-robot-mouth-duration) / 4);
-}
-
-.autonomous__robot-mouth--third {
-    animation-delay: calc(var(--autonomous-robot-mouth-duration) / 2);
-}
-
-/* Motion stays out for users who ask the system for less of it; the view still reads as busy. */
+/* Motion stays out for users who ask the system for less of it; the bolts stay drawn, so the view still
+   reads as a storm. */
 @media (prefers-reduced-motion: reduce) {
     .autonomous__status--fresh,
     .autonomous__icon-button--busy .autonomous__icon,
-    .autonomous__ring-arc,
-    .autonomous__signal,
-    .autonomous__robot-body,
-    .autonomous__robot-eyes,
-    .autonomous__robot-mouth {
+    .autonomous__storm,
+    .autonomous__storm-ring,
+    .autonomous__strike-flash,
+    .autonomous__robot-shape {
         animation: none;
     }
 
-    .autonomous__robot-mouth {
-        opacity: 1;
+    .autonomous__bolt {
+        animation: none;
+        opacity: .7;
+        stroke-dashoffset: 0;
     }
 }
 
-@keyframes autonomous-ring-turn {
+@keyframes autonomous-storm-turn {
     to {
         transform: rotate(360deg);
     }
 }
 
-@keyframes autonomous-signal-pulse {
+@keyframes autonomous-storm-flicker {
     0% {
-        opacity: .8;
-        transform: scale(1);
-    }
-
-    100% {
-        opacity: 0;
-        transform: scale(4.5);
-    }
-}
-
-@keyframes autonomous-robot-bob {
-    from {
-        transform: translateY(0);
-    }
-
-    to {
-        transform: translateY(-18px);
-    }
-}
-
-/* The eyes look left, then right, return, and blink once per loop. */
-@keyframes autonomous-robot-scan {
-    0%,
-    100% {
-        transform: translateX(0) scaleY(1);
-    }
-
-    25% {
-        transform: translateX(-14px) scaleY(1);
+        opacity: 1;
     }
 
     50% {
-        transform: translateX(14px) scaleY(1);
-    }
-
-    70% {
-        transform: translateX(0) scaleY(1);
-    }
-
-    74% {
-        transform: translateX(0) scaleY(.1);
-    }
-
-    78% {
-        transform: translateX(0) scaleY(1);
+        opacity: .3;
     }
 }
 
-@keyframes autonomous-robot-chase {
-    0%,
-    100% {
-        opacity: .2;
+@keyframes autonomous-bolt-strike {
+    0% {
+        stroke-dashoffset: 100;
+        opacity: 1;
     }
 
-    40% {
+    3% {
+        stroke-dashoffset: 0;
         opacity: 1;
+    }
+
+    5% {
+        opacity: .25;
+    }
+
+    7% {
+        opacity: 1;
+    }
+
+    9% {
+        opacity: .45;
+    }
+
+    12%,
+    100% {
+        stroke-dashoffset: 0;
+        opacity: 0;
+    }
+}
+
+@keyframes autonomous-strike-flash {
+    0%,
+    2% {
+        opacity: 0;
+        transform: scale(.4);
+    }
+
+    4% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    14%,
+    100% {
+        opacity: 0;
+        transform: scale(2.6);
+    }
+}
+
+/* Two short blinks of the lightning color at the start of each flash beat, then flat again. */
+@keyframes autonomous-robot-flash {
+    0%,
+    2.2%,
+    4.4%,
+    100% {
+        fill: var(--autonomous-robot-color);
+        filter: var(--autonomous-robot-rest-glow);
+    }
+
+    .8%,
+    3% {
+        fill: var(--autonomous-robot-flash-color);
+        filter: var(--autonomous-robot-flash-glow);
     }
 }
 
