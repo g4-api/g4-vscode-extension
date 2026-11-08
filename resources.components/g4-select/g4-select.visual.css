@@ -1,19 +1,56 @@
 /*
- * G4 select visual language: a themed dropdown and themed options.
+ * G4 select visual language: a themed button like g4-toggle-dropdown, a chevron that turns when
+ * the list opens, and a list surface whose rows light up under the mouse or the keyboard. The
+ * picked row keeps a quiet selection color; nothing else is added to it.
  */
-.g4-select__input {
+.g4-select__trigger {
     font-family: inherit;
     color: inherit;
+    cursor: pointer;
     background-color: var(--g4-select-background);
     border-color: var(--g4-select-border-color);
     outline: none;
 }
 
-.g4-select__input:focus {
+.g4-select__trigger:focus-visible,
+.g4-select__trigger[aria-expanded="true"] {
     border-color: var(--g4-select-focus-border-color);
 }
 
-.g4-select__input option {
-    background: var(--g4-select-option-background);
-    color: var(--g4-select-option-foreground);
+.g4-select__trigger:disabled {
+    cursor: default;
+    opacity: var(--g4-select-disabled-opacity);
+}
+
+.g4-select__chevron {
+    transition: var(--g4-select-chevron-transition);
+}
+
+.g4-select__trigger[aria-expanded="true"] .g4-select__chevron {
+    transform: var(--g4-select-chevron-open-transform);
+}
+
+/* The popover keeps the page's text color and font instead of the browser's popover defaults, and
+   a soft shadow lifts it off the content it floats over. */
+.g4-select__panel {
+    font-family: inherit;
+    color: inherit;
+    background-color: var(--g4-select-panel-background);
+    border-color: var(--g4-select-panel-border-color);
+    box-shadow: var(--g4-select-panel-shadow);
+    outline: none;
+}
+
+.g4-select__option {
+    cursor: pointer;
+}
+
+.g4-select__option--selected {
+    color: var(--g4-select-option-selected-foreground);
+    background-color: var(--g4-select-option-selected-background);
+}
+
+/* The highlighted row (mouse or keyboard) wins over the selected color, as in a native list. */
+.g4-select__option--active {
+    background-color: var(--g4-select-option-hover-background);
 }

@@ -3,7 +3,10 @@
  *
  * A dropdown for picking several choices: the button shows what is picked, and opens a list of
  * on/off switches (<g4-toggle>) under it, one per choice. A click outside, or Escape, closes the
- * list; Escape is kept from the modal under it, so closing the list never closes a dialog.
+ * list; Escape is kept from the modal under it, so closing the list never closes a dialog. The list
+ * is a manual popover, so it sits in the browser's top layer: it floats over the page without
+ * pushing it down, and no scrolling section or modal clips it. It opens above the button when there
+ * is more room there, the same as <g4-select>.
  *
  * Contract:
  * - Attributes: choices (JSON array of { value, text, hint }), value (JSON array of picked values),
@@ -20,6 +23,12 @@
 
     // Component name: the custom element tag, the template id prefix, and the default test id prefix.
     const COMPONENT_NAME = 'g4-toggle-dropdown';
+
+    // Tallest the open list grows before it scrolls, the same as g4-select.
+    const PANEL_MAXIMUM_HEIGHT_PIXELS = 240;
+
+    // Gap kept between the open list and the window edge, so the list never touches it.
+    const PANEL_VIEWPORT_MARGIN_PIXELS = 8;
 
     // Names of picked choices the button lists before it switches to a "+N" count, so a long pick
     // still fits on one line.
@@ -156,6 +165,16 @@
             this.#showPanel();
         };
 
+        // Keeps the floating list under its button while the page scrolls or the window resizes.
+        // Scrolling inside the list itself does not move the button, so it is skipped.
+        #onViewportChange = (event) => {
+            if (event?.target === this.#getPanel()) {
+                return;
+            }
+
+            this.#updatePanelPosition();
+        };
+
         /**
          * The picked values, in choice order.
          *
@@ -240,10 +259,11 @@
         }
 
         /**
-         * Removes the outside-click listener when the dropdown leaves the page with its list open.
+         * Removes the document and window listeners when the dropdown leaves the page with its list
+         * open. The browser closes a popover that leaves the page on its own.
          */
         disconnectedCallback() {
-            document.removeEventListener('pointerdown', this.#onDocumentPointerDown);
+            this.#removePanelListeners();
         }
 
         /**
@@ -313,9 +333,14 @@
          * Closes the list and stops listening for outside clicks.
          */
         #hidePanel() {
-            this.#getPanel()?.toggleAttribute('hidden', true);
+            // Close the popover only when it is open; hiding a closed popover throws.
+            if (this.#testPanelOpen()) {
+                this.#getPanel().hidePopover();
+            }
+
+            // Mark the button closed and drop the listeners the open list needed.
             this.#getTrigger()?.setAttribute('aria-expanded', 'false');
-            document.removeEventListener('pointerdown', this.#onDocumentPointerDown);
+            this.#removePanelListeners();
         }
 
         /**
@@ -378,12 +403,36 @@
         }
 
         /**
-         * Opens the list and starts listening for outside clicks.
+         * Removes the listeners that only an open list needs: the outside press, and the page
+         * scroll and window resize that move the list with its button.
+         */
+        #removePanelListeners() {
+            document.removeEventListener('pointerdown', this.#onDocumentPointerDown);
+            globalThis.removeEventListener('scroll', this.#onViewportChange, true);
+            globalThis.removeEventListener('resize', this.#onViewportChange);
+        }
+
+        /**
+         * Opens the list, places it under the button, and starts listening for outside clicks,
+         * page scrolls, and window resizes.
          */
         #showPanel() {
-            this.#getPanel()?.toggleAttribute('hidden', false);
+            const panel = this.#getPanel();
+
+            // A dropdown that has not rendered has no list to open.
+            if (!panel) {
+                return;
+            }
+
+            // Show the popover first, so the list has a size to place it by, then put it under the button.
+            panel.showPopover();
+            this.#updatePanelPosition();
             this.#getTrigger()?.setAttribute('aria-expanded', 'true');
+
+            // While open, an outside press closes the list, and scrolling or resizing moves it with the button.
             document.addEventListener('pointerdown', this.#onDocumentPointerDown);
+            globalThis.addEventListener('scroll', this.#onViewportChange, true);
+            globalThis.addEventListener('resize', this.#onViewportChange);
         }
 
         /**
@@ -394,7 +443,60 @@
         #testPanelOpen() {
             const panel = this.#getPanel();
 
-            return panel !== null && !panel.hidden;
+            return panel !== null && panel.matches(':popover-open');
+        }
+
+        /**
+         * Places the open list under its button, or above it when there is more room there.
+         *
+         * @remarks
+         * Owns the list's position, the same way as g4-select: the list is a popover in the top
+         * layer, so it is placed in window coordinates from the button's box. The list is as wide
+         * as the button, at most PANEL_MAXIMUM_HEIGHT_PIXELS high, and never taller than the room
+         * on its side. A button scrolled out of the window closes the list, so it never floats away
+         * from its button.
+         */
+        #updatePanelPosition() {
+            const panel = this.#getPanel();
+            const trigger = this.#getTrigger();
+
+            // Only an open list has a place to update.
+            const isRendered = panel !== null && trigger !== null;
+
+            if (!isRendered || !this.#testPanelOpen()) {
+                return;
+            }
+
+            // A button that left the window takes its list with it.
+            const triggerBox = trigger.getBoundingClientRect();
+            const isTriggerOutside = triggerBox.bottom < 0 || triggerBox.top > globalThis.innerHeight;
+
+            if (isTriggerOutside) {
+                this.#hidePanel();
+                return;
+            }
+
+            // Match the button's width, then measure the list at its full height.
+            panel.style.left = `${triggerBox.left}px`;
+            panel.style.width = `${triggerBox.width}px`;
+            panel.style.maxHeight = `${PANEL_MAXIMUM_HEIGHT_PIXELS}px`;
+
+            const panelHeight = panel.offsetHeight;
+            const spaceBelow = globalThis.innerHeight - triggerBox.bottom - PANEL_VIEWPORT_MARGIN_PIXELS;
+            const spaceAbove = triggerBox.top - PANEL_VIEWPORT_MARGIN_PIXELS;
+
+            // Open upward only when the list does not fit below and there is more room above.
+            const isAbove = panelHeight > spaceBelow && spaceAbove > spaceBelow;
+            const roomHeight = isAbove ? spaceAbove : spaceBelow;
+            const shownHeight = Math.min(panelHeight, roomHeight);
+            const top = isAbove
+                ? triggerBox.top - shownHeight
+                : triggerBox.bottom;
+
+            // Fit the list into its room and attach it to the button's matching edge.
+            panel.style.maxHeight = `${Math.min(PANEL_MAXIMUM_HEIGHT_PIXELS, roomHeight)}px`;
+            panel.style.top = `${top}px`;
+            panel.classList.toggle('g4-toggle-dropdown__panel--above', isAbove);
         }
 
         /**

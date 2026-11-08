@@ -33,9 +33,15 @@
     transform: var(--g4-toggle-dropdown-chevron-open-transform);
 }
 
+/* The popover keeps the page's text color and font instead of the browser's popover defaults, and
+   a soft shadow lifts it off the content it floats over. */
 .g4-toggle-dropdown__panel {
+    font-family: inherit;
+    color: inherit;
     background-color: var(--g4-toggle-dropdown-panel-background);
     border-color: var(--g4-toggle-dropdown-panel-border-color);
+    box-shadow: var(--g4-toggle-dropdown-panel-shadow);
+    outline: none;
 }
 
 .g4-toggle-dropdown__option:hover {

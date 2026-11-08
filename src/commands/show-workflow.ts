@@ -9,6 +9,10 @@ import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { Utilities } from '../extensions/utilities';
 
+// How long manifest.json must stay quiet before the designer receives its toolboxes filter; one save fires
+// several file events.
+const MANIFEST_SETTLE_MILLISECONDS = 250;
+
 /**
  * Command to create a new project structure in VS Code.
  * This command scaffolds a basic project layout with folders, manifests, and sample files.
@@ -156,6 +160,9 @@ export class ShowWorkflowCommand extends CommandBase {
             await this.resolveMessage(panel, args, message);
         });
 
+        // Send the manifest's toolboxes filter again whenever manifest.json changes, so the toolbox follows live.
+        this.watchManifestToolboxesFilter(panel);
+
         // Finally, assign the processed HTML to the webview to render the app
         panel.webview.html = html;
 
@@ -239,6 +246,44 @@ export class ShowWorkflowCommand extends CommandBase {
         const token = (manifest as { authentication?: { token?: unknown; }; } | undefined)?.authentication?.token;
 
         return typeof token === 'string' ? token : '';
+    }
+
+    /**
+     * Reads the toolboxes filter the designer applies from the project manifest.
+     *
+     * @remarks
+     * Compute-only. Keeps only entries with a non-empty string `name` and a boolean `enabled`, so a
+     * malformed manifest can never hide a tool by accident; a missing or malformed `toolboxesFilter`
+     * reads as an empty filter, which shows every toolbox and tool.
+     *
+     * @param manifest - The project manifest, as Utilities.getManifest returns it.
+     * @returns The filter with only its complete entries.
+     */
+    public static getManifestToolboxesFilter(manifest: unknown): ToolboxesFilter {
+        // Keep the complete entries of one list, so both lists are checked the same way.
+        const getEntries = (entries: unknown): ToolboxesFilterEntry[] => {
+            if (!Array.isArray(entries)) {
+                return [];
+            }
+
+            return entries
+                .filter((entry): entry is ToolboxesFilterEntry => {
+                    const isNamed = typeof entry?.name === 'string' && entry.name.trim() !== '';
+                    const isDecided = typeof entry?.enabled === 'boolean';
+
+                    return isNamed && isDecided;
+                })
+                .map((entry) => ({ enabled: entry.enabled, name: entry.name.trim() }));
+        };
+
+        // Read both lists from the manifest's toolboxesFilter section.
+        const filter = (manifest as { toolboxesFilter?: { toolboxes?: unknown; tools?: unknown; }; } | undefined)
+            ?.toolboxesFilter;
+
+        return {
+            toolboxes: getEntries(filter?.toolboxes),
+            tools: getEntries(filter?.tools)
+        };
     }
 
     /**
@@ -720,6 +765,13 @@ export class ShowWorkflowCommand extends CommandBase {
                     return;
                 }
 
+                // Apply the project manifest's toolboxes filter; the toolbox redraws at once.
+                if (type === 'workflow:toolboxes:set') {
+                    globalThis.G4ToolboxesFilter?.setToolboxesFilterManifest(event.data?.payload?.toolboxesFilter);
+
+                    return;
+                }
+
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
                     return;
@@ -835,6 +887,12 @@ export class ShowWorkflowCommand extends CommandBase {
             });
 
             return;
+        }
+
+        // Send the project's toolboxes filter as soon as the page is ready, so the toolbox shows filtered;
+        // the ready branches below still run.
+        if (message.type === 'webview:ready') {
+            await ShowWorkflowCommand.sendToolboxesFilter(panel, Utilities.getManifest());
         }
 
         // A custom editor imports its open document, which may hold unsaved edits the file on disk lacks.
@@ -1404,4 +1462,92 @@ export class ShowWorkflowCommand extends CommandBase {
             character === '\t' ||
             character === '\f';
     }
+
+    /**
+     * Sends the manifest's toolboxes filter to the designer page.
+     *
+     * @remarks
+     * The page merges it over the browser cookie entry by entry and redraws the toolbox at once.
+     *
+     * @param panel    - The designer tab.
+     * @param manifest - The project manifest to read the filter from.
+     */
+    private static async sendToolboxesFilter(panel: vscode.WebviewPanel, manifest: unknown): Promise<void> {
+        await panel.webview.postMessage({
+            payload: { toolboxesFilter: ShowWorkflowCommand.getManifestToolboxesFilter(manifest) },
+            type: 'workflow:toolboxes:set'
+        });
+    }
+
+    /**
+     * Sends the toolboxes filter again each time manifest.json settles after a change, while the tab is open.
+     *
+     * @remarks
+     * Owns a file watcher and a settle timer, both released when the tab closes. The manifest snapshot is
+     * re-read (Utilities.updateManifest), so other consumers also see the saved manifest. A failed read
+     * is only logged; the page keeps the filter it has.
+     *
+     * @param panel - The designer tab.
+     */
+    private watchManifestToolboxesFilter(panel: vscode.WebviewPanel): void {
+        // Wait for the file to stay quiet, then re-read the manifest and send its filter.
+        let settleTimer: NodeJS.Timeout | undefined;
+
+        const onSendError = (error: unknown) => {
+            const reason = Utilities.resolveErrorMessage(error);
+
+            this._logger?.warning(`The designer could not apply the manifest toolboxes filter: ${reason}`);
+        };
+        const onManifestSettled = () => {
+            try {
+                ShowWorkflowCommand.sendToolboxesFilter(panel, Utilities.updateManifest()).catch(onSendError);
+            } catch (error) {
+                onSendError(error);
+            }
+        };
+        const onManifestFileChanged = () => {
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(onManifestSettled, MANIFEST_SETTLE_MILLISECONDS);
+        };
+
+        // Watch the project manifest file for saves, creation, and deletion.
+        const manifestUri = Utilities.resolveManifestUri();
+        const manifestPattern = new vscode.RelativePattern(path.dirname(manifestUri), path.basename(manifestUri));
+        const watcher = vscode.workspace.createFileSystemWatcher(manifestPattern);
+
+        watcher.onDidChange(onManifestFileChanged);
+        watcher.onDidCreate(onManifestFileChanged);
+        watcher.onDidDelete(onManifestFileChanged);
+
+        // Release the watcher and the pending timer when the user closes the tab.
+        panel.onDidDispose(() => {
+            clearTimeout(settleTimer);
+            watcher.dispose();
+        });
+    }
+}
+
+// Compile-time contracts stay after the executable code; interfaces precede type aliases, and a caller
+// precedes its local dependency chain before A-Z order resumes.
+
+/**
+ * The toolboxes filter the designer applies, as the project manifest's `toolboxesFilter` section holds it.
+ */
+interface ToolboxesFilter {
+    /** The toolbox entries, each naming a plugin category. */
+    toolboxes: ToolboxesFilterEntry[];
+
+    /** The tool entries, each naming a plugin by its qualified Namespace:Key name or its bare key. */
+    tools: ToolboxesFilterEntry[];
+}
+
+/**
+ * One toolbox or tool entry of a toolboxes filter.
+ */
+interface ToolboxesFilterEntry {
+    /** Whether the named toolbox or tool is shown. */
+    enabled: boolean;
+
+    /** The toolbox name, or the qualified or bare tool name. */
+    name: string;
 }
