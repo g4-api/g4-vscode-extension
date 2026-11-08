@@ -6,6 +6,8 @@
 
 `settings.clientLogSettings` controls the **stream of progress messages** G4 sends back to whatever called it — your IDE, a script, an agent. This module tunes how much you see and how often.
 
+> **📝 Note:** The Settings Editor and the starter manifest write this section as `clientLogConfiguration`, while the extension's own output log reads `clientLogSettings`. The two names are not the same key, so a section under one name does not change the other.
+
 ```json
 "clientLogSettings": {
     "agentLogSettings": {

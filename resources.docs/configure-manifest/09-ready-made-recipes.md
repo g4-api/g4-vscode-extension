@@ -102,4 +102,6 @@ Add a `servers` object under `settings.pluginsSettings`, then restart G4 and ope
 
 ---
 
-**That's the path!** 🎉 For quick fixes see the [Troubleshooting checklist](troubleshooting.md); for terms see the [Glossary](glossary.md). Or head **back to** [the overview](README.md).
+**Next up** 👉 [Module 10: Filter the designer toolbox](10-filter-the-designer-toolbox.md)
+
+For quick fixes see the [Troubleshooting checklist](troubleshooting.md); for terms see the [Glossary](glossary.md).

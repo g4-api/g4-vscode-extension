@@ -1,0 +1,131 @@
+# Module 1: Pick a recorder and a capture mode
+
+[⬅ Back to overview](README.md)
+
+**Where you are:** Module 1 of 7
+
+⏱️ **About 8 minutes**
+
+A recording starts with two choices: which recorder watches the application, and how it stores each click. In this module you open the recorder settings, read the options on a recorder card, and pick a capture mode.
+
+In this module, you will:
+
+- Open the **Automation Recorders** section of the Settings Editor
+- Tell the recorder families apart
+- Choose Standard, User32, or Coordinate mode
+- Decide whether to turn on **Use Offset**
+
+---
+
+## Step 1: Open the Automation Recorders section
+
+1. In the Explorer, right-click `manifest.json` and choose **Open Settings Editor**.
+2. Expand the section **Automation Recorders**.
+
+   ![The Automation Recorders section with its three switches and one card per recorder](images/01-automation-recorders-section.png)
+
+   `TODO(screenshot)`: capture the **Automation Recorders** section with the three switches and the recorder cards collapsed.
+
+The section starts with three switches that apply to every recorder:
+
+| Switch | Manifest key | What it does |
+| --- | --- | --- |
+| **Enable Desktop Recording** | `settings.recorderSettings.enabled` | Master switch. When it is off, the **G4 Recorder** panel hides its controls |
+| **Use Sandbox Recorders** | `settings.recorderSettings.useSandbox` | Starts the recorder services from your sandbox when they are not already running |
+| **Turn Off the Chrome Network Sandbox** | `settings.recorderSettings.disableChromeNetworkSandbox` | Starts the recorder's Chrome without its network sandbox. Use it only when recorder pages stay blank |
+
+Below the switches you see one card for each recorder. Click **+ Add Machine** to add another.
+
+---
+
+## Step 2: Tell the recorders apart
+
+A recorder is chosen by its driver. A new project comes with two:
+
+| Recorder | Driver | Default port | What it watches |
+| --- | --- | --- | --- |
+| Desktop | `UiaDriver` | 9955 | Any Windows application, through UI Automation |
+| Browser | `ChromeDriver` | 9956 | A Chrome window that the recorder launches for you |
+
+Each card shows the driver in its title, for example `machine-a - UiaDriver`. Open a card to see its fields:
+
+| Field | Manifest key | What it does |
+| --- | --- | --- |
+| **Enabled** | `enabled` | Turns this machine on or off without removing it |
+| **Friendly Name** | `driverParameters.capabilities.alwaysMatch["uia:options"].label` | A readable name, for example `accounting-pc` |
+| **Recorder Host** | `host` | The machine that runs the recorder service |
+| **Recorder Port** | `port` | The port of the recorder service |
+| **Mode** | `mode` | How a click is stored. See Step 3 |
+| **Use Offset** | `useOffset` | Keeps where inside the element you clicked. See Step 4 |
+
+> **📝 Note:** The Hub accepts only two driver families for recording: `UiaDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
+
+---
+
+## Step 3: Choose a capture mode
+
+The **Mode** list has three choices. It only applies to `UiaDriver` recorders. For any other driver the list is greyed out and the mode is saved as `standard`.
+
+| Mode | Manifest value | A click is stored as | Pick it when |
+| --- | --- | --- | --- |
+| **Standard** | `standard` | An action on the element, for example `InvokeClick`, with a locator | The application exposes its controls well. The flow reads like a normal automation |
+| **User32** | `user32` | A physical mouse click, with a locator for the element under the pointer | Standard clicks do nothing in the application, but you still want a locator to find the element |
+| **Coordinate** | `coordinate` | A physical mouse click at fixed screen coordinates, with no locator | The application exposes no usable controls. The flow only replays correctly if the window sits in the same place |
+
+Typed text follows the same split. Standard mode stores it as `SendKeys`. User32 and Coordinate store it as `SendUser32Keys`.
+
+![The Mode list open on a recorder card](images/01-mode-list.png)
+
+`TODO(screenshot)`: capture the **Mode** list open on a `UiaDriver` card, with **Standard**, **User32**, and **Coordinate** visible.
+
+> **💡 Tip:** Start with **Standard**. Switch to **User32** only when a recorded click does nothing on replay. Use **Coordinate** as the last resort.
+
+---
+
+## Step 4: Decide on Use Offset
+
+**Use Offset** adds the position of the pointer inside the element to each mouse action. Without it, a recorded click lands in the middle of the element. With it, the click lands where you clicked.
+
+- The setting applies to **User32** mode only.
+- It is off by default.
+- Turn it on for large elements such as a canvas or a map, where the middle is the wrong place.
+
+The same recorder in `manifest.json`:
+
+```json
+{
+    "enabled": true,
+    "mode": "user32",
+    "useOffset": true,
+    "schema": "http",
+    "host": "localhost",
+    "port": "9955",
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {
+                "browserName": "Uia",
+                "uia:options": {
+                    "label": "machine-a"
+                }
+            }
+        },
+        "driver": "UiaDriver"
+    }
+}
+```
+
+Click **Save** in the Settings Editor to apply your choices.
+
+---
+
+## ✔ Check your work
+
+- [ ] You can open **Automation Recorders** from the `manifest.json` context menu
+- [ ] You can name the driver of each recorder card
+- [ ] You know that the **Mode** list works only on a `UiaDriver` card
+- [ ] You can say which mode stores a click without a locator
+- [ ] You know that **Use Offset** applies to User32 mode only
+
+---
+
+**Next up** 👉 [Module 2: Start, suspend, resume, and stop](02-start-suspend-resume-and-stop.md)

@@ -20,6 +20,7 @@ In this module, you will:
 - Turn recording on and understand the recorders list
 - Set where each recorder listens and how it captures
 - Configure the recorder's driver and human-paced replay
+- Run a script before or after a recording
 
 ---
 
@@ -43,18 +44,25 @@ Where each recorder listens, and how it captures input.
 
 ```json
 "mode": "standard",
+"useOffset": false,
 "schema": "http",
 "host": "localhost",
 "port": "9955"
 ```
 
-- **`mode`** — the capture strategy. `standard` is the default; `user32` uses Windows native UI events (physical mouse, keyboard, window messages) and is a good, broadly compatible choice for desktop apps.
+- **`mode`** — the capture strategy. It has three values, and it applies to **UIA recorders only** (other recorders ignore it):
+    - `standard` (the default) records element-based actions, such as a click on a located element.
+    - `user32` uses Windows native input (physical mouse, keyboard, window messages) and still finds the element with a locator. It is a good, broadly compatible choice for desktop apps.
+    - `coordinate` records physical input at **absolute screen positions**. The generated actions have no locator, so use it only when the app exposes no usable elements.
+- **`useOffset`** — when `true`, the recorded pointer offset inside the element is added to mouse actions (`--OffsetX` and `--OffsetY`). It applies to `user32` capture only. Default `false`.
 - **`schema` / `host` / `port`** — where the recorder service listens. `localhost:9955` is the default UIA recorder; the Chromium recorder uses `9956`.
 
 **When to use it:**
 
 - **Defaults** for single-machine setups.
 - **Change `host`** when the recorder runs on a different machine than the engine.
+- **`user32` with `useOffset: true`** when clicks must land on the same spot inside the element they were recorded on.
+- **`coordinate`** for apps that draw their own surface, where the recorder cannot see elements.
 
 ---
 
@@ -131,12 +139,48 @@ How G4 records the **pauses between user actions**. This is the most commonly mi
 
 ---
 
+## Step 5: `preScript` and `postScript` — run a script around a recording
+
+Each recorder can run one script **before** capture starts and one **after** it stops. Use them to open the app you want to record, or to clean up afterwards.
+
+```json
+"preScript": {
+    "enabled": true,
+    "shell": "powershell",
+    "script": "Start-Process notepad.exe",
+    "addToAutomationFlow": false
+},
+"postScript": {
+    "enabled": false,
+    "shell": "powershell",
+    "script": "",
+    "addToAutomationFlow": false
+}
+```
+
+- **`enabled`** — turns the script on. Both scripts are off by default.
+- **`shell`** — the interpreter: `powershell`, `pwsh` (PowerShell 7), `bash` or `cmd`.
+- **`script`** — the inline script text.
+- **`addToAutomationFlow`** — when `true`, the script is **also** added to the recorded automation as an `InvokeScript` action: the pre-script as the **first** action, the post-script just **before Close Browser**. It only runs on replay for drivers that support the chosen shell.
+
+How the scripts behave while recording:
+
+- Each script runs once, on the machine that runs VS Code, and is stopped after **30 seconds**.
+- A pre-script that exits with a non-zero code, or times out, **aborts that recorder's start**.
+- A post-script failure is reported but does **not** block the shutdown of the recorder.
+
+> **⚠️ Pitfall:** A script marked `addToAutomationFlow` cannot contain `}}`, `{{` or a space followed by `--` and a word. Those sequences break the macro that carries the script, so the script is **not added** to the automation, and the Settings Editor shows a notice under the script box. The script still runs while recording.
+
+---
+
 ## ✔ Check your work
 
 - [ ] Top-level `enabled` is `true`, and each recorder you want is enabled
 - [ ] `useSandbox` is `true` if you want G4 to start the bundled recorders for you
 - [ ] Each recorder's `host`/`port` matches where its service listens (`9955` UIA, `9956` Chromium)
 - [ ] `thinkTimeSettings` fits the app — a range, a constant (`min == max`), or disabled for speed
+- [ ] `mode` is the one you want (`standard`, `user32` or `coordinate`), and `useOffset` is on only for `user32`
+- [ ] Any pre- or post-script uses a `shell` your machine has, and exits with `0`
 
 ---
 

@@ -23,6 +23,7 @@ By the end you will be able to:
 - Choose the automation driver and tune how workflows run
 - Control logging, reports, screenshots, and what comes back after a run
 - Set up desktop recording, and extend G4 with plugins and MCP tools
+- Hide the designer toolboxes and tools you do not use
 - Reach for a ready-made recipe when you just want a known-good setup
 
 ## Prerequisites
@@ -49,8 +50,11 @@ Work through these in order, or jump to the setting you need.
 | 7 | [Set up desktop recording](07-set-up-recording.md) | Configure recorders and human-paced replay | ~6 min |
 | 8 | [Extend G4 — plugins & MCP](08-extend-g4.md) | Add plugin sources and turn MCP tools into G4 plugins | ~5 min |
 | 9 | [Ready-made recipes](09-ready-made-recipes.md) | Copy-paste configurations for common situations | ~3 min |
+| 10 | [Filter the designer toolbox](10-filter-the-designer-toolbox.md) | Hide toolboxes and tools you do not use | ~4 min |
 
 **Reference pages:** [Troubleshooting checklist](troubleshooting.md) · [Glossary](glossary.md)
+
+> **📝 Note:** Letting an AI agent explore an app and record flows for you uses its own settings (`settings.autonomousSettings`). See the [Autonomous Exploratory Run](../autonomous-run/README.md) path.
 
 ---
 
