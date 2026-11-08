@@ -1,6 +1,8 @@
 /*
- * G4 select layout: a 30px-high dropdown (the same height as a text box; a native select has a
- * taller intrinsic box, so equal padding alone is not enough), with any buttons after it.
+ * G4 select layout: a 30px-high button (the height of a text box and of g4-toggle-dropdown), with
+ * any buttons after it on its row. The list is a popover in the top layer: it floats over the page
+ * without pushing it, and no scrolling modal or section clips it. g4-select.js places it in window
+ * coordinates under the button (or above it) and sets its width and maximum height.
  */
 g4-select {
     display: flex;
@@ -9,16 +11,75 @@ g4-select {
 
 .g4-select__wrap {
     display: flex;
+    flex-direction: column;
+}
+
+.g4-select__row {
+    display: flex;
     align-items: stretch;
     gap: 6px;
 }
 
-.g4-select__input {
+.g4-select__trigger {
+    display: flex;
     flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
     width: 100%;
     height: 30px;
     padding: 6px 8px;
     font-size: 12px;
+    text-align: left;
     border-width: 1px;
     border-style: solid;
+}
+
+.g4-select__summary {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.g4-select__chevron {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* The floating list replaces the browser's centered popover box with one the script places. It
+   hangs under the button and shares its side borders, with no top border of its own. */
+.g4-select__panel {
+    position: fixed;
+    inset: auto;
+    box-sizing: border-box;
+    max-height: 240px;
+    margin: 0;
+    overflow: auto;
+    padding: 4px 0;
+    border-width: 0 1px 1px;
+    border-style: solid;
+}
+
+/* Only the open list takes the column layout; a closed popover keeps the browser's display: none. */
+.g4-select__panel:popover-open {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A list opened upward sits on the button and shares its top edge instead. */
+.g4-select__panel--above {
+    border-width: 1px 1px 0;
+}
+
+/* The same padding and text size as the toggle dropdown rows, so both lists read alike. */
+.g4-select__option {
+    flex-shrink: 0;
+    padding: 8px 10px;
+    overflow: hidden;
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }

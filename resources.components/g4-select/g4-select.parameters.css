@@ -1,10 +1,19 @@
 /*
- * G4 select parameters, mapped to VS Code theme variables.
+ * G4 select parameters, mapped to VS Code theme variables. The same theme colors as
+ * g4-toggle-dropdown, so a dropdown and a toggle dropdown look alike side by side; the values are
+ * this component's own, so neither component reads the other's parameters.
  */
 :root {
     --g4-select-background: var(--vscode-input-background, transparent);
     --g4-select-border-color: var(--vscode-input-border, var(--vscode-panel-border));
+    --g4-select-chevron-open-transform: rotate(180deg);
+    --g4-select-chevron-transition: transform .15s;
+    --g4-select-disabled-opacity: .6;
     --g4-select-focus-border-color: var(--vscode-focusBorder);
-    --g4-select-option-background: var(--vscode-dropdown-background, var(--vscode-editor-background));
-    --g4-select-option-foreground: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));
+    --g4-select-option-hover-background: var(--vscode-list-hoverBackground, transparent);
+    --g4-select-option-selected-background: var(--vscode-list-inactiveSelectionBackground, var(--g4-select-option-hover-background));
+    --g4-select-option-selected-foreground: var(--vscode-list-inactiveSelectionForeground, currentColor);
+    --g4-select-panel-background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    --g4-select-panel-border-color: var(--vscode-dropdown-border, var(--vscode-panel-border));
+    --g4-select-panel-shadow: 0 4px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, .36));
 }

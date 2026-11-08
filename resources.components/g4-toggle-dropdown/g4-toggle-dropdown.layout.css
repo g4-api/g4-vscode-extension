@@ -1,7 +1,8 @@
 /*
- * G4 toggle dropdown layout: a 30px-high trigger (the height of g4-select), with the switch list
- * opening in the page flow under it. In flow rather than floating, so a scrolling modal or section
- * never clips the list.
+ * G4 toggle dropdown layout: a 30px-high trigger (the height of g4-select). The switch list is a
+ * popover in the top layer: it floats over the page without pushing it, and no scrolling modal or
+ * section clips it. g4-toggle-dropdown.js places it in window coordinates under the trigger (or
+ * above it) and sets its width and maximum height.
  */
 g4-toggle-dropdown {
     display: flex;
@@ -40,19 +41,29 @@ g4-toggle-dropdown {
     flex-shrink: 0;
 }
 
-/* The list hangs under the trigger and shares its side borders. */
+/* The floating list replaces the browser's centered popover box with one the script places. It
+   hangs under the trigger and shares its side borders, with no top border of its own. */
 .g4-toggle-dropdown__panel {
-    display: flex;
-    flex-direction: column;
+    position: fixed;
+    inset: auto;
+    box-sizing: border-box;
     max-height: 240px;
+    margin: 0;
     overflow: auto;
     padding: 4px 0;
     border-width: 0 1px 1px;
     border-style: solid;
 }
 
-.g4-toggle-dropdown__panel[hidden] {
-    display: none;
+/* Only the open list takes the column layout; a closed popover keeps the browser's display: none. */
+.g4-toggle-dropdown__panel:popover-open {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A list opened upward sits on the trigger and shares its top edge instead. */
+.g4-toggle-dropdown__panel--above {
+    border-width: 1px 1px 0;
 }
 
 .g4-toggle-dropdown__option {

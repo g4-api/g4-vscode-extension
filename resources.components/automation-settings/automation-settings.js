@@ -1807,7 +1807,7 @@ function showItem(cardId) {
     // Open the card, bring it into view, and put the caret in its first field.
     card.open = true;
     card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    card.querySelector('input[type=text], input[type=number], input[type=password], textarea, select')?.focus();
+    card.querySelector('input[type=text], input[type=number], input[type=password], textarea, g4-select')?.focus();
 }
 
 /**

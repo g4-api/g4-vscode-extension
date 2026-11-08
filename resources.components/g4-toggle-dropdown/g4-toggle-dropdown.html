@@ -1,6 +1,7 @@
 <!--
-    G4 toggle dropdown: a button that shows what is picked and opens a list of on/off switches below
-    it, one per choice. See g4-toggle-dropdown.js.
+    G4 toggle dropdown: a button that shows what is picked and opens a floating list of on/off
+    switches over the page (a manual popover, drawn above every layer), one per choice.
+    See g4-toggle-dropdown.js.
 -->
 <template id="g4-toggle-dropdown-template" data-dependencies="g4-toggle">
     <div class="g4-toggle-dropdown__wrap" data-part="wrap">
@@ -19,7 +20,7 @@
         <div class="g4-toggle-dropdown__panel"
              data-part="panel"
              data-test-id="panel"
-             hidden
+             popover="manual"
              role="group"></div>
     </div>
 </template>
