@@ -65,6 +65,10 @@ jobs:
       shell: pwsh
       run: npm install
 
+    - name: Check Documentation Drift
+      shell: pwsh
+      run: npm run check:doc-drift
+
     - name: Install VSCE
       shell: pwsh
       run: npm install -g @vscode/vsce@latest --force

@@ -68,3 +68,7 @@ Check these:
 ---
 
 **Back to** 👉 [the overview](README.md)
+
+---
+
+For messages from other parts of G4 Studio, see the [product-level troubleshooting page](../troubleshooting.md).

@@ -1,0 +1,23 @@
+name: Markdown lint
+
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lint changed Markdown files
+        uses: g4-api/g4-github-actions/actions/lint-markdown@v1
+        with:
+          base-ref: ${{ github.base_ref }}

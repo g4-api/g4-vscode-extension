@@ -1,0 +1,4 @@
+# Documentation changes are reviewed by the docs team.
+# Both folder names are listed because the repos use either one.
+/docs/ @g4-api/docs
+/resources.docs/ @g4-api/docs

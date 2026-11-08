@@ -6,7 +6,7 @@ Some parts of your automations get repeated: log in, search for a word, fill in 
 
 The **Template Publisher** is a form inside VS Code. You right-click a bot, pick the part you want to reuse, fill in a few boxes, and press **Publish**. G4 sends the template to the **G4 Hub** and saves a copy as a file in your project.
 
-Plan for about **25 minutes** the first time through.
+Plan for about **30 minutes** the first time through.
 
 ---
 
@@ -25,6 +25,7 @@ By the end you will be able to:
 - Understand the **rules**, the token warnings, and what G4 cleans up for you
 - Add the **example** that every template needs
 - **Publish** and fix the most common problems
+- **Bulk-upload** many template files with one command
 
 ## Prerequisites
 
@@ -48,6 +49,7 @@ Work through these in order. Each one builds on the previous.
 | 4 | [Understand the rules](04-understand-the-rules.md) | See what is published, and how tokens and clean-up work | ~4 min |
 | 5 | [Add an example](05-add-an-example.md) | Show how a rule calls your template | ~3 min |
 | 6 | [Publish your template](06-publish-your-template.md) | Press **Publish**, handle warnings, and read the result | ~4 min |
+| 7 | [Bulk-upload with Update-Template](07-bulk-upload-with-update-template.md) | Upload many template files at once | ~4 min |
 
 **Stuck along the way?** See [Troubleshooting](troubleshooting.md).
 

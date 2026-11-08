@@ -111,7 +111,7 @@ In the **Run Behavior** section, turn on **Include detailed results** (a rich, n
 
 Then, in the **Reports** section, turn on both:
 
-- **Save a report after each run** — writes an HTML report to disk.
+- **Save a report after each run** — saves a `.g4rpt` report file (Base64-encoded JSON of the engine response) under `<reportsFolder>/reports/`. Open it later with **Open in Report Viewer**.
 - **Open the report automatically** — pops the report open when a run finishes.
 
 ![The Reports section with Save and Open the report automatically turned on](images/06-reports-section.png)

@@ -85,4 +85,6 @@ In the **Explorer**, open the **`templates`** folder. Your template is there as 
 
 ---
 
+**Next up** 👉 [Module 7: Bulk-upload with Update-Template](07-bulk-upload-with-update-template.md)
+
 **You did it** 🎉 Your steps are now a reusable template. Bots can call it by its key.

@@ -18,6 +18,10 @@ const EXTERNAL_LINK_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 const MARKDOWN_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx']);
 
+// The packaged index is published under a friendly name, so root pages that link to it need the new target.
+const DOCUMENTATION_INDEX_SOURCE_FILE_NAME = 'g4-learning.md';
+const DOCUMENTATION_INDEX_DESTINATION_LINK = 'G4%20Learning%20Paths.md';
+
 // Buttons of the dialog shown when the folder already holds a project; a modal dialog adds its own Cancel.
 const OPEN_EXISTING_PROJECT_ACTION = 'Open Existing Project';
 const OVERWRITE_PROJECT_ACTION = 'Overwrite Project';
@@ -245,6 +249,66 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
+     * Copies the Markdown pages that sit directly in the packaged documentation root.
+     *
+     * @remarks
+     * Pages such as the product-level troubleshooting and recipes live beside the learning-path
+     * folders, so directory discovery never sees them. The index is skipped because it is
+     * published separately under its friendly name. A failure is logged and does not block the
+     * rest of the documentation.
+     *
+     * @param options - Source, destination, mapping, and logging dependencies for the copy.
+     */
+    private static copyDocumentationRootFiles(options: DocumentationRootFilesOptions): void {
+        try {
+            // Read entry metadata in one call so file and extension decisions need no extra checks.
+            const entries = fs.readdirSync(options.documentationSourcePath, { withFileTypes: true });
+
+            for (const entry of entries) {
+                const extension = path.extname(entry.name).toLowerCase();
+                const isRootMarkdownFile = entry.isFile() && MARKDOWN_EXTENSIONS.has(extension);
+
+                // Leave folders to the learning-path copy and the index to its dedicated stage.
+                if (!isRootMarkdownFile || entry.name === DOCUMENTATION_INDEX_SOURCE_FILE_NAME) {
+                    continue;
+                }
+
+                // Rewrite learning-path links to the friendly folder names, then point index links at
+                // the published index so no root page links to a file the project does not contain.
+                const content = fs.readFileSync(
+                    path.join(options.documentationSourcePath, entry.name),
+                    'utf8'
+                );
+                const updatedContent = this.updateDocumentationLinks(
+                    content,
+                    options.destinationNamesBySourceName
+                ).replaceAll(
+                    `](${DOCUMENTATION_INDEX_SOURCE_FILE_NAME}`,
+                    `](${DOCUMENTATION_INDEX_DESTINATION_LINK}`
+                );
+
+                // Write through the shared helper so a failed write is logged like every other scaffold file.
+                this.writeFile({
+                    content: updatedContent,
+                    directoryPath: options.documentationDestinationPath,
+                    fileName: entry.name,
+                    logger: options.logger
+                });
+            }
+        } catch (error: unknown) {
+            // Isolate the failure so the learning paths copied beside these pages stay available.
+            const copyError = this.getError(error);
+
+            options.logger?.error(
+                `Failed to copy documentation pages from ${options.documentationSourcePath}: ` +
+                copyError.message,
+                undefined,
+                copyError
+            );
+        }
+    }
+
+    /**
      * Seeds the project with Chrome and UIA automation bases.
      *
      * @param projectSelection - Folder selected as the project root.
@@ -410,6 +474,14 @@ export class NewProjectCommand extends CommandBase {
         // Write the root index first so users always have the learning-path entry point whenever
         // individual directory copies succeed.
         this.writeDocumentationIndex({
+            destinationNamesBySourceName: destinationNamesBySourceName,
+            documentationDestinationPath: documentationDestinationPath,
+            documentationSourcePath: documentationSourcePath,
+            logger: logger
+        });
+
+        // Copy the root-level pages next so product-level help reaches the project beside the paths.
+        this.copyDocumentationRootFiles({
             destinationNamesBySourceName: destinationNamesBySourceName,
             documentationDestinationPath: documentationDestinationPath,
             documentationSourcePath: documentationSourcePath,
@@ -1422,7 +1494,7 @@ export class NewProjectCommand extends CommandBase {
         // Resolve the packaged index independently from destination naming so the source remains stable.
         const sourceFilePath = path.join(
             options.documentationSourcePath,
-            'g4-learning.md'
+            DOCUMENTATION_INDEX_SOURCE_FILE_NAME
         );
 
         try {
@@ -1565,6 +1637,27 @@ interface DocumentationIndexOptions {
     documentationSourcePath: string;
 
     /** Optional command logger that receives recoverable index-generation failures. */
+    logger?: Logger;
+}
+
+/**
+ * Dependencies required to copy the Markdown pages that sit in the documentation root.
+ *
+ * @remarks
+ * These pages share the discovery map with directory copies so their learning-path links
+ * target the final friendly destination tree.
+ */
+interface DocumentationRootFilesOptions {
+    /** Complete source-slug to friendly-name map used for link rewriting. */
+    destinationNamesBySourceName: ReadonlyMap<string, string>;
+
+    /** Absolute generated documentation root that receives the copied pages. */
+    documentationDestinationPath: string;
+
+    /** Absolute packaged documentation root that holds the pages. */
+    documentationSourcePath: string;
+
+    /** Optional command logger that receives recoverable copy failures. */
     logger?: Logger;
 }
 

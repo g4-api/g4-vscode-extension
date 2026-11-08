@@ -8,7 +8,7 @@ After a run, G4 can produce a report, capture screenshots, and return extra data
 
 In this module, you will:
 
-- Configure the HTML run report
+- Configure the run report
 - Decide whether and how screenshots are captured
 - Toggle the extra response data (environments, exceptions, performance points)
 
@@ -16,7 +16,7 @@ In this module, you will:
 
 ## Step 1: `clientReportSettings` — the run report
 
-**What it is** — controls the **HTML report** G4 produces after a run.
+**What it is** — controls the **report** G4 produces after a run.
 
 ```json
 "clientReportSettings": {
@@ -26,9 +26,9 @@ In this module, you will:
 }
 ```
 
-- `saveReports: true` — writes the HTML report to disk.
+- `saveReports: true` — saves each run as a `.g4rpt` file (the engine response as Base64-encoded JSON) to disk. Open it with **Open in Report Viewer**.
 - `reportsFolder` — the **parent path** under which a `reports/` subfolder is created. So `"."` writes the report under **`./reports/`**, not directly into `.`.
-- `autoView: true` — opens the report in your default browser when the run finishes.
+- `autoView: true` — opens the report in the G4 Report Viewer tab inside VS Code when the run finishes.
 
 **When to use it:**
 

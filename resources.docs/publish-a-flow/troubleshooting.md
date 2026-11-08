@@ -66,3 +66,7 @@ Find your symptom below. Each entry says what you see, why it happens, and what 
 ---
 
 **Still stuck?** Open the **Output** panel in VS Code (**View**, then **Output**) and choose **G4 Extension** (or **G4 Hub**) from the drop-down. These logs record each publish attempt and the reason it failed.
+
+---
+
+For messages from other parts of G4 Studio, see the [product-level troubleshooting page](../troubleshooting.md).

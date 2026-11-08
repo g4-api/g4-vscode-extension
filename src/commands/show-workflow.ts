@@ -13,6 +13,9 @@ import { Utilities } from '../extensions/utilities';
 // several file events.
 const MANIFEST_SETTLE_MILLISECONDS = 250;
 
+// Workspace state key prefix of the designer plugins' state; the bot file's URI completes the key.
+const PLUGIN_STATES_KEY_PREFIX = 'g4.designerPlugins.states:';
+
 /**
  * Command to create a new project structure in VS Code.
  * This command scaffolds a basic project layout with folders, manifests, and sample files.
@@ -287,6 +290,74 @@ export class ShowWorkflowCommand extends CommandBase {
     }
 
     /**
+     * Returns the designer plugins' saved state for one bot file, keyed by plugin name.
+     *
+     * @remarks
+     * Compute-only read of the workspace state. A designer that has no bot file (opened without one)
+     * has no saved state, and a malformed entry reads as none, so a plugin starts from its defaults.
+     *
+     * @param workspaceState - The extension's workspace state.
+     * @param documentUri    - The bot file the designer shows; undefined when it shows none.
+     * @returns The saved state of each plugin.
+     */
+    public static getPluginStates(workspaceState: vscode.Memento, documentUri: string | undefined): PluginStates {
+        // Only a designer bound to a bot file keeps plugin state.
+        if (!documentUri) {
+            return {};
+        }
+
+        // Read the bot's entry; anything other than an object of plugin states counts as none.
+        const states: unknown = workspaceState.get(PLUGIN_STATES_KEY_PREFIX + documentUri);
+        const isStates = states !== null && typeof states === 'object' && !Array.isArray(states);
+
+        return isStates ? states as PluginStates : {};
+    }
+
+    /**
+     * Saves one designer plugin's state for a bot file in the workspace state.
+     *
+     * @remarks
+     * The state is kept outside the bot file, so it never marks the document dirty, and per workspace,
+     * so it stays out of source control. A null state removes the plugin's entry, and a bot without
+     * any plugin state left removes its whole entry. A designer without a bot file, and a message
+     * without a plugin name, are ignored.
+     *
+     * @param workspaceState - The extension's workspace state.
+     * @param documentUri    - The bot file the designer shows; undefined when it shows none.
+     * @param payload        - The page's save message payload: { plugin, state }.
+     */
+    public static async savePluginState(
+        workspaceState: vscode.Memento,
+        documentUri: string | undefined,
+        payload: unknown
+    ): Promise<void> {
+        // Accept only a named plugin, from a designer bound to a bot file.
+        const { plugin, state } = (payload ?? {}) as { plugin?: unknown; state?: unknown; };
+        const isSavable = Boolean(documentUri) && typeof plugin === 'string' && plugin.trim() !== '';
+
+        if (!isSavable) {
+            return;
+        }
+
+        // Set or remove the plugin's entry in a copy of the bot's states.
+        const states = { ...ShowWorkflowCommand.getPluginStates(workspaceState, documentUri) };
+        const isRemoved = state === null || state === undefined;
+
+        if (isRemoved) {
+            delete states[plugin];
+        } else {
+            states[plugin] = state;
+        }
+
+        // Keep the bot's entry only while it still holds a plugin state.
+        const storageKey = PLUGIN_STATES_KEY_PREFIX + documentUri;
+        const isEmpty = Object.keys(states).length === 0;
+        const storedStates = isEmpty ? undefined : states;
+
+        await workspaceState.update(storageKey, storedStates);
+    }
+
+    /**
      * Describes why the designer download failed, for the failure message.
      *
      * @remarks
@@ -503,6 +574,24 @@ export class ShowWorkflowCommand extends CommandBase {
         <script>
             // Acquire the VS Code API for sending messages back to the extension
             const vscode = window.vscodeApi;
+
+            // The designer plugins' state for the open bot, as the extension keeps it, keyed by plugin name.
+            const pluginStates = {};
+
+            // Keep the designer plugins' state in the extension, per bot file: the webview's own storage
+            // does not outlive the tab. The bot file names the state, so the automation title is not used.
+            globalThis.G4DesignerPlugins?.setStateStorage({
+                readState: (pluginName) => pluginStates[pluginName] ?? null,
+                saveState: (pluginName, documentTitle, state) => {
+                    const savedState = state ?? null;
+
+                    pluginStates[pluginName] = savedState;
+                    vscode.postMessage({
+                        payload: { plugin: pluginName, state: savedState },
+                        type: 'workflow:plugins:state:save'
+                    });
+                }
+            });
 
             // Get the drop area element by its ID in the DOM
             const dropArea = document.getElementById('designer');
@@ -772,6 +861,18 @@ export class ShowWorkflowCommand extends CommandBase {
                     return;
                 }
 
+                // Hand each plugin its saved state for this bot; it arrives before the bot's import.
+                if (type === 'workflow:plugins:state:set') {
+                    const states = event.data?.payload?.states ?? {};
+
+                    for (const [pluginName, state] of Object.entries(states)) {
+                        pluginStates[pluginName] = state;
+                        globalThis.G4DesignerPlugins?.receiveState(pluginName, state);
+                    }
+
+                    return;
+                }
+
                 // Exit if the message type is not 'workflow:import'
                 if (type !== 'workflow:import') {
                     return;
@@ -790,7 +891,8 @@ export class ShowWorkflowCommand extends CommandBase {
      * Supported message types:
      * - workflow:import - Reads a workflow file and sends its content back to the webview.
      * - workflow:token:get - Answers with the manifest's license token for a run that has none.
-     * - webview:ready   - Sends an initial workflow to the webview when available.
+     * - workflow:plugins:state:save - Keeps a designer plugin's state for the bot file.
+     * - webview:ready   - Sends the plugins' state, then an initial workflow to the webview when available.
      * - workflow:result - Opens the generated workflow report.
      * - console         - Writes webview console messages to the extension logger.
      *
@@ -889,10 +991,20 @@ export class ShowWorkflowCommand extends CommandBase {
             return;
         }
 
-        // Send the project's toolboxes filter as soon as the page is ready, so the toolbox shows filtered;
-        // the ready branches below still run.
+        // A designer plugin saved its state for the open bot (a collapsed region); keep it per bot file.
+        const documentUri = typeof args?.fileUri === 'string' ? args.fileUri : undefined;
+
+        if (message.type === 'workflow:plugins:state:save') {
+            await ShowWorkflowCommand.savePluginState(this.context.workspaceState, documentUri, message.payload);
+
+            return;
+        }
+
+        // Send the project's toolboxes filter and the plugins' saved state as soon as the page is ready,
+        // before the bot is imported, so both apply to its first drawing; the ready branches below still run.
         if (message.type === 'webview:ready') {
             await ShowWorkflowCommand.sendToolboxesFilter(panel, Utilities.getManifest());
+            await ShowWorkflowCommand.sendPluginStates(panel, this.context.workspaceState, documentUri);
         }
 
         // A custom editor imports its open document, which may hold unsaved edits the file on disk lacks.
@@ -1464,6 +1576,28 @@ export class ShowWorkflowCommand extends CommandBase {
     }
 
     /**
+     * Sends the designer plugins' saved state for the open bot file to the designer page.
+     *
+     * @remarks
+     * Sent on webview:ready, before the bot is imported, so each plugin already holds its state when
+     * the designer draws the bot. A designer without a bot file receives an empty set.
+     *
+     * @param panel          - The designer tab.
+     * @param workspaceState - The extension's workspace state.
+     * @param documentUri    - The bot file the designer shows; undefined when it shows none.
+     */
+    private static async sendPluginStates(
+        panel: vscode.WebviewPanel,
+        workspaceState: vscode.Memento,
+        documentUri: string | undefined
+    ): Promise<void> {
+        await panel.webview.postMessage({
+            payload: { states: ShowWorkflowCommand.getPluginStates(workspaceState, documentUri) },
+            type: 'workflow:plugins:state:set'
+        });
+    }
+
+    /**
      * Sends the manifest's toolboxes filter to the designer page.
      *
      * @remarks
@@ -1551,3 +1685,12 @@ interface ToolboxesFilterEntry {
     /** The toolbox name, or the qualified or bare tool name. */
     name: string;
 }
+
+/**
+ * The designer plugins' saved state for one bot file, keyed by plugin name.
+ *
+ * @remarks
+ * Each value belongs to its plugin, which validates it when it reads it back; the extension only
+ * keeps and returns it.
+ */
+type PluginStates = Record<string, unknown>;

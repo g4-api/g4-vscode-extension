@@ -10,6 +10,7 @@ In this module, you will:
 
 - Create a new G4 project into an empty folder
 - Understand the "empty folder" rule (it trips up newcomers)
+- Know what G4 asks when the folder already holds a project
 - Choose which **sandbox** the project uses
 - Confirm the status bar says **G4 Engine is Connected and Ready**
 
@@ -47,7 +48,27 @@ A folder picker opens. Select the **empty folder** you made in Step 1, then conf
 
 ---
 
-## Step 4: Choose the sandbox location
+## Step 4: Answer the question about an existing project
+
+If the folder you picked **already holds a G4 project** (it has a `src\manifest.json`), VS Code stops and asks a question in a box in the middle of the window: **This folder already holds a G4 project.** If the folder is new or empty, you do not see it, and you can go straight to Step 5.
+
+You get two buttons, plus **Cancel**:
+
+| Button | What it does |
+| --- | --- |
+| **Open Existing Project** | Opens the folder as it is. Nothing is created or changed. |
+| **Overwrite Project** | Rewrites every file G4 generates: `src\manifest.json` (with its license token, sandbox and server settings), the base bots, the base templates, the `.vscode` configuration, and the documentation. Files in `bots`, `templates` and `environments` are kept. |
+| **Cancel** | Stops the command. |
+
+![The question: This folder already holds a G4 project, with Open Existing Project and Overwrite Project](images/04-existing-project.png)
+
+TODO(screenshot): the existing-project question with its two buttons.
+
+> **⚠️ Important:** **Overwrite Project** replaces your `manifest.json`, so your token is lost. Back it up first, or choose **Open Existing Project**.
+
+---
+
+## Step 5: Choose the sandbox location
 
 Next, a **G4 Sandbox Location** picker appears — *"Choose how to set the G4 sandbox location for this project."* This is where you attach the project to a sandbox. You get three choices:
 
@@ -63,13 +84,18 @@ For this guide, choose **Auto-detect latest G4 sandbox**.
 
 > **📝 Note:** Picked **Skip** by accident, or need to point at a different sandbox later? You can add or change the sandbox anytime from the Settings Editor — see [Module 11](11-change-your-sandbox.md).
 
-After you choose, G4 creates the project structure inside your folder — including a `manifest.json` and a couple of base folders you'll use later.
+After you choose, G4 creates the project structure inside your folder:
+
+- `docs`, `build` and `scripts` at the top, and a `src` folder that holds the project itself.
+- Inside `src`: `manifest.json`, the `bots`, `templates` and `environments` folders where your work goes, the `base.bots` and `base.templates` starter files, and `resources`.
+- Inside `src`, the folders `.agents`, `.claude` and `.github`, created **empty**, and `.vscode` with an `mcp.json` that points AI tools at the G4 Hub.
+- The learning paths, copied into `docs`.
 
 ![The new project files in the VS Code Explorer](images/04-project-created.png)
 
 ---
 
-## Step 5: Confirm the engine is connected
+## Step 6: Confirm the engine is connected
 
 Look at the **status bar** along the bottom edge of VS Code. After a short moment it should say:
 
@@ -88,6 +114,7 @@ This means VS Code found the running engine (the **G4 Hub** window from Module 2
 - [ ] You created the project inside a **dedicated empty folder**
 - [ ] You chose a **sandbox** (Auto-detect) when prompted
 - [ ] The Explorer shows the new project files (including `manifest.json`)
+- [ ] If the folder already held a project, you chose **Open Existing Project** or **Overwrite Project** on purpose
 - [ ] The status bar says **G4 Engine is Connected and Ready**
 
 ---

@@ -21,7 +21,7 @@ Verbose logs, live progress, reports that open themselves, screenshots on every 
 
 ```json
 "settings": {
-    "clientLogSettings": { "logLevel": "debug", "agentLogSettings": { "enabled": true, "interval": 500 } },
+    "clientLogConfiguration": { "logLevel": "debug", "agentLogConfiguration": { "enabled": true, "interval": 500 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": true, "reportsFolder": "." },
     "exceptionsSettings": { "returnExceptions": true },
@@ -38,7 +38,7 @@ Quieter logs, no auto-opening browser, screenshots only when something fails —
 
 ```json
 "settings": {
-    "clientLogSettings": { "logLevel": "warning", "agentLogSettings": { "enabled": true, "interval": 2000 } },
+    "clientLogConfiguration": { "logLevel": "warning", "agentLogConfiguration": { "enabled": true, "interval": 2000 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": false, "reportsFolder": "./ci-reports" },
     "exceptionsSettings": { "returnExceptions": true },
@@ -102,4 +102,6 @@ Add a `servers` object under `settings.pluginsSettings`, then restart G4 and ope
 
 ---
 
-**That's the path!** 🎉 For quick fixes see the [Troubleshooting checklist](troubleshooting.md); for terms see the [Glossary](glossary.md). Or head **back to** [the overview](README.md).
+**Next up** 👉 [Module 10: Filter the designer toolbox](10-filter-the-designer-toolbox.md)
+
+For quick fixes see the [Troubleshooting checklist](troubleshooting.md); for terms see the [Glossary](glossary.md).

@@ -24,6 +24,8 @@ In this module, you will:
 | `authentication` | Token that proves you're allowed to use the engine |
 | `driverParameters` | The default automation driver (e.g., Chrome) |
 | `settings` | A container for all run-behavior settings (logging, timeouts, reports, plugins, recorders, and more) |
+| `sandbox` | Optional. The folder of your local G4 sandbox ([Module 2](02-connect-to-the-engine.md)) |
+| `toolboxesFilter` | Optional. Hides toolboxes and tools in the designer ([Module 10](10-filter-the-designer-toolbox.md)) |
 
 Everything under `settings` controls **how runs behave** and **what comes back** after a run — including plugins and MCP servers (there's no top-level `servers` key; they live under `settings.pluginsSettings`). The rest of this path walks through each area in turn.
 
@@ -59,7 +61,7 @@ Each setting is described the same way, so you can skim to what you need:
 
 ## ✔ Check your work
 
-- [ ] You can name the top-level keys of `manifest.json` (`g4Server`, `authentication`, `driverParameters`, `settings`, optional `servers`)
+- [ ] You can name the top-level keys of `manifest.json` (`g4Server`, `authentication`, `driverParameters`, `settings`, and the optional `sandbox` and `toolboxesFilter`)
 - [ ] You made a `.bak` copy of your `manifest.json`
 - [ ] You know to restart G4 after changing settings
 

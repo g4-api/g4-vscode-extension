@@ -1,4 +1,4 @@
-# G4 Engine – Visual Sequential Workflow for VS Code
+# G4 Studio – Visual Sequential Workflow for VS Code
 
 **Design, run, and record automations visually — right inside VS Code.**
 
@@ -11,7 +11,7 @@
 
 ## Overview
 
-**G4 Engine** turns Visual Studio Code into a full automation and orchestration IDE.
+**G4 Studio** turns Visual Studio Code into a full automation and orchestration IDE.
 
 G4 is a plugin-based automation engine that runs controlled workflows across **web browsers, desktop applications, APIs, and internal tools** — and those workflows can be driven by **people, CI/CD schedules, or AI agents**. This extension brings the **[Sequential Workflow Designer](https://github.com/nocode-js/sequential-workflow-designer)** straight into your editor: you build automations by **dragging and dropping** building blocks onto a canvas, connect them, and run them — no code required. When you *do* want code, it's right there too, next to Git, terminals, and your favorite AI assistants.
 
@@ -39,7 +39,7 @@ curl -fsSL https://raw.githubusercontent.com/g4-api/g4-sandbox/main/install-g4-s
 
 ### Option 2 — Install the extension only
 
-Already have VS Code and a G4 backend? Install **G4 Engine Client** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=g4-api.g4-engine-client), or from a packaged `.vsix`:
+Already have VS Code and a G4 backend? Install **G4 Studio** from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=g4-api.g4-engine-client), or from a packaged `.vsix`:
 
 ```bash
 code --install-extension g4-engine-client.vsix
@@ -97,7 +97,7 @@ Any extension can add its Markdown documentation to the view by declaring folder
 
 ## Why VS Code
 
-By running inside VS Code, G4 Engine inherits an ecosystem you already trust:
+By running inside VS Code, G4 Studio inherits an ecosystem you already trust:
 
 * AI assistance — Copilot, Chat, and custom AI extensions
 * Git and source control
@@ -113,7 +113,7 @@ G4 doesn't replace your editor — it **turns it into an automation IDE**.
 The workflow canvas is powered by the **[Sequential Workflow Designer](https://github.com/nocode-js/sequential-workflow-designer)** and embedded in VS Code using native webview APIs. The extension talks to the G4 engine over HTTP:
 
 * **Tree providers** surface G4 assets from your workspace.
-* **Webview views** host the workflow editor and recorder UI.
+* **Webview views** host the workflow editor (the **Engine Client** view) and the recorder UI.
 * **Commands** manage project creation, workflow loading, and execution.
 * **Status-bar integration** reflects the live engine connection.
 
@@ -127,15 +127,27 @@ Running **G4: Create a New G4 Project** scaffolds the layout below and opens the
 
 ```none
 <project-root>/
-├── build/                              # build outputs
+├── build/                              # empty; for build outputs
 ├── docs/
-│   ├── examples/
-│   └── G4 Manifest Configuration Guide.md
-├── scripts/                            # custom scripts
+│   ├── G4 Learning Paths.md            # index of the learning paths below
+│   ├── command-reference.md            # root pages: help and reference for the whole extension
+│   ├── recipes.md
+│   ├── settings-editor-reference.md
+│   ├── troubleshooting.md
+│   ├── Autonomous Run/                 # one folder per bundled learning path
+│   ├── Configure Manifest/
+│   ├── Environments And Parameters/
+│   ├── Plugins Externals And Mcp/
+│   ├── Publish A Flow/
+│   ├── Publish A Template/
+│   ├── Quick Start/
+│   ├── Record An App/
+│   └── Work In The Workflow Editor/
+├── scripts/                            # empty; for custom scripts
 └── src/                                # opened as the VS Code workspace
-    ├── .agents/
-    ├── .claude/
-    ├── .github/
+    ├── .agents/                        # empty; created for AI agent files
+    ├── .claude/                        # empty; created for Claude settings
+    ├── .github/                        # empty; created for GitHub files
     ├── .vscode/
     │   └── mcp.json                    # MCP endpoint for Copilot / AI tools
     ├── base.bots/
@@ -143,12 +155,14 @@ Running **G4: Create a New G4 Project** scaffolds the layout below and opens the
     │   └── uia-automation-base.json
     ├── base.templates/
     │   └── template-base.json
-    ├── bots/                           # your automations
-    ├── environments/
-    ├── resources/
-    ├── templates/
+    ├── bots/                           # empty; your automations
+    ├── environments/                   # empty; environment files
+    ├── resources/                      # empty
+    ├── templates/                      # empty; your templates
     └── manifest.json                   # project runtime configuration
 ```
+
+The `docs/` folders are copied from the learning paths bundled with the extension, so new bundled paths appear there too. The Markdown pages that sit beside the paths in the extension's documentation folder are copied as well. If the project folder already has a `src/manifest.json`, the command asks before overwriting the project.
 
 > **📘 Configuration:** `manifest.json` is the project's runtime configuration — connectivity, drivers, run behavior, recorders, and more. See the [Configure `manifest.json`](resources.docs/configure-manifest/README.md) learning path for every setting.
 
@@ -159,3 +173,7 @@ Running **G4: Create a New G4 Project** scaffolds the layout below and opens the
 * **Visual Studio Code** `^1.105.0`
 * A compatible **G4 Engine backend** — local (via the sandbox) or remote
 * Node.js — only for extension development/build
+
+## Contributing and builds
+
+Build tools, test commands, version numbers, Docker images and development ports are in the [build, test and release guide](../g4-github-actions/docs/build-test-release.md).

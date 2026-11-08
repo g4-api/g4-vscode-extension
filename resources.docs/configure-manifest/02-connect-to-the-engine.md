@@ -10,6 +10,7 @@ In this module, you will:
 
 - Point the client at the G4 engine with `g4Server`
 - Authenticate with your license token
+- Tell G4 where your sandbox lives with `sandbox`
 
 ---
 
@@ -64,11 +65,33 @@ In this module, you will:
 
 ---
 
+## Step 3: `sandbox` — where your G4 sandbox lives
+
+**What it is** — an optional key at the **top level** of `manifest.json` (not inside `settings`). It holds the folder of your local G4 sandbox, the packaged environment with the Hub, browsers and drivers.
+
+```json
+"sandbox": "C:\\g4-sandbox\\g4-sandbox-2026.11.01"
+```
+
+**What it does** — the extension uses it to find the sandbox when it starts things for you: the bundled recorder services (**Use Sandbox** in [Module 7](07-set-up-recording.md), also for autonomous runs) and the G4 Hub. If it is empty or missing, the extension cannot start them from the sandbox.
+
+**How to configure** — you rarely type it. **Create a New G4 Project** fills it when you choose a sandbox. To change it later, open the Settings Editor and use the **G4 Sandbox** field: **Browse** picks a folder, and **Auto-Detect** finds the newest sandbox. Clearing the field removes the key from the file.
+
+**When to use it:**
+
+- **Set it** when you want G4 to start the Hub or the recorders from your sandbox.
+- **Leave it out** when the engine and recorders run elsewhere (a server, a container, another machine).
+
+> **⚠️ Pitfall:** Double the backslashes in a Windows path inside JSON (`C:\\g4-sandbox\\...`).
+
+---
+
 ## ✔ Check your work
 
 - [ ] `g4Server` points at the actual engine address (default `localhost:9944`, `port` in quotes)
 - [ ] `authentication.token` holds your license token on a single line
 - [ ] Your token is kept private — not committed or shared
+- [ ] `sandbox` points at your sandbox folder, or is left out on purpose
 
 ---
 
