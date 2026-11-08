@@ -63,7 +63,7 @@ Jump to a group:
 | The **G4 Hub** channel is empty | In this version of the extension nothing writes to it | Read **G4 Extension** instead | `src/constants/channels.ts:14` |
 | Fewer log entries than expected | `logLevel` is `warning` or `error`, or a source filter hides the logger | Set the **Detail Level** to `information` or `debug`. Check **Source Filter Mode** and **Sources** | `src/logging/logger-base.ts:1030-1085` |
 | Log level changed but the output did not | Loggers read the settings when they are created, and most are created at start | Run **Developer: Reload Window** | `src/commands/command-base.ts:43` |
-| A project uses `clientLogSettings` and ignores your change | The extension reads `clientLogConfiguration` first and uses the old key only when the new one is missing | Rename the section to `clientLogConfiguration` | `src/extensions/utilities.ts:399` |
+| The Settings Editor logging fields do not change the output log | The Settings Editor writes `clientLogConfiguration`, but the extension reads `clientLogSettings` | Put the section under `clientLogSettings` in `manifest.json` | `src/extensions/utilities.ts:397-401` |
 
 ---
 

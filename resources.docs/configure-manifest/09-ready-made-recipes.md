@@ -21,7 +21,7 @@ Verbose logs, live progress, reports that open themselves, screenshots on every 
 
 ```json
 "settings": {
-    "clientLogConfiguration": { "logLevel": "debug", "agentLogConfiguration": { "enabled": true, "interval": 500 } },
+    "clientLogSettings": { "logLevel": "debug", "agentLogSettings": { "enabled": true, "interval": 500 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": true, "reportsFolder": "." },
     "exceptionsSettings": { "returnExceptions": true },
@@ -38,7 +38,7 @@ Quieter logs, no auto-opening browser, screenshots only when something fails —
 
 ```json
 "settings": {
-    "clientLogConfiguration": { "logLevel": "warning", "agentLogConfiguration": { "enabled": true, "interval": 2000 } },
+    "clientLogSettings": { "logLevel": "warning", "agentLogSettings": { "enabled": true, "interval": 2000 } },
     "automationSettings": { "loadTimeout": 60000, "searchTimeout": 15000, "maxParallel": 1, "returnFlatResponse": true, "returnStructuredResponse": true },
     "clientReportSettings": { "saveReports": true, "autoView": false, "reportsFolder": "./ci-reports" },
     "exceptionsSettings": { "returnExceptions": true },

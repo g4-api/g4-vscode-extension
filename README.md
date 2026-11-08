@@ -130,10 +130,6 @@ Running **G4: Create a New G4 Project** scaffolds the layout below and opens the
 ├── build/                              # empty; for build outputs
 ├── docs/
 │   ├── G4 Learning Paths.md            # index of the learning paths below
-│   ├── command-reference.md            # root pages: help and reference for the whole extension
-│   ├── recipes.md
-│   ├── settings-editor-reference.md
-│   ├── troubleshooting.md
 │   ├── Autonomous Run/                 # one folder per bundled learning path
 │   ├── Configure Manifest/
 │   ├── Environments And Parameters/

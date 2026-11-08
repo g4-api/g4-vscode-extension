@@ -68,7 +68,7 @@ Some warnings have a **Show Log** button. The warnings of the Flow Publisher and
 
 ## Step 4: Choose how much is written
 
-The log settings live in `settings.clientLogConfiguration` in `manifest.json`. In the Settings Editor they are in the **Logging** section.
+The extension's output log reads its settings from `settings.clientLogSettings` in `manifest.json`. The **Logging** section of the Settings Editor writes the same fields under `settings.clientLogConfiguration`, which is a different key (see the note below).
 
 | Setting | In the Settings Editor | What it does |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ The log settings live in `settings.clientLogConfiguration` in `manifest.json`. I
 ```json
 {
     "settings": {
-        "clientLogConfiguration": {
+        "clientLogSettings": {
             "logLevel": "debug",
             "sourceOptions": {
                 "filter": "exclude",
@@ -96,7 +96,7 @@ Levels from the quietest to the noisiest are `none`, `fatal`, `error`, `warning`
 
 When `sources` is empty, nothing is filtered out and every source is written.
 
-> **📝 Note:** Older projects may use the key `clientLogSettings` for the same section. The extension reads `clientLogConfiguration` first and falls back to `clientLogSettings` only when the first is missing.
+> **📝 Note:** The starter manifest and the Settings Editor use the key `clientLogConfiguration`, but the extension reads `clientLogSettings` only (`src/extensions/utilities.ts:397-401`). To change what the output log writes, put the section under `clientLogSettings` in `manifest.json`.
 >
 > **💡 Tip:** Loggers read these settings when the extension creates them, and most are created at start. After you change the level or the filter, run **Developer: Reload Window** so every logger uses the new values.
 

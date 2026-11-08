@@ -381,9 +381,8 @@ export class Utilities {
     /**
      * Retrieves the logging configuration for the G4 Server from the project manifest.
      *
-     * Reads settings.clientLogConfiguration from the manifest, falling back to the legacy
-     * settings.clientLogSettings key when the new key is absent.
-     * If neither is defined, a sensible default configuration is provided.
+     * If a clientLogSettings is defined in the manifest, it will be returned.
+     * Otherwise, a sensible default configuration is provided.
      *
      * @returns {LogSettings} The resolved or default log settings.
      */
@@ -394,14 +393,12 @@ export class Utilities {
         // Check whether a manifest object was successfully returned
         const hasManifest = !this.assertUndefinedOrNull(manifest);
 
-        // Resolve the log section, preferring clientLogConfiguration over the legacy clientLogSettings key
-        const clientConfig = hasManifest
-            ? (manifest.settings?.clientLogConfiguration ?? manifest.settings?.clientLogSettings)
-            : undefined;
+        // Check whether the manifest contains a clientLogSettings section
+        const hasClientConfig = hasManifest && !this.assertUndefinedOrNull(manifest.settings?.clientLogSettings);
 
-        // If a log section exists on the manifest, use it
-        if (!this.assertUndefinedOrNull(clientConfig)) {
-            return clientConfig;
+        // If clientLogSettings exists on the manifest, use it
+        if (hasClientConfig) {
+            return manifest.settings.clientLogSettings;
         }
 
         // Otherwise, return a default log configuration

@@ -78,7 +78,7 @@ How a run behaves.
 
 ### Logging
 
-What G4 Studio tells you while it runs. These keys sit under `settings.clientLogConfiguration`.
+What G4 Studio tells you while it runs. These keys sit under `settings.clientLogConfiguration`, which is the key the Settings Editor writes. The extension's own output log reads `settings.clientLogSettings` instead (`src/extensions/utilities.ts:397-401`), so these fields do not change it.
 
 | Label | Manifest key | Default | Notes |
 | --- | --- | --- | --- |

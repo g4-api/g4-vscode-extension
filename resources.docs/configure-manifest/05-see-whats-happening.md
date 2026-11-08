@@ -4,11 +4,13 @@
 
 ⏱️ **About 4 minutes**
 
-`settings.clientLogConfiguration` controls the **stream of progress messages** G4 sends back to whatever called it — your IDE, a script, an agent. This module tunes how much you see and how often.
+`settings.clientLogSettings` controls the **stream of progress messages** G4 sends back to whatever called it — your IDE, a script, an agent. This module tunes how much you see and how often.
+
+> **📝 Note:** The Settings Editor and the starter manifest write this section as `clientLogConfiguration`, while the extension's own output log reads `clientLogSettings`. The two names are not the same key, so a section under one name does not change the other.
 
 ```json
-"clientLogConfiguration": {
-    "agentLogConfiguration": {
+"clientLogSettings": {
+    "agentLogSettings": {
         "enabled": true,
         "interval": 1000
     },
@@ -28,7 +30,7 @@ In this module, you will:
 
 ---
 
-## Step 1: `agentLogConfiguration` — how often logs arrive
+## Step 1: `agentLogSettings` — how often logs arrive
 
 **What it is** — controls how often the engine pushes log batches to the client. When `enabled: true`, every `interval` milliseconds G4 ships any new log lines. With `enabled: false`, lines are buffered and only available at the end.
 
@@ -84,7 +86,7 @@ In this module, you will:
 
 ## ✔ Check your work
 
-- [ ] `agentLogConfiguration.enabled` is `true` when you want live progress
+- [ ] `agentLogSettings.enabled` is `true` when you want live progress
 - [ ] `logLevel` matches the situation (`information` daily, `debug` when investigating)
 - [ ] `sourceOptions` is left at its defaults unless you're deliberately filtering
 
