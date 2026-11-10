@@ -7,6 +7,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Accepted component names: lowercase words joined by hyphens, starting with the g4- prefix.
 // Linear: literal prefix, then one character class with a single quantifier.
@@ -23,6 +24,10 @@ const NAME_SEPARATOR_PATTERN = /\s+/;
 // Reads the component names a page declares: <meta name="g4-components" content="g4-section g4-field">.
 // Linear: literal text, then one negated character class with a single quantifier.
 const PAGE_COMPONENTS_PATTERN = /<meta\s+name="g4-components"\s+content="([^"]*)"/i;
+
+// Finds the opening head tag, after which the branding script is inserted. Linear: literal text, then one negated
+// character class with a single quantifier.
+const HEAD_OPENING_PATTERN = /<head[^>]*>/i;
 
 // Page placeholder filled with the components' scripts.
 const SCRIPTS_PLACEHOLDER = '{{$ components.scripts }}';
@@ -114,8 +119,12 @@ export class WebviewComponents {
             .map((name) => `<script src="${getFileUri(name, 'js')}"></script>`)
             .join('\n');
 
+        // Brand the page first in its head, so page scripts that resolve labels while they load find the branding.
+        const brandingScript = G4BrandingService.getPageScript();
+
         // Replacer functions keep any `$` in the inserted markup from being read as a pattern.
         return html
+            .replace(HEAD_OPENING_PATTERN, (headTag) => `${headTag}\n${brandingScript}`)
             .replace(STYLES_PLACEHOLDER, () => styles)
             .replace(TEMPLATES_PLACEHOLDER, () => templates)
             .replace(SCRIPTS_PLACEHOLDER, () => scripts);

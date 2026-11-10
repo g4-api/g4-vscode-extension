@@ -5,6 +5,7 @@
  * Hub recordings routes: /api/v4/g4/recordings (start, status, suspend, resume, stop)
  */
 import { Utilities } from '../extensions/utilities';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Calls the G4 Hub recordings API, which owns recorder connections, event buffering, and flow conversion.
@@ -222,7 +223,7 @@ export class G4RecordingsClient {
                 signal: AbortSignal.timeout(timeoutMilliseconds)
             });
         } catch (error: unknown) {
-            const message = `The G4 Hub is unreachable at ${url}: ${Utilities.resolveErrorMessage(error)}`;
+            const message = G4BrandingService.getText(`The {hub} is unreachable at ${url}: ${Utilities.resolveErrorMessage(error)}`);
             throw new G4RecordingsError(message, 0);
         }
 
@@ -243,7 +244,7 @@ export class G4RecordingsClient {
             const problemMessage = G4RecordingsClient.getProblemMessage(responseBody);
             const message = problemMessage.length > 0
                 ? problemMessage
-                : `The G4 Hub answered ${response.status} ${response.statusText}.`;
+                : G4BrandingService.getText(`The {hub} answered ${response.status} ${response.statusText}.`);
 
             throw new G4RecordingsError(message, response.status);
         }

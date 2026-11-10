@@ -4,6 +4,7 @@ import { ExtensionLogger } from '../logging/extensions-logger';
 import { Logger } from '../logging/logger';
 import { Channels } from './channels';
 import * as vscode from 'vscode';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 export class Global {
     // The base URL for the G4 Hub API.
@@ -221,9 +222,9 @@ export class Global {
         }
 
         // Build a clear configuration error message for logs and the VS Code UI.
-        const message = 'G4 Hub URL is not set. ' +
+        const message = G4BrandingService.getText('{hub} URL is not set. ') +
             'Please configure the "g4Server" settings in ' +
-            'your manifest and reload the extension to connect to the G4 Hub API.';
+            G4BrandingService.getText('your manifest and reload the extension to connect to the {hub} API.');
 
         // Write the warning to the extension logger.
         this.logger.warning(message);

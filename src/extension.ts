@@ -34,6 +34,7 @@ import {
 } from './services/g4-hub-service';
 import { G4RecordingService } from './services/g4-recording-service';
 import { ApplySettingsOptions, G4SettingsService } from './services/g4-settings-service';
+import { G4BrandingService } from './services/g4-branding-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -60,6 +61,10 @@ let autonomousRunService: G4AutonomousRunService | undefined;
  *        global state, workspace state and other shared resources for the extension.
  */
 export async function activate(context: vscode.ExtensionContext) {
+    // Read the branding the Hub published last time before anything shows a label, so the output channels and
+    // the first messages already carry the white-label names.
+    G4BrandingService.initialize(context.globalState);
+
     // Read the configured G4 endpoint through the original activation path so
     // command registration is not blocked by project-manifest availability.
     const baseUri = Utilities.getG4Endpoint();
@@ -398,7 +403,7 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
     // Keep retrying until the SignalR connection is successfully established.
     while (true) {
         // Show a progress message while attempting to connect to the G4 engine.
-        setConnectionStatus('$(sync~spin) Waiting for G4 Engine Connection...');
+        setConnectionStatus(G4BrandingService.getText('$(sync~spin) Waiting for {engine} Connection...'));
 
         // Create a fresh SignalR notification client for the current connection attempt.
         const client = new NotificationService({
@@ -423,13 +428,13 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             await client.stop();
 
             // Show a retry message, then wait briefly before the next attempt.
-            setConnectionStatus('$(sync~spin) G4 Engine SignalR Connection Failed. Retrying...');
+            setConnectionStatus(G4BrandingService.getText('$(sync~spin) {engine} SignalR Connection Failed. Retrying...'));
             await new Promise(resolve => setTimeout(resolve, 5000));
             continue;
         }
 
         // Show progress while synchronizing externals and MCP servers into the G4 cache.
-        setConnectionStatus('$(sync~spin) Loading G4 Engine Externals and MCPs...');
+        setConnectionStatus(G4BrandingService.getText('$(sync~spin) Loading {engine} Externals and MCPs...'));
 
         // Synchronize the cache and tools. A failure is reported by the command and must not
         // start a second client next to this connected one.
@@ -437,11 +442,15 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             const command = new SyncCacheCommand(context, baseUri);
             await command.invokeCommand({ restart: false });
         } catch (error) {
-            Global.logger.error(`Loading G4 Engine externals and MCPs failed: ${Utilities.resolveErrorMessage(error)}`);
+            Global.logger.error(G4BrandingService.getText(`Loading {engine} externals and MCPs failed: ${Utilities.resolveErrorMessage(error)}`));
         }
 
+        // Read the Hub's current branding, so labels created from now on follow it and the next start uses it
+        // before the Hub answers. A Hub without the branding route keeps the current labels.
+        await G4BrandingService.refreshAsync(context.globalState, baseUri);
+
         // Show the connected state; it stays until the next connection status replaces it.
-        setConnectionStatus('G4 Engine is Connected and Ready');
+        setConnectionStatus(G4BrandingService.getText('{engine} is Connected and Ready'));
 
         // Store the connected G4 hub base URL globally for later use.
         Global.baseHubUrl = baseUri;

@@ -38,7 +38,7 @@ const FIELD_HINTS = {
     'author.link': 'A page about the author, such as a profile or a team site.',
     'author.name': 'The person or team that maintains this flow.',
     aliases: 'Other names that also find and run this flow. Up to 55 characters each.',
-    categories: 'Groups the flow appears under when browsing the G4 catalog. Add at least one, up to 55 characters each.',
+    categories: G4Branding.getText('Groups the flow appears under when browsing the {product} catalog. Add at least one, up to 55 characters each.'),
     context: 'Extra data stored with the flow, as a JSON object. Leave it empty for none.',
     description: 'Longer details: what the flow needs, what it changes, and what it returns. Supports Markdown.',
     key: 'The flow\'s unique name within its namespace. Normalized to PascalCase when you leave the field.',
@@ -46,7 +46,7 @@ const FIELD_HINTS = {
     platforms: 'Where the flow can run, for example Windows, Linux, or Any. Add at least one, up to 55 characters each.',
     projectUrl: 'Where to read more about the flow, such as its repository or documentation.',
     protocol: 'Key/value settings for the protocol the flow uses. Leave it empty for none.',
-    summary: 'A short explanation of what the flow does, shown in the G4 catalog. Supports Markdown.',
+    summary: G4Branding.getText('A short explanation of what the flow does, shown in the {product} catalog. Supports Markdown.'),
     version: 'Your own version label for this flow, for example 1.0.0.'
 };
 
@@ -134,13 +134,13 @@ const SECTIONS = [
         id: 'identity',
         isOpenByDefault: true,
         title: 'Identity',
-        description: 'The key and namespace identify the flow in the G4 Hub; publishing the same identity again overwrites it.'
+        description: G4Branding.getText('The key and namespace identify the flow in the {hub}; publishing the same identity again overwrites it.')
     },
     {
         id: 'description',
         isOpenByDefault: true,
         title: 'Description',
-        description: 'Text shown for the flow in the G4 catalog.'
+        description: G4Branding.getText('Text shown for the flow in the {product} catalog.')
     },
     {
         id: 'classification',
@@ -170,7 +170,7 @@ const SECTIONS = [
         id: 'additional',
         isOpenByDefault: false,
         title: 'Additional Fields',
-        description: 'Fields published by the G4 Hub schema that have no dedicated editor yet.'
+        description: G4Branding.getText('Fields published by the {hub} schema that have no dedicated editor yet.')
     }
 ];
 
@@ -325,7 +325,7 @@ function getBannerNotices() {
 
     // Schema source: the form falls back to the bundled schema when the Hub is unreachable.
     if (globalThis.INJECTED?.isSchemaFallback) {
-        notices.push({ testId: 'schema-fallback-banner', text: 'Using the built-in flow schema; the G4 Hub could not be reached.' });
+        notices.push({ testId: 'schema-fallback-banner', text: G4Branding.getText('Using the built-in flow schema; the {hub} could not be reached.') });
     }
 
     // Overwrite notice, with a shortcut to load the stored values into the form.
@@ -1201,7 +1201,7 @@ function onPublishClick() {
     state.publishResult = null;
     showActionBar();
     showBanners();
-    showSaveNote('Sending the flow to the G4 Hub…');
+    showSaveNote(G4Branding.getText('Sending the flow to the {hub}…'));
 
     // Token warnings travel with the publish; the host asks for confirmation when there are any.
     const issues = getParameterTokenIssues(state.automationText, getParameterNames());
@@ -1428,8 +1428,8 @@ function showHeader() {
     const relativePath = convertToSafeText(globalThis.INJECTED?.automation?.relativePath);
 
     document.getElementById('g4-header').innerHTML = `
-    <g4-page-header meta="Publish bots/${convertToSafeHtml(relativePath)} to the G4 Hub as a flow"
-                    page-title="G4&#x2122; Publish Flow"
+    <g4-page-header meta="Publish bots/${convertToSafeHtml(relativePath)} to the ${convertToSafeHtml(G4Branding.getText('{hub}'))} as a flow"
+                    page-title="${convertToSafeHtml(G4Branding.getText('{productTm} Publish Flow'))}"
                     test-id="flow-publisher-header"></g4-page-header>`;
 }
 

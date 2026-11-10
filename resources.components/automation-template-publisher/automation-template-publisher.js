@@ -41,17 +41,17 @@ const FIELD_HINTS = {
     'author.link': 'A page about the author, such as a profile or a team site.',
     'author.name': 'The person or team that maintains this template.',
     aliases: 'Other names that also find and run this template. Up to 55 characters each.',
-    categories: 'Groups the template appears under when browsing the G4 catalog. Add at least one, up to 55 characters each.',
+    categories: G4Branding.getText('Groups the template appears under when browsing the {product} catalog. Add at least one, up to 55 characters each.'),
     context: 'Extra data stored with the template, as a JSON object. Leave it empty for none.',
     description: 'Longer details: what the template needs, what it changes, and what it returns. Supports Markdown.',
-    examples: 'Worked examples shown in the G4 catalog. Add at least one: a Markdown description and the rule that calls the template.',
+    examples: G4Branding.getText('Worked examples shown in the {product} catalog. Add at least one: a Markdown description and the rule that calls the template.'),
     key: 'The template\'s unique name; it is also the plugin name that rules use to call it. Normalized to PascalCase when you leave the field.',
     namespace: 'Groups related templates. Leave it empty to use G4.System. The Hub identifies a template by key alone, so a key that exists under another namespace is rejected.',
     platforms: 'Where the template can run, for example Windows, Linux, or Any. Add at least one, up to 55 characters each.',
     projectUrl: 'Where to read more about the template, such as its repository or documentation.',
     properties: 'The rule inputs the template fills in, read by the rules as {{$ Properties.Name }}. Each of the six can be added once.',
     protocol: 'Key/value settings for the protocol the template uses. Leave it empty for none.',
-    summary: 'A short explanation of what the template does, shown in the G4 catalog. Supports Markdown.',
+    summary: G4Branding.getText('A short explanation of what the template does, shown in the {product} catalog. Supports Markdown.'),
     version: 'Your own version label for this template, for example 1.0.0.'
 };
 
@@ -164,7 +164,7 @@ const SECTIONS = [
         id: 'identity',
         isOpenByDefault: true,
         title: 'Identity',
-        description: 'The key identifies the template in the G4 Hub; publishing the same key again overwrites it.'
+        description: G4Branding.getText('The key identifies the template in the {hub}; publishing the same key again overwrites it.')
     },
     {
         id: 'file',
@@ -176,7 +176,7 @@ const SECTIONS = [
         id: 'description',
         isOpenByDefault: true,
         title: 'Description',
-        description: 'Text shown for the template in the G4 catalog.'
+        description: G4Branding.getText('Text shown for the template in the {product} catalog.')
     },
     {
         id: 'classification',
@@ -212,7 +212,7 @@ const SECTIONS = [
         id: 'examples',
         isOpenByDefault: true,
         title: 'Examples',
-        description: 'Worked examples shown in the G4 catalog. At least one is required.'
+        description: G4Branding.getText('Worked examples shown in the {product} catalog. At least one is required.')
     },
     {
         id: 'context',
@@ -224,7 +224,7 @@ const SECTIONS = [
         id: 'additional',
         isOpenByDefault: false,
         title: 'Additional Fields',
-        description: 'Fields published by the G4 Hub schema that have no dedicated editor yet.'
+        description: G4Branding.getText('Fields published by the {hub} schema that have no dedicated editor yet.')
     }
 ];
 
@@ -387,7 +387,7 @@ function getBannerNotices() {
 
     // Schema source: the form falls back to the bundled schema when the Hub is unreachable.
     if (globalThis.INJECTED?.isSchemaFallback) {
-        notices.push({ testId: 'schema-fallback-banner', text: 'Using the built-in template schema; the G4 Hub could not be reached.' });
+        notices.push({ testId: 'schema-fallback-banner', text: G4Branding.getText('Using the built-in template schema; the {hub} could not be reached.') });
     }
 
     // Overwrite notice, with a shortcut to load the stored values into the form.
@@ -398,7 +398,7 @@ function getBannerNotices() {
         notices.push({
             action: { id: 'load-existing', label: 'Load existing values', testId: 'load-existing-template-values-button' },
             testId: 'template-overwrite-banner',
-            text: `${templateNamespace}/${templateKey} already exists in the G4 Hub; publishing will overwrite it.`
+            text: `${templateNamespace}/${templateKey} already exists in the ${G4Branding.getText('{hub}')}; publishing will overwrite it.`
         });
     }
 
@@ -1575,7 +1575,7 @@ function onPublishClick() {
     state.publishResult = null;
     showActionBar();
     showBanners();
-    showSaveNote('Sending the template to the G4 Hub…');
+    showSaveNote(G4Branding.getText('Sending the template to the {hub}…'));
 
     // Token warnings travel with the publish; the host asks for confirmation when there are any.
     const issues = getTokenIssues(state.rulesText, getTokenNames());
@@ -1837,7 +1837,7 @@ function showHeader() {
 
     document.getElementById('g4-header').innerHTML = `
     <g4-page-header meta="${convertToSafeHtml(label)}"
-                    page-title="G4&#x2122; Publish Template"
+                    page-title="${convertToSafeHtml(G4Branding.getText('{productTm} Publish Template'))}"
                     test-id="template-publisher-header"></g4-page-header>`;
 }
 

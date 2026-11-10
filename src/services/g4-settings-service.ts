@@ -10,6 +10,7 @@ import { Utilities } from '../extensions/utilities';
 import { G4RecorderViewProvider } from '../providers/g4-recorder-webview-view-provider';
 
 import { G4RecordingService } from './g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Options of one Apply-Settings run.
@@ -142,7 +143,7 @@ export class G4SettingsService {
 
         // Confirm a save that needs no reload with a short notification.
         if (isSaveRequested) {
-            showTemporaryInformationMessage('G4 settings saved.');
+            showTemporaryInformationMessage(G4BrandingService.getText('{product} settings saved.'));
         }
 
         return true;
@@ -207,8 +208,8 @@ export class G4SettingsService {
     private async showReloadPrompt(isSaved: boolean): Promise<void> {
         const reloadAction = 'Reload Window';
         const laterAction = 'Later';
-        const savedText = isSaved ? 'G4 settings saved. ' : '';
-        const message = `${savedText}Changes to the G4 server, external repositories, or MCP servers need a `
+        const savedText = isSaved ? G4BrandingService.getText('{product} settings saved. ') : '';
+        const message = G4BrandingService.getText(`${savedText}Changes to the {product} server, external repositories, or MCP servers need a `)
             + 'window reload to refresh the cache. Reload now?';
 
         const choice = await vscode.window.showWarningMessage(message, reloadAction, laterAction);

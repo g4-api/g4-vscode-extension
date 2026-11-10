@@ -1916,7 +1916,7 @@ function showSettings() {
     // Render the page header.
     document.getElementById('g4-header').innerHTML = `
     <g4-page-header meta="Configure how the automation engine runs"
-                    page-title="G4&#x2122; Settings"
+                    page-title="${getEscapedText(G4Branding.getText('{productTm} Settings'))}"
                     test-id="settings-header"></g4-page-header>`;
 
     // Render every section in display order.
@@ -2259,7 +2259,7 @@ function writeCapabilitiesNote() {
 
     // Render the hint with an external link the page opens through the host.
     return `<div class="settings-hint settings-hint-block--compact">
-        Browse the full G4 catalog on the
+        Browse the full ${getEscapedText(G4Branding.getText('{product}'))} catalog on the
         <a href="${getEscapedText(url)}" data-external="true" target="_blank" rel="noopener noreferrer">Capabilities page</a>
         - search plugins, read each plugin's manifest and documentation, and add external or MCP sources.
     </div>`;
@@ -2286,13 +2286,13 @@ function writeConnectionSection() {
         ${writeText({
         path: 'g4Server.host',
         label: 'Engine Address',
-        hint: 'The computer running G4. "localhost" means this machine.',
+        hint: G4Branding.getText('The computer running {product}. "localhost" means this machine.'),
         required: true
     })}
         ${writePort({
         path: 'g4Server.port',
         label: 'Port',
-        hint: 'The network port G4 listens on (default 9944).'
+        hint: G4Branding.getText('The network port {product} listens on (default 9944).')
     })}
         <div class="settings-connection-action">
             <g4-busy-button data-action="test-connection"
@@ -2308,7 +2308,7 @@ function writeConnectionSection() {
     return writeSection({
         id: 'connection',
         title: 'Connection',
-        desc: 'Tell G4 where the automation engine is running.',
+        desc: G4Branding.getText('Tell {product} where the automation engine is running.'),
         body,
         open: true
     });
@@ -2424,7 +2424,7 @@ function writeDriverSection() {
     return writeSection({
         id: 'driver',
         title: 'Default Browser',
-        desc: 'The technology G4 uses to drive the browser or app.',
+        desc: G4Branding.getText('The technology {product} uses to drive the browser or app.'),
         body
     });
 }
@@ -2755,7 +2755,7 @@ function writeLoggingSection() {
     return writeSection({
         id: 'logging',
         title: 'Logging',
-        desc: 'What G4 tells you while it runs.',
+        desc: G4Branding.getText('What {product} tells you while it runs.'),
         body
     });
 }
@@ -2774,18 +2774,18 @@ function writeMcpSection() {
     // Build the capabilities note, server list, and add button.
     const body = `
     ${writeCapabilitiesNote()}
-    <div class="settings-hint settings-hint-block">Connect external MCP servers - their tools appear in the G4 plugin catalog.</div>
+    <div class="settings-hint settings-hint-block">Connect external MCP servers - their tools appear in the ${getEscapedText(G4Branding.getText('{product}'))} plugin catalog.</div>
     <g4-card-list data-list="servers"
                   add-label="+ Add MCP Server"
                   empty-style="note"
-                  empty-text="No MCP servers connected. Add one to expose its tools as G4 plugins."
+                  empty-text="${getEscapedText(G4Branding.getText('No MCP servers connected. Add one to expose its tools as {product} plugins.'))}"
                   test-id="mcp-servers">${cards}</g4-card-list>`;
 
     // Wrap the body in the collapsible section shell.
     return writeSection({
         id: 'mcp',
         title: 'MCP Servers',
-        desc: 'External Model Context Protocol servers whose tools become G4 plugins.',
+        desc: G4Branding.getText('External Model Context Protocol servers whose tools become {product} plugins.'),
         body
     });
 }
@@ -2892,7 +2892,7 @@ function writeMcpServerCard(name, server, position) {
     })}
             ${writeField({
         label: 'Type',
-        hint: 'How G4 connects to the server.',
+        hint: G4Branding.getText('How {product} connects to the server.'),
         required: true,
         control: `
             <g4-select data-kind="server-type"
@@ -2939,14 +2939,14 @@ function writePluginsSection() {
     <g4-card-list data-list="repositories"
                   add-label="+ Add Repository"
                   empty-style="note"
-                  empty-text="No external repositories. G4 uses its built-in plugins only."
+                  empty-text="${getEscapedText(G4Branding.getText('No external repositories. {product} uses its built-in plugins only.'))}"
                   test-id="repositories">${cards}</g4-card-list>`;
 
     // Wrap the body in the collapsible section shell.
     return writeSection({
         id: 'plugins',
         title: 'Plugins',
-        desc: 'Where G4 loads its building blocks from.',
+        desc: G4Branding.getText('Where {product} loads its building blocks from.'),
         body
     });
 }
@@ -3197,7 +3197,7 @@ function writeReportsSection() {
     ${writeText({
         path: 'settings.clientReportSettings.reportsFolder',
         label: 'Reports Folder',
-        hint: 'A "reports" subfolder is created here. "." means a reports folder next to where G4 runs.'
+        hint: G4Branding.getText('A "reports" subfolder is created here. "." means a reports folder next to where {product} runs.')
     })}`;
 
     // Wrap the body in the collapsible section shell.
@@ -3242,7 +3242,7 @@ function writeRepositoryCard(repository, index) {
         required: true,
         validate: 'url',
         placeholder: 'https://...',
-        hint: 'The repository endpoint G4 loads plugins from.',
+        hint: G4Branding.getText('The repository endpoint {product} loads plugins from.'),
         testId: `${testId}-url`
     })}
         <div class="settings-field-row">
@@ -3316,7 +3316,7 @@ function writeResponseDataSection() {
     return writeSection({
         id: 'response',
         title: 'Response Data',
-        desc: 'Extra information G4 can send back with each run.',
+        desc: G4Branding.getText('Extra information {product} can send back with each run.'),
         body
     });
 }
@@ -3384,14 +3384,14 @@ function writeSandboxField() {
     const value = getPath(globalThis.STATE, 'sandbox') ?? '';
 
     return writeField({
-        label: 'G4 Sandbox',
-        hint: 'Local G4 sandbox folder used for bundled browsers and drivers.',
+        label: G4Branding.getText('{product} Sandbox'),
+        hint: G4Branding.getText('Local {product} sandbox folder used for bundled browsers and drivers.'),
         control: `
         <g4-path-input data-path="sandbox"
-                       browse-label="Browse for G4 Sandbox"
+                       browse-label="${getEscapedText(G4Branding.getText('Browse for {product} Sandbox'))}"
                        detect-label="Auto-Detect"
-                       detect-title="Auto-Detect Latest G4 Sandbox"
-                       label="G4 Sandbox Folder"
+                       detect-title="${getEscapedText(G4Branding.getText('Auto-Detect Latest {product} Sandbox'))}"
+                       label="${getEscapedText(G4Branding.getText('{product} Sandbox Folder'))}"
                        test-id="g4-sandbox"
                        value="${getEscapedText(value)}"></g4-path-input>`
     });
@@ -3430,7 +3430,7 @@ function writeScreenshotsSection() {
     return writeSection({
         id: 'screenshots',
         title: 'Screenshots',
-        desc: 'Whether and how G4 captures pictures during a run.',
+        desc: G4Branding.getText('Whether and how {product} captures pictures during a run.'),
         body
     });
 }

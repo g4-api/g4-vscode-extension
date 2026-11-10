@@ -10,6 +10,7 @@ import { Global } from '../constants/global';
 import { LogSettings } from '../logging/logger-base';
 
 import type { RecorderOptions } from '../services/g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // A connection failure in HttpClient's error text: refused, unknown host, unreachable, reset, or
 // timed out. Linear: an alternation of literals with no quantifier.
@@ -77,7 +78,7 @@ export class Utilities {
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
-            openLabel: 'Select G4 Sandbox'
+            openLabel: G4BrandingService.getText('Select {product} Sandbox')
         });
 
         // Treat cancellation as an empty result rather than an error.
@@ -142,7 +143,7 @@ export class Utilities {
         const unreachableMatch = HUB_UNREACHABLE_PATTERN.exec(firstLine);
 
         if (unreachableMatch) {
-            return `Could not reach the G4 Hub (${unreachableMatch[0]}). ${HUB_UNREACHABLE_GUIDANCE}`;
+            return G4BrandingService.getText(`Could not reach the {hub} (${unreachableMatch[0]}). ${HUB_UNREACHABLE_GUIDANCE}`);
         }
 
         return `The Hub rejected the ${subject}: ${firstLine}`;

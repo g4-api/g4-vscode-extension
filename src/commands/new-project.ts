@@ -12,6 +12,7 @@ import { Utilities } from '../extensions/utilities';
 import { CommandBase } from './command-base';
 
 import type { Logger } from '../logging/logger';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 const DOCUMENTATION_DIRECTORY_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const EXTERNAL_LINK_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
@@ -129,13 +130,13 @@ export class NewProjectCommand extends CommandBase {
         // Opening the folder reloads the window and closes every notification, so the sandbox choice
         // is stored and shown again once the new project's window has loaded.
         if (sandboxDirectoryPath !== undefined) {
-            await addPendingNotice(this.context, `The new G4 project uses the G4 sandbox at ${sandboxDirectoryPath}.`);
+            await addPendingNotice(this.context, G4BrandingService.getText(`The new {product} project uses the {product} sandbox at ${sandboxDirectoryPath}.`));
         }
 
         // Without a sandbox, the Chrome base bot uses the installed Chrome and looks for ChromeDriver next to
         // the engine, so say where to point it at a browser and driver.
         if (sandboxDirectoryPath === undefined) {
-            await addPendingNotice(this.context, 'The new G4 project has no G4 sandbox. To run Chrome automations, set '
+            await addPendingNotice(this.context, G4BrandingService.getText('The new {product} project has no {product} sandbox. To run Chrome automations, set ')
                 + '"binary" and "driverBinaries" in src/base.bots/chrome-automation-base.json to your Chrome and '
                 + 'ChromeDriver folders.');
         }
@@ -1068,11 +1069,11 @@ export class NewProjectCommand extends CommandBase {
         // than user-facing label text.
         const autoDetectItem: vscode.QuickPickItem = {
             detail: 'Find the newest g4-sandbox-* folder automatically.',
-            label: '$(search) Auto-detect latest G4 sandbox'
+            label: G4BrandingService.getText('$(search) Auto-detect latest {product} sandbox')
         };
         const browseItem: vscode.QuickPickItem = {
             detail: 'Select the sandbox folder manually.',
-            label: '$(folder-opened) Browse for G4 sandbox folder...'
+            label: G4BrandingService.getText('$(folder-opened) Browse for {product} sandbox folder...')
         };
         const skipItem: vscode.QuickPickItem = {
             detail: 'Do not set a sandbox; keep the base files\' default paths.',
@@ -1084,8 +1085,8 @@ export class NewProjectCommand extends CommandBase {
         const selectedAction = await vscode.window.showQuickPick(
             [autoDetectItem, browseItem, skipItem],
             {
-                placeHolder: 'Choose how to set the G4 sandbox location for this project',
-                title: 'G4 Sandbox Location'
+                placeHolder: G4BrandingService.getText('Choose how to set the {product} sandbox location for this project'),
+                title: G4BrandingService.getText('{product} Sandbox Location')
             }
         );
 
@@ -1100,14 +1101,14 @@ export class NewProjectCommand extends CommandBase {
 
             // Confirm a successful detection before returning so users understand which runtime will be used.
             if (detectedSandboxPath !== undefined) {
-                showTemporaryInformationMessage(`G4 sandbox detected: ${detectedSandboxPath}`);
+                showTemporaryInformationMessage(G4BrandingService.getText(`{product} sandbox detected: ${detectedSandboxPath}`));
                 return detectedSandboxPath;
             }
 
             // Keep warnings persistent because a missing sandbox requires explicit user awareness and
             // the next stage will ask for manual selection.
             void vscode.window.showWarningMessage(
-                'No G4 sandbox was auto-detected. Please browse to it.'
+                G4BrandingService.getText('No {product} sandbox was auto-detected. Please browse to it.')
             );
         }
 
@@ -1198,7 +1199,7 @@ export class NewProjectCommand extends CommandBase {
 
         // Let the user open the project, overwrite it, or cancel (the modal dialog adds Cancel).
         const choice = await vscode.window.showWarningMessage(
-            'This folder already holds a G4 project.',
+            G4BrandingService.getText('This folder already holds a {product} project.'),
             { detail: EXISTING_PROJECT_DETAIL, modal: true },
             OPEN_EXISTING_PROJECT_ACTION,
             OVERWRITE_PROJECT_ACTION);

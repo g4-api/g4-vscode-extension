@@ -9,6 +9,7 @@ import { showTemporaryInformationMessage } from '../extensions/notification-util
 import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Service for managing SignalR notifications in VS Code.
@@ -87,7 +88,7 @@ export class NotificationService {
         // Notify user when the connection is reconnecting
         this._connection.onreconnecting(error => {
             const msg =
-                `Attempting to reconnect to G4 notifications hub...` +
+                G4BrandingService.getText(`Attempting to reconnect to {product} notifications hub...`) +
                 (error ? ` Error: ${error.message}` : '');
 
             // Log a warning about the reconnection attempt
@@ -97,13 +98,13 @@ export class NotificationService {
         // Notify user upon successful reconnection
         this._connection.onreconnected(() => {
             // Log the successful reconnection as informational
-            this._options.logger.information('Successfully reconnected to G4 notifications hub.');
+            this._options.logger.information(G4BrandingService.getText('Successfully reconnected to {product} notifications hub.'));
         });
 
         // Handle hub connection closure, log the error and show a VS Code notification
         this._connection.onclose(error => {
             const msg =
-                `Disconnected from G4 notifications hub.` +
+                G4BrandingService.getText(`Disconnected from {product} notifications hub.`) +
                 (error ? ` Error: ${error.message}` : '');
 
             // Log the disconnection as an error
@@ -131,12 +132,12 @@ export class NotificationService {
 
             // Notify the user that we successfully connected
             this._options.logger.information(
-                `Connected to G4 notifications hub at ${this._options.baseUrl}`
+                G4BrandingService.getText(`Connected to {product} notifications hub at ${this._options.baseUrl}`)
             );
         } catch (error) {
             // Log the error details for debugging purposes, then let the caller decide on a retry.
             this._options.logger.error(
-                `Failed to connect to G4 notifications hub at ${this._options.baseUrl}: ${Utilities.resolveErrorMessage(error)}`
+                G4BrandingService.getText(`Failed to connect to {product} notifications hub at ${this._options.baseUrl}: ${Utilities.resolveErrorMessage(error)}`)
             );
 
             throw error;
@@ -170,12 +171,12 @@ export class NotificationService {
 
             // Notify the user that the connection was closed successfully
             showTemporaryInformationMessage(
-                'Disconnected from G4 notifications hub.'
+                G4BrandingService.getText('Disconnected from {product} notifications hub.')
             );
         } catch (err: any) {
             // Log the error details for debugging purposes
             this._options.logger.error(
-                `Error disconnecting from G4 notifications hub: ${err?.message || err}`
+                G4BrandingService.getText(`Error disconnecting from {product} notifications hub: ${err?.message || err}`)
             );
         }
     }

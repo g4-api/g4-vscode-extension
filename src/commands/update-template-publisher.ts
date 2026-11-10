@@ -23,6 +23,7 @@ import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
 
 import { Logger } from '../logging/logger';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Folder of the template publisher component under resources.components.
 const COMPONENT_FOLDER = 'automation-template-publisher';
@@ -246,7 +247,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
 
         return {
             aliases: [],
-            author: { name: 'G4 VS Code Extension', link: '' },
+            author: { name: G4BrandingService.getText('{product} VS Code Extension'), link: '' },
             categories: ['CustomTemplates'],
             context: {},
             description: [description],
@@ -559,7 +560,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         }
 
         // The Hub is unreachable or does not publish the templates document; use the bundled schema.
-        this._logger.warning('Template schema not available from the G4 Hub; using the bundled schema.');
+        this._logger.warning(G4BrandingService.getText('Template schema not available from the {hub}; using the bundled schema.'));
         const bundledText = Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.schema.json`);
 
         return { isSchemaFallback: true, schemas: JSON.parse(bundledText) };
@@ -625,7 +626,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
      * @returns The header text.
      */
     private static newTemplateLabel(relativePath: string): string {
-        return `Publish templates/${relativePath} to the G4 Hub as a template`;
+        return G4BrandingService.getText(`Publish templates/${relativePath} to the {hub} as a template`);
     }
 
     /**
@@ -956,7 +957,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         const jobKey = UpdateFlowCommand.convertToPascalCase(jobName);
         const key = jobKey === '' || jobKey === fileKey ? fileKey : `${fileKey}${jobKey}`;
         const location = `${stageName === '' ? `stage #${stageIndex + 1}` : stageName} › ${jobName === '' ? `job #${jobIndex + 1}` : jobName}`;
-        const description = `Template created from ${label} (${location}) by the G4 VS Code extension.`;
+        const description = G4BrandingService.getText(`Template created from ${label} (${location}) by the {product} VS Code extension.`);
 
         return {
             defaults: UpdateTemplatePublisherCommand.newDefaultValues({ description, key, manifest: undefined }),
@@ -1005,7 +1006,7 @@ export class UpdateTemplatePublisherCommand extends CommandBase {
         }
 
         const key = UpdateFlowCommand.convertToPascalCase(path.basename(filePath, path.extname(filePath)));
-        const description = `Template published from ${label} by the G4 VS Code extension.`;
+        const description = G4BrandingService.getText(`Template published from ${label} by the {product} VS Code extension.`);
 
         return {
             defaults: UpdateTemplatePublisherCommand.newDefaultValues({ description, key, manifest }),

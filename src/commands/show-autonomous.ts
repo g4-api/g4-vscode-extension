@@ -16,6 +16,7 @@ import { G4AutonomousSettings } from '../services/g4-autonomous-settings';
 import type { G4AutonomousRunService } from '../services/g4-autonomous-run-service';
 import type { AutonomousSettings } from '../services/g4-autonomous-settings';
 import type { RecorderOptions } from '../services/g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // How long the status bar says that the console was copied.
 const COPIED_MESSAGE_MILLISECONDS = 3000;
@@ -91,7 +92,7 @@ export class ShowAutonomousCommand extends CommandBase {
         // Create the tab; the context is retained so a hidden tab keeps its running view and timers.
         const panel = vscode.window.createWebviewPanel(
             VIEW_TYPE,
-            'G4 Autonomous Run',
+            G4BrandingService.getText('{product} Autonomous Run'),
             vscode.ViewColumn.One,
             {
                 ...this.getWebviewOptions(),
@@ -389,7 +390,7 @@ export class ShowAutonomousCommand extends CommandBase {
                     : '';
 
                 await vscode.env.clipboard.writeText(text);
-                vscode.window.setStatusBarMessage('G4: Autonomous run console copied.', COPIED_MESSAGE_MILLISECONDS);
+                vscode.window.setStatusBarMessage(G4BrandingService.getText('{product}: Autonomous run console copied.'), COPIED_MESSAGE_MILLISECONDS);
                 break;
             }
 
@@ -461,7 +462,7 @@ export class ShowAutonomousCommand extends CommandBase {
                     const reason = Utilities.resolveErrorMessage(error);
 
                     this.logger.error(`Autonomous run page request failed: ${reason}`);
-                    vscode.window.showErrorMessage(`G4 autonomous run: ${reason}`);
+                    vscode.window.showErrorMessage(G4BrandingService.getText(`{product} autonomous run: ${reason}`));
                 });
             },
             undefined,

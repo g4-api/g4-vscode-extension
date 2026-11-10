@@ -10,6 +10,7 @@ import type {
 } from '../clients/g4-recordings-client';
 
 import type { RecorderScriptShell } from './g4-recorder-script-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Owns the extension's single recording session on the G4 Hub.
@@ -288,7 +289,7 @@ export class G4RecordingService {
      */
     private getClient(): G4RecordingsClient {
         if (this._client === undefined) {
-            throw new Error('No G4 Hub endpoint is configured. Set g4Server in the project manifest.');
+            throw new Error(G4BrandingService.getText('No {hub} endpoint is configured. Set g4Server in the project manifest.'));
         }
 
         return this._client;

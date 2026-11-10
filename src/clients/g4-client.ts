@@ -1,4 +1,5 @@
 import { HttpClient, HttpCommand, HttpResult } from "./http-client";
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Timeout of a cache sync. The Hub loads every external repository and MCP server before it
 // answers; one MCP server and one repository already took 9.2 s, so 5 s failed on every activation.
@@ -93,15 +94,15 @@ export class G4Client {
     public static getFailureMessage(result: HttpResult): string {
         // A request that got no response carries the failure reason as its body.
         if (result.status === 0) {
-            return typeof result.body === 'string' ? result.body : 'No response from the G4 Hub.';
+            return typeof result.body === 'string' ? result.body : G4BrandingService.getText('No response from the {hub}.');
         }
 
         // A Hub response is described by its status and the reason in its problem body.
         const problemText = HttpClient.getProblemText(result.body);
 
         return problemText === ''
-            ? `The G4 Hub answered ${result.status}.`
-            : `The G4 Hub answered ${result.status}: ${problemText}`;
+            ? G4BrandingService.getText(`The {hub} answered ${result.status}.`)
+            : G4BrandingService.getText(`The {hub} answered ${result.status}: ${problemText}`);
     }
 
     /**
@@ -437,7 +438,7 @@ export class G4Client {
         // A text body is used as-is unless it is empty.
         const isText = typeof result.body === 'string' && result.body.trim() !== '';
 
-        return isText ? result.body as string : `The G4 Hub answered ${result.status} with no details.`;
+        return isText ? result.body as string : G4BrandingService.getText(`The {hub} answered ${result.status} with no details.`);
     }
 
     // Reads `components.schemas` from a successful OpenAPI response that carries the named model.

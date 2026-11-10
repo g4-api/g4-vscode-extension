@@ -41,6 +41,7 @@ import type {
     G4RecordingService,
     RecorderOptions
 } from './g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Environment variable that hands the G4 authentication to the recorder helper without writing it to disk.
 const AUTHENTICATION_VARIABLE = 'G4_AUTONOMOUS_AUTHENTICATION';
@@ -268,7 +269,7 @@ export class G4AutonomousRunService {
         const isHubAlive = await G4ServiceHealth.testPing(hubUrl);
 
         if (!isHubAlive) {
-            return `The G4 Hub does not answer at ${hubUrl}. Start the Hub, then start the run again.`;
+            return G4BrandingService.getText(`The {hub} does not answer at ${hubUrl}. Start the Hub, then start the run again.`);
         }
 
         // Mark the run as starting at once, so a second click cannot start another one.
@@ -403,8 +404,8 @@ export class G4AutonomousRunService {
             ? `The agent's required tool server ${serverTexts[0]} did not connect`
             : `The agent's required tool servers ${serverTexts.join(', ')} did not connect`;
         const remedyText = isOneServer
-            ? 'Start it (for example the G4 Hub or the recorder), then run again.'
-            : 'Start them (for example the G4 Hub or the recorder), then run again.';
+            ? G4BrandingService.getText('Start it (for example the {hub} or the recorder), then run again.')
+            : G4BrandingService.getText('Start them (for example the {hub} or the recorder), then run again.');
 
         // Keep the reason, so getOutcome and getOutcomeMessage report the run as failed with it.
         this._toolServerFailure = `${subjectText}. ${remedyText}`;
@@ -729,7 +730,7 @@ export class G4AutonomousRunService {
 
         // The harness, model, and effort must be ones the manifest offers.
         if (!harness) {
-            return `The harness "${request.harnessName}" is not configured in the G4 settings.`;
+            return G4BrandingService.getText(`The harness "${request.harnessName}" is not configured in the {product} settings.`);
         }
 
         const isModelUnknown = harness.models.length > 0 && !harness.models.includes(request.model);
@@ -745,7 +746,7 @@ export class G4AutonomousRunService {
 
         // The run needs recorders, a prompt, and a workspace for its run folder.
         if (recorders.length === 0) {
-            return 'Pick at least one recorder that is configured in the G4 settings.';
+            return G4BrandingService.getText('Pick at least one recorder that is configured in the {product} settings.');
         }
 
         if (request.prompt.trim().length === 0) {
@@ -753,7 +754,7 @@ export class G4AutonomousRunService {
         }
 
         if (request.workspaceFolder.length === 0) {
-            return 'Open a G4 project folder before starting an autonomous run.';
+            return G4BrandingService.getText('Open a {product} project folder before starting an autonomous run.');
         }
 
         return '';

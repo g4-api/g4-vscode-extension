@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Command responsible for opening and displaying a G4 report.
@@ -78,7 +79,7 @@ export class ShowReportCommand extends CommandBase {
             reportData = await ShowReportCommand.getReportData(args);
         } catch (error: any) {
             this.logger.error(`Show-Report could not read the report: ${error?.message}`, undefined, error);
-            vscode.window.showErrorMessage(`G4 could not open the report: ${error?.message}`);
+            vscode.window.showErrorMessage(G4BrandingService.getText(`{product} could not open the report: ${error?.message}`));
             return;
         }
 
@@ -89,7 +90,7 @@ export class ShowReportCommand extends CommandBase {
 
             // Use the report id as the tab title when available,
             // otherwise fall back to a default title.
-            args?.id?.replace('.g4rpt', '') || 'G4 Report',
+            args?.id?.replace('.g4rpt', '') || G4BrandingService.getText('{product} Report'),
 
             // Open the report in the first editor column.
             vscode.ViewColumn.One,
