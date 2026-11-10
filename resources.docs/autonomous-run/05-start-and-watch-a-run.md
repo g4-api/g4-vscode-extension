@@ -41,6 +41,7 @@ The running view shows a robot animation, and under it:
 | --- | --- |
 | **Status line** | The agent's latest step. Before the first step it shows the run's own message, and before that **Starting the agent...** |
 | **Harness**, **Model**, **Reasoning**, **Recorders** | What you picked for this run |
+| **Time Limit** | The run's time limit, for example `30 min`, or `None` when the agent runs until it ends |
 | **Elapsed** | The time since the run started, as `mm:ss`. Minutes keep counting past 59 |
 | **Scenarios** | The scenarios the agent plans, each with its recording state and its result, and a count such as `2 of 3 recorded` |
 | **Console** | The agent's steps, one line each |
@@ -83,7 +84,7 @@ Click **Stop** to end the agent. G4 ends the agent's whole process tree, because
 A run also ends when:
 
 - The agent finishes. The outcome is **completed** when the agent exits with code 0 and its final result is not an error.
-- The time limit is reached. The agent is stopped and the outcome is **timed out**. The default limit is 60 minutes.
+- The time limit is reached. The agent is stopped and the outcome is **timed out**. A run has a limit only when one is set in the run dialog; by default there is none.
 - The agent fails or cannot start. The outcome is **failed**, and the message gives the reason.
 - A required tool server is missing in a Claude Code run. The outcome is **failed**.
 

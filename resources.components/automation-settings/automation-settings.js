@@ -142,8 +142,7 @@ globalThis.DEFAULTS = {
         },
         "autonomousSettings": {
             "harnesses": [],
-            "runsFolder": "autonomous-runs",
-            "timeoutMinutes": 60
+            "runsFolder": "autonomous-runs"
         },
         "recorderSettings": {
             "enabled": true,
@@ -2226,7 +2225,8 @@ function writeAutonomousSection() {
         suffix: '(minutes)',
         type: 'number',
         minimum: 1,
-        hint: 'The agent is stopped when a run takes longer. Default 60.',
+        isOptional: true,
+        hint: 'The agent is stopped when a run takes longer. Empty means no limit. The run dialog starts from this value.',
         testId: 'autonomous-timeout-minutes'
     })}
     </div>

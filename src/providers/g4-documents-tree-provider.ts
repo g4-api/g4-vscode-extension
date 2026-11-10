@@ -2,6 +2,7 @@ import path = require('path');
 import * as vscode from 'vscode';
 import { TreeItem } from '../components/tree-item';
 import { Global } from '../constants/global';
+import { G4DocumentLabelService } from '../services/g4-document-label-service';
 
 /**
  * Event payload type for tree refreshes.
@@ -23,6 +24,10 @@ type TreeItemChangeEvent = TreeItem | undefined | null | void;
 export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     // Custom URI scheme for our virtual Markdown documents.
     private static readonly _documentsScheme = 'g4md';
+
+    // The index files that name the documents of a docs folder, in the order they are looked for: a folder's
+    // README, then the learning-paths index New Project writes to a project's docs root, then its packaged name.
+    private static readonly _indexFileNames = ['readme.md', 'g4 learning paths.md', 'g4-learning.md'];
 
     // A Windows drive prefix ('C:'), which marks a contributed documentation path as absolute.
     // Linear: anchored, one character class and one literal.
@@ -135,6 +140,29 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
     }
 
     /**
+     * Sorts tree nodes the way a file explorer lists them: folders first, then files.
+     *
+     * @remarks
+     * Compute-only; returns a new array and leaves the input untouched. A node with a `children` array is a
+     * folder, even when the array is empty. Within each group nodes compare A-Z by their `sortName` (the name on
+     * disk, so numbered modules keep their order whatever their labels), else by their label, ignoring case and
+     * comparing numbers by value, so "2-intro" comes before "10-advanced".
+     *
+     * @param items - The nodes of one tree level.
+     * @returns The nodes in display order.
+     */
+    public static sortTreeItems<T extends SortableTreeNode>(items: T[]): T[] {
+        // Rank folders before files so the documents of a level never sit between its folders.
+        const getRank = (item: T): number => (Array.isArray(item.children) ? 0 : 1);
+        const getLabel = (item: T): string => (typeof item.label === 'string' ? item.label : '');
+        const getSortName = (item: T): string => item.sortName ?? getLabel(item);
+
+        // Compare by rank first, then by name, so each group reads A-Z.
+        return [...items].sort((left, right) => getRank(left) - getRank(right)
+            || getSortName(left).localeCompare(getSortName(right), undefined, { numeric: true, sensitivity: 'base' }));
+    }
+
+    /**
      * Registers the documents tree view and its related command(s) with VS Code.
      *
      * Side effects:
@@ -217,10 +245,11 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         );
     }
 
-    // Builds the root list in reading order: documentation contributed by extensions (learning
-    // material), then the project's own docs, then the engine's plugin reference. The extension and
-    // project parts are local, so they still show when the engine cannot be reached.
-    private static async getTreeItems(): Promise<any> {
+    // Builds the root list in reading order: the folders of documentation contributed by extensions
+    // (learning material), then the project's own docs folders, then the engine's plugin reference,
+    // and every root file after all folders. The extension and project parts are local, so they still
+    // show when the engine cannot be reached.
+    private static async getTreeItems(): Promise<TreeItem[]> {
         // Read the documentation that installed extensions contribute through 'g4Documentation'.
         const extensionItems = await this.getExtensionDocumentationItems();
 
@@ -229,15 +258,22 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
         // Read the engine's plugin reference; a failed or missing connection contributes no
         // plugin roots instead of hiding the local documentation.
-        let pluginItems: vscode.TreeItem[] = [];
+        // The plugin-type nodes are built as plain tree items that carry children, so they are read as
+        // the tree's own node type.
+        let pluginItems: TreeItem[] = [];
 
         try {
-            pluginItems = await this.getPluginTreeItems();
+            pluginItems = await this.getPluginTreeItems() as TreeItem[];
         } catch {
             pluginItems = [];
         }
 
-        return [...extensionItems, ...docsItems, ...pluginItems];
+        // Keep the folder groups in reading order and move the project's root files (such as the
+        // learning-paths index) after every folder, so the root lists folders first, then files.
+        const docsFolders = docsItems.filter((item) => Array.isArray(item.children));
+        const docsFiles = docsItems.filter((item) => !Array.isArray(item.children));
+
+        return [...extensionItems, ...docsFolders, ...pluginItems, ...docsFiles];
     }
 
     // Builds one root folder per installed extension that contributes documentation through
@@ -308,7 +344,8 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
             // Build every entry; an extension whose entries are all invalid or empty gets no root.
             const built = await Promise.all(entries.map((entry: any) => newEntryFolder(extension, entry)));
-            const entryFolders = built.filter((folder): folder is TreeItem => folder !== undefined);
+            // Sort the entry folders A-Z, so the order does not depend on the manifest's order.
+            const entryFolders = this.sortTreeItems(built.filter((folder): folder is TreeItem => folder !== undefined));
 
             if (entryFolders.length === 0) {
                 continue;
@@ -330,12 +367,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         }
 
         // Sort the extension roots A-Z, ignoring case, so the order does not depend on install order.
-        return roots.sort((left, right) => {
-            const leftLabel = typeof left.label === 'string' ? left.label : '';
-            const rightLabel = typeof right.label === 'string' ? right.label : '';
-
-            return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
-        });
+        return this.sortTreeItems(roots);
     }
 
     // Builds the engine's plugin reference: one folder per plugin type, each holding its plugins.
@@ -421,11 +453,7 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             }
 
             // Convert back to an array and sort by the original (display) label A->Z.
-            return Array.from(map.values()).sort((a, b) => {
-                const aLabel = typeof a.label === 'string' ? a.label : '';
-                const bLabel = typeof b.label === 'string' ? b.label : '';
-                return aLabel.localeCompare(bLabel);
-            });
+            return DocumentsTreeProvider.sortTreeItems(Array.from(map.values()));
         };
 
         // Guard: if the bucket is missing, return empty groups.
@@ -494,12 +522,8 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
             return item;
         });
 
-        // Sort roots by label (A->Z). If label isn't a string, fall back to empty.
-        return roots.sort((a, b) => {
-            const aLabel = typeof a.label === "string" ? a.label : "";
-            const bLabel = typeof b.label === "string" ? b.label : "";
-            return aLabel.localeCompare(bLabel);
-        });
+        // Sort roots by label (A->Z), with the same rules as every other level of the tree.
+        return this.sortTreeItems(roots);
     }
 
     // Build the top-level docs items from <workspace>/../docs.
@@ -543,7 +567,9 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
     }
 
     // Recursively builds TreeItems for Markdown files under `folderUri`.
-    // Empty folders and non-Markdown files are skipped; folders sort before files, A->Z within each group.
+    // Empty folders and non-Markdown files are skipped; folders sort before files, A->Z by name on disk
+    // within each group. Each node is named the way the learning paths name it (see G4DocumentLabelService):
+    // by the link text of the folder's index, then by its own title, then by its name on disk.
     private static async buildDocsTree(folderUri: vscode.Uri): Promise<TreeItem[]> {
         const markdownExtensions = new Set(['.md', '.markdown', '.mdx']);
 
@@ -553,6 +579,16 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         } catch {
             return [];
         }
+
+        // Read the names the folder's index gives its documents and subfolders; a folder without an
+        // index names none, so its nodes fall back to their titles.
+        const indexName = this._indexFileNames.find((candidate) => entries.some(([name, type]) =>
+            type === vscode.FileType.File && name.toLowerCase() === candidate));
+        const indexEntry = entries.find(([name]) => name.toLowerCase() === indexName);
+        const indexText = indexEntry === undefined
+            ? ''
+            : await this.readText(vscode.Uri.joinPath(folderUri, indexEntry[0]));
+        const linkLabels = G4DocumentLabelService.getLinkLabels(indexText);
 
         // Build all child nodes in parallel; nodes that should be omitted resolve to undefined.
         const built = await Promise.all(entries.map(async ([name, type]) => {
@@ -565,10 +601,18 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                     return undefined;
                 }
 
-                const folder = new TreeItem(name) as TreeItem & { data?: any; children?: TreeItem[] };
+                // Name the folder by its index link or its README's title; the README is read only
+                // when the index does not name the folder.
+                const isLinked = linkLabels.has(`${name.toLowerCase()}/`);
+                const readmeText = isLinked
+                    ? ''
+                    : await this.readText(vscode.Uri.joinPath(childUri, 'README.md'));
+                const label = G4DocumentLabelService.getFolderLabel({ folderName: name, linkLabels, readmeText });
+                const folder = new TreeItem(label) as TreeItem & { data?: any; children?: TreeItem[]; sortName?: string };
                 folder.iconPath = new vscode.ThemeIcon('folder');
                 folder.children = subChildren;
                 folder.collapsibleState = vscode.TreeItemCollapsibleState.Collapsed;
+                folder.sortName = name;
                 return folder;
             }
 
@@ -589,9 +633,13 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
                     return undefined;
                 }
 
-                const labelWithoutExtension = lastDot > 0 ? name.substring(0, lastDot) : name;
-                const file = new TreeItem(labelWithoutExtension) as TreeItem & { data?: any };
+                // Name the file by its index link, then its title, then its file name; it is ordered by
+                // its file name, so numbered modules keep their order.
+                const label = G4DocumentLabelService.getFileLabel({ fileName: name, fileText: content, linkLabels });
+                const file = new TreeItem(label) as TreeItem & { data?: any; sortName?: string };
                 file.iconPath = new vscode.ThemeIcon('markdown');
+                file.sortName = name;
+                file.tooltip = childUri.fsPath;
 
                 // Retain the physical URI so Markdown resolves relative links and images from the
                 // file's real directory instead of the virtual plugin-document scheme.
@@ -611,17 +659,8 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
 
         const filtered = built.filter((node): node is TreeItem => node !== undefined);
 
-        // Folders first, then files; case-insensitive A->Z within each group.
-        return filtered.sort((a, b) => {
-            const aIsFolder = (a as TreeItem & { children?: TreeItem[] }).children !== undefined;
-            const bIsFolder = (b as TreeItem & { children?: TreeItem[] }).children !== undefined;
-            if (aIsFolder !== bIsFolder) {
-                return aIsFolder ? -1 : 1;
-            }
-            const aLabel = typeof a.label === 'string' ? a.label : '';
-            const bLabel = typeof b.label === 'string' ? b.label : '';
-            return aLabel.localeCompare(bLabel, undefined, { sensitivity: 'base' });
-        });
+        // Folders first, then files; case-insensitive, numeric-aware A->Z within each group.
+        return this.sortTreeItems(filtered);
     }
 
     // Open physical documentation by its file URI and use an in-memory document only for content
@@ -675,4 +714,34 @@ export class DocumentsTreeProvider implements vscode.TreeDataProvider<TreeItem> 
         // Trigger the preview command with the virtual URI.
         await vscode.commands.executeCommand('markdown.showPreviewToSide', uri);
     }
+
+    // Reads a text file, or nothing when it cannot be read: a missing index or README only falls back to
+    // the next name.
+    private static async readText(fileUri: vscode.Uri): Promise<string> {
+        try {
+            return new TextDecoder('utf-8').decode(await vscode.workspace.fs.readFile(fileUri));
+        } catch {
+            return '';
+        }
+    }
+}
+
+// Compile-time contracts stay after the executable code. Interfaces come before type aliases, and a contract
+// follows the contracts that depend on it before A-Z order resumes.
+
+/**
+ * The part of a tree node the sort reads.
+ *
+ * @remarks
+ * Only the label and the children, so the sort works on any node type (and on plain objects in unit tests).
+ */
+interface SortableTreeNode {
+    /** The nodes under a folder; absent for a file. An empty array still marks a folder. */
+    children?: unknown[];
+
+    /** The display text; a non-text label sorts as empty text. */
+    label?: string | vscode.TreeItemLabel;
+
+    /** The name on disk, which orders a document node while its label is the reader's name; absent orders by label. */
+    sortName?: string;
 }

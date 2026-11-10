@@ -17,10 +17,24 @@ import type { RecorderOptions } from '../../services/g4-recording-service';
 const newManifest = (autonomousSettings: unknown): unknown => ({ settings: { autonomousSettings } });
 
 describe('G4AutonomousSettings', () => {
-    it('uses the defaults when the manifest has no autonomous settings', () => {
+    it('uses the defaults when the manifest has no autonomous settings, with no time limit', () => {
         const settings = G4AutonomousSettings.resolveAutonomousSettings({});
 
-        assert.deepEqual(settings, { harnesses: [], issues: [], runsFolder: 'autonomous-runs', timeoutMinutes: 60 });
+        assert.deepEqual(settings, { harnesses: [], issues: [], runsFolder: 'autonomous-runs', timeoutMinutes: 0 });
+    });
+
+    it('keeps a positive time limit as written, caps it, and reads anything else as no limit', () => {
+        // An explicit limit, such as the 60 older projects were created with, is honored.
+        assert.equal(G4AutonomousSettings.resolveTimeoutMinutes(60), 60);
+        assert.equal(G4AutonomousSettings.resolveTimeoutMinutes(' 90 '), 90);
+
+        // A limit past what a timer can hold is capped, so the timer cannot fire at once.
+        assert.equal(G4AutonomousSettings.resolveTimeoutMinutes(1_000_000), 35791);
+
+        // Missing, empty, zero, negative, and unreadable values all mean no limit.
+        for (const value of [undefined, null, '', '  ', 0, -5, 'soon', Number.NaN, {}]) {
+            assert.equal(G4AutonomousSettings.resolveTimeoutMinutes(value), 0);
+        }
     });
 
     it('resolves a sandbox launcher and a machine executable, with clean model and effort lists', () => {
@@ -79,7 +93,7 @@ describe('G4AutonomousSettings', () => {
             ]
         }));
 
-        assert.equal(settings.timeoutMinutes, 60);
+        assert.equal(settings.timeoutMinutes, 0);
         assert.deepEqual(settings.harnesses.map((harness) => [harness.name, harness.type]), [['Twice', 'opencode']]);
         assert.deepEqual(settings.issues, [
             'Harness 1 is not an object and was skipped.',

@@ -16,9 +16,9 @@
  *
  * Host contract (show-autonomous.ts):
  * - Injected #g4-data: { harnessIssues: string[], harnesses: [{ name, type, isSandbox, models, efforts }],
- *   isRecordingEnabled, recorders: [{ value, text, hint, isPicked }] }.
+ *   isRecordingEnabled, recorders: [{ value, text, hint, isPicked }], timeoutMinutes (0 = no limit) }.
  * - Webview → host: { command: 'ready' },
- *                   { command: 'startAutonomousRun', run: { harness, model, prompt, reasoningEffort, recorders } },
+ *                   { command: 'startAutonomousRun', run: { harness, model, prompt, reasoningEffort, recorders, timeLimit } },
  *                   { command: 'stopAutonomousRun' },
  *                   { command: 'openRunFolder' }, { command: 'openRunFile', path }, { command: 'openFlow', path },
  *                   { command: 'openSettings' }, { command: 'refreshAutonomousData' },
@@ -69,6 +69,9 @@ const MODAL_TITLE = 'Autonomous Exploratory Run';
 
 // Text of the choice that leaves the model or the effort to the harness.
 const HARNESS_DEFAULT_TEXT = 'Harness default';
+
+// Text of the running view's time limit when the run has none.
+const NO_TIME_LIMIT_TEXT = 'None';
 
 // Display text of the reasoning effort values the harnesses use.
 const EFFORT_TEXTS = {
@@ -209,7 +212,8 @@ function convertFromAutonomousData(data) {
         harnessIssues: Array.isArray(data?.harnessIssues) ? data.harnessIssues : [],
         harnesses: Array.isArray(data?.harnesses) ? data.harnesses : [],
         isRecordingEnabled: data?.isRecordingEnabled !== false,
-        recorders: Array.isArray(data?.recorders) ? data.recorders : []
+        recorders: Array.isArray(data?.recorders) ? data.recorders : [],
+        timeoutMinutes: getTimeoutMinutes(data?.timeoutMinutes)
     };
 }
 
@@ -557,6 +561,14 @@ function getFormMarkup() {
                                test-id="autonomous-reasoning-effort-select"
                                value="${getEscapedText(form.reasoningEffort)}"></g4-select>
                 </g4-field>
+                <g4-field hint="The agent is stopped when the run takes longer. Empty means no limit."
+                          label="Time Limit (minutes)"
+                          test-id="autonomous-time-limit-field">
+                    <g4-number-input data-name="timeLimit"
+                                     min="1"
+                                     test-id="autonomous-time-limit-number-input"
+                                     value="${getEscapedText(form.timeLimit)}"></g4-number-input>
+                </g4-field>
             </div>
 
             <g4-field hint="The scenarios to record, what to look for, and what to avoid. Ask for several scenarios to get one flow each."
@@ -654,12 +666,14 @@ function getModelChoices(harness) {
  * @remarks
  * Compute-only. A harness that is gone falls back to the first one, and a model or effort the harness no
  * longer offers falls back to its first. Recorders stay switched as the user left them; a recorder that
- * is new in the manifest starts as the manifest says. The prompt is never touched.
+ * is new in the manifest starts as the manifest says. The time limit follows the manifest only when the
+ * manifest's limit changed, so a limit typed for this run survives a refresh. The prompt is never touched.
  *
  * @param {{ harness: string, model: string, prompt: string, reasoningEffort: string, recorders: string[] }} form
  *     The current form values.
- * @param {{ recorders: { value: string }[] }} previousData - The page data the form was made for.
- * @param {{ harnesses: object[], recorders: { value: string, isPicked: boolean }[] }} data - The new page data.
+ * @param {{ recorders: { value: string }[], timeoutMinutes: number }} previousData - The page data the form was made for.
+ * @param {{ harnesses: object[], recorders: { value: string, isPicked: boolean }[], timeoutMinutes: number }} data
+ *     The new page data.
  * @returns {{ harness: string, model: string, prompt: string, reasoningEffort: string, recorders: string[] }}
  *     The fitted form values.
  */
@@ -684,12 +698,19 @@ function getReconciledForm(form, previousData, data) {
         .filter(testAddedPickedRecorder)
         .map((recorder) => recorder.value);
 
+    // Take the manifest's new time limit when it changed; otherwise keep what the user typed.
+    const isTimeoutChanged = previousData.timeoutMinutes !== data.timeoutMinutes;
+    const timeLimit = isTimeoutChanged
+        ? getTimeLimitText(data.timeoutMinutes)
+        : form.timeLimit;
+
     return {
         ...form,
         harness: harness?.name ?? '',
         model,
         reasoningEffort,
-        recorders: [...keptRecorders, ...addedRecorders]
+        recorders: [...keptRecorders, ...addedRecorders],
+        timeLimit
     };
 }
 
@@ -908,6 +929,15 @@ function getStartIssue() {
         return 'Write a prompt for the agent.';
     }
 
+    // A time limit is empty (no limit) or a positive number of minutes.
+    const timeLimitText = form.timeLimit.trim();
+    const timeLimit = Number(timeLimitText);
+    const isTimeLimitValid = timeLimitText === '' || (Number.isFinite(timeLimit) && timeLimit > 0);
+
+    if (!isTimeLimitValid) {
+        return 'Enter a time limit above 0 minutes, or leave it empty for no limit.';
+    }
+
     return '';
 }
 
@@ -936,6 +966,39 @@ function getStatusText(run) {
     }
 
     return STATUS_STARTING_TEXT;
+}
+
+/**
+ * Converts a time limit in minutes to the text of the run form's minutes box.
+ *
+ * @remarks
+ * Compute-only. No limit (0) shows an empty box, which is also what the user leaves to run without a limit.
+ *
+ * @param {number} timeoutMinutes - The limit, in minutes; 0 for no limit.
+ * @returns {string} The box text.
+ */
+function getTimeLimitText(timeoutMinutes) {
+    return timeoutMinutes > 0
+        ? String(timeoutMinutes)
+        : '';
+}
+
+/**
+ * Narrows a time limit from the host to a number of minutes.
+ *
+ * @remarks
+ * Compute-only. Anything but a positive number means no limit (0), so the page never shows a limit the
+ * host did not send.
+ *
+ * @param {unknown} value - The limit the host sent.
+ * @returns {number} The limit, in minutes; 0 for no limit.
+ */
+function getTimeoutMinutes(value) {
+    const isLimit = typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+    return isLimit
+        ? value
+        : 0;
 }
 
 /**
@@ -972,10 +1035,10 @@ function getVisibleEvents(run, consoleState) {
 }
 
 /**
- * Creates the starting form values: the recorders enabled in the manifest and the first harness with
- * its first model and effort.
+ * Creates the starting form values: the recorders enabled in the manifest, the first harness with
+ * its first model and effort, and the manifest's time limit.
  *
- * @returns {{ harness: string, model: string, prompt: string, reasoningEffort: string, recorders: string[] }}
+ * @returns {{ harness: string, model: string, prompt: string, reasoningEffort: string, recorders: string[], timeLimit: string }}
  *     The form values.
  */
 function newForm() {
@@ -988,7 +1051,8 @@ function newForm() {
         reasoningEffort: harness?.efforts?.[0] ?? '',
         recorders: globalThis.INJECTED.recorders
             .filter((recorder) => recorder.isPicked)
-            .map((recorder) => recorder.value)
+            .map((recorder) => recorder.value),
+        timeLimit: getTimeLimitText(globalThis.INJECTED.timeoutMinutes)
     };
 }
 
@@ -1475,6 +1539,14 @@ function showRunning() {
     recordersElement.textContent = recorderNames.join(', ');
     recordersElement.title = recorderNames.join('\n');
 
+    // Show the run's time limit, so the user knows whether the agent will be stopped.
+    const timeoutMinutes = getTimeoutMinutes(state.timeoutMinutes);
+    const timeLimitText = timeoutMinutes > 0
+        ? `${timeoutMinutes} min`
+        : NO_TIME_LIMIT_TEXT;
+
+    content.querySelector('[data-part="time-limit"]').textContent = timeLimitText;
+
     // Put the console in its slot; new lines are added to it one by one as they arrive.
     content.querySelector('[data-part="console"]').innerHTML = getConsoleMarkup();
 
@@ -1557,7 +1629,8 @@ function startRun() {
             model: form.model,
             prompt: form.prompt,
             reasoningEffort: form.reasoningEffort,
-            recorders: [...form.recorders]
+            recorders: [...form.recorders],
+            timeLimit: form.timeLimit
         }
     });
 }

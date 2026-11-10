@@ -43,6 +43,7 @@ Both notices have an **Open Settings** button.
 1. Choose a **Harness**. Under it, a line tells you whether it runs in a sandbox partition or on this machine.
 2. Choose a **Model**. This is the model that plans and drives every step.
 3. Choose a **Reasoning Effort**. This sets how long the model thinks before each step.
+4. Optionally set a **Time Limit (minutes)**. The agent is stopped when the run takes longer. Leave it empty for no limit. It starts from the **Time Limit** in the settings and applies to this run only.
 
 The **Model** and **Reasoning Effort** lists follow the harness you picked. Module 3 shows where they come from.
 

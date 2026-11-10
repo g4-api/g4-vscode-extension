@@ -31,9 +31,9 @@ The section starts with two fields:
 | Field | Manifest key | Default | What it does |
 | --- | --- | --- | --- |
 | **Runs Folder** | `settings.autonomousSettings.runsFolder` | `autonomous-runs` | Where each run gets its own folder. Relative to the workspace, or an absolute path |
-| **Time Limit** | `settings.autonomousSettings.timeoutMinutes` | `60` | The agent is stopped when a run takes longer than this many minutes |
+| **Time Limit** | `settings.autonomousSettings.timeoutMinutes` | empty (no limit) | The agent is stopped when a run takes longer than this many minutes. The run dialog starts from this value |
 
-> **📝 Note:** A time limit that is not a number above zero falls back to 60 minutes.
+> **📝 Note:** An empty time limit, or one that is not a number above zero, means no limit: the agent runs until it ends or you press **Stop**. A limit above 35791 minutes (about 24 days) is cut to 35791.
 
 ---
 
@@ -71,8 +71,7 @@ The same harness in `manifest.json` looks like this:
                     "type": "claude"
                 }
             ],
-            "runsFolder": "autonomous-runs",
-            "timeoutMinutes": 60
+            "runsFolder": "autonomous-runs"
         }
     }
 }

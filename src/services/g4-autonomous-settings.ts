@@ -11,8 +11,12 @@ import type { RecorderOptions } from './g4-recording-service';
 // Folder, relative to the workspace, that holds one subfolder per autonomous run when the manifest names none.
 const DEFAULT_RUNS_FOLDER = 'autonomous-runs';
 
-// Longest run, in minutes, when the manifest sets no timeout; the agent is stopped when it is reached.
-const DEFAULT_TIMEOUT_MINUTES = 60;
+// The time limit that means "no limit": the agent runs until it ends or the user stops it.
+const NO_TIMEOUT_MINUTES = 0;
+
+// The longest time limit, in minutes. Node's timers hold at most 2^31-1 milliseconds (about 24.8 days); a
+// longer delay fires at once, which would stop the agent right after it starts.
+const MAXIMUM_TIMEOUT_MINUTES = Math.floor((2 ** 31 - 1) / (60 * 1000));
 
 // File extensions of Windows batch launchers. A harness started through one runs inside its sandbox partition.
 const LAUNCHER_EXTENSIONS = new Set(['.bat', '.cmd']);
@@ -106,19 +110,41 @@ export class G4AutonomousSettings {
             return isFirstWithName;
         });
 
-        // Fall back to the defaults for the run folder and the timeout.
+        // Fall back to the default run folder; a timeout the manifest does not set means no limit.
         const runsFolder = G4AutonomousSettings.convertToText(section.runsFolder) || DEFAULT_RUNS_FOLDER;
-        const timeoutMinutes = Number(section.timeoutMinutes);
-        const isTimeoutValid = Number.isFinite(timeoutMinutes) && timeoutMinutes > 0;
 
         return {
             harnesses: uniqueHarnesses,
             issues,
             runsFolder,
-            timeoutMinutes: isTimeoutValid
-                ? timeoutMinutes
-                : DEFAULT_TIMEOUT_MINUTES
+            timeoutMinutes: G4AutonomousSettings.resolveTimeoutMinutes(section.timeoutMinutes)
         };
+    }
+
+    /**
+     * Resolves a time limit, in minutes, from a manifest or page value.
+     *
+     * @remarks
+     * Compute-only. A missing, empty, zero, or unreadable value means no limit (0), so a run is never stopped
+     * by a limit the user did not set. A positive value is kept as written, capped at the longest delay a
+     * timer can hold. Text is read as a number, because the page sends what the user typed.
+     *
+     * @param value - The manifest or page value.
+     * @returns The limit in minutes; 0 for no limit.
+     */
+    public static resolveTimeoutMinutes(value: unknown): number {
+        // Only a number, or text holding one, can be a limit; anything else is no limit.
+        const isNumberText = typeof value === 'string' && value.trim() !== '';
+        const isReadable = typeof value === 'number' || isNumberText;
+        const minutes = isReadable ? Number(value) : Number.NaN;
+        const isLimit = Number.isFinite(minutes) && minutes > 0;
+
+        if (!isLimit) {
+            return NO_TIMEOUT_MINUTES;
+        }
+
+        // Cap the limit, so the timer that enforces it cannot overflow and fire at once.
+        return Math.min(minutes, MAXIMUM_TIMEOUT_MINUTES);
     }
 
     /**
@@ -236,7 +262,7 @@ export interface AutonomousSettings {
     /** The folder, relative to the workspace (or absolute), that receives one subfolder per run. */
     runsFolder: string;
 
-    /** The longest a run may take, in minutes, before the agent is stopped. */
+    /** The longest a run may take, in minutes, before the agent is stopped; 0 means no limit. */
     timeoutMinutes: number;
 }
 

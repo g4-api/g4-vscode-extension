@@ -130,15 +130,19 @@ Running **G4: Create a New G4 Project** scaffolds the layout below and opens the
 ├── build/                              # empty; for build outputs
 ├── docs/
 │   ├── G4 Learning Paths.md            # index of the learning paths below
-│   ├── Autonomous Run/                 # one folder per bundled learning path
-│   ├── Configure Manifest/
-│   ├── Environments And Parameters/
-│   ├── Plugins Externals And Mcp/
-│   ├── Publish A Flow/
-│   ├── Publish A Template/
+│   ├── command-reference.md            # reference documents the index links to
+│   ├── recipes.md
+│   ├── settings-editor-reference.md
+│   ├── troubleshooting.md
+│   ├── Autonomous Exploratory Run/     # one folder per bundled learning path, named as the index names it
+│   ├── Configure manifest.json/
+│   ├── Environments and Parameters/
+│   ├── Plugins, Externals, and MCP/
+│   ├── Publish a Flow/
+│   ├── Publish a Template/
 │   ├── Quick Start/
-│   ├── Record An App/
-│   └── Work In The Workflow Editor/
+│   ├── Record an App/
+│   └── Work in the Workflow Editor/
 ├── scripts/                            # empty; for custom scripts
 └── src/                                # opened as the VS Code workspace
     ├── .agents/                        # empty; created for AI agent files
