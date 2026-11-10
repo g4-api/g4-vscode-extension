@@ -3,7 +3,8 @@
  *
  * VS Code reads the display name, the command categories and titles, the view and editor names, and the icons
  * from package.json once, so they cannot follow the Hub at runtime. This script copies the extension into a
- * staging folder, rewrites those labels and the "G4" mark of the icons there, and packages the copy with vsce. The
+ * staging folder, rewrites those labels there, replaces the side-panel icon when the branding names one, and packages
+ * the copy with vsce. The
  * repository files are never changed. It never touches the extension identity (name, publisher, version), the
  * contribution ids, the when clauses, the menus, or the dependencies, so the branded VSIX installs as the same
  * extension. README, CHANGELOG, and the shipped docs keep their G4 text.
@@ -29,8 +30,12 @@ import { fileURLToPath } from 'node:url';
 // The Hub route that publishes the resolved branding, relative to the Hub base URL.
 const BRANDING_ROUTE = 'api/v4/g4/integration/branding';
 
-// The icons whose artwork draws the "G4" mark as SVG text, relative to the repository root.
-const ICON_FILES = ['resources.assets/g4-icon.svg'];
+// The side-panel icon files, by the branding asset that replaces them. Each file gets the SVG with currentColor
+// replaced by its color; null keeps currentColor, which VS Code tints to the theme.
+const ICON_TARGETS = {
+    asset: 'activityBarIcon',
+    files: [{ color: null, path: 'resources.assets/g4-icon.svg' }]
+};
 
 // The repository entries the staging copy leaves out: version control, sources, test output, and packages,
 // whose production part is copied separately.
@@ -42,18 +47,8 @@ const LINE_SEPARATOR_PATTERN = /\r?\n/;
 // The character code of a byte order mark at the start of a file.
 const BYTE_ORDER_MARK_CODE = 0xFEFF;
 
-// The length of the G4 mark the icons were drawn for; a longer mark is fitted into MARK_WIDTH_PIXELS.
-const DEFAULT_MARK_LENGTH = 2;
-
-// The width, in the icons' 24-unit view box, that a longer mark is fitted into.
-const MARK_WIDTH_PIXELS = 22;
-
-// Matches the opening tag of an SVG text element whose content is the G4 mark. Linear: a negated class with one
-// quantifier, then a literal.
-const MARK_TEXT_ELEMENT_PATTERN = /<text[^>]*>(?=G4<\/text>)/g;
-
-// Matches the SVG text element content that draws the mark: the literal G4 between the text tags.
-const MARK_TEXT_PATTERN = />G4<\/text>/g;
+// The largest icon accepted; an activity bar icon is a few kilobytes, so anything larger is not an icon.
+const MAXIMUM_ICON_BYTES = 256 * 1024;
 
 // Matches a standalone G4 word, not one inside an identifier such as G4Log. Linear: a literal and a lookahead.
 const PRODUCT_WORD_PATTERN = /\bG4(?=[ :.,)'’-]|$)/g;
@@ -61,11 +56,17 @@ const PRODUCT_WORD_PATTERN = /\bG4(?=[ :.,)'’-]|$)/g;
 // Matches each run of characters that cannot appear in the VSIX file name suffix. Linear: one negated class.
 const SLUG_SEPARATOR_PATTERN = /[^a-z0-9]+/g;
 
+// Matches the opening of the root svg element. Linear: a literal followed by one character class.
+const SVG_START_PATTERN = /^<svg[\s>]/i;
+
 // Matches the slashes that end a base URL, so the route is joined with exactly one slash. Linear and anchored.
 const TRAILING_SLASHES_PATTERN = /\/+$/;
 
 // Matches a branding source that is a Hub URL rather than a file path.
 const URL_SOURCE_PATTERN = /^https?:\/\//i;
+
+// Matches an XML prolog such as <?xml version="1.0"?>. Linear: one bounded character class between literals.
+const XML_PROLOG_PATTERN = /^<\?xml[^>]{0,256}\?>/;
 
 // The repository root, one folder above this script.
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -93,19 +94,6 @@ function convertToBrandedText(text, tokens) {
         .replaceAll('G4 Test Wright', tokens.testWright)
         .replaceAll('G4™', tokens.productTm)
         .replaceAll(PRODUCT_WORD_PATTERN, tokens.product);
-}
-
-/**
- * Escapes the characters that carry meaning in XML text.
- *
- * @param {string} value - The text to escape.
- * @returns {string} The escaped text.
- */
-function convertToEscapedXml(value) {
-    return value
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;');
 }
 
 /**
@@ -154,7 +142,7 @@ async function invokeRebrand(argumentsList) {
     const stagingFolder = mkdtempSync(path.join(tmpdir(), `rebrand-${slug}-`));
     newStagingCopy(stagingFolder);
 
-    // Rewrite the static labels of package.json and the mark of each icon in the staging copy only.
+    // Rewrite the static labels of package.json and the side-panel icon in the staging copy only.
     const packagePath = path.join(stagingFolder, 'package.json');
     const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
     updateManifestLabels(manifest, branding.tokens);
@@ -163,9 +151,8 @@ async function invokeRebrand(argumentsList) {
     delete manifest.scripts?.['vscode:prepublish'];
     writeFileSync(packagePath, `${JSON.stringify(manifest, null, 4)}\n`, 'utf8');
 
-    for (const iconFile of ICON_FILES) {
-        updateIconMark(path.join(stagingFolder, iconFile), branding.assets?.markText ?? branding.tokens.mark);
-    }
+    // Replace the side-panel icon when the branding names one; the built-in double orbit stays otherwise.
+    await updateIcons(stagingFolder, branding, options.branding);
 
     // Stop here when only the staging copy was asked for, and leave it for inspection.
     if (!options.isPackaging) {
@@ -229,7 +216,7 @@ function newStagingCopy(stagingFolder) {
  * Reads the branding from a branding.json file or from a Hub.
  *
  * @param {string} source - A file path or a Hub base URL.
- * @returns {Promise<{ assets?: { markText?: string }, productName?: string, tokens: Record<string, string> }>}
+ * @returns {Promise<{ assets?: Record<string, string>, productName?: string, tokens: Record<string, string> }>}
  *     The resolved branding.
  */
 async function readBranding(source) {
@@ -259,6 +246,55 @@ async function readBranding(source) {
     }
 
     return branding;
+}
+
+/**
+ * Reads the SVG icon a branding asset names.
+ *
+ * @param {string} icon - The asset value: a path served by the Hub, or an absolute URL.
+ * @param {string} source - The branding source: a Hub base URL, or the wwwroot/branding.json the Hub writes.
+ * @returns {Promise<string>} The SVG document.
+ *
+ * @remarks
+ * A path is read from the Hub when the branding came from a Hub, and from the folder of branding.json, the Hub's
+ * wwwroot, when it came from the file. Fails when the icon is missing, larger than 256 KB, or not an SVG document,
+ * so a branded VSIX never ships a broken icon.
+ */
+async function readIcon(icon, source) {
+    // Resolve where the icon lives: an absolute URL as written, otherwise next to the branding source.
+    const isUrlIcon = URL_SOURCE_PATTERN.test(icon);
+    const isUrlSource = URL_SOURCE_PATTERN.test(source);
+    let iconBytes;
+
+    if (isUrlIcon || isUrlSource) {
+        const baseUrl = isUrlSource ? source.replace(TRAILING_SLASHES_PATTERN, '') : 'http://localhost';
+        const iconUrl = new URL(icon, `${baseUrl}/`);
+        const response = await fetch(iconUrl);
+
+        if (!response.ok) {
+            throw new Error(`The icon ${iconUrl.href} answered ${response.status}.`);
+        }
+
+        iconBytes = Buffer.from(await response.arrayBuffer());
+    } else {
+        iconBytes = readFileSync(path.join(path.dirname(path.resolve(source)), icon));
+    }
+
+    // Refuse a large file and anything that is not an SVG document.
+    if (iconBytes.length > MAXIMUM_ICON_BYTES) {
+        throw new Error(`The icon ${icon} is larger than 256 KB.`);
+    }
+
+    const iconText = iconBytes.toString('utf8');
+    const unmarkedText = iconText.charCodeAt(0) === BYTE_ORDER_MARK_CODE ? iconText.slice(1) : iconText;
+    const markup = unmarkedText.trimStart().replace(XML_PROLOG_PATTERN, '').trimStart();
+    const isSvg = SVG_START_PATTERN.test(markup) && markup.trimEnd().toLowerCase().endsWith('</svg>');
+
+    if (!isSvg) {
+        throw new Error(`The icon ${icon} is not an SVG file.`);
+    }
+
+    return iconText;
 }
 
 /**
@@ -304,27 +340,36 @@ function startVsce(stagingFolder, vsixPath) {
 }
 
 /**
- * Replaces the "G4" mark drawn by an SVG icon with the branding mark text.
+ * Replaces the side-panel icon files of the staging copy with the icon the branding names.
  *
- * @param {string} iconPath - The staged icon file.
- * @param {string} markText - The short mark text, for example "G4".
+ * @param {string} stagingFolder - The staging copy.
+ * @param {{ assets?: Record<string, string> }} branding - The resolved branding.
+ * @param {string} source - The branding source, used to resolve an icon path.
+ *
+ * @remarks
+ * An empty asset keeps the built-in icon. The branded icon also replaces the built-in copies under
+ * resources.assets/defaults, so the branded extension falls back to the branded icon, not the G4 double orbit, when
+ * the user clears the local setting or connects to a Hub without an icon.
  */
-function updateIconMark(iconPath, markText) {
-    // Skip an icon that does not exist in this version of the extension.
-    if (!existsSync(iconPath)) {
+async function updateIcons(stagingFolder, branding, source) {
+    // Keep the built-in icon when the branding names none.
+    const icon = branding.assets?.[ICON_TARGETS.asset]?.trim() ?? '';
+
+    if (icon === '') {
         return;
     }
 
-    // Fit a mark longer than the two G4 letters into the icon width, so a longer mark is narrowed, not clipped.
-    const isLongMark = markText.length > DEFAULT_MARK_LENGTH;
-    const fitAttributes = isLongMark ? ` textLength="${MARK_WIDTH_PIXELS}" lengthAdjust="spacingAndGlyphs"` : '';
+    // Write the icon into each target file, with the color that file needs.
+    const iconText = await readIcon(icon, source);
 
-    // Replace the drawn letters, and add the fit attributes to each text element that draws them.
-    const svg = readFileSync(iconPath, 'utf8')
-        .replaceAll(MARK_TEXT_ELEMENT_PATTERN, (textTag) => `${textTag.slice(0, -1)}${fitAttributes}>`)
-        .replaceAll(MARK_TEXT_PATTERN, `>${convertToEscapedXml(markText)}</text>`);
+    for (const target of ICON_TARGETS.files) {
+        const svg = target.color === null ? iconText : iconText.replaceAll('currentColor', target.color);
 
-    writeFileSync(iconPath, svg, 'utf8');
+        const defaultPath = path.join(path.dirname(target.path), 'defaults', path.basename(target.path));
+
+        writeFileSync(path.join(stagingFolder, target.path), svg, 'utf8');
+        writeFileSync(path.join(stagingFolder, defaultPath), svg, 'utf8');
+    }
 }
 
 /**
@@ -335,7 +380,8 @@ function updateIconMark(iconPath, markText) {
  *
  * @remarks
  * Only display text changes: the display name and description, command titles and categories, view container
- * titles, view names, welcome contents, custom editor names, and the first language alias. Ids, when clauses,
+ * titles, view names, welcome contents, custom editor names, the settings title and descriptions, and the first
+ * language alias. Ids, when clauses,
  * menus, and the extension identity stay as written.
  */
 function updateManifestLabels(manifest, tokens) {
@@ -370,6 +416,18 @@ function updateManifestLabels(manifest, tokens) {
         for (const view of views) {
             setLabel(view, 'contextualTitle');
             setLabel(view, 'name');
+        }
+    }
+
+    // Brand the settings page title and the description of each setting.
+    const configurations = [contributes.configuration ?? []].flat();
+
+    for (const configuration of configurations) {
+        setLabel(configuration, 'title');
+
+        for (const property of Object.values(configuration.properties ?? {})) {
+            setLabel(property, 'description');
+            setLabel(property, 'markdownDescription');
         }
     }
 

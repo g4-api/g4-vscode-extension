@@ -3,6 +3,7 @@
     "displayName": "G4 Studio",
     "description": "G4 Engine is a plugin-based automation platform that lets teams orchestrate workflows across web, desktop, API, and enterprise systems with speed, control, and reliability.",
     "version": "0.0.2",
+    "icon": "resources.assets/icon.png",
     "engines": {
         "vscode": "^1.105.0"
     },
@@ -29,6 +30,17 @@
     "license": "Apache-2.0",
     "main": "./dist/extension.js",
     "contributes": {
+        "configuration": {
+            "title": "G4 Studio",
+            "properties": {
+                "g4.sidePanelIcon": {
+                    "type": "string",
+                    "default": "",
+                    "scope": "machine",
+                    "markdownDescription": "Absolute path to an SVG file to show as the side-panel (activity bar) icon, for example `C:/branding/activity.svg` or `~/branding/activity.svg`. Draw it on a 24 by 24 grid in one color (`currentColor`); at most 256 KB. Takes precedence over the icon the Hub branding publishes. VS Code reads the icon at startup, so a change shows from the next start. Leave empty for the Hub icon or the built-in icon."
+                }
+            }
+        },
         "commands": [
             {
                 "command": "New-Project",
