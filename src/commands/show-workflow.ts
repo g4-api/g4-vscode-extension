@@ -8,10 +8,14 @@ import * as vscode from 'vscode';
 import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { Utilities } from '../extensions/utilities';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // How long manifest.json must stay quiet before the designer receives its toolboxes filter; one save fires
 // several file events.
 const MANIFEST_SETTLE_MILLISECONDS = 250;
+
+// The script tag the Hub pages use to load the branding from the Hub root; the designer copy drops it.
+const HUB_BRANDING_SCRIPT_TAG = '<script src="/api/v4/g4/integration/branding.js"></script>';
 
 // Workspace state key prefix of the designer plugins' state; the bot file's URI completes the key.
 const PLUGIN_STATES_KEY_PREFIX = 'g4.designerPlugins.states:';
@@ -76,7 +80,7 @@ export class ShowWorkflowCommand extends CommandBase {
     protected async onInvokeCommand(args: any): Promise<any> {
         const panel = vscode.window.createWebviewPanel(
             'g4-workflow',
-            'G4 Workflow',
+            G4BrandingService.getText('{product} Workflow'),
             vscode.ViewColumn.One,
             ShowWorkflowCommand.getWebviewOptions(this.context, path.join(this.context.globalStorageUri.fsPath, 'webapp'))
         );
@@ -113,7 +117,7 @@ export class ShowWorkflowCommand extends CommandBase {
                 {
                     cancellable: false,
                     location: vscode.ProgressLocation.Notification,
-                    title: 'Opening G4 Workflow editor…'
+                    title: G4BrandingService.getText('Opening {product} Workflow editor…')
                 },
                 async (progress) => {
                     // Download and patch all integration resources into the storage directory.
@@ -124,7 +128,7 @@ export class ShowWorkflowCommand extends CommandBase {
             // Explain the failure in the tab and in a notification, instead of leaving a blank tab
             // behind the generic error VS Code shows for a command that throws.
             const reason = ShowWorkflowCommand.getLoadFailureReason(error);
-            const message = `The G4 Workflow designer could not be loaded from the G4 Hub at ${this._baseUrl}: ${reason}`;
+            const message = G4BrandingService.getText(`The {product} Workflow designer could not be loaded from the {hub} at ${this._baseUrl}: ${reason}`);
 
             this._logger.error(message);
             panel.webview.html = ShowWorkflowCommand.getLoadFailureHtml(message);
@@ -145,7 +149,7 @@ export class ShowWorkflowCommand extends CommandBase {
         // Load the raw HTML, rewrite resource references, and inject the shim
         let html = await fs.readFile(indexPath, 'utf8');
         html = ShowWorkflowCommand.setHtml(panel, storageDir, html);
-        html = html.replace(/<\/head>/i, headerShim + '</head>');
+        html = html.replace(/<\/head>/i, () => G4BrandingService.getPageScript() + headerShim + '</head>');
         html = html.replace(/<\/body>/i, bodyShim + '</body>');
 
         /**
@@ -190,23 +194,23 @@ export class ShowWorkflowCommand extends CommandBase {
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;');
 
-        return `<!DOCTYPE html>
+        return G4BrandingService.getHtml(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
-    <title>G4 Workflow</title>
+    <title>{product} Workflow</title>
     <style>
         body { color: var(--vscode-foreground); font-family: var(--vscode-font-family); padding: 2rem; }
         h1 { font-size: 1.2rem; font-weight: 600; }
     </style>
 </head>
 <body>
-    <h1 data-test-id="workflow-load-failure-title">The G4 Workflow designer could not be loaded</h1>
+    <h1 data-test-id="workflow-load-failure-title">The {product} Workflow designer could not be loaded</h1>
     <p data-test-id="workflow-load-failure-message">${escapedMessage}</p>
-    <p data-test-id="workflow-load-failure-hint">Start the G4 Hub (or check its address in G4 Settings), then open the designer again.</p>
+    <p data-test-id="workflow-load-failure-hint">Start the {hub} (or check its address in {product} Settings), then open the designer again.</p>
 </body>
-</html>`;
+</html>`);
     }
 
     /**
@@ -1011,7 +1015,7 @@ export class ShowWorkflowCommand extends CommandBase {
         if (message.type === 'webview:ready' && typeof args?.getContent === 'function') {
             const fileName = typeof args.fileUri === 'string'
                 ? path.basename(vscode.Uri.parse(args.fileUri).fsPath)
-                : 'G4 Workflow';
+                : G4BrandingService.getText('{product} Workflow');
 
             panel.webview.postMessage({
                 type: 'workflow:import',
@@ -1040,7 +1044,7 @@ export class ShowWorkflowCommand extends CommandBase {
             panel.webview.postMessage({
                 type: 'workflow:import',
                 payload: {
-                    fileName: 'G4 Workflow',
+                    fileName: G4BrandingService.getText('{product} Workflow'),
                     content: JSON.stringify(args.workflow)
                 }
             });
@@ -1131,7 +1135,7 @@ export class ShowWorkflowCommand extends CommandBase {
 
             // Derive a simple filename for display in the webview.
             const fileName = path.basename(fileUri.fsPath);
-            panel.title = fileName || 'G4 Workflow';
+            panel.title = fileName || G4BrandingService.getText('{product} Workflow');
 
             // Send the file name and content back to the webview for import.
             panel.webview.postMessage({
@@ -1253,6 +1257,10 @@ export class ShowWorkflowCommand extends CommandBase {
                     'designer-blueprint-parameters-g4.css',
                     'designer-blueprint-parameters-vscode.css'
                 );
+
+                // Drop the Hub's branding script, which a webview cannot load from the Hub root; the extension
+                // injects the same branding into the page itself.
+                htmlText = htmlText.replaceAll(HUB_BRANDING_SCRIPT_TAG, '');
 
                 // Persist the patched HTML back to disk at the target filePath
                 await fs.writeFile(filePath, htmlText, 'utf8');

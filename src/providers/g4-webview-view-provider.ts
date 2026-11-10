@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Provides the HTML content and messaging bridge for the G4 Webview sidebar or panel.
@@ -81,7 +82,7 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
      * to communicate user actions back to the extension.
      */
     private static getHtml(): string {
-        return /* html */`
+        return G4BrandingService.getHtml(/* html */`
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -144,25 +145,25 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                     } 
                 }
             </style>
-            <title>G4 Engine Client</title>
+            <title>{engineClient}</title>
         </head>
         <body>
             <div class="description">
-                <strong>G4 Engine API Workflow Editor</strong><br/>
+                <strong>{engine} API Workflow Editor</strong><br/>
                 Visualize, build, test and run your automation workflows through a graphical interface.
-                Click "Open G4 Workflow Editor" to launch the embedded designer in a new editor tab.
+                Click "Open {product} Workflow Editor" to launch the embedded designer in a new editor tab.
             </div>
 
             <div class="btn-container">
                 <button id="showWorkflowBtn" class="btn"
-                    title="Open the G4 Workflow Editor in a new tab to visually build, test, and run automation workflows.">
-                    Open G4 Workflow Editor
+                    title="Open the {product} Workflow Editor in a new tab to visually build, test, and run automation workflows.">
+                    Open {product} Workflow Editor
                 </button>
             </div>
 
             <div class="btn-container">
                 <button id="showSettingsBtn" class="btn"
-                    title="Open the Settings Editor to view and edit this project's G4 configuration (manifest.json).">
+                    title="Open the Settings Editor to view and edit this project's {product} configuration (manifest.json).">
                     Open Settings Editor
                 </button>
             </div>
@@ -191,6 +192,6 @@ export class G4WebviewViewProvider implements vscode.WebviewViewProvider {
                 );
             </script>
       </body>
-      </html>`;
+      </html>`);
     }
 }

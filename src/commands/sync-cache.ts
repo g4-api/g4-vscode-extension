@@ -11,6 +11,7 @@ import { G4Client } from '../clients/g4-client';
 import { HttpResult } from '../clients/http-client';
 import { addPendingWarning } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 export class SyncCacheCommand extends CommandBase {
     /** Logger scoped to this command for command-specific diagnostics. */
@@ -80,7 +81,7 @@ export class SyncCacheCommand extends CommandBase {
         // Sync the cache, then the tools, under one status bar progress item that clears itself.
         const progressOptions = {
             location: vscode.ProgressLocation.Window,
-            title: 'Syncing the G4 cache'
+            title: G4BrandingService.getText('Syncing the {product} cache')
         };
 
         const { cacheResult, toolsResult } = await vscode.window.withProgress(progressOptions, async () => {
@@ -98,8 +99,8 @@ export class SyncCacheCommand extends CommandBase {
         });
 
         // Report each failure with its reason, without aborting the established connection flow.
-        this.showFailure('The G4 cache sync failed', cacheResult);
-        this.showFailure('The G4 tool sync failed', toolsResult);
+        this.showFailure(G4BrandingService.getText('The {product} cache sync failed'), cacheResult);
+        this.showFailure(G4BrandingService.getText('The {product} tool sync failed'), toolsResult);
 
         // Log every source the Hub could not synchronize and every tool the engine rejected; a
         // successful sync still reports them in its body.

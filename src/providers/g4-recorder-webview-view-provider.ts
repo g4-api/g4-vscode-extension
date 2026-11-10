@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { Utilities } from '../extensions/utilities';
 
 import { G4RecordingService } from '../services/g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Provides and manages the **G4 Recorder** custom Webview panel in VS Code.
@@ -740,7 +741,7 @@ export class G4RecorderViewProvider implements vscode.WebviewViewProvider {
 
 							if (server.ok && server.suspended) {
 								bulbClass = ' suspended';
-								bulbTitle = 'Recording paused: suspended by the G4 Hub';
+								bulbTitle = G4BrandingService.getText('Recording paused: suspended by the {hub}');
 							} else if (server.ok) {
 								bulbClass = ' on';
 								bulbTitle = 'Recording';

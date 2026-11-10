@@ -21,6 +21,7 @@ import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
 
 import { Logger } from '../logging/logger';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Folder of the flow publisher component under resources.components.
 const COMPONENT_FOLDER = 'automation-flow-publisher';
@@ -193,10 +194,10 @@ export class UpdateFlowCommand extends CommandBase {
     public static newDefaultValues(botFile: BotFile): Record<string, unknown> {
         return {
             aliases: [],
-            author: { name: 'G4 VS Code Extension', link: '' },
+            author: { name: G4BrandingService.getText('{product} VS Code Extension'), link: '' },
             categories: ['Bots'],
             context: {},
-            description: [`Flow published from bots/${botFile.relativePath} by the G4 VS Code extension.`],
+            description: [G4BrandingService.getText(`Flow published from bots/${botFile.relativePath} by the {product} VS Code extension.`)],
             key: botFile.key,
             namespace: FLOW_NAMESPACE,
             parameters: [],
@@ -305,7 +306,7 @@ export class UpdateFlowCommand extends CommandBase {
         }
 
         // The Hub is unreachable or does not publish the flows document; use the bundled schema.
-        this._logger.warning('Flow schema not available from the G4 Hub; using the bundled schema.');
+        this._logger.warning(G4BrandingService.getText('Flow schema not available from the {hub}; using the bundled schema.'));
         const bundledText = Utilities.getResource(`resources.components/${COMPONENT_FOLDER}/${COMPONENT_FOLDER}.schema.json`);
 
         return { isSchemaFallback: true, schemas: JSON.parse(bundledText) };

@@ -11,6 +11,7 @@ import { CommandBase } from './command-base';
 
 import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Confirmation button of the factory reset dialog; a modal dialog adds its own Cancel.
 const FACTORY_RESET_ACTION = 'Restore Factory Settings';
@@ -152,7 +153,7 @@ export class ShowSettingsCommand extends CommandBase {
             // Internal webview type identifier.
             VIEW_TYPE,
 
-            'G4 Settings',
+            G4BrandingService.getText('{product} Settings'),
 
             // Open the settings in the first editor column.
             vscode.ViewColumn.One,
@@ -293,7 +294,7 @@ export class ShowSettingsCommand extends CommandBase {
                 });
             } else {
                 vscode.window.showWarningMessage(
-                    'No G4 Sandbox was auto-detected. Browse manually for the G4 Sandbox.'
+                    G4BrandingService.getText('No {product} Sandbox was auto-detected. Browse manually for the {product} Sandbox.')
                 );
             }
         }
@@ -365,7 +366,7 @@ export class ShowSettingsCommand extends CommandBase {
 
         if (fileText !== this._loadedFileText) {
             const choice = await vscode.window.showWarningMessage(
-                'manifest.json changed outside the G4 Settings editor after it was loaded.',
+                G4BrandingService.getText('manifest.json changed outside the {product} Settings editor after it was loaded.'),
                 { detail: CHANGED_FILE_DETAIL, modal: true },
                 OVERWRITE_ACTION,
                 RELOAD_ACTION);
@@ -395,7 +396,7 @@ export class ShowSettingsCommand extends CommandBase {
             this._loadedFileText = json;
         } catch (error) {
             // Surface any write failure (permissions, disk, etc.).
-            vscode.window.showErrorMessage(`Could not save G4 settings: ${Utilities.resolveErrorMessage(error)}`);
+            vscode.window.showErrorMessage(G4BrandingService.getText(`Could not save {product} settings: ${Utilities.resolveErrorMessage(error)}`));
             return false;
         }
 
@@ -417,7 +418,7 @@ export class ShowSettingsCommand extends CommandBase {
     private async saveSettings(panel: vscode.WebviewPanel, manifest: unknown): Promise<void> {
         // A save needs an open workspace to resolve the manifest path.
         if (!vscode.workspace.workspaceFolders?.length) {
-            vscode.window.showErrorMessage('Open a G4 project folder before saving settings.');
+            vscode.window.showErrorMessage(G4BrandingService.getText('Open a {product} project folder before saving settings.'));
             return;
         }
 
@@ -430,7 +431,7 @@ export class ShowSettingsCommand extends CommandBase {
         try {
             await vscode.commands.executeCommand('Apply-Settings', applyOptions);
         } catch (error) {
-            vscode.window.showErrorMessage(`Could not apply G4 settings: ${Utilities.resolveErrorMessage(error)}`);
+            vscode.window.showErrorMessage(G4BrandingService.getText(`Could not apply {product} settings: ${Utilities.resolveErrorMessage(error)}`));
         }
     }
 
@@ -571,7 +572,7 @@ export class ShowSettingsCommand extends CommandBase {
 
         // Offer to reload the form from the file.
         const choice = await vscode.window.showInformationMessage(
-            'manifest.json changed outside the G4 Settings editor.',
+            G4BrandingService.getText('manifest.json changed outside the {product} Settings editor.'),
             RELOAD_ACTION);
 
         if (choice === RELOAD_ACTION && this._panel === panel) {

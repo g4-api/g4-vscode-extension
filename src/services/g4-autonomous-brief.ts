@@ -2,6 +2,7 @@
  * The brief an autonomous run hands to its agent: the user's prompt plus the G4 recording rules.
  */
 import * as path from 'node:path';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // File name of the recorder helper the extension copies into every run folder.
 export const RECORDER_HELPER_FILE_NAME = 'g4-recorder.ps1';
@@ -33,7 +34,7 @@ export class G4AutonomousBrief {
         const recorderLines = options.recorderNames.map((recorderName) => `- ${recorderName}`);
 
         const lines = [
-            '# G4 autonomous exploratory run',
+            G4BrandingService.getText('# {product} autonomous exploratory run'),
             '',
             '## Your task',
             '',
@@ -41,16 +42,16 @@ export class G4AutonomousBrief {
             '',
             '## How this run works',
             '',
-            'You explore the application and record each scenario you are asked for as its own G4 flow.',
+            G4BrandingService.getText('You explore the application and record each scenario you are asked for as its own {product} flow.'),
             `Your run folder is \`${options.runFolder}\`. Write every file of this run there and nowhere else.`,
             '',
-            'These G4 recorders capture what happens on the desktop while a recording is open:',
+            G4BrandingService.getText('These {product} recorders capture what happens on the desktop while a recording is open:'),
             '',
             ...recorderLines,
             '',
             '## Recording rules',
             '',
-            `Record only through the helper \`${helperPath}\`. Never call the G4 Hub yourself.`,
+            G4BrandingService.getText(`Record only through the helper \`${helperPath}\`. Never call the {hub} yourself.`),
             '',
             '1. List the scenarios first. Plan each one:',
             `   \`${helperCommand} -Action plan -Scenario "<name>"\``,
@@ -69,19 +70,19 @@ export class G4AutonomousBrief {
             `4. Check progress at any time: \`${helperCommand} -Action status\``,
             '',
             'Exit codes: 0 is success, 1 means the call does not fit the current state (the message says why),',
-            'and 2 means the G4 Hub failed the request. On 2, read the message, then retry once or skip the scenario.',
+            G4BrandingService.getText('and 2 means the {hub} failed the request. On 2, read the message, then retry once or skip the scenario.'),
             '',
             '## Seeing and controlling the screen',
             '',
-            'Look at and act on the screen through the G4 visual skills of your workspace and the screen tools',
-            'of your G4 tool servers:',
+            G4BrandingService.getText('Look at and act on the screen through the {product} visual skills of your workspace and the screen tools'),
+            G4BrandingService.getText('of your {product} tool servers:'),
             '',
             '- Skills: g4-visual-observe (take a screenshot) and g4-visual-ground (point at an element).',
             '- Tools: GetScreenshot, ConvertScreenshotPoint, MovePointer, and ResolveGroundedElement.',
             '',
             'Tool-server tools may load only when searched for. If you do not see them, search your tools',
             '(for example for "GetScreenshot") before you decide you cannot see the screen. Use other',
-            'computer-use tools only when the G4 ones are missing.',
+            G4BrandingService.getText('computer-use tools only when the {product} ones are missing.'),
             '',
             '## Ground rules',
             '',

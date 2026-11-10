@@ -492,7 +492,7 @@ function startReport() {
 
         headerElement.innerHTML = `
         <g4-page-header meta="${convertToEscapedHtml(driver)} &bull; ${convertToEscapedHtml(browser)}"
-                        page-title="G4&#x2122; Request Configuration"
+                        page-title="${convertToEscapedHtml(G4Branding.getText('{productTm} Request Configuration'))}"
                         test-id="request-configuration-header">
             <span class="automation-report-tag" data-test-id="request-configuration-kind-tag">Request</span>
         </g4-page-header>`;
@@ -503,13 +503,13 @@ function startReport() {
     const showNoDataView = () => {
         headerElement.innerHTML = `
         <g4-page-header meta="No session data found"
-                        page-title="G4&#x2122; Automation Report"
+                        page-title="${convertToEscapedHtml(G4Branding.getText('{productTm} Automation Report'))}"
                         test-id="automation-report-header"></g4-page-header>`;
         appElement.innerHTML = `
         <div class="automation-report-main" data-test-id="automation-report-main">
             <div class="automation-report-error" data-test-id="automation-report-unrecognized-format-message">
                 <div class="automation-report-error__title">Unrecognized format</div>
-                <div class="automation-report-error__description">Expected a G4 response with <code class="automation-report-error__code">sessions</code> and <code class="automation-report-error__code">responseTree</code> keys.</div>
+                <div class="automation-report-error__description">Expected a ${convertToEscapedHtml(G4Branding.getText('{product}'))} response with <code class="automation-report-error__code">sessions</code> and <code class="automation-report-error__code">responseTree</code> keys.</div>
             </div>
         </div>`;
     };
@@ -941,7 +941,7 @@ function writeHeader(automationReference, performancePoint) {
 
     return `
     <g4-page-header meta="${convertToEscapedHtml(name)} &bull; ${convertToEscapedHtml(startText)}"
-                    page-title="G4&#x2122; Automation Report"
+                    page-title="${convertToEscapedHtml(G4Branding.getText('{productTm} Automation Report'))}"
                     test-id="automation-report-header"></g4-page-header>`;
 }
 

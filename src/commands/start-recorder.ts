@@ -22,6 +22,7 @@ import { G4RecordingService } from '../services/g4-recording-service';
 import type { RecordingStatus } from '../clients/g4-recordings-client';
 
 import type { RecorderOptions } from '../services/g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Registers and runs the **Start-Recorder** command, which starts one recording session on the G4 Hub.
@@ -173,7 +174,7 @@ export class StartRecorderCommand extends CommandBase {
         const recorders = this._recordingService.recorders;
 
         if (recorders.length === 0) {
-            vscode.window.showWarningMessage('No recorder is enabled. Enable a recorder in the G4 settings first.');
+            vscode.window.showWarningMessage(G4BrandingService.getText('No recorder is enabled. Enable a recorder in the {product} settings first.'));
             return;
         }
 

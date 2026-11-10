@@ -15,6 +15,7 @@ import {
 } from '../extensions/notification-utilities';
 import { Utilities } from '../extensions/utilities';
 import path from 'node:path';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Command to update one or more template definitions in the G4 Hub.
@@ -138,7 +139,7 @@ export class UpdateTemplateCommand extends CommandBase {
 
         if (!toolsResult.ok) {
             const toolsFailure = G4Client.getFailureMessage(toolsResult);
-            const toolsMessage = `Templates were stored, but the G4 tool sync failed: ${toolsFailure}`;
+            const toolsMessage = G4BrandingService.getText(`Templates were stored, but the {product} tool sync failed: ${toolsFailure}`);
 
             this._logger.error(toolsMessage);
             void vscode.window.showErrorMessage(toolsMessage);

@@ -23,6 +23,7 @@ import type {
     RecorderOptions,
     RecorderScriptOptions
 } from '../services/g4-recording-service';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 /**
  * Registers and runs the **Stop-Recorder** command, which stops the Hub session and opens its workflow.
@@ -188,7 +189,7 @@ export class StopRecorderCommand extends CommandBase {
             const isPostScriptFailed = result.isExecuted && !result.isSuccess;
 
             if (isPostScriptFailed) {
-                const warning = `Post-script failed for recorder ${recorder.baseUrl}. See the G4 log for details.`;
+                const warning = G4BrandingService.getText(`Post-script failed for recorder ${recorder.baseUrl}. See the {product} log for details.`);
                 vscode.window.showWarningMessage(warning);
             }
         }

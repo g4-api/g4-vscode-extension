@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { ShowReportCommand } from '../commands/show-report';
 import { Utilities } from '../extensions/utilities';
+import { G4BrandingService } from '../services/g4-branding-service';
 
 // Strict Base64 alphabet with optional end padding; linear, no nested quantifiers.
 const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -93,7 +94,7 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
 
             webviewPanel.webview.options = { enableScripts: false };
             webviewPanel.webview.html = G4ReportCustomEditorProvider.newUnreadableReportHtml(fileName);
-            vscode.window.showWarningMessage(`${fileName} is not a readable G4 report.`);
+            vscode.window.showWarningMessage(G4BrandingService.getText(`${fileName} is not a readable {product} report.`));
 
             return;
         }
@@ -124,7 +125,7 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
         const htmlEntities: Record<string, string> = { '"': '&quot;', '&': '&amp;', '\'': '&#39;', '<': '&lt;', '>': '&gt;' };
         const safeFileName = fileName.replaceAll(HTML_SPECIAL_CHARACTER_PATTERN, (character) => htmlEntities[character]);
 
-        return `<!DOCTYPE html>
+        return G4BrandingService.getHtml(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -135,11 +136,11 @@ export class G4ReportCustomEditorProvider implements vscode.CustomReadonlyEditor
     </style>
 </head>
 <body>
-    <h1 data-test-id="unreadable-report-title">${safeFileName} is not a readable G4 report.</h1>
-    <p data-test-id="unreadable-report-hint">A G4 report holds Base64 of an automation result in JSON. To see what this
+    <h1 data-test-id="unreadable-report-title">${safeFileName} is not a readable {product} report.</h1>
+    <p data-test-id="unreadable-report-hint">A {product} report holds Base64 of an automation result in JSON. To see what this
         file holds, right-click it in the Explorer, choose Open With..., and pick Text Editor.</p>
 </body>
-</html>`;
+</html>`);
     }
 
     /**
