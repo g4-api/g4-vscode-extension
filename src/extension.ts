@@ -35,6 +35,7 @@ import {
 import { G4RecordingService } from './services/g4-recording-service';
 import { ApplySettingsOptions, G4SettingsService } from './services/g4-settings-service';
 import { G4BrandingService } from './services/g4-branding-service';
+import { G4SidePanelIconService, SIDE_PANEL_ICON_SETTING } from './services/g4-side-panel-icon-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
@@ -64,6 +65,18 @@ export async function activate(context: vscode.ExtensionContext) {
     // Read the branding the Hub published last time before anything shows a label, so the output channels and
     // the first messages already carry the white-label names.
     G4BrandingService.initialize(context.globalState);
+
+    // Apply the chosen side-panel icon from the local setting or the kept Hub icon; it shows from the next start.
+    void updateSidePanelIconAsync(context);
+
+    // Apply a new local icon choice as soon as the user changes the setting.
+    const onConfigurationChange = vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(SIDE_PANEL_ICON_SETTING)) {
+            void updateSidePanelIconAsync(context, Global.baseHubUrl);
+        }
+    });
+
+    context.subscriptions.push(onConfigurationChange);
 
     // Read the configured G4 endpoint through the original activation path so
     // command registration is not blocked by project-manifest availability.
@@ -449,6 +462,9 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
         // before the Hub answers. A Hub without the branding route keeps the current labels.
         await G4BrandingService.refreshAsync(context.globalState, baseUri);
 
+        // Apply the Hub's side-panel icon now that its branding is current; a local setting still wins.
+        await updateSidePanelIconAsync(context, baseUri);
+
         // Show the connected state; it stays until the next connection status replaces it.
         setConnectionStatus(G4BrandingService.getText('{engine} is Connected and Ready'));
 
@@ -512,4 +528,30 @@ const startSandboxHubFromManifest = async (): Promise<void> => {
 
     // Incomplete server or sandbox configuration is skipped silently by the hub service.
     await G4HubService.startFromManifestWhenRequired(manifest);
+};
+
+/**
+ * Chooses the side-panel icon and copies it over the installed icon file.
+ *
+ * @remarks
+ * Reads the local setting and the Hub branding in use, so the precedence lives in one place. VS Code shows the new
+ * icon from the next start; the update never throws, and it writes its outcome to the extension log.
+ *
+ * @param context - The extension context, for the install folder and the global state.
+ * @param hubBaseUrl - The Hub base URL; absent before the Hub connection, when only the kept Hub icon is used.
+ */
+const updateSidePanelIconAsync = async (context: vscode.ExtensionContext, hubBaseUrl?: string): Promise<void> => {
+    // Collect the two choices: the local setting and the icon the Hub branding names.
+    const configuredPath = vscode.workspace.getConfiguration().get<string>(SIDE_PANEL_ICON_SETTING) ?? '';
+    const hubIcon = G4BrandingService.getSettings().assets?.activityBarIcon;
+
+    // Apply the winning choice to the installed icon file.
+    await G4SidePanelIconService.updateAsync({
+        configuredPath,
+        extensionPath: context.extensionPath,
+        globalState: context.globalState,
+        hubBaseUrl,
+        hubIcon,
+        logger: Global.logger
+    });
 };

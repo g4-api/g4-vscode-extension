@@ -37,7 +37,6 @@ const DEFAULT_TOKENS: Readonly<Record<string, string>> = {
     engineTm: 'G4™ Engine',
     hub: 'G4 Hub',
     hubTm: 'G4™ Hub',
-    mark: 'G4',
     product: 'G4',
     productTm: 'G4™',
     studio: 'G4 Studio',
@@ -266,16 +265,19 @@ export class G4BrandingService {
  * it resolves text with and the assets it may show. Other fields pass through untouched to the webviews.
  */
 export interface BrandingSettings {
-    /** The asset addresses and the badge text, relative to the Hub; absent before the Hub answered. */
+    /** The asset addresses, relative to the Hub or absolute; absent before the Hub answered. */
     assets?: {
+        /** The SVG icon of this extension on the activity bar; empty when the Hub keeps the built-in icon. */
+        activityBarIcon?: string;
+
         /** The favicon address. */
         favicon?: string;
 
         /** The logo address. */
         logo?: string;
 
-        /** The short mark text drawn in badges, for example "G4". */
-        markText?: string;
+        /** The SVG icon of the Test Wright extension; read by Test Wright, passed through here. */
+        testWrightIcon?: string;
     };
 
     /** The value of every placeholder, keyed by placeholder name without braces, for example engineTm. */
