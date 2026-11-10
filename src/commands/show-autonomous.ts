@@ -159,8 +159,8 @@ export class ShowAutonomousCommand extends CommandBase {
     }
 
     /**
-     * Builds the page data: whether recording is on, one dropdown choice per manifest recorder, and the
-     * harnesses with their models and efforts.
+     * Builds the page data: whether recording is on, one dropdown choice per manifest recorder, the
+     * harnesses with their models and efforts, and the time limit that prefills the run form.
      *
      * @remarks
      * Compute-only. Every recorder is listed, disabled ones included, so the user can pick one for
@@ -188,7 +188,8 @@ export class ShowAutonomousCommand extends CommandBase {
                 isPicked: recorder.enabled,
                 text: G4AutonomousSettings.getRecorderName(recorder),
                 value: recorder.baseUrl
-            }))
+            })),
+            timeoutMinutes: settings.timeoutMinutes
         };
     }
 
@@ -321,12 +322,20 @@ export class ShowAutonomousCommand extends CommandBase {
                     ? run.prompt
                     : '';
                 const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+
+                // The time limit is what the user typed: empty means no limit, anything that is not a
+                // number becomes NaN, which the run service refuses with a reason.
+                const timeLimitText = ShowAutonomousCommand.convertToText(run.timeLimit);
+                const timeoutMinutes = timeLimitText === ''
+                    ? 0
+                    : Number(timeLimitText);
                 const issue = await this._runService.startRun({
                     effort: ShowAutonomousCommand.convertToText(run.reasoningEffort),
                     harnessName: ShowAutonomousCommand.convertToText(run.harness),
                     model: ShowAutonomousCommand.convertToText(run.model),
                     prompt,
                     recorders: recorderUrls,
+                    timeoutMinutes,
                     workspaceFolder
                 });
 
@@ -555,6 +564,9 @@ interface AutonomousPageData {
 
     /** One choice per recorder in the manifest, in manifest order, disabled recorders included. */
     recorders: AutonomousRecorderChoice[];
+
+    /** The manifest's time limit, in minutes, that prefills the run form; 0 means no limit. */
+    timeoutMinutes: number;
 }
 
 /**

@@ -13,8 +13,21 @@ import { CommandBase } from './command-base';
 
 import type { Logger } from '../logging/logger';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4DocumentLabelService } from '../services/g4-document-label-service';
 
 const DOCUMENTATION_DIRECTORY_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+// The packaged root index of the learning paths, and the friendly name it is written to the project with; links to
+// the packaged name are rewritten to the friendly one.
+const DOCUMENTATION_INDEX_DESTINATION_NAME = 'G4 Learning Paths.md';
+const DOCUMENTATION_INDEX_FILE_NAME = 'g4-learning.md';
+
+// Matches the characters a Windows, macOS, or Linux folder name cannot hold, and control characters. Linear: one
+// character class.
+const INVALID_DIRECTORY_NAME_CHARACTERS_PATTERN = /[<>:"/\\|?*\u0000-\u001f]/g;
+
+// Matches a run of white space, collapsed to one space in a folder name. Linear: one class with one quantifier.
+const WHITE_SPACE_PATTERN = /\s+/g;
 const EXTERNAL_LINK_PATTERN = /^[a-z][a-z0-9+.-]*:/i;
 const MARKDOWN_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/;
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx']);
@@ -161,27 +174,39 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Converts a validated lower-kebab-case directory name to a friendly Title Case name.
+     * Converts a learning-path name to a folder name every file system accepts.
      *
      * @remarks
-     * Compute-only. Validation belongs to documentation discovery so this conversion can remain
-     * deterministic and focused on display-name generation.
+     * Compute-only. Characters a folder name cannot hold are dropped, white space is collapsed, and trailing dots
+     * and spaces (which Windows removes) are trimmed, so "Configure `manifest.json`" becomes
+     * "Configure manifest.json". A name with nothing left falls back to the slug in Title Case.
      *
-     * @param value - Validated lower-kebab-case directory name.
-     * @returns The corresponding space-separated Title Case name.
+     * @param label - The learning path's name, as its index or README gives it.
+     * @param sourceDirectoryName - The validated lower-kebab-case source folder name.
+     * @returns The folder name.
      */
-    private static convertKebabToTitleCase(value: string): string {
-        // Accumulate converted words explicitly so the folder-name transformation remains easy to
-        // extend without embedding display rules inside a compact callback chain.
-        const titleCaseWords: string[] = [];
+    private static convertToDirectoryName(label: string, sourceDirectoryName: string): string {
+        // Drop what a folder name cannot hold and collapse the white space left behind.
+        let directoryName = label
+            .replaceAll(INVALID_DIRECTORY_NAME_CHARACTERS_PATTERN, '')
+            .replaceAll(WHITE_SPACE_PATTERN, ' ')
+            .trim();
 
-        // Capitalize each validated slug segment while preserving every character after its first.
-        for (const word of value.split('-')) {
-            titleCaseWords.push(word.charAt(0).toUpperCase() + word.slice(1));
+        // Trim trailing dots and spaces one by one; Windows would drop them and break the link rewrite.
+        while (directoryName.endsWith('.') || directoryName.endsWith(' ')) {
+            directoryName = directoryName.slice(0, -1);
         }
 
-        // Rejoin with spaces because only top-level display folders receive friendly names.
-        return titleCaseWords.join(' ');
+        // Fall back to the slug when the name held nothing a folder can carry.
+        if (directoryName === '') {
+            return G4DocumentLabelService.getFolderLabel({
+                folderName: sourceDirectoryName,
+                linkLabels: new Map(),
+                readmeText: ''
+            });
+        }
+
+        return directoryName;
     }
 
     /**
@@ -242,6 +267,65 @@ export class NewProjectCommand extends CommandBase {
                 `to ${destinationDirectoryPath}: ${copyError.message}`;
 
             options.logger?.error(errorMessage, undefined, copyError);
+        }
+    }
+
+    /**
+     * Copies the top-level reference documents next to the learning-path index.
+     *
+     * @remarks
+     * The index and the modules link to these documents (troubleshooting, recipes, references) by their
+     * file names, so they keep their names; their links into learning paths are rewritten like every
+     * other document. The index itself is written by writeDocumentationIndex. A failing file is logged
+     * and skipped, so the other documents are still copied.
+     *
+     * @param options - Source, destination, mapping, and logger dependencies.
+     */
+    private static copyDocumentationFiles(options: DocumentationIndexOptions): void {
+        // List the top-level Markdown files; the index has its own stage.
+        let fileNames: string[];
+
+        try {
+            fileNames = fs.readdirSync(options.documentationSourcePath, { withFileTypes: true })
+                .filter((entry) => entry.isFile() && MARKDOWN_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+                .map((entry) => entry.name)
+                .filter((fileName) => fileName.toLowerCase() !== DOCUMENTATION_INDEX_FILE_NAME);
+        } catch (error: unknown) {
+            // Report an unreadable root once; the learning paths are still copied.
+            const listError = this.getError(error);
+
+            options.logger?.error(
+                `Failed to list documentation files under ${options.documentationSourcePath}: ` +
+                listError.message,
+                undefined,
+                listError
+            );
+            return;
+        }
+
+        // Copy each file with its learning-path links pointing at the friendly folder names.
+        for (const fileName of fileNames) {
+            const sourceFilePath = path.join(options.documentationSourcePath, fileName);
+
+            try {
+                const content = fs.readFileSync(sourceFilePath, 'utf8');
+
+                this.writeFile({
+                    content: this.updateDocumentationLinks(content, options.destinationNamesBySourceName),
+                    directoryPath: options.documentationDestinationPath,
+                    fileName,
+                    logger: options.logger
+                });
+            } catch (error: unknown) {
+                // Skip only the unreadable file so the rest of the references are still copied.
+                const copyError = this.getError(error);
+
+                options.logger?.error(
+                    `Failed to copy the documentation file ${sourceFilePath}: ${copyError.message}`,
+                    undefined,
+                    copyError
+                );
+            }
         }
     }
 
@@ -370,8 +454,9 @@ export class NewProjectCommand extends CommandBase {
      *
      * @remarks
      * Folder discovery is dynamic: every valid top-level lower-kebab-case directory is copied to
-     * a Title Case destination. Any documentation failure is logged and does not block the core
-     * project scaffold.
+     * a folder named the way the learning paths name it (see createDocumentationMappings), and every
+     * other top-level Markdown file is copied next to the index. Any documentation failure is logged
+     * and does not block the core project scaffold.
      *
      * @param projectSelection - Folder selected as the project root.
      * @param logger - Logger for discovery, copy, and link-rewrite failures.
@@ -411,6 +496,15 @@ export class NewProjectCommand extends CommandBase {
         // Write the root index first so users always have the learning-path entry point whenever
         // individual directory copies succeed.
         this.writeDocumentationIndex({
+            destinationNamesBySourceName: destinationNamesBySourceName,
+            documentationDestinationPath: documentationDestinationPath,
+            documentationSourcePath: documentationSourcePath,
+            logger: logger
+        });
+
+        // Copy the root reference documents (troubleshooting, recipes, references) that the index and the
+        // modules link to, so those links resolve in the project.
+        this.copyDocumentationFiles({
             destinationNamesBySourceName: destinationNamesBySourceName,
             documentationDestinationPath: documentationDestinationPath,
             documentationSourcePath: documentationSourcePath,
@@ -469,6 +563,12 @@ export class NewProjectCommand extends CommandBase {
             return undefined;
         }
 
+        // Read the names the root index gives the learning paths once; a missing index leaves each
+        // folder to its README title.
+        const linkLabels = G4DocumentLabelService.getLinkLabels(
+            this.readText(path.join(documentationSourcePath, DOCUMENTATION_INDEX_FILE_NAME))
+        );
+
         // Track normalized destination names separately to catch collisions on case-insensitive
         // filesystems before any directories are copied.
         const destinationNames = new Set<string>();
@@ -490,16 +590,21 @@ export class NewProjectCommand extends CommandBase {
                 continue;
             }
 
-            // Derive the user-facing destination while retaining the original slug as the lookup key
-            // used during Markdown link rewriting.
-            const destinationName = this.convertKebabToTitleCase(sourceEntry.name);
+            // Name the destination the way the index or the README names the learning path, while the
+            // original slug stays the lookup key used during Markdown link rewriting.
+            const label = G4DocumentLabelService.getFolderLabel({
+                folderName: sourceEntry.name,
+                linkLabels,
+                readmeText: this.readText(path.join(documentationSourcePath, sourceEntry.name, 'README.md'))
+            });
+            const destinationName = this.convertToDirectoryName(label, sourceEntry.name);
             const normalizedDestinationName = destinationName.toLowerCase();
 
             // Skip ambiguous destinations rather than allowing the later copy to overwrite another
             // learning path on a case-insensitive filesystem.
             if (destinationNames.has(normalizedDestinationName)) {
                 logger?.error(
-                    `Documentation folder name collision after Title Case conversion: ` +
+                    `Documentation folder name collision after naming: ` +
                     `${sourceEntry.name} -> ${destinationName}.`
                 );
                 continue;
@@ -1117,6 +1222,24 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
+     * Reads a text file, or nothing when it cannot be read.
+     *
+     * @remarks
+     * Used for the documents that name the learning paths; a missing index or README only falls back
+     * to the next name, so it is not an error.
+     *
+     * @param filePath - The file to read.
+     * @returns The text, or an empty string.
+     */
+    private static readText(filePath: string): string {
+        try {
+            return fs.readFileSync(filePath, 'utf8');
+        } catch {
+            return '';
+        }
+    }
+
+    /**
      * Copies generated base-bot driver parameters into the matching manifest recorder.
      *
      * @remarks
@@ -1218,7 +1341,8 @@ export class NewProjectCommand extends CommandBase {
      *
      * @remarks
      * Compute-only. Query strings, fragments, titles, and optional angle wrappers are retained.
-     * URI decoding failures leave the original destination unchanged.
+     * URI decoding failures leave the original destination unchanged. A link to the packaged root
+     * index is rewritten to the index's friendly file name.
      *
      * @param destination - Markdown destination captured between link parentheses.
      * @param destinationNamesBySourceName - Learning-path source-to-destination mapping.
@@ -1266,8 +1390,13 @@ export class NewProjectCommand extends CommandBase {
             return destination;
         }
 
-        // Resolve the friendly output name from the complete discovery map built before file generation.
-        const destinationDirectoryName = destinationNamesBySourceName.get(sourceDirectoryName);
+        // Resolve the friendly output name from the complete discovery map built before file generation;
+        // a link back to the root index (g4-learning.md, ../g4-learning.md) follows the index's friendly name.
+        const isIndexLink = sourceDirectoryName === DOCUMENTATION_INDEX_FILE_NAME
+            && learningPathSegmentIndex === targetSegments.length - 1;
+        const destinationDirectoryName = isIndexLink
+            ? DOCUMENTATION_INDEX_DESTINATION_NAME
+            : destinationNamesBySourceName.get(sourceDirectoryName);
 
         // Keep same-folder and non-learning-path links unchanged when their first segment has no mapping.
         if (destinationDirectoryName === undefined) {
@@ -1423,7 +1552,7 @@ export class NewProjectCommand extends CommandBase {
         // Resolve the packaged index independently from destination naming so the source remains stable.
         const sourceFilePath = path.join(
             options.documentationSourcePath,
-            'g4-learning.md'
+            DOCUMENTATION_INDEX_FILE_NAME
         );
 
         try {
@@ -1437,7 +1566,7 @@ export class NewProjectCommand extends CommandBase {
                     options.destinationNamesBySourceName
                 ),
                 directoryPath: options.documentationDestinationPath,
-                fileName: 'G4 Learning Paths.md',
+                fileName: DOCUMENTATION_INDEX_DESTINATION_NAME,
                 logger: options.logger
             });
         } catch (error: unknown) {
@@ -1529,7 +1658,7 @@ interface AutomationBase {
  * operation remains isolated from other learning paths.
  */
 interface DocumentationCopyOptions {
-    /** Friendly Title Case directory name created in the generated project. */
+    /** Friendly directory name created in the generated project, as the learning paths name it. */
     destinationDirectoryName: string;
 
     /** Complete source-slug to friendly-name map used for cross-path link rewriting. */

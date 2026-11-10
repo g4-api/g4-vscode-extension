@@ -36,7 +36,7 @@ jobs:
     - name: Parse Build Version for GitHub Tag
       id: parse-version
       shell: pwsh
-      run: echo "version=2026.11.34" >> $env:GITHUB_OUTPUT
+      run: echo "version=$(Get-Date -Format 'yyyy.M').${{ github.run_number }}" >> $env:GITHUB_OUTPUT
 
     - name: Validate Version ${{ steps.parse-version.outputs.version }}
       id: validate-version

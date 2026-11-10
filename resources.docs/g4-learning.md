@@ -206,7 +206,7 @@ Keep the values that change from place to place out of your bots: write an envir
 
 ## Quick help
 
-Four pages cover the whole extension, apart from any one path. They live in the extension's `resources.docs` folder. The **New Project** command does not copy them into a new project, so read them from the extension.
+Four pages cover the whole extension, apart from any one path. The **New Project** command copies them into the project's `docs` folder, next to this index.
 
 | Page | Best for | What it covers |
 | --- | --- | --- |

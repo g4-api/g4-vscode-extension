@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="g4-components" content="g4-modal g4-notice-list g4-field g4-select g4-toggle-dropdown g4-markdown-textarea">
+    <meta name="g4-components" content="g4-modal g4-notice-list g4-field g4-select g4-toggle-dropdown g4-markdown-textarea g4-number-input">
     <title data-branding-text="{productTm} Autonomous Exploratory Run">G4(TM) Autonomous Exploratory Run</title>
     {{$ components.styles }}
     <link rel="stylesheet" href="{{$ component.style.uri }}">
@@ -141,6 +141,10 @@
                 <div class="autonomous__fact">
                     <dt class="autonomous__fact-name">Recorders</dt>
                     <dd class="autonomous__fact-value" data-part="recorders" data-test-id="autonomous-running-recorders-text"></dd>
+                </div>
+                <div class="autonomous__fact">
+                    <dt class="autonomous__fact-name">Time Limit</dt>
+                    <dd class="autonomous__fact-value" data-part="time-limit" data-test-id="autonomous-running-time-limit-text"></dd>
                 </div>
                 <div class="autonomous__fact">
                     <dt class="autonomous__fact-name">Elapsed</dt>

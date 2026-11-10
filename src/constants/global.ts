@@ -50,8 +50,7 @@ export class Global {
             },
             "autonomousSettings": {
                 "harnesses": [],
-                "runsFolder": "autonomous-runs",
-                "timeoutMinutes": 60
+                "runsFolder": "autonomous-runs"
             },
             "recorderSettings": {
                 "enabled": true,

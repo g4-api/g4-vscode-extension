@@ -225,9 +225,9 @@ These notices appear in the run form when `settings.autonomousSettings.harnesses
 
 ### The run reached its time limit and was stopped: X of Y scenario flows saved
 
-- **Cause:** The run took longer than **Time Limit** (default 60 minutes), so the agent was stopped.
-- **Check:** Look at **Elapsed** and at **Time Limit** in the **Autonomous Runs** section.
-- **Fix:** Ask for fewer scenarios per run, or raise **Time Limit**.
+- **Cause:** The run took longer than its **Time Limit (minutes)**, so the agent was stopped. A run has a limit only when one was set in the run dialog.
+- **Check:** Look at **Elapsed** and **Time Limit** on the running view, and at **Time Limit** in the **Autonomous Runs** section, which the dialog starts from.
+- **Fix:** Ask for fewer scenarios per run, raise the limit, or leave it empty for no limit.
 - **Source:** `src/services/g4-autonomous-run-service.ts:677`
 
 ### The run was stopped: X of Y scenario flows saved

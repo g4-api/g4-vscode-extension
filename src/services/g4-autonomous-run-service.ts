@@ -272,8 +272,10 @@ export class G4AutonomousRunService {
             return G4BrandingService.getText(`The {hub} does not answer at ${hubUrl}. Start the Hub, then start the run again.`);
         }
 
-        // Mark the run as starting at once, so a second click cannot start another one.
+        // Mark the run as starting at once, so a second click cannot start another one. The time limit is the
+        // one the user set for this run; 0 means the agent runs until it ends or is stopped.
         const runHarness = harness as AutonomousHarness;
+        const timeoutMinutes = G4AutonomousSettings.resolveTimeoutMinutes(request.timeoutMinutes);
         const workspaceFolder = request.workspaceFolder;
         const runFolder = await G4AutonomousRunService.newRunFolder(path.resolve(workspaceFolder, settings.runsFolder));
 
@@ -291,6 +293,7 @@ export class G4AutonomousRunService {
             runFolder,
             sessionId: '',
             startedAt: new Date().toISOString(),
+            timeoutMinutes,
             toolServers: []
         });
 
@@ -308,7 +311,7 @@ export class G4AutonomousRunService {
 
             // Write the run folder, then start the agent.
             await this.writeRunFolder({ hubUrl, recorders, request, runFolder });
-            this.startAgent({ harness: runHarness, manifest, request, runFolder, timeoutMinutes: settings.timeoutMinutes });
+            this.startAgent({ harness: runHarness, manifest, request, runFolder, timeoutMinutes });
 
             return '';
         } catch (error: unknown) {
@@ -757,6 +760,13 @@ export class G4AutonomousRunService {
             return G4BrandingService.getText('Open a {product} project folder before starting an autonomous run.');
         }
 
+        // A time limit is a number of minutes, at least 0, where 0 means no limit.
+        const isTimeoutValid = Number.isFinite(request.timeoutMinutes) && request.timeoutMinutes >= 0;
+
+        if (!isTimeoutValid) {
+            return 'The time limit must be a number of minutes, or empty for no limit.';
+        }
+
         return '';
     }
 
@@ -779,6 +789,7 @@ export class G4AutonomousRunService {
             runFolder: '',
             sessionId: '',
             startedAt: '',
+            timeoutMinutes: 0,
             toolServers: []
         };
     }
@@ -890,8 +901,8 @@ export class G4AutonomousRunService {
      *
      * @remarks
      * Output lines go to `events.jsonl` unchanged and become page events; standard error goes to
-     * `stderr.log`. The ledger is read every second and the time limit is armed. When the process
-     * ends, {@link finishRun} closes the run.
+     * `stderr.log`. The ledger is read every second, and the time limit is armed when the run has
+     * one. When the process ends, {@link finishRun} closes the run.
      *
      * @param options - The harness, the manifest, the request, the run folder, and the time limit.
      */
@@ -967,19 +978,32 @@ export class G4AutonomousRunService {
             `Autonomous run started with ${harness.name} (${placeText}), model ${modelText}, effort ${effortText}, in ${runFolder}.`);
         this.setState({ ...this._state, message: 'The agent is running.', phase: 'running' });
 
-        // Follow the ledger and arm the time limit.
+        // Follow the ledger while the agent runs.
         this._ledgerTimer = setInterval(() => {
             void this.readLedger();
         }, LEDGER_POLL_MILLISECONDS);
 
+        // Arm the time limit only when the run has one, so a run without a limit goes on until it ends.
+        if (timeoutMinutes > 0) {
+            this.startTimeoutTimer(agentProcess, timeoutMinutes);
+        }
+
+        // Close the run when the agent ends, after its output streams are flushed.
+        void agentProcess.exited.then(onAgentExited);
+    }
+
+    /**
+     * Arms the run's time limit: when it is reached, the run is marked as timed out and the agent is stopped.
+     *
+     * @param agentProcess - The running agent.
+     * @param timeoutMinutes - The limit, in minutes; capped by the settings so the timer cannot overflow.
+     */
+    private startTimeoutTimer(agentProcess: G4AutonomousProcess, timeoutMinutes: number): void {
         this._timeoutTimer = setTimeout(() => {
             this._isTimedOut = true;
             this._logger.warning(`Autonomous run: the ${timeoutMinutes}-minute time limit was reached; stopping the agent.`);
             void agentProcess.stop();
         }, timeoutMinutes * MILLISECONDS_PER_MINUTE);
-
-        // Close the run when the agent ends, after its output streams are flushed.
-        void agentProcess.exited.then(onAgentExited);
     }
 
     /**
@@ -1209,6 +1233,9 @@ export interface AutonomousRunState {
     /** When the run started, as an ISO time. */
     startedAt: string;
 
+    /** The run's time limit, in minutes; 0 means no limit. */
+    timeoutMinutes: number;
+
     /** The agent's tool servers and their states, once a harness reports them; empty otherwise. */
     toolServers: AutonomousToolServer[];
 }
@@ -1246,7 +1273,7 @@ interface StartAgentOptions {
     /** The absolute run folder. */
     runFolder: string;
 
-    /** The time limit, in minutes. */
+    /** The time limit, in minutes; 0 means no limit. */
     timeoutMinutes: number;
 }
 
@@ -1299,6 +1326,9 @@ export interface AutonomousRunRequest {
 
     /** The endpoints of the picked recorders. */
     recorders: string[];
+
+    /** The run's time limit, in minutes; 0 means no limit. NaN or a negative number is refused. */
+    timeoutMinutes: number;
 
     /** The workspace folder the runs folder is resolved against; empty when none is open. */
     workspaceFolder: string;
