@@ -2224,9 +2224,9 @@ function writeAutonomousSection() {
         label: 'Time Limit',
         suffix: '(minutes)',
         type: 'number',
-        minimum: 1,
+        minimum: 0,
         isOptional: true,
-        hint: 'The agent is stopped when a run takes longer. Empty means no limit. The run dialog starts from this value.',
+        hint: 'The agent is stopped when a run takes longer. 0 or empty means no limit. The run dialog starts from this value.',
         testId: 'autonomous-timeout-minutes'
     })}
     </div>

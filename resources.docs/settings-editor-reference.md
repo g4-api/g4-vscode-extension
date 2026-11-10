@@ -205,7 +205,7 @@ Settings for the agent that explores an application. For a full walk-through, se
 | Label | Manifest key | Default | Notes |
 | --- | --- | --- | --- |
 | Runs Folder | `settings.autonomousSettings.runsFolder` | `autonomous-runs` | Each run gets its own folder here, relative to the workspace. |
-| Time Limit | `settings.autonomousSettings.timeoutMinutes` | not set (no limit) | Optional. Minutes, at least 1. Empty removes the key, so runs have no limit. The run dialog starts from this value. |
+| Time Limit | `settings.autonomousSettings.timeoutMinutes` | not set (no limit) | Optional. Minutes. `0` means no limit; empty removes the key, which also means no limit. The run dialog starts from this value. |
 | Harnesses | `settings.autonomousSettings.harnesses` | empty list | One card per agent tool. **Add Harness** appends a card named `harness-N`. |
 
 Each harness card holds these fields, under `settings.autonomousSettings.harnesses[N]`.

@@ -102,6 +102,8 @@ When the run ends, the dialog shows the **result view**:
 
 - A notice with the outcome, for example `The agent finished: 2 of 3 scenario flows saved.`
 - The facts: **Harness**, **Model**, **Scenarios**, and **Elapsed**
+
+In a harness-only session (**Record Scenarios** off), both views have no scenario list: the console takes the whole width, the **Recorders** fact reads `None (harness only)`, the result has no **Scenarios** fact, and the outcome reads, for example, `The agent finished.` or `The session was stopped.`
 - The scenario list with an **Open Flow** button for each saved flow
 - The console, still open
 - Buttons: **Open Run Folder**, **Summary** (`final-message.md`), **Brief** (`brief.md`), **Transcript** (`events.jsonl`), and **New Run**

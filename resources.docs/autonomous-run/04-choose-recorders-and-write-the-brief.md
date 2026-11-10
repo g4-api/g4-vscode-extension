@@ -19,6 +19,10 @@ In this module, you will:
 
 ## Step 1: Pick the recorders
 
+**Record Scenarios** is on by default: the agent records each scenario as its own flow, with the recorders you pick here.
+
+> **💡 Tip: a harness-only session.** Switch **Record Scenarios** off to run the agent on your prompt without recording anything. The **Recorders** field disappears, no recorder is needed (recording may even be turned off in the settings), and the agent's brief has no recording rules. The agent still gets the G4 screen skills and tools, the ground rules, and its session folder. The G4 Hub must still answer before the session starts.
+
 The **Recorders** field lists every recorder in `settings.recorderSettings.recorders` of your `manifest.json`, including the ones that are switched off. Recorders that are **enabled** in the manifest start switched on in the form. Switch on the ones the agent may record with.
 
 ![The Recorders drop-down with two recorders](images/04-pick-recorders.png)
@@ -29,8 +33,8 @@ Each recorder is shown by its label and driver, for example `machine-a (UiaDrive
 
 Two things can disable the field:
 
-- Recording is turned off in the settings. The form shows **Recording is turned off. Turn on Recorders in the Settings Editor to start a run.**
-- No recorder is configured. The form shows **No recorders are configured. Add one under Recorders in the Settings Editor.**
+- Recording is turned off in the settings. The form shows **Recording is turned off. Turn on Recorders in the Settings Editor, or switch off Record Scenarios to run the agent only.**
+- No recorder is configured. The form shows **No recorders are configured. Add one under Recorders in the Settings Editor, or switch off Record Scenarios.**
 
 Both notices have an **Open Settings** button.
 
@@ -43,7 +47,7 @@ Both notices have an **Open Settings** button.
 1. Choose a **Harness**. Under it, a line tells you whether it runs in a sandbox partition or on this machine.
 2. Choose a **Model**. This is the model that plans and drives every step.
 3. Choose a **Reasoning Effort**. This sets how long the model thinks before each step.
-4. Optionally set a **Time Limit (minutes)**. The agent is stopped when the run takes longer. Leave it empty for no limit. It starts from the **Time Limit** in the settings and applies to this run only.
+4. Optionally set a **Time Limit (minutes)**. The agent is stopped when the run takes longer. Enter `0` or leave it empty for no limit. It starts from the **Time Limit** in the settings and applies to this run only.
 
 The **Model** and **Reasoning Effort** lists follow the harness you picked. Module 3 shows where they come from.
 
@@ -99,7 +103,7 @@ When you click **Start**, the extension checks these things in order and stops a
 1. No other autonomous run is running.
 2. No manual recording is running.
 3. The harness, model, and effort are ones your settings offer.
-4. At least one configured recorder is picked.
+4. At least one configured recorder is picked, unless **Record Scenarios** is off.
 5. The prompt is not empty.
 6. A workspace folder is open.
 7. The G4 Hub answers at the address of your G4 server (the default is `http://localhost:9944`).

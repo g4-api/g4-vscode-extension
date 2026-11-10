@@ -2,7 +2,9 @@
  * G4(TM) line numbers component: <g4-line-numbers>.
  *
  * The gutter on the left of a text box: one number per line, kept in step with the box's text,
- * size, and vertical scroll. Text boxes never wrap, so every line is exactly one row.
+ * size, and vertical scroll. In a box that does not wrap every line is exactly one row; in a box
+ * that wraps (its white-space lets lines break), each number is as tall as its wrapped line, so the
+ * numbers stay beside the lines they count.
  *
  * Contract:
  * - Placement: directly before its <textarea>, inside a flex row (the gutter binds to its next
@@ -104,7 +106,7 @@
         }
 
         /**
-         * Writes one number per line, each one row tall, and aligns the gutter with the text.
+         * Writes one number per line, each as tall as its line, and aligns the gutter with the text.
          */
         refresh() {
             const textarea = this.#textarea;
@@ -114,20 +116,52 @@
                 return;
             }
 
+            // Measure one row with the box's font, in a probe that does not wrap.
             const style = getComputedStyle(textarea);
             const probe = getRowProbe();
 
             probe.style.font = style.font;
             probe.style.lineHeight = style.lineHeight;
+            probe.style.whiteSpace = 'pre';
+            probe.style.width = '';
             probe.value = 'x';
 
             const rowHeight = probe.scrollHeight;
             const lines = textarea.value.split(LINE_BREAK_PATTERN);
 
-            rows.replaceChildren(...lines.map((_, index) => {
+            // A wrapping box breaks long lines into several rows, so each line is measured at the box's
+            // text width with the box's wrapping rules; a box that does not wrap needs no measuring.
+            const isWrapping = style.whiteSpace !== 'pre' && style.whiteSpace !== 'nowrap';
+            const textWidth = textarea.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+
+            if (isWrapping) {
+                probe.style.whiteSpace = style.whiteSpace;
+                probe.style.overflowWrap = style.overflowWrap;
+                probe.style.wordBreak = style.wordBreak;
+                probe.style.width = `${Math.max(textWidth, 1)}px`;
+            }
+
+            /**
+             * Returns how tall one line is in the box.
+             *
+             * @param {string} line - The line text.
+             * @returns {number} The height in pixels: one row, or every row of a wrapped line.
+             */
+            const getLineHeight = (line) => {
+                if (!isWrapping) {
+                    return rowHeight;
+                }
+
+                probe.value = line === '' ? 'x' : line;
+
+                return Math.max(rowHeight, probe.scrollHeight);
+            };
+
+            // Write one number per line, as tall as the line, so wrapped rows get no number of their own.
+            rows.replaceChildren(...lines.map((line, index) => {
                 const number = document.createElement('div');
                 number.textContent = String(index + 1);
-                number.style.height = `${rowHeight}px`;
+                number.style.height = `${getLineHeight(line)}px`;
                 return number;
             }));
 

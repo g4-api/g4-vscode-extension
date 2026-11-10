@@ -14,5 +14,7 @@
     --g4-markdown-textarea-tool-border-color: var(--vscode-panel-border);
     --g4-markdown-textarea-tool-foreground: var(--vscode-foreground);
     --g4-markdown-textarea-tool-hover-background: var(--vscode-list-hoverBackground);
+    --g4-markdown-textarea-tool-pressed-border-color: var(--vscode-focusBorder);
+    --g4-markdown-textarea-tool-pressed-foreground: var(--vscode-textLink-foreground, var(--vscode-foreground));
     --g4-markdown-textarea-tools-transition: opacity .15s;
 }

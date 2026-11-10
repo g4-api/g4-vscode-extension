@@ -8,7 +8,8 @@
  * - Children: the control (any element; usually a G4 control component).
  * - Attributes: label, hint, suffix (for example '(milliseconds)'), required (shows the * and enables
  *   testRequired), required-message (default 'Required.'), error (initial error from the page),
- *   test-id (prefix of every part's data-test-id).
+ *   fill (the control stretches to the field's height, for a field the page lets grow), test-id
+ *   (prefix of every part's data-test-id).
  * - Properties: error (set: the page's error, cleared when the user edits the control; get: the
  *   error on show).
  * - Methods: focus() focuses the control; testRequired() shows the required message when the

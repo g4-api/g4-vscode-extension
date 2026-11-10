@@ -18,7 +18,8 @@
  * - Injected #g4-data: { harnessIssues: string[], harnesses: [{ name, type, isSandbox, models, efforts }],
  *   isRecordingEnabled, recorders: [{ value, text, hint, isPicked }], timeoutMinutes (0 = no limit) }.
  * - Webview → host: { command: 'ready' },
- *                   { command: 'startAutonomousRun', run: { harness, model, prompt, reasoningEffort, recorders, timeLimit } },
+ *                   { command: 'startAutonomousRun', run: { harness, isRecording, model, prompt, reasoningEffort, recorders,
+ *                     timeLimit } } (isRecording false runs the harness only, with no recorders),
  *                   { command: 'stopAutonomousRun' },
  *                   { command: 'openRunFolder' }, { command: 'openRunFile', path }, { command: 'openFlow', path },
  *                   { command: 'openSettings' }, { command: 'refreshAutonomousData' },
@@ -72,6 +73,9 @@ const HARNESS_DEFAULT_TEXT = 'Harness default';
 
 // Text of the running view's time limit when the run has none.
 const NO_TIME_LIMIT_TEXT = 'None';
+
+// Text of the Recorders fact of a harness-only session, which records nothing.
+const NO_RECORDERS_TEXT = 'None (harness only)';
 
 // Display text of the reasoning effort values the harnesses use.
 const EFFORT_TEXTS = {
@@ -478,6 +482,28 @@ function getFormMarkup() {
         ? ''
         : 'disabled';
 
+    // A recording run picks recorders; a harness-only session hides them and only runs the agent on the prompt.
+    const recordingCheckedAttribute = form.isRecording
+        ? 'checked'
+        : '';
+    const introText = form.isRecording
+        ? 'Pick the recorders, the agent that explores, and tell it which scenarios to record. The agent starts and stops the recorders itself, once per scenario.'
+        : 'Pick the agent and tell it what to do. Nothing is recorded: the agent works on your prompt with the screen tools of its workspace.';
+    const recordersFieldMarkup = form.isRecording
+        ? `
+            <g4-field hint="Recorders from manifest.json. Switch on the ones the agent may record with."
+                      label="Recorders"
+                      test-id="autonomous-recorders-field">
+                <g4-toggle-dropdown data-name="recorders"
+                                    choices="${getEscapedText(recorderChoices)}"
+                                    ${recordersDisabledAttribute}
+                                    placeholder="No recorders selected"
+                                    test-id="autonomous-recorders-toggle-dropdown"
+                                    value="${getEscapedText(form.recorders)}"></g4-toggle-dropdown>
+            </g4-field>
+`
+        : '';
+
     // Each harness says where it runs; models and efforts follow the picked harness.
     const harnessChoices = harnesses.map((choice) => {
         const choicePlaceText = choice.isSandbox
@@ -507,24 +533,16 @@ function getFormMarkup() {
     return `
     <div class="autonomous__form" data-test-id="autonomous-form">
         <div class="autonomous__form-body" data-test-id="autonomous-form-body">
-            <p class="autonomous__intro" data-test-id="autonomous-form-intro-text">
-                Pick the recorders, the agent that explores, and tell it which scenarios to record. The agent starts and stops
-                the recorders itself, once per scenario.
-            </p>
+            <p class="autonomous__intro" data-test-id="autonomous-form-intro-text">${getEscapedText(introText)}</p>
 
             <g4-notice-list test-id="autonomous-form-notice"></g4-notice-list>
 
-            <g4-field hint="Recorders from manifest.json. Switch on the ones the agent may record with."
-                      label="Recorders"
-                      test-id="autonomous-recorders-field">
-                <g4-toggle-dropdown data-name="recorders"
-                                    choices="${getEscapedText(recorderChoices)}"
-                                    ${recordersDisabledAttribute}
-                                    placeholder="No recorders selected"
-                                    test-id="autonomous-recorders-toggle-dropdown"
-                                    value="${getEscapedText(form.recorders)}"></g4-toggle-dropdown>
-            </g4-field>
-
+            <g4-toggle data-name="isRecording"
+                       ${recordingCheckedAttribute}
+                       hint="Off runs the agent only, with no recorders and no flows."
+                       label="Record Scenarios"
+                       test-id="autonomous-record-scenarios-toggle"></g4-toggle>
+${recordersFieldMarkup}
             <g4-field hint="${getEscapedText(harnessHint)}"
                       label="Harness"
                       test-id="autonomous-harness-field">
@@ -561,23 +579,27 @@ function getFormMarkup() {
                                test-id="autonomous-reasoning-effort-select"
                                value="${getEscapedText(form.reasoningEffort)}"></g4-select>
                 </g4-field>
-                <g4-field hint="The agent is stopped when the run takes longer. Empty means no limit."
+                <g4-field hint="The agent is stopped when the run takes longer. 0 or empty means no limit."
                           label="Time Limit (minutes)"
                           test-id="autonomous-time-limit-field">
                     <g4-number-input data-name="timeLimit"
-                                     min="1"
+                                     min="0"
                                      test-id="autonomous-time-limit-number-input"
                                      value="${getEscapedText(form.timeLimit)}"></g4-number-input>
                 </g4-field>
             </div>
 
-            <g4-field hint="The scenarios to record, what to look for, and what to avoid. Ask for several scenarios to get one flow each."
+            <g4-field class="autonomous__prompt-field"
+                      fill
+                      hint="The scenarios to record, what to look for, and what to avoid. Ask for several scenarios to get one flow each."
                       label="Prompt"
                       required
                       test-id="autonomous-prompt-field">
                 <g4-markdown-textarea data-name="prompt"
+                                      fill
                                       rows="8"
-                                      test-id="autonomous-prompt-markdown-textarea">${getEscapedText(form.prompt)}</g4-markdown-textarea>
+                                      test-id="autonomous-prompt-markdown-textarea"
+                                      wrap>${getEscapedText(form.prompt)}</g4-markdown-textarea>
             </g4-field>
         </div>
 
@@ -729,22 +751,16 @@ function getResultMarkup() {
     const { scenarios, state } = globalThis.STATE.run;
     const scenariosText = getScenarioCountText(scenarios);
 
-    return `
-    <section class="autonomous__result"
-             data-test-id="autonomous-result-panel"
-             aria-label="Autonomous run result">
-        <div class="autonomous__result-summary" data-test-id="autonomous-result-summary">
-            <g4-notice-list test-id="autonomous-result-notice"></g4-notice-list>
-
-            <dl class="autonomous__facts" data-test-id="autonomous-result-facts">
-                ${getFactMarkup('Harness', state.harnessName, 'autonomous-result-harness-text')}
-                ${getFactMarkup('Model', state.model || HARNESS_DEFAULT_TEXT, 'autonomous-result-model-text')}
-                ${getFactMarkup('Scenarios', scenariosText, 'autonomous-result-scenarios-text')}
-                ${getFactMarkup('Elapsed', getElapsedText(), 'autonomous-result-elapsed-text')}
-            </dl>
-        </div>
-
-        <div class="autonomous__panes" data-test-id="autonomous-result-panes">
+    // A harness-only session has no scenarios: no Scenarios fact, and the console takes the whole width.
+    const isRecording = state.isRecording !== false;
+    const scenariosFactMarkup = isRecording
+        ? getFactMarkup('Scenarios', scenariosText, 'autonomous-result-scenarios-text')
+        : '';
+    const panesClass = isRecording
+        ? 'autonomous__panes'
+        : 'autonomous__panes autonomous__panes--console-only';
+    const scenariosPaneMarkup = isRecording
+        ? `
             <section class="autonomous__panel"
                      data-test-id="autonomous-result-scenarios-region"
                      aria-label="Scenarios">
@@ -755,7 +771,25 @@ function getResultMarkup() {
                     ${getScenarioListMarkup(scenarios, 'The agent recorded no scenarios.')}
                 </div>
             </section>
+`
+        : '';
 
+    return `
+    <section class="autonomous__result"
+             data-test-id="autonomous-result-panel"
+             aria-label="Autonomous run result">
+        <div class="autonomous__result-summary" data-test-id="autonomous-result-summary">
+            <g4-notice-list test-id="autonomous-result-notice"></g4-notice-list>
+
+            <dl class="autonomous__facts" data-test-id="autonomous-result-facts">
+                ${getFactMarkup('Harness', state.harnessName, 'autonomous-result-harness-text')}
+                ${getFactMarkup('Model', state.model || HARNESS_DEFAULT_TEXT, 'autonomous-result-model-text')}
+                ${scenariosFactMarkup}
+                ${getFactMarkup('Elapsed', getElapsedText(), 'autonomous-result-elapsed-text')}
+            </dl>
+        </div>
+
+        <div class="${panesClass}" data-test-id="autonomous-result-panes">${scenariosPaneMarkup}
             <div class="autonomous__console-slot" data-test-id="autonomous-result-console-slot">
                 ${getConsoleMarkup()}
             </div>
@@ -909,33 +943,34 @@ function getStartIssue() {
         return 'Starting…';
     }
 
-    if (!isRecordingEnabled) {
-        return 'Recording is turned off in the settings.';
+    // Only a recording run needs recording on and a recorder; a harness-only session needs neither.
+    if (form.isRecording && !isRecordingEnabled) {
+        return 'Recording is turned off in the settings. Switch off Record Scenarios to run the agent only.';
     }
 
-    if (recorders.length === 0) {
-        return 'No recorders are configured.';
+    if (form.isRecording && recorders.length === 0) {
+        return 'No recorders are configured. Switch off Record Scenarios to run the agent only.';
     }
 
     if (harnesses.length === 0) {
         return 'No harness is configured.';
     }
 
-    if (form.recorders.length === 0) {
-        return 'Switch on at least one recorder.';
+    if (form.isRecording && form.recorders.length === 0) {
+        return 'Switch on at least one recorder, or switch off Record Scenarios.';
     }
 
     if (form.prompt.trim() === '') {
         return 'Write a prompt for the agent.';
     }
 
-    // A time limit is empty (no limit) or a positive number of minutes.
+    // A time limit is empty or 0 (no limit), or a positive number of minutes.
     const timeLimitText = form.timeLimit.trim();
     const timeLimit = Number(timeLimitText);
-    const isTimeLimitValid = timeLimitText === '' || (Number.isFinite(timeLimit) && timeLimit > 0);
+    const isTimeLimitValid = timeLimitText === '' || (Number.isFinite(timeLimit) && timeLimit >= 0);
 
     if (!isTimeLimitValid) {
-        return 'Enter a time limit above 0 minutes, or leave it empty for no limit.';
+        return 'Enter a time limit in minutes, or 0 or nothing for no limit.';
     }
 
     return '';
@@ -1035,17 +1070,18 @@ function getVisibleEvents(run, consoleState) {
 }
 
 /**
- * Creates the starting form values: the recorders enabled in the manifest, the first harness with
- * its first model and effort, and the manifest's time limit.
+ * Creates the starting form values: a recording run with the recorders enabled in the manifest, the first
+ * harness with its first model and effort, and the manifest's time limit.
  *
- * @returns {{ harness: string, model: string, prompt: string, reasoningEffort: string, recorders: string[], timeLimit: string }}
- *     The form values.
+ * @returns {{ harness: string, isRecording: boolean, model: string, prompt: string, reasoningEffort: string,
+ *     recorders: string[], timeLimit: string }} The form values.
  */
 function newForm() {
     const harness = globalThis.INJECTED.harnesses[0];
 
     return {
         harness: harness?.name ?? '',
+        isRecording: true,
         model: harness?.models?.[0] ?? '',
         prompt: '',
         reasoningEffort: harness?.efforts?.[0] ?? '',
@@ -1162,6 +1198,13 @@ function onDialogInput(event) {
 
     // Store the value under the control's name.
     form[name] = event.detail.value;
+
+    // Switching Record Scenarios shows or hides the recorders, so the form is drawn again.
+    if (name === 'isRecording') {
+        form.isRecording = event.detail.value === true;
+        showForm();
+        return;
+    }
 
     // A new harness brings its own models and efforts.
     if (name === 'harness') {
@@ -1396,7 +1439,8 @@ function showDialog() {
  * @remarks
  * Rebuilt from the page state every time, so the values survive the other views. The notices
  * explain a form that cannot start (recording off, no recorders, no harness, harness entries left
- * out of the settings).
+ * out of the settings). The recording notices show only while Record Scenarios is on, since a
+ * harness-only session needs no recorder.
  *
  * @param {{ text: string, tone: string, testId: string } | null} [statusNotice] - A one-time notice,
  *     for example why the host refused to start.
@@ -1404,6 +1448,7 @@ function showDialog() {
 function showForm(statusNotice = null) {
     const { view } = globalThis.STATE;
     const { harnessIssues, harnesses, isRecordingEnabled, recorders } = globalThis.INJECTED;
+    const { isRecording } = globalThis.STATE.form;
 
     if (!view) {
         return;
@@ -1421,20 +1466,20 @@ function showForm(statusNotice = null) {
         notices.push(statusNotice);
     }
 
-    if (!isRecordingEnabled) {
+    if (isRecording && !isRecordingEnabled) {
         notices.push({
-            text: 'Recording is turned off. Turn on Recorders in the Settings Editor to start a run.',
+            text: 'Recording is turned off. Turn on Recorders in the Settings Editor, or switch off Record Scenarios to run the agent only.',
             tone: 'error',
             testId: 'autonomous-recording-disabled-notice',
             action: settingsAction
         });
     }
 
-    const isRecorderListEmpty = isRecordingEnabled && recorders.length === 0;
+    const isRecorderListEmpty = isRecording && isRecordingEnabled && recorders.length === 0;
 
     if (isRecorderListEmpty) {
         notices.push({
-            text: 'No recorders are configured. Add one under Recorders in the Settings Editor.',
+            text: 'No recorders are configured. Add one under Recorders in the Settings Editor, or switch off Record Scenarios.',
             tone: 'error',
             testId: 'autonomous-no-recorders-notice',
             action: settingsAction
@@ -1536,8 +1581,19 @@ function showRunning() {
     const effortText = EFFORT_TEXTS[state.effort] ?? effortValueText;
 
     content.querySelector('[data-part="effort"]').textContent = effortText;
-    recordersElement.textContent = recorderNames.join(', ');
-    recordersElement.title = recorderNames.join('\n');
+
+    // A harness-only session has no recorders and no scenarios, so the console takes the whole width.
+    const isRecording = state.isRecording !== false;
+
+    recordersElement.textContent = isRecording
+        ? recorderNames.join(', ')
+        : NO_RECORDERS_TEXT;
+    recordersElement.title = recordersElement.textContent;
+
+    if (!isRecording) {
+        content.querySelector('[data-test-id="autonomous-running-scenarios-region"]').remove();
+        content.querySelector('[data-test-id="autonomous-running-panes"]').classList.add('autonomous__panes--console-only');
+    }
 
     // Show the run's time limit, so the user knows whether the agent will be stopped.
     const timeoutMinutes = getTimeoutMinutes(state.timeoutMinutes);
@@ -1626,10 +1682,13 @@ function startRun() {
         command: 'startAutonomousRun',
         run: {
             harness: form.harness,
+            isRecording: form.isRecording,
             model: form.model,
             prompt: form.prompt,
             reasoningEffort: form.reasoningEffort,
-            recorders: [...form.recorders],
+            recorders: form.isRecording
+                ? [...form.recorders]
+                : [],
             timeLimit: form.timeLimit
         }
     });
@@ -1849,8 +1908,13 @@ function updateRunning() {
     }
 
     // List the scenarios and count them; their box keeps its size and scroll position while the list changes.
-    view.querySelector('[data-part="scenarios"]').innerHTML = getScenarioListMarkup(run.scenarios, SCENARIOS_EMPTY_TEXT);
-    view.querySelector('[data-part="scenario-count"]').textContent = getScenarioCountText(run.scenarios);
+    // A harness-only session has no scenarios box.
+    const scenariosElement = view.querySelector('[data-part="scenarios"]');
+
+    if (scenariosElement) {
+        scenariosElement.innerHTML = getScenarioListMarkup(run.scenarios, SCENARIOS_EMPTY_TEXT);
+        view.querySelector('[data-part="scenario-count"]').textContent = getScenarioCountText(run.scenarios);
+    }
 
     // Stop works only while the agent runs.
     const stopButton = view.querySelector('[data-action="stop"]');

@@ -13,14 +13,23 @@ g4-markdown-textarea {
     align-items: stretch;
 }
 
-/* The box has a fixed size and never wraps; the right padding keeps text clear of the buttons. */
+/* A fill box stretches to the height its owner gives the element; its rows stay the least height. */
+g4-markdown-textarea[fill] {
+    min-height: 0;
+}
+
+g4-markdown-textarea[fill] .g4-markdown-textarea__box {
+    flex: 1 1 auto;
+}
+
+/* The box keeps each line on one row unless it wraps; the right padding keeps text clear of the buttons. */
 textarea.g4-markdown-textarea__input {
     display: block;
     flex: 1 1 auto;
     min-width: 0;
     width: 100%;
     min-height: 60px;
-    padding: 6px 100px 6px 8px;
+    padding: 6px 136px 6px 8px;
     font-size: 12px;
     white-space: pre;
     overflow-wrap: normal;
@@ -28,6 +37,13 @@ textarea.g4-markdown-textarea__input {
     resize: none;
     border-width: 1px;
     border-style: solid;
+}
+
+/* A wrapped box breaks long lines at the box edge, so it never scrolls sideways. */
+.g4-markdown-textarea__box--wrapped textarea.g4-markdown-textarea__input {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow-x: hidden;
 }
 
 .g4-markdown-textarea__tools {
