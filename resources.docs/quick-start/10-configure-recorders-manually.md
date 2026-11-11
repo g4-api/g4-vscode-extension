@@ -27,7 +27,7 @@ Each machine has the same fields:
 
 | Field | What it's for |
 | --- | --- |
-| **Enabled** | Turn this machine on/off without removing it — leave **on**. |
+| **Enabled** | Turn this machine on/off without removing it. A new project ships every machine **off**, so switch on the ones you record with. |
 | **Friendly Name** | Any readable name (e.g. `UIA` or `Chromium`). |
 | **Recorder Host** | The machine running the recorder service — `localhost`. |
 | **Recorder Port** | `9955` for UIA, `9956` for Chromium. |

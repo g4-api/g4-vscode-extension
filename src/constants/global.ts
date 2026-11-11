@@ -58,7 +58,7 @@ export class Global {
                 "useSandbox": false,
                 "recorders": [
                     {
-                        "enabled": true,
+                        "enabled": false,
                         "mode": "standard",
                         "useOffset": false,
                         "excludeDomContext": true,
@@ -100,7 +100,7 @@ export class Global {
                         }
                     },
                     {
-                        "enabled": true,
+                        "enabled": false,
                         "mode": "standard",
                         "useOffset": false,
                         "excludeDomContext": true,
@@ -126,6 +126,45 @@ export class Global {
                             },
                             "driver": "ChromeDriver",
                             "driverBinaries": "http://localhost:4444/wd/hub",
+                            "firstMatch": [
+                                {}
+                            ]
+                        },
+                        "thinkTimeSettings": {
+                            "enabled": false,
+                            "maxThinkTime": 10000,
+                            "minThinkTime": 3000
+                        },
+                        "preScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
+                        },
+                        "postScript": {
+                            "enabled": false,
+                            "shell": "powershell",
+                            "script": "",
+                            "addToAutomationFlow": false
+                        }
+                    },
+                    {
+                        "enabled": false,
+                        "mode": "standard",
+                        "useOffset": false,
+                        "excludeDomContext": true,
+                        "excludeEvents": [],
+                        "schema": "http",
+                        "host": "localhost",
+                        "port": "9957",
+                        "driverParameters": {
+                            "capabilities": {
+                                "alwaysMatch": {
+                                    "sap:options": {}
+                                }
+                            },
+                            "driver": "SapDriver",
+                            "driverBinaries": "http://localhost:5556/wd/hub",
                             "firstMatch": [
                                 {}
                             ]

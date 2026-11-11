@@ -41,12 +41,13 @@ Below the switches you see one card for each recorder. Click **+ Add Machine** t
 
 ## Step 2: Tell the recorders apart
 
-A recorder is chosen by its driver. A new project comes with three, and the Android one starts switched off:
+A recorder is chosen by its driver. A new project comes with four, and all four start switched off. Turn on **Enabled** on the card you record with:
 
 | Recorder | Driver | Default port | What it watches |
 | --- | --- | --- | --- |
 | Desktop | `UiaDriver` | 9955 | Any Windows application, through UI Automation |
 | Browser | `ChromeDriver` | 9956 | A Chrome window that the recorder launches for you |
+| SAP | `SapDriver` | 9957 | A SAP GUI for Windows session. The Hub does not record with it yet; see Module 7 |
 | Android | `AndroidDriver` | 9958 | An Android device or emulator, through a recorder app the service installs for you |
 
 Each card shows the driver in its title, for example `machine-a - UiaDriver`. Open a card to see its fields:

@@ -293,7 +293,7 @@ globalThis.INITIAL = copyValue(globalThis.STATE);
 globalThis.DRIVERS = null;
 
 // Shown when the engine can't be reached so the form stays usable.
-globalThis.FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
+globalThis.FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SapDriver', 'SimulatorDriver'];
 
 // Raw README that hosts the free development-license token. The token
 // lives in a ```none code block right under the "Development License"

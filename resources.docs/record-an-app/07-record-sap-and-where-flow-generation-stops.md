@@ -18,7 +18,7 @@ In this module, you will:
 
 ## Step 1: Know the SAP recorder
 
-The SAP recorder runs as its own service, by default on port 9957. For each user action it can report two streams in one message:
+The SAP recorder runs as its own service, by default on port 9957. A new project already has a SAP card, switched off: its title ends in `SapDriver`, and its driver parameters point at the SAP driver server on `http://localhost:5556/wd/hub`. With **Use Sandbox** on, Studio starts the SAP recorder from the sandbox on Windows; on Linux and macOS it is skipped. For each user action it can report two streams in one message:
 
 | Stream | What it holds |
 | --- | --- |
@@ -34,7 +34,7 @@ When you press **Start**, the Hub checks every recorder:
 - It accepts a driver named `UiaDriver` or `AndroidDriver`, or any driver whose name contains `chrome`. Any other driver, including a SAP driver, is refused.
 - It accepts the modes `standard`, `user32`, and `coordinate` only.
 
-So when a SAP recorder is enabled in your settings and you press **Start**, Studio shows an error that begins with `Failed to start recording:` followed by the Hub's reason. The Hub's reason for the driver is:
+So when you switch the SAP card on and press **Start**, Studio shows an error that begins with `Failed to start recording:` followed by the Hub's reason. The Hub's reason for the driver is:
 
 ```text
 Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.

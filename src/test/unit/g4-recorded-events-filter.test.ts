@@ -212,6 +212,24 @@ describe('New project manifest excluded events', () => {
         assert.deepEqual(getExclusions('ChromeDriver'), [{ name: 'SubmitForm' }]);
         assert.deepEqual(getExclusions('UiaDriver'), []);
         assert.deepEqual(getExclusions('AndroidDriver'), [{ name: 'SwitchActivity' }, { name: 'InvokeLongClick' }]);
+        assert.deepEqual(getExclusions('SapDriver'), []);
+    });
+
+    it('ships every recorder switched off, so a new project records nothing until one is switched on', () => {
+        const recorders: any[] = Global.BASE_MANIFEST.settings.recorderSettings.recorders;
+
+        assert.deepEqual(recorders.map((recorder) => recorder.driverParameters?.driver), ['UiaDriver', 'ChromeDriver', 'SapDriver', 'AndroidDriver']);
+        assert.ok(recorders.every((recorder) => recorder.enabled === false));
+        assert.equal(Global.BASE_MANIFEST.settings.recorderSettings.enabled, true);
+    });
+
+    it('ships the SAP recorder on port 9957 with the sap-driver-server endpoint and an open session choice', () => {
+        const recorders: any[] = Global.BASE_MANIFEST.settings.recorderSettings.recorders;
+        const sap = recorders.find((item) => item.driverParameters?.driver === 'SapDriver');
+
+        assert.equal(sap?.port, '9957');
+        assert.equal(sap?.driverParameters?.driverBinaries, 'http://localhost:5556/wd/hub');
+        assert.deepEqual(sap?.driverParameters?.capabilities?.alwaysMatch, { 'sap:options': {} });
     });
 
     it('ships the Android recorder disabled on port 9958 with its Appium capabilities', () => {
