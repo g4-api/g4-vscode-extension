@@ -21,7 +21,7 @@ In this module, you will:
 
 A `.g4rpt` file holds the result of one run. The result is a JSON document, and the file stores it as **Base64** text, so the file looks like one long line of letters and digits if you open it as text. The Report Viewer decodes it for you.
 
-The file name is the time the run ended, in the form `yyyy-MM-dd-hhmmssfff.g4rpt`, for example `2026-11-08-141530123.g4rpt`.
+The file name is the time the run ended, in the form `yyyyMMdd-HHmmss.g4rpt`, for example `20261108-141530.g4rpt`. When two runs end in the same second, the second file gets `-2` (`20261108-141530-2.g4rpt`), so no report replaces another.
 
 ---
 
@@ -60,12 +60,12 @@ There are three ways:
 
 The viewer opens a report only when `reports` is the **first folder below your project's `src` folder**. So these are fine:
 
-- `reports/2026-11-08-141530123.g4rpt`
-- `reports/nightly/2026-11-08-141530123.g4rpt`
+- `reports/20261108-141530.g4rpt`
+- `reports/nightly/20261108-141530.g4rpt`
 
 These are not:
 
-- `build/reports/2026-11-08-141530123.g4rpt`
+- `build/reports/20261108-141530.g4rpt`
 - a `reports` folder outside your project folder
 
 A file outside the rule opens in a plain text editor and shows the Base64 text. The **Open in Report Viewer** entry is not shown for it either. The entry appears only for files that follow the rule, and the list of such files is rebuilt a moment after any file is created or deleted below a `reports` folder.

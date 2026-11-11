@@ -962,31 +962,25 @@ export class ShowWorkflowCommand extends CommandBase {
      */
     private async resolveMessage(panel: vscode.WebviewPanel, args: any, message: any) {
         const newId = (): string => {
-            // Get the current local date and time for the report file name.
+            // Name the report by the local end time, sortable and readable, the same way autonomous runs are named.
             const now = new Date();
+            const convertToTwoDigitText = (value: number): string => `${value}`.padStart(2, '0');
+            const month = convertToTwoDigitText(now.getMonth() + 1);
+            const day = convertToTwoDigitText(now.getDate());
+            const hours = convertToTwoDigitText(now.getHours());
+            const minutes = convertToTwoDigitText(now.getMinutes());
+            const seconds = convertToTwoDigitText(now.getSeconds());
 
-            // Pads a number with leading zeros.
-            const pad = (value: number, length: number = 2): string => {
-                return value.toString().padStart(length, '0');
-            };
-
-            // Build the report file name using:
-            // yyyy-MM-dd-hhmmssfff.g4rpt
-            return `${now.getFullYear()}-` +
-                `${pad(now.getMonth() + 1)}-` +
-                `${pad(now.getDate())}-` +
-                `${pad(now.getHours())}` +
-                `${pad(now.getMinutes())}` +
-                `${pad(now.getSeconds())}` +
-                `${pad(now.getMilliseconds(), 3)}.g4rpt`;
+            // yyyyMMdd-HHmmss.g4rpt
+            return `${now.getFullYear()}${month}${day}-${hours}${minutes}${seconds}.g4rpt`;
         };
 
         // Saves a workflow automation result as a timestamped G4 report file
         // under <reportsFolder>/reports, where reportsFolder comes from the manifest's
         // clientReportSettings and is resolved against the first workspace folder ("." by default).
         //
-        // Report file name format:
-        // yyyy-MM-dd-hhmmssfff.g4rpt
+        // Report file name format: yyyyMMdd-HHmmss.g4rpt, with -2, -3... added when two results end in the
+        // same second, so a later result never replaces an earlier one. The saved name is returned.
         const newReport = async (id: string, automationResultBase64: any): Promise<{ id: string }> => {
             try {
                 // Resolve the first workspace folder path.
@@ -1005,18 +999,25 @@ export class ShowWorkflowCommand extends CommandBase {
                 const reportsParent = Utilities.getManifest()?.settings?.clientReportSettings?.reportsFolder || '.';
                 const reportsFolder = path.resolve(workspaceFolder, reportsParent, 'reports');
 
-                // Build the full report file path.
-                const reportFilePath = path.join(reportsFolder, id);
-
                 // Create the reports folder if it does not exist.
                 await fs.mkdir(reportsFolder, { recursive: true });
 
-                // Save the report payload as UTF-8 text.
-                await fs.writeFile(
-                    reportFilePath,
-                    automationResultBase64,
-                    'utf8'
-                );
+                // Save the report payload as UTF-8 text under the first free name; the 'wx' flag fails on a taken name.
+                const baseName = path.basename(id, '.g4rpt');
+
+                for (let attempt = 1; ; attempt++) {
+                    const reportId = attempt === 1 ? id : `${baseName}-${attempt}.g4rpt`;
+
+                    try {
+                        await fs.writeFile(path.join(reportsFolder, reportId), automationResultBase64, { encoding: 'utf8', flag: 'wx' });
+
+                        return { id: reportId };
+                    } catch (error: any) {
+                        if (error?.code !== 'EEXIST') {
+                            throw error;
+                        }
+                    }
+                }
             } catch (err: any) {
                 vscode.window.showErrorMessage(
                     'Failed to save report: ' + err.message
@@ -1129,7 +1130,8 @@ export class ShowWorkflowCommand extends CommandBase {
 
             // If saving reports is enabled, save the workflow result as a new report file.
             if (isSaveReports) {
-                await newReport(report.id, message.payload);
+                // Keep the saved name, so the report tab is titled after the file that was written.
+                report.id = (await newReport(report.id, message.payload)).id;
             }
 
             // Check if the extension is configured to auto-open
