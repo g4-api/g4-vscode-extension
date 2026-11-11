@@ -153,6 +153,7 @@ globalThis.DEFAULTS = {
                     "enabled": true,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -193,6 +194,7 @@ globalThis.DEFAULTS = {
                     "enabled": false,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -920,6 +922,24 @@ function newManifest() {
         harness.arguments = getCleanList(harness.arguments);
     }
 
+    // A recorder's excluded events are edited one name per box as well: keep { name } objects with a trimmed,
+    // non-empty name, and leave recorders that never had the setting without it.
+    const recorders = manifest.settings?.recorderSettings?.recorders;
+    const recorderList = Array.isArray(recorders) ? recorders : [];
+
+    for (const recorder of recorderList) {
+        const isEventListPresent = Array.isArray(recorder?.excludeEvents);
+
+        if (!isEventListPresent) {
+            continue;
+        }
+
+        recorder.excludeEvents = recorder.excludeEvents
+            .map((entry) => getCleanText(entry?.name))
+            .filter(Boolean)
+            .map((name) => ({ name }));
+    }
+
     // Store the repository list as an array, like the bot base manifests do, so every reader gets a list:
     // an empty list stays [], and a missing list (null in manifests saved by earlier versions) becomes [].
     const pluginsSettings = manifest.settings?.pluginsSettings;
@@ -1123,6 +1143,9 @@ function onAppInput(event) {
             break;
         case 'json':
             setJsonValue(path, value);
+            break;
+        case 'event-list':
+            setPath(globalThis.STATE, path, value.map((name) => ({ name })));
             break;
         case 'list':
             setPath(globalThis.STATE, path, value);
@@ -2674,14 +2697,27 @@ function writeLicenseSection() {
  * @param {boolean} [options.isOrdered=false] - Whether rows get move up/down buttons.
  * @param {boolean} [options.isUnique=false] - Whether repeated entries are reported.
  * @param {string} [options.emptyText='None.'] - Text shown when the list is empty.
+ * @param {string} [options.kind='list'] - Input kind: 'list' stores the entries as text, 'event-list' stores
+ *   each entry as a { name } object (a recorder's excludeEvents) while the editor still shows plain names.
  * @param {string} [options.testId] - Test id prefix of the editor.
  * @returns {string} HTML markup for the list field.
  */
 function writeListRows(options) {
-    const { path, label, hint, isOrdered = false, isUnique = false, emptyText = 'None.', testId } = options;
+    const { path, label, hint, isOrdered = false, isUnique = false, emptyText = 'None.', kind = 'list', testId } = options;
     // The editor starts from the stored list; the rules become bare attributes.
     const value = getPath(globalThis.STATE, path);
-    const list = Array.isArray(value) ? value : [];
+    const storedList = Array.isArray(value) ? value : [];
+
+    // An event list is stored as { name } objects, so the editor is given the names; a hand-edited entry
+    // without a text name shows as an empty row instead of '[object Object]'.
+    const getEventName = (entry) => {
+        const name = entry?.name;
+
+        return typeof name === 'string' ? name : '';
+    };
+    const list = kind === 'event-list'
+        ? storedList.map(getEventName)
+        : storedList;
     const editorTestId = `${testId || path.replaceAll(TEST_ID_SEPARATOR_PATTERN, '-')}-list-editor`;
     const orderedAttribute = isOrdered ? ' ordered' : '';
     const uniqueAttribute = isUnique ? ' unique' : '';
@@ -2690,7 +2726,7 @@ function writeListRows(options) {
         label,
         hint,
         control: `
-        <g4-list-editor data-kind="list"
+        <g4-list-editor data-kind="${getEscapedText(kind)}"
                         data-path="${getEscapedText(path)}"
                         empty-text="${getEscapedText(emptyText)}"${orderedAttribute}
                         test-id="${getEscapedText(editorTestId)}"${uniqueAttribute}
@@ -3075,6 +3111,16 @@ function writeRecorderCard(recorder, index) {
         hint: 'A cap. Set equal to "shortest" for a constant pause.'
     })}
         </div>
+        <div class="settings-subheader">Excluded Events</div>
+        ${writeListRows({
+        path: `${base}.excludeEvents`,
+        label: 'Leave Out of the Recorded Flow',
+        hint: 'Action names removed from this machine’s recorded flow when recording stops, for example SubmitForm. Names are compared without case.',
+        kind: 'event-list',
+        isUnique: true,
+        emptyText: 'No excluded events. Every recorded action is kept.',
+        testId: `recorder-${index}-exclude-events`
+    })}
         <div class="settings-subheader">Pre-Recording Script</div>
         ${writeToggle({
         path: `${base}.preScript.enabled`,

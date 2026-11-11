@@ -14,6 +14,7 @@ import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
 
+import { G4RecordedEventsFilter } from '../services/g4-recorded-events-filter';
 import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
 import { G4RecordingService } from '../services/g4-recording-service';
 
@@ -30,9 +31,9 @@ import { G4BrandingService } from '../services/g4-branding-service';
  *
  * @remarks
  * The Hub flushes every recorder, converts the events into a native G4 automation, and closes owned
- * browsers. The extension then applies what only it knows: each recorder's opt-in pre- and post-scripts
- * (placed through the Hub's job-to-recorder map) and the manifest `settings` block. Post-scripts run on this
- * machine after the session stopped, exactly as before.
+ * browsers. The extension then applies what only it knows: each recorder's excluded events (`excludeEvents`)
+ * and opt-in pre- and post-scripts (both placed through the Hub's job-to-recorder map) and the manifest
+ * `settings` block. Post-scripts run on this machine after the session stopped, exactly as before.
  */
 export class StopRecorderCommand extends CommandBase {
     /** Dedicated logger for this command instance. */
@@ -104,6 +105,14 @@ export class StopRecorderCommand extends CommandBase {
                 this._logger.information('No recorded events found.');
                 showTemporaryInformationMessage('Recording stopped. No recorded events found.');
             } else {
+                // Drop the actions each recorder excludes before the scripts are placed, so an excluded name never
+                // removes a script action the extension adds itself.
+                G4RecordedEventsFilter.removeExcludedRules({
+                    automation: stopped.automation,
+                    jobs: stopped.jobs,
+                    recorders
+                });
+
                 // Complete the flow with the extension-owned parts, then open it in the workflow viewer.
                 StopRecorderCommand.setRecordedScripts({
                     automation: stopped.automation,

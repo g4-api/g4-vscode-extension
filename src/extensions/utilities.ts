@@ -11,6 +11,7 @@ import { LogSettings } from '../logging/logger-base';
 
 import type { RecorderOptions } from '../services/g4-recording-service';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4RecordedEventsFilter } from '../services/g4-recorded-events-filter';
 
 // A connection failure in HttpClient's error text: refused, unknown host, unreachable, reset, or
 // timed out. Linear: an alternation of literals with no quantifier.
@@ -811,13 +812,14 @@ export class Utilities {
 
 
             // Add the constructed URL and driver parameters to the endpoints list. The pre/post
-            // scripts are normalized here (with safe defaults for older manifests) so the recorder
-            // start/stop commands can run them without re-reading the manifest.
+            // scripts and the excluded events are normalized here (with safe defaults for older manifests)
+            // so the recorder start/stop commands can apply them without re-reading the manifest.
             endpoints.push({
                 baseUrl: url,
                 driverParameters: item.driverParameters,
                 mode: item.mode || 'standard',
                 enabled: item.enabled ?? false,
+                excludeEvents: G4RecordedEventsFilter.convertToEventExclusions(item.excludeEvents),
                 useOffset: item.useOffset ?? false,
                 thinkTimeSettings: {
                     enabled: item.thinkTimeSettings?.enabled ?? false,

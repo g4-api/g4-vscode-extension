@@ -283,6 +283,60 @@ describe('G4AutonomousRunService closing a run', () => {
             fs.rmSync(runFolder, { force: true, recursive: true });
         }
     });
+
+    it('removes the actions the recording request excludes from a recording it closes', async () => {
+        // A Hub stand-in: the stop answers a Chromium job with a SubmitForm, the status maps that job to its recorder.
+        const requestedUrls: string[] = [];
+        const hub = http.createServer((request, response) => {
+            requestedUrls.push(`${request.method} ${request.url}`);
+            const isStop = (request.url ?? '').endsWith('/stop');
+            const answer = isStop
+                ? { stages: [{ jobs: [{ rules: [{ pluginName: 'InvokeClick' }, { pluginName: 'SubmitForm' }, { pluginName: 'CloseBrowser' }] }] }] }
+                : { id: 'session-1', jobs: [{ baseUrl: 'http://localhost:9956', id: 'job-1', index: 0 }] };
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(answer));
+        });
+
+        await new Promise<void>((resolve) => hub.listen(0, '127.0.0.1', resolve));
+
+        // The run folder holds the open scenario and the request with the recorder's exclusion, as written at start.
+        const hubUrl = `http://127.0.0.1:${(hub.address() as AddressInfo).port}`;
+        const runFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'g4-autonomous-run-'));
+        const ledger = {
+            version: 1,
+            scenarios: [{ index: 1, name: 'Login', folder: 'scenarios/01-login', recording: 'recording', result: 'pending', sessionId: 'session-1' }]
+        };
+        const recordingRequest = {
+            hubUrl,
+            request: { recorders: [] },
+            recorderEventFilters: [{ baseUrl: 'http://localhost:9956', excludeEvents: [{ name: 'SubmitForm' }] }]
+        };
+
+        fs.writeFileSync(path.join(runFolder, 'scenarios.json'), JSON.stringify(ledger));
+        fs.writeFileSync(path.join(runFolder, 'recording-request.json'), JSON.stringify(recordingRequest));
+
+        const logger = { error: () => undefined, information: () => undefined, warning: () => undefined };
+        const service = new G4AutonomousRunService({ logger, recordingService: { isRecording: false } } as any);
+        const closeOpenRecordings = (service as unknown as {
+            closeOpenRecordings: (runFolder: string, hubUrl: string) => Promise<void>;
+        }).closeOpenRecordings.bind(service);
+
+        try {
+            await closeOpenRecordings(runFolder, hubUrl);
+
+            const flow = JSON.parse(fs.readFileSync(path.join(runFolder, 'scenarios', '01-login', 'flow.json'), 'utf8'));
+
+            assert.deepEqual(requestedUrls, [
+                'POST /api/v4/g4/recordings/session-1/stop',
+                'GET /api/v4/g4/recordings/session-1'
+            ]);
+            assert.deepEqual(flow.stages[0].jobs[0].rules.map((rule: any) => rule.pluginName), ['InvokeClick', 'CloseBrowser']);
+        } finally {
+            hub.close();
+            fs.rmSync(runFolder, { force: true, recursive: true });
+        }
+    });
 });
 
 // The contracts below are compile-time only, so they follow the tests. Interfaces come before type

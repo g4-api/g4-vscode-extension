@@ -24,9 +24,12 @@ import {
 } from './g4-autonomous-harness';
 import { G4AutonomousProcess } from './g4-autonomous-process';
 import { G4AutonomousSettings } from './g4-autonomous-settings';
+import { G4RecordedEventsFilter } from './g4-recorded-events-filter';
 import { G4RecorderSandboxService } from './g4-recorder-sandbox-service';
 import { G4RecorderSelfIdentityService } from './g4-recorder-self-identity-service';
 import { G4ServiceHealth } from './g4-service-health';
+
+import type { RecordingJob } from '../clients/g4-recordings-client';
 
 import type { Logger } from '../logging/logger';
 
@@ -37,6 +40,7 @@ import type {
     AutonomousToolServer
 } from './g4-autonomous-harness';
 import type { AutonomousHarness } from './g4-autonomous-settings';
+import type { RecorderEventFilter } from './g4-recorded-events-filter';
 import type {
     G4RecordingService,
     RecorderOptions
@@ -514,8 +518,11 @@ export class G4AutonomousRunService {
             return;
         }
 
-        // Stop each open recording and keep what it captured.
+        // Stop each open recording and keep what it captured, without the actions its recorders exclude; the
+        // exclusions come from the run's recording request, the same source the recorder helper reads.
         const client = new G4RecordingsClient(hubUrl);
+        const eventFilters = await G4AutonomousRunService.readRecorderEventFilters(runFolder);
+        const isAnyExclusion = eventFilters.some((eventFilter) => eventFilter.excludeEvents.length > 0);
 
         for (const scenario of openScenarios) {
             scenario.recording = 'aborted';
@@ -525,7 +532,27 @@ export class G4AutonomousRunService {
             try {
                 const automation = await client.stopRecording(scenario.sessionId);
 
+                // Only a flow that a recorder filters needs the job map, so an unfiltered run asks the Hub nothing more.
+                const isFlowFiltered = automation !== undefined && isAnyExclusion;
+
+                if (isFlowFiltered) {
+                    // The job map arrives with the stopped status and tells which jobs each recorder produced; a
+                    // status that cannot be read only skips the filter, so the stopped flow is still saved.
+                    let jobs: RecordingJob[] = [];
+
+                    try {
+                        jobs = (await client.getStatus(scenario.sessionId)).jobs ?? [];
+                    } catch (error: unknown) {
+                        const reason = Utilities.resolveErrorMessage(error);
+
+                        this._logger.warning(`Autonomous run: the excluded events were not applied to scenario "${scenario.name}": ${reason}`);
+                    }
+
+                    G4RecordedEventsFilter.removeExcludedRules({ automation, jobs, recorders: eventFilters });
+                }
+
                 if (automation !== undefined) {
+                    // Save the flow where the helper would have saved it.
                     const flowFolder = path.join(runFolder, scenario.folder);
                     await fsPromises.mkdir(flowFolder, { recursive: true });
                     await fsPromises.writeFile(path.join(flowFolder, 'flow.json'), `${JSON.stringify(automation, null, 2)}\n`, 'utf8');
@@ -866,6 +893,52 @@ export class G4AutonomousRunService {
     }
 
     /**
+     * Reads the recorders' excluded events from the run's recording request.
+     *
+     * @remarks
+     * Reads the run folder only and changes no state. The request file is the run's single source for the
+     * exclusions, shared with the recorder helper, so the extension filters a flow it saves itself exactly as the
+     * helper does. A missing or unreadable file excludes nothing, so a closing run never loses a flow over its
+     * filters.
+     *
+     * @param runFolder - The run folder.
+     * @returns The recorders with their exclusions; empty when the file has none.
+     */
+    private static async readRecorderEventFilters(runFolder: string): Promise<RecorderEventFilter[]> {
+        // Read the request the run folder was prepared with; a missing file yields no filters.
+        const requestPath = path.join(runFolder, 'recording-request.json');
+        const requestText = await fsPromises.readFile(requestPath, 'utf8').catch(() => '');
+        let requestFile: any;
+
+        try {
+            requestFile = JSON.parse(requestText.replace(BYTE_ORDER_MARK_PATTERN, ''));
+        } catch {
+            return [];
+        }
+
+        // Keep only entries with a text endpoint, normalizing their exclusions like the manifest's.
+        const entries: any[] = Array.isArray(requestFile?.recorderEventFilters)
+            ? requestFile.recorderEventFilters
+            : [];
+        const filters: RecorderEventFilter[] = [];
+
+        for (const entry of entries) {
+            const baseUrl = entry?.baseUrl;
+
+            if (typeof baseUrl !== 'string') {
+                continue;
+            }
+
+            filters.push({
+                baseUrl,
+                excludeEvents: G4RecordedEventsFilter.convertToEventExclusions(entry.excludeEvents)
+            });
+        }
+
+        return filters;
+    }
+
+    /**
      * Clears what the previous run left behind.
      */
     private resetRun(): void {
@@ -1050,8 +1123,9 @@ export class G4AutonomousRunService {
      *
      * @remarks
      * The recording request holds the picked recorders in the shape the Hub reads (scripts left out, as for
-     * a manual recording) and excludes this VS Code instance from recording. It never holds the
-     * authentication.
+     * a manual recording) and excludes this VS Code instance from recording. Next to the Hub request it keeps
+     * each recorder's excluded events (`recorderEventFilters`), which the helper and the extension apply to
+     * the saved flows and which are never sent to the Hub. It never holds the authentication.
      *
      * @param options - The Hub URL, the picked recorders, the request, and the run folder.
      */
@@ -1087,7 +1161,11 @@ export class G4AutonomousRunService {
                     thinkTimeSettings: recorder.thinkTimeSettings,
                     useOffset: recorder.useOffset
                 }))
-            }
+            },
+            recorderEventFilters: recorders.map((recorder) => ({
+                baseUrl: recorder.baseUrl,
+                excludeEvents: recorder.excludeEvents
+            }))
         };
 
         // Write the files the helper and the agent read.

@@ -14,6 +14,7 @@ In this module, you will:
 - Tell the recorder families apart
 - Choose Standard, User32, or Coordinate mode
 - Decide whether to turn on **Use Offset**
+- Leave noise such as `SubmitForm` out of the recorded flow
 
 ---
 
@@ -57,6 +58,7 @@ Each card shows the driver in its title, for example `machine-a - UiaDriver`. Op
 | **Recorder Port** | `port` | The port of the recorder service |
 | **Mode** | `mode` | How a click is stored. See Step 3 |
 | **Use Offset** | `useOffset` | Keeps where inside the element you clicked. See Step 4 |
+| **Leave Out of the Recorded Flow** | `excludeEvents` | Actions removed from this machine's flow when you stop. See Step 5 |
 
 > **📝 Note:** The Hub accepts only two driver families for recording: `UiaDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
 
@@ -118,6 +120,32 @@ Click **Save** in the Settings Editor to apply your choices.
 
 ---
 
+## Step 5: Leave noise out of the flow
+
+When you click a form's submit button in the browser, the Chromium recorder sees two things: your click and the form submission. Without a filter, the flow gets an `InvokeClick` followed by a `SubmitForm`. No plugin is called `SubmitForm`, so that second action fails on replay.
+
+The **Leave Out of the Recorded Flow** list on a recorder card removes actions like this one when you stop the recording. A new project already lists `SubmitForm` on the Chromium card, so a submit click records one `InvokeClick`.
+
+1. Open the recorder card and find the **Excluded Events** heading.
+2. Add one action name per row, for example `SubmitForm`.
+3. Click **Save**.
+
+The same setting in `manifest.json`:
+
+```json
+"excludeEvents": [
+    {
+        "name": "SubmitForm"
+    }
+]
+```
+
+> **💡 Tip:** Copy the name from a recorded flow, where it appears as the action's plugin name. Names are compared without regard to case, and a list only affects the machine that holds it.
+
+> **📝 Note:** A project created before this setting existed has no list, so it keeps every action. Add `SubmitForm` to its Chromium card to get the same result.
+
+---
+
 ## ✔ Check your work
 
 - [ ] You can open **Automation Recorders** from the `manifest.json` context menu
@@ -125,6 +153,7 @@ Click **Save** in the Settings Editor to apply your choices.
 - [ ] You know that the **Mode** list works only on a `UiaDriver` card
 - [ ] You can say which mode stores a click without a locator
 - [ ] You know that **Use Offset** applies to User32 mode only
+- [ ] The Chromium card lists `SubmitForm` under **Excluded Events**
 
 ---
 

@@ -12,7 +12,8 @@
     extension can show the progress and so a run that ends early can still be closed. Only one recording is
     open at a time, because the recorders capture the whole desktop.
 
-    The Hub endpoint and the recorders come from recording-request.json in the run folder. The G4
+    The Hub endpoint, the recorders, and each recorder's excluded events (actions such as SubmitForm that are
+    removed from the saved flow) come from recording-request.json in the run folder. The G4
     authentication comes from the G4_AUTONOMOUS_AUTHENTICATION environment variable and is never printed.
 
     Exit codes: 0 success, 1 the call is not valid in the run's current state (or the run folder is not usable),
@@ -134,6 +135,41 @@ function Add-LedgerScenario {
     return $ledgerScenario
 }
 
+function ConvertTo-RecorderOrigin {
+    <#
+    .SYNOPSIS
+        Converts a recorder endpoint into the origin form the Hub reports in its job map.
+
+    .DESCRIPTION
+        Mirrors the extension's comparison: an absolute URL becomes scheme://host[:port] without a default port,
+        and any other text is only trimmed. Both forms are lower-cased, so a manifest endpoint with a trailing
+        slash or an upper-case host still matches the Hub's normalized one.
+
+    .PARAMETER Url
+        The recorder endpoint.
+
+    .OUTPUTS
+        System.String. The lower-case origin.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Url
+    )
+
+    # Reduce an absolute URL to its scheme, host, and port; text that is not a URL is compared as written.
+    $trimmedUrl = $Url.Trim()
+    $uri = $null
+
+    if ([System.Uri]::TryCreate($trimmedUrl, [System.UriKind]::Absolute, [ref]$uri)) {
+        return $uri.GetLeftPart([System.UriPartial]::Authority).ToLowerInvariant()
+    }
+
+    return $trimmedUrl.ToLowerInvariant()
+}
+
 function ConvertTo-ScenarioSlug {
     <#
     .SYNOPSIS
@@ -197,6 +233,103 @@ function Find-LedgerScenario {
     }
 
     return $null
+}
+
+function Get-FilteredFlowContent {
+    <#
+    .SYNOPSIS
+        Removes the actions the recorders exclude from a stopped recording's flow.
+
+    .DESCRIPTION
+        Each recorder can list actions to drop from its jobs (excludeEvents in the manifest, written by the
+        extension into recording-request.json as recorderEventFilters), for example SubmitForm. The Hub's
+        job-to-recorder map, read from the stopped session's status, tells which jobs each recorder produced.
+
+        The flow is saved byte for byte whenever nothing is removed. When the exclusions cannot be applied (the
+        status or the flow cannot be read), the flow is still saved unchanged and the reason is returned, so a
+        stop never loses a recording over its filters.
+
+    .PARAMETER RecordingRequest
+        The request from Read-RecordingRequest.
+
+    .PARAMETER SessionId
+        The stopped Hub session.
+
+    .PARAMETER Response
+        The stop response from Invoke-HubRequest.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject. Bytes and Text of the flow to save, RemovedCount, and
+        Issue (empty when the exclusions were applied or there were none).
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$RecordingRequest,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SessionId,
+
+        [Parameter(Mandatory = $true)]
+        [psobject]$Response
+    )
+
+    # Start from the flow as the Hub sent it; every early exit saves exactly these bytes.
+    $content = [pscustomobject]@{
+        Bytes = $Response.Bytes
+        Issue = ''
+        RemovedCount = 0
+        Text = $Response.Text
+    }
+
+    # Without a single excluded name there is nothing to remove, so the Hub is not asked for the job map.
+    $isAnyExclusion = $false
+
+    foreach ($eventFilter in $RecordingRequest.EventFilters) {
+        if (@(Get-PropertyValue -InputObject $eventFilter -Name 'excludeEvents' | Where-Object { $null -ne $_ }).Count -gt 0) {
+            $isAnyExclusion = $true
+        }
+    }
+
+    if (-not $isAnyExclusion) {
+        return $content
+    }
+
+    # Read the job map the Hub publishes with the stopped status; without it no job can be matched to a recorder.
+    $uri = '{0}/api/v4/g4/recordings/{1}' -f $RecordingRequest.HubUrl, $SessionId
+    $statusResponse = Invoke-HubRequest -Method 'GET' -Uri $uri
+
+    if ($statusResponse.StatusCode -ne 200) {
+        $content.Issue = 'The excluded events were not applied: ' + (Get-HubFailureMessage -Response $statusResponse)
+        return $content
+    }
+
+    # Parse both answers; a shape that cannot be read keeps the flow unchanged.
+    try {
+        $flow = ConvertFrom-Json -InputObject $Response.Text
+        $recordingStatus = ConvertFrom-Json -InputObject $statusResponse.Text
+    }
+    catch {
+        $content.Issue = 'The excluded events were not applied: the flow or the recording status could not be read.'
+        return $content
+    }
+
+    # Remove the excluded actions; when none matched, the original bytes are kept.
+    $jobs = @(Get-PropertyValue -InputObject $recordingStatus -Name 'jobs' | Where-Object { $null -ne $_ })
+    $removedCount = Remove-ExcludedRule -Flow $flow -Jobs $jobs -EventFilters $RecordingRequest.EventFilters
+
+    if ($removedCount -eq 0) {
+        return $content
+    }
+
+    # Serialize the filtered flow as compact UTF-8 without a byte order mark, like the Hub's own answer.
+    $flowText = ConvertTo-Json -InputObject $flow -Depth 100 -Compress
+    $content.Bytes = (New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false).GetBytes($flowText)
+    $content.RemovedCount = $removedCount
+    $content.Text = $flowText
+
+    return $content
 }
 
 function Get-HubFailureMessage {
@@ -536,7 +669,8 @@ function Read-RecordingRequest {
         Reads the Hub endpoint and the start request prepared by the extension.
 
     .OUTPUTS
-        System.Management.Automation.PSCustomObject. HubUrl and Request.
+        System.Management.Automation.PSCustomObject. HubUrl, Request, and EventFilters (the recorders'
+        excluded events, which are applied to saved flows and never sent to the Hub).
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -569,10 +703,123 @@ function Read-RecordingRequest {
 
     $request | Add-Member -MemberType NoteProperty -Name 'authentication' -Value $authentication -Force
 
+    # The recorders' excluded events travel next to the Hub request; a request file without them excludes nothing.
+    $eventFilters = @(Get-PropertyValue -InputObject $requestFile -Name 'recorderEventFilters' | Where-Object { $null -ne $_ })
+
     return [pscustomobject]@{
+        EventFilters = $eventFilters
         HubUrl = $hubUrl
         Request = $request
     }
+}
+
+function Remove-ExcludedRule {
+    <#
+    .SYNOPSIS
+        Removes each recorder's excluded actions from the jobs it produced.
+
+    .DESCRIPTION
+        Mirrors the extension's filter: an exclusion names the action as it appears in the flow (the rule's
+        pluginName), names are compared without case, and an exclusion applies only to the jobs the Hub's job
+        map assigns to the declaring recorder. Jobs the map does not list are never touched.
+
+    .PARAMETER Flow
+        The parsed flow; its job rules are replaced in place.
+
+    .PARAMETER Jobs
+        The Hub's job map entries (baseUrl, id, index).
+
+    .PARAMETER EventFilters
+        The recorders' exclusions (baseUrl, excludeEvents).
+
+    .OUTPUTS
+        System.Int32. The number of actions removed.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Changes only the in-memory flow object; there is no -WhatIf contract.')]
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Flow,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$Jobs,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [object[]]$EventFilters
+    )
+
+    # Recorded flows hold one stage; its jobs are addressed by the map's zero-based index.
+    $stages = @(Get-PropertyValue -InputObject $Flow -Name 'stages' | Where-Object { $null -ne $_ })
+
+    if ($stages.Count -eq 0) {
+        return 0
+    }
+
+    $flowJobs = @(Get-PropertyValue -InputObject $stages[0] -Name 'jobs' | Where-Object { $null -ne $_ })
+    $nameComparer = [System.StringComparer]::OrdinalIgnoreCase
+    $removedCount = 0
+
+    foreach ($eventFilter in $EventFilters) {
+        # Collect the recorder's excluded names; a recorder without any keeps every action.
+        $excludedNames = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList @($nameComparer)
+
+        foreach ($exclusion in @(Get-PropertyValue -InputObject $eventFilter -Name 'excludeEvents' | Where-Object { $null -ne $_ })) {
+            $exclusionName = Get-PropertyValue -InputObject $exclusion -Name 'name'
+            $isExclusionNamed = $exclusionName -is [string] -and $exclusionName.Trim().Length -gt 0
+
+            if ($isExclusionNamed) {
+                $null = $excludedNames.Add($exclusionName.Trim())
+            }
+        }
+
+        if ($excludedNames.Count -eq 0) {
+            continue
+        }
+
+        # Match the recorder's jobs by origin, the form the Hub reports its endpoints in.
+        $origin = ConvertTo-RecorderOrigin -Url "$(Get-PropertyValue -InputObject $eventFilter -Name 'baseUrl')"
+
+        foreach ($job in $Jobs) {
+            $jobOrigin = ConvertTo-RecorderOrigin -Url "$(Get-PropertyValue -InputObject $job -Name 'baseUrl')"
+            $jobIndex = Get-PropertyValue -InputObject $job -Name 'index'
+
+            # The map index must be a whole number inside the flow; a boolean or text index is a malformed answer.
+            $isIndexNumber = $jobIndex -is [int] -or $jobIndex -is [long]
+            $isIndexInFlow = $isIndexNumber -and $jobIndex -ge 0 -and $jobIndex -lt $flowJobs.Count
+            $isRecorderJob = $jobOrigin -eq $origin -and $isIndexInFlow
+
+            if (-not $isRecorderJob) {
+                continue
+            }
+
+            # Keep every rule whose plugin is not excluded and count the dropped ones.
+            $flowJob = $flowJobs[[int]$jobIndex]
+            $keptRules = New-Object -TypeName 'System.Collections.Generic.List[object]'
+            $rules = @(Get-PropertyValue -InputObject $flowJob -Name 'rules' | Where-Object { $null -ne $_ })
+
+            foreach ($rule in $rules) {
+                $pluginName = Get-PropertyValue -InputObject $rule -Name 'pluginName'
+                $isExcludedRule = $pluginName -is [string] -and $excludedNames.Contains($pluginName)
+
+                if ($isExcludedRule) {
+                    $removedCount++
+                    continue
+                }
+
+                $keptRules.Add($rule)
+            }
+
+            # Replace the rules with a plain array, which serializes as a JSON array in both PowerShell editions.
+            if ($keptRules.Count -ne $rules.Count) {
+                $flowJob.rules = $keptRules.ToArray()
+            }
+        }
+    }
+
+    return $removedCount
 }
 
 function Save-Ledger {
@@ -783,19 +1030,40 @@ function Stop-ScenarioRecording {
         return New-ActionResult -ExitCode $script:ExitCodeHubFailure -Message ("Recording of '$($openScenario.name)' could not be stopped. $message")
     }
 
-    # Save the flow byte for byte into the scenario folder, which must stay inside the run folder.
+    # Drop the actions the recorders exclude; a flow with nothing to remove keeps the Hub's bytes.
+    $filterArguments = @{
+        RecordingRequest = $recordingRequest
+        Response = $response
+        SessionId = $openScenario.sessionId
+    }
+    $flowContent = Get-FilteredFlowContent @filterArguments
+
+    # Save the flow into the scenario folder, which must stay inside the run folder.
     $folderPath = Get-ScenarioFolderPath -Folder $openScenario.folder
     $null = New-Item -ItemType Directory -Path $folderPath -Force
-    [System.IO.File]::WriteAllBytes((Join-Path -Path $folderPath -ChildPath 'flow.json'), $response.Bytes)
+    [System.IO.File]::WriteAllBytes((Join-Path -Path $folderPath -ChildPath 'flow.json'), $flowContent.Bytes)
 
     # Record where the flow is and how many actions it holds.
     $openScenario.recording = 'saved'
     $openScenario.flowPath = '{0}/flow.json' -f $openScenario.folder
-    $openScenario.ruleCount = Get-RuleCount -FlowText $response.Text
+    $openScenario.ruleCount = Get-RuleCount -FlowText $flowContent.Text
     $openScenario.error = ''
     Save-Ledger -Ledger $Ledger
 
-    return New-ActionResult -ExitCode 0 -Message ("Saved the flow of '$($openScenario.name)' ($($openScenario.ruleCount) actions) to $($openScenario.flowPath).")
+    # Tell the agent how many actions were excluded, or why none could be, next to the saved-flow summary.
+    $excludedText = ''
+
+    if ($flowContent.RemovedCount -gt 0) {
+        $excludedText = ", $($flowContent.RemovedCount) excluded"
+    }
+
+    $issueText = ''
+
+    if ($flowContent.Issue.Length -gt 0) {
+        $issueText = ' ' + $flowContent.Issue
+    }
+
+    return New-ActionResult -ExitCode 0 -Message ("Saved the flow of '$($openScenario.name)' ($($openScenario.ruleCount) actions$excludedText) to $($openScenario.flowPath).$issueText")
 }
 
 function Write-LedgerStatus {

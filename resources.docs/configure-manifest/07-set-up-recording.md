@@ -173,6 +173,29 @@ How the scripts behave while recording:
 
 ---
 
+## Step 6: `excludeEvents` — leave actions out of the recorded flow
+
+The recorders report everything they see, and the Hub turns every event into an action. Some of those actions are noise. For example, clicking a form's submit button makes the Chromium recorder report a click **and** a form submission, so the flow gets an `InvokeClick` followed by a `SubmitForm` that no plugin can run.
+
+Each recorder can list the actions VS Code removes from its part of the flow when the recording stops:
+
+```json
+"excludeEvents": [
+    {
+        "name": "SubmitForm"
+    }
+]
+```
+
+- **`name`** — the action as it appears in the flow, which is the rule's `pluginName`. Names are compared without regard to case.
+- An exclusion only applies to the jobs this recorder produced. Another recorder keeps the same action unless it lists it too.
+- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder.
+- The list is applied by VS Code when you stop a recording, and to the flows of an autonomous run. The recorders and the Hub never see it.
+
+> **⚠️ Pitfall:** Desktop recorders name their actions after the capture mode (for example `InvokeUser32Click` in `user32` mode). Copy the name from a recorded flow rather than from the recorder's event name.
+
+---
+
 ## ✔ Check your work
 
 - [ ] Top-level `enabled` is `true`, and each recorder you want is enabled
@@ -181,6 +204,7 @@ How the scripts behave while recording:
 - [ ] `thinkTimeSettings` fits the app — a range, a constant (`min == max`), or disabled for speed
 - [ ] `mode` is the one you want (`standard`, `user32` or `coordinate`), and `useOffset` is on only for `user32`
 - [ ] Any pre- or post-script uses a `shell` your machine has, and exits with `0`
+- [ ] The Chromium recorder lists `SubmitForm` in `excludeEvents`, so a submit click records one action
 
 ---
 

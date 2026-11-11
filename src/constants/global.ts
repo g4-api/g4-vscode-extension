@@ -61,6 +61,7 @@ export class Global {
                         "enabled": true,
                         "mode": "standard",
                         "useOffset": false,
+                        "excludeEvents": [],
                         "schema": "http",
                         "host": "localhost",
                         "port": "9955",
@@ -101,6 +102,11 @@ export class Global {
                         "enabled": true,
                         "mode": "standard",
                         "useOffset": false,
+                        "excludeEvents": [
+                            {
+                                "name": "SubmitForm"
+                            }
+                        ],
                         "schema": "http",
                         "host": "localhost",
                         "port": "9956",
