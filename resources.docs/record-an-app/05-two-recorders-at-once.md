@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 4](04-why-vs-code-never-appears.md)
 
-**Where you are:** Module 5 of 7
+**Where you are:** Module 5 of 8
 
 ⏱️ **About 6 minutes**
 

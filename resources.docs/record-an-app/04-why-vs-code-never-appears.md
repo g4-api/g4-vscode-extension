@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 3](03-scripts-before-and-after.md)
 
-**Where you are:** Module 4 of 7
+**Where you are:** Module 4 of 8
 
 ⏱️ **About 4 minutes**
 

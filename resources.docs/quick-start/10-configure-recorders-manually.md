@@ -32,7 +32,7 @@ Each machine has the same fields:
 | **Recorder Host** | The machine running the recorder service — `localhost`. |
 | **Recorder Port** | `9955` for UIA, `9956` for Chromium. |
 | **Mode** | Capture strategy for UIA recorders — the default (e.g. `User32`) is fine. |
-| **Driver** | The technology to drive the app — `UiaDriver` or `ChromeDriver`. |
+| **Driver** | The technology to drive the app — `UiaDriver` or `ChromeDriver`, or `AndroidDriver` for an Android device (see [Record an App, Module 8](../record-an-app/08-record-an-android-app.md)). |
 | **Driver Service URL or Path** | A Selenium hub URL, or a local driver folder. |
 | **Capabilities (alwaysMatch)** | WebDriver capabilities JSON applied to every session. |
 

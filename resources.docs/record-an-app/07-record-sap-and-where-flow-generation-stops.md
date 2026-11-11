@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 6](06-name-your-recorded-steps.md)
 
-**Where you are:** Module 7 of 7
+**Where you are:** Module 7 of 8
 
 ⏱️ **About 4 minutes**
 
@@ -64,11 +64,4 @@ The Hub builder that turns events into rules has no code for the `user32` and `n
 
 ---
 
-## 🎉 You did it
-
-You can now choose a capture mode, pause and resume, run scripts around a session, record two machines at once, and name the steps. From here:
-
-- Replay a recording and publish it with [Publish a Flow](../g4-learning.md)
-- Look up every recorder setting in [Configure `manifest.json`](../g4-learning.md)
-
-Or go **back to** [the overview](README.md).
+**Next up** 👉 [Module 8: Record an Android app](08-record-an-android-app.md)

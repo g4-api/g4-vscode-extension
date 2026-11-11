@@ -19,7 +19,7 @@ Each path is a **self-contained folder of numbered modules** you can work throug
 | 3 | [📙 Publish a Flow](publish-a-flow/README.md) | Sharing a finished bot | Name, describe, add parameters, and publish it to the Hub | ~20 min | Beginner |
 | 4 | [📕 Publish a Template](publish-a-template/README.md) | Reusing part of a bot | Pick a job, expose properties, add an example, publish, and bulk-upload | ~30 min | Beginner |
 | 5 | [📒 Autonomous Exploratory Run](autonomous-run/README.md) | Letting an agent explore and record | Configure an agent, start a run, and publish the flows it records | ~45 min | Intermediate |
-| 6 | [🎬 Record an App](record-an-app/README.md) | Controlling a recording | Pick a capture mode, pause and resume, run scripts, record two machines, and name the steps | ~40 min | Intermediate |
+| 6 | [🎬 Record an App](record-an-app/README.md) | Controlling a recording | Pick a capture mode, pause and resume, run scripts, record two machines, name the steps, and record an Android app | ~55 min | Intermediate |
 | 7 | [🔌 Plugins, Externals, and MCP](plugins-externals-and-mcp/README.md) | Adding more actions | Add an external repository or an MCP server, sync the cache, and read the warnings | ~30 min | Intermediate |
 | 8 | [📓 Work in the Workflow Editor](work-in-the-workflow-editor/README.md) | Working on the canvas | Open bots, edit, filter the toolbox, run, and read reports and logs | ~35 min | Intermediate |
 | 9 | [📔 Environments and Parameters](environments-and-parameters/README.md) | Running bots in many places | Write environment files, push them, and read their values in bots | ~30 min | Intermediate |
@@ -136,8 +136,9 @@ Take control of a recording: choose a capture mode, pause one recorder, run scri
 - Run a script before and after a recording and add it to the flow
 - Record a desktop app and a browser in one session
 - Know where the Hub stops building a flow for SAP
+- Record an Android app and replay it through Appium
 
-**Format:** 7 modules · troubleshooting · ~40 minutes · intermediate
+**Format:** 8 modules · troubleshooting · ~55 minutes · intermediate
 
 👉 **[Start Record an App »](record-an-app/README.md)**
 

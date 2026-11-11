@@ -105,7 +105,7 @@ The driver each recorder uses to *talk to* the target while watching the user. T
 }
 ```
 
-**Android recorder** (device or emulator, port `9958`) — records an Android app through a recorder app that the recorder service installs over adb:
+**Android recorder** (device or emulator, port `9958`) — records an Android app through a recorder app that the recorder service installs over adb. Its driver parameters are the values the flow replays with: `driver` is `AndroidDriver`, `driverBinaries` is the Appium server endpoint, and `capabilities.alwaysMatch` with the `firstMatch` list next to it are the W3C WebDriver new-session capabilities that G4 sends to Appium: `alwaysMatch` for what every session needs, `firstMatch` for alternatives. Every Appium capability carries the `appium:` prefix:
 
 ```json
 "driverParameters": {
@@ -128,7 +128,11 @@ The driver each recorder uses to *talk to* the target while watching the user. T
 - **`appium:appPackage`** and **`appium:appActivity`** — the app to start when recording begins. With a package and no activity, the app's launcher activity starts. With neither, every app on the device is recorded.
 - **`appium:udid`** — the adb serial; leave it empty when one device is connected.
 - **`appium:app`** — an APK path on the recorder machine to install first; leave it empty when the app is already installed.
-- **`driverBinaries`** — the Appium server the recorded flow replays on. The recorder itself does not use Appium.
+- **`platformName`** and **`appium:automationName`** — `android` and `UiAutomator2`, required by Appium; the recorder ignores them.
+- **`driverBinaries`** — the Appium server endpoint the recorded flow replays on, `http://localhost:4723` for Appium 2 and later. The recorder itself does not use Appium.
+- Any other Appium capability, such as `appium:noReset`, can go in `alwaysMatch`; the recorder ignores it and Appium applies it at replay.
+
+[Record an App, Module 8](../record-an-app/08-record-an-android-app.md) walks through a whole Android session.
 
 - **`uia:options.label`** — a friendly name for a UIA target (used in reports); change it to something like `accounting-pc`.
 - **`goog:chromeOptions.binary`** — the Chrome executable to launch; the sandbox fills this in for you.

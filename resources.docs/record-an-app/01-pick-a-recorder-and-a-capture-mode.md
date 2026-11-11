@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md)
 
-**Where you are:** Module 1 of 7
+**Where you are:** Module 1 of 8
 
 ⏱️ **About 8 minutes**
 
@@ -64,15 +64,15 @@ Each card shows the driver in its title, for example `machine-a - UiaDriver`. Op
 
 > **📝 Note:** The Hub accepts three driver families for recording: `UiaDriver`, `AndroidDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
 
-### Record an Android app
+### The Android card
 
-The Android recorder needs adb on the machine that runs the recorder service, and one device or emulator that `adb devices` lists. On the Android card:
+The Android card's driver parameters are the values the flow replays with:
 
-1. Turn **Enabled** on.
-2. Set `appium:appPackage`, and `appium:appActivity` if the app has no launcher icon, in the card's capabilities. These are the same values the flow replays with.
-3. Set `appium:udid` only when more than one device is connected.
+- **`driver`** is `AndroidDriver`.
+- **`driverBinaries`** is the Appium server endpoint, `http://localhost:4723` by default.
+- **`capabilities.alwaysMatch`**, with **`firstMatch`** next to it, are the W3C WebDriver new-session capabilities, with every Appium capability under the `appium:` prefix. The recorder service reads `appium:udid`, `appium:appPackage`, `appium:appActivity` and `appium:app` from `alwaysMatch` to choose the device and start your app.
 
-When you press **Start**, the recorder service installs its recorder app, switches on its accessibility service, and starts your app. When you stop, it switches the service off again. The Android card leaves `SwitchActivity` and `InvokeLongClick` out of the flow, because no plugin replays them yet.
+The card leaves `SwitchActivity` and `InvokeLongClick` out of the flow, because no plugin replays them yet. [Module 8](08-record-an-android-app.md) walks through a whole Android session, from the device to the replay.
 
 ---
 
