@@ -1,8 +1,7 @@
 /*
  * Autonomous run visual language: the page font and colors, the buttons, and the running view's
- * motion: a flat robot inside a crackling storm ring, shooting lightning from its antenna and arms
- * and flashing the lightning color with a three-bolt burst now and then. The G4 components draw their
- * own look.
+ * motion: a pulse travels along a live wire from the agent to the application, the agent glows as it
+ * sends, and the application glows as the pulse lands. The G4 components draw their own look.
  */
 body {
     font-family: var(--autonomous-font-family);
@@ -80,215 +79,150 @@ body {
     font-family: var(--autonomous-time-font-family);
 }
 
+/* The meter: a faint track that fills in the progress color, and in the warning color near the limit. */
+.autonomous__time-meter {
+    background-color: var(--autonomous-time-meter-track);
+    border-radius: var(--autonomous-time-meter-radius);
+}
+
+.autonomous__time-meter-fill {
+    background-color: var(--autonomous-time-meter-fill);
+    transition: var(--autonomous-time-meter-transition);
+}
+
+.autonomous__time-meter--late .autonomous__time-meter-fill {
+    background-color: var(--autonomous-time-meter-late-fill);
+}
+
 /* A new status line slides up into place. */
 .autonomous__status--fresh {
     animation: autonomous-status-enter var(--autonomous-status-duration) ease-out;
 }
 
-/* Running view: storm ring. Two jagged rings take turns, so the loop crackles while it turns slowly. */
-.autonomous__storm {
-    transform-box: fill-box;
-    transform-origin: center;
-    animation: autonomous-storm-turn var(--autonomous-storm-turn-duration) linear infinite;
-}
-
-.autonomous__storm-ring {
-    fill: none;
-    stroke: var(--autonomous-storm-color);
-    stroke-width: 6;
-    stroke-linejoin: round;
-    filter: var(--autonomous-storm-glow);
-    animation: autonomous-storm-flicker var(--autonomous-storm-flicker-duration) steps(1) infinite;
-}
-
-.autonomous__storm-ring--late {
-    animation-delay: calc(var(--autonomous-storm-flicker-duration) / -2);
-}
-
-/* Running view: lightning. Each bolt draws outward from the antenna or an arm, flickers, and fades; the
-   at-N classes place a bolt, or the flash where it lands, N percent into the storm's beat. */
-.autonomous__bolt {
-    fill: none;
-    stroke: var(--autonomous-spark-core-color);
-    stroke-width: 12;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 100;
-    stroke-dashoffset: 100;
-    opacity: 0;
-    filter: var(--autonomous-spark-glow);
-    animation: autonomous-bolt-strike var(--autonomous-storm-duration) linear infinite;
-}
-
-.autonomous__strike-flash {
-    fill: var(--autonomous-spark-core-color);
-    opacity: 0;
-    transform-box: fill-box;
-    transform-origin: center;
-    filter: var(--autonomous-spark-glow);
-    animation: autonomous-strike-flash var(--autonomous-storm-duration) ease-out infinite;
-}
-
-.autonomous__strike--at-4 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .04);
-}
-
-.autonomous__strike--at-20 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .2);
-}
-
-.autonomous__strike--at-24 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .24);
-}
-
-.autonomous__strike--at-40 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .4);
-}
-
-.autonomous__strike--at-44 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .44);
-}
-
-.autonomous__strike--at-55 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .55);
-}
-
-.autonomous__strike--at-59 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .59);
-}
-
-.autonomous__strike--at-70 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .7);
-}
-
-.autonomous__strike--at-74 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .74);
-}
-
-.autonomous__strike--at-85 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .85);
-}
-
-.autonomous__strike--at-89 {
-    animation-delay: calc(var(--autonomous-storm-duration) * .89);
-}
-
-/* The burst: three bolts at once, on the robot's flash beat, landing a moment after they leave. */
-.autonomous__bolt--burst {
-    animation-duration: var(--autonomous-robot-flash-duration);
-}
-
-.autonomous__strike-flash--burst {
-    animation-duration: var(--autonomous-robot-flash-duration);
-    animation-delay: calc(var(--autonomous-robot-flash-duration) * .02);
-}
-
-/* Running view: robot. Flat, with the eyes and mouth cut out, and a double flash on the burst. */
-.autonomous__robot-shape {
-    fill: var(--autonomous-robot-color);
+/* Running view: the agent and the application, flat, in the editor's text color. */
+.autonomous__agent-shape,
+.autonomous__app-shape,
+.autonomous__app-field {
+    fill: var(--autonomous-agent-color);
     fill-rule: evenodd;
-    filter: var(--autonomous-robot-rest-glow);
-    animation: autonomous-robot-flash var(--autonomous-robot-flash-duration) linear infinite;
 }
 
-/* Motion stays out for users who ask the system for less of it; the bolts stay drawn, so the view still
-   reads as a storm. */
+.autonomous__app-field {
+    opacity: var(--autonomous-app-field-opacity);
+}
+
+/* The agent glows as a pulse leaves it, and the application as the pulse lands; both share the pulse's beat. */
+.autonomous__agent {
+    filter: var(--autonomous-rest-glow);
+    animation: autonomous-agent-send var(--autonomous-pulse-duration) linear infinite;
+}
+
+.autonomous__app {
+    filter: var(--autonomous-rest-glow);
+    animation: autonomous-app-receive var(--autonomous-pulse-duration) linear infinite;
+}
+
+/* Running view: the live wire. A faint trace carries a bright pulse with a soft trail, like the live link of
+   the Z4 Golem board; pathLength 100 makes each dash a share of the wire. */
+.autonomous__wire {
+    fill: none;
+    stroke: var(--autonomous-wire-color);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+}
+
+.autonomous__wire-trail,
+.autonomous__wire-pulse {
+    fill: none;
+    stroke-linecap: round;
+    animation: autonomous-pulse-travel var(--autonomous-pulse-duration) linear infinite;
+}
+
+/* The trail runs 10 behind the pulse, so its glow follows the bright core instead of leading it. */
+.autonomous__wire-trail {
+    animation-name: autonomous-trail-travel;
+}
+
+.autonomous__wire-trail {
+    stroke: var(--autonomous-pulse-color);
+    stroke-width: 6;
+    stroke-dasharray: 14 86;
+    opacity: var(--autonomous-pulse-trail-opacity);
+    filter: var(--autonomous-pulse-trail-blur);
+}
+
+.autonomous__wire-pulse {
+    stroke: var(--autonomous-pulse-core-color);
+    stroke-width: 3;
+    stroke-dasharray: 4 96;
+    filter: var(--autonomous-pulse-glow);
+}
+
+/* Motion stays out for users who ask the system for less of it; the wire stays lit in the pulse color, so
+   the view still reads as a live connection. */
 @media (prefers-reduced-motion: reduce) {
     .autonomous__status--fresh,
     .autonomous__icon-button--busy .autonomous__icon,
-    .autonomous__storm,
-    .autonomous__storm-ring,
-    .autonomous__strike-flash,
-    .autonomous__robot-shape {
+    .autonomous__agent,
+    .autonomous__app {
         animation: none;
     }
 
-    .autonomous__bolt {
+    .autonomous__wire {
+        stroke: var(--autonomous-pulse-color);
+    }
+
+    .autonomous__wire-trail,
+    .autonomous__wire-pulse {
         animation: none;
-        opacity: .7;
-        stroke-dashoffset: 0;
+        opacity: 0;
     }
 }
 
-@keyframes autonomous-storm-turn {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@keyframes autonomous-storm-flicker {
-    0% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: .3;
-    }
-}
-
-@keyframes autonomous-bolt-strike {
-    0% {
+/* The dash runs from the agent's end of the wire to the application's, then starts over. */
+@keyframes autonomous-pulse-travel {
+    from {
         stroke-dashoffset: 100;
-        opacity: 1;
     }
 
-    3% {
+    to {
         stroke-dashoffset: 0;
-        opacity: 1;
-    }
-
-    5% {
-        opacity: .25;
-    }
-
-    7% {
-        opacity: 1;
-    }
-
-    9% {
-        opacity: .45;
-    }
-
-    12%,
-    100% {
-        stroke-dashoffset: 0;
-        opacity: 0;
     }
 }
 
-@keyframes autonomous-strike-flash {
-    0%,
-    2% {
-        opacity: 0;
-        transform: scale(.4);
+/* The trail's dash, ending where the pulse's begins. */
+@keyframes autonomous-trail-travel {
+    from {
+        stroke-dashoffset: 110;
     }
 
-    4% {
-        opacity: 1;
-        transform: scale(1);
+    to {
+        stroke-dashoffset: 10;
+    }
+}
+
+/* A short glow as the pulse leaves the agent. */
+@keyframes autonomous-agent-send {
+    0% {
+        filter: var(--autonomous-send-glow);
     }
 
     14%,
     100% {
-        opacity: 0;
-        transform: scale(2.6);
+        filter: var(--autonomous-rest-glow);
     }
 }
 
-/* Two short blinks of the lightning color at the start of each flash beat, then flat again. */
-@keyframes autonomous-robot-flash {
+/* A short glow as the pulse reaches the application, then flat until the next one. */
+@keyframes autonomous-app-receive {
     0%,
-    2.2%,
-    4.4%,
+    82%,
     100% {
-        fill: var(--autonomous-robot-color);
-        filter: var(--autonomous-robot-rest-glow);
+        filter: var(--autonomous-rest-glow);
     }
 
-    .8%,
-    3% {
-        fill: var(--autonomous-robot-flash-color);
-        filter: var(--autonomous-robot-flash-glow);
+    90% {
+        filter: var(--autonomous-receive-glow);
     }
 }
 

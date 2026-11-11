@@ -3,7 +3,7 @@
  *
  * The page is built from the reusable G4 components (resources.components/g4-*), which carry their
  * own parameters; these values cover only what the page itself draws: the launcher behind the
- * dialog, the form's buttons and notes, the running view (robot, storm ring and lightning, status,
+ * dialog, the form's buttons and notes, the running view (agent, application, and the live wire, status,
  * facts, scenarios, the console), and the result view.
  */
 :root {
@@ -29,27 +29,30 @@
     --autonomous-stop-foreground: var(--vscode-errorForeground);
     --autonomous-stop-hover-background: var(--vscode-inputValidation-errorBackground, transparent);
 
-    /* Running view: robot */
-    --autonomous-robot-color: var(--vscode-editor-foreground);
-    --autonomous-robot-flash-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    --autonomous-robot-flash-duration: 4s;
-    --autonomous-robot-flash-glow: drop-shadow(0 0 22px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
-    --autonomous-robot-rest-glow: drop-shadow(0 0 0 transparent);
-
-    /* Running view: storm ring and lightning */
-    --autonomous-spark-core-color: color-mix(in srgb, var(--vscode-progressBar-background, var(--vscode-focusBorder)) 20%, #ffffff);
-    --autonomous-spark-glow: drop-shadow(0 0 5px var(--vscode-progressBar-background, var(--vscode-focusBorder))) drop-shadow(0 0 14px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
-    --autonomous-storm-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
-    --autonomous-storm-duration: 3s;
-    --autonomous-storm-flicker-duration: .24s;
-    --autonomous-storm-glow: drop-shadow(0 0 8px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
-    --autonomous-storm-turn-duration: 16s;
+    /* Running view: agent, application, and the live wire between them */
+    --autonomous-agent-color: var(--vscode-editor-foreground);
+    --autonomous-app-field-opacity: .55;
+    --autonomous-pulse-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+    --autonomous-pulse-core-color: color-mix(in srgb, var(--vscode-progressBar-background, var(--vscode-focusBorder)) 20%, #ffffff);
+    --autonomous-pulse-duration: 1.65s;
+    --autonomous-pulse-glow: drop-shadow(0 0 4px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-pulse-trail-blur: blur(1.5px);
+    --autonomous-pulse-trail-opacity: .45;
+    --autonomous-receive-glow: drop-shadow(0 0 10px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-rest-glow: drop-shadow(0 0 0 transparent);
+    --autonomous-send-glow: drop-shadow(0 0 8px var(--vscode-progressBar-background, var(--vscode-focusBorder)));
+    --autonomous-wire-color: color-mix(in srgb, var(--vscode-editor-foreground) 22%, transparent);
 
     /* Running view: status and facts */
     --autonomous-status-duration: .4s;
     --autonomous-fact-background: var(--vscode-sideBar-background);
     --autonomous-fact-border-color: var(--vscode-panel-border);
     --autonomous-fact-radius: 4px;
+    --autonomous-time-meter-fill: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+    --autonomous-time-meter-late-fill: var(--vscode-editorWarning-foreground, #cca700);
+    --autonomous-time-meter-radius: 2px;
+    --autonomous-time-meter-track: var(--vscode-panel-border);
+    --autonomous-time-meter-transition: width 1s linear, background-color .3s;
 
     /* Scenarios */
     --autonomous-badge-active-foreground: var(--vscode-progressBar-background, var(--vscode-focusBorder));
@@ -79,7 +82,8 @@
     --autonomous-refresh-duration: .9s;
 }
 
-/* A white-hot spark core disappears on a light editor, so light themes draw the core in the lightning color. */
-body.vscode-light {
-    --autonomous-spark-core-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+/* A light theme has no dark ground for a near-white pulse core, so the core takes the pulse color itself. */
+body.vscode-light,
+body.vscode-high-contrast-light {
+    --autonomous-pulse-core-color: var(--vscode-progressBar-background, var(--vscode-focusBorder));
 }
