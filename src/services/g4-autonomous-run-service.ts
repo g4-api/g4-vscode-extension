@@ -522,7 +522,11 @@ export class G4AutonomousRunService {
         // exclusions come from the run's recording request, the same source the recorder helper reads.
         const client = new G4RecordingsClient(hubUrl);
         const eventFilters = await G4AutonomousRunService.readRecorderEventFilters(runFolder);
-        const isAnyExclusion = eventFilters.some((eventFilter) => eventFilter.excludeEvents.length > 0);
+        const isAnyExclusion = eventFilters.some((eventFilter) => {
+            const isExcludingContent = eventFilter.excludeEvents.length > 0 || eventFilter.excludeDomContext;
+
+            return isExcludingContent;
+        });
 
         for (const scenario of openScenarios) {
             scenario.recording = 'aborted';
@@ -548,7 +552,10 @@ export class G4AutonomousRunService {
                         this._logger.warning(`Autonomous run: the excluded events were not applied to scenario "${scenario.name}": ${reason}`);
                     }
 
-                    G4RecordedEventsFilter.removeExcludedRules({ automation, jobs, recorders: eventFilters });
+                    const filterOptions = { automation, jobs, recorders: eventFilters };
+
+                    G4RecordedEventsFilter.removeExcludedRules(filterOptions);
+                    G4RecordedEventsFilter.removeDomContext(filterOptions);
                 }
 
                 if (automation !== undefined) {
@@ -929,8 +936,11 @@ export class G4AutonomousRunService {
                 continue;
             }
 
+            // A request written before the DOM context setting existed leaves the context out, like a manifest
+            // without the setting does.
             filters.push({
                 baseUrl,
+                excludeDomContext: entry.excludeDomContext !== false,
                 excludeEvents: G4RecordedEventsFilter.convertToEventExclusions(entry.excludeEvents)
             });
         }
@@ -1124,8 +1134,8 @@ export class G4AutonomousRunService {
      * @remarks
      * The recording request holds the picked recorders in the shape the Hub reads (scripts left out, as for
      * a manual recording) and excludes this VS Code instance from recording. Next to the Hub request it keeps
-     * each recorder's excluded events (`recorderEventFilters`), which the helper and the extension apply to
-     * the saved flows and which are never sent to the Hub. It never holds the authentication.
+     * each recorder's excluded events and DOM context setting (`recorderEventFilters`), which the helper and the
+     * extension apply to the saved flows and which are never sent to the Hub. It never holds the authentication.
      *
      * @param options - The Hub URL, the picked recorders, the request, and the run folder.
      */
@@ -1164,6 +1174,7 @@ export class G4AutonomousRunService {
             },
             recorderEventFilters: recorders.map((recorder) => ({
                 baseUrl: recorder.baseUrl,
+                excludeDomContext: recorder.excludeDomContext,
                 excludeEvents: recorder.excludeEvents
             }))
         };

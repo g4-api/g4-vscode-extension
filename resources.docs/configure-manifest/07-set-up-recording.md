@@ -196,6 +196,24 @@ Each recorder can list the actions VS Code removes from its part of the flow whe
 
 ---
 
+## Step 7: `excludeDomContext` — keep the markup snapshot out of the flow
+
+The Chromium recorder sends a snapshot of the markup around the element of each click, typed text, and hover. The Hub copies it into each browser rule as `capabilities.domContext` (Base64 of the HTML) and `capabilities.domContextLength`. AI tools that record through the Hub use it to heal or improve locators.
+
+A flow you record in VS Code usually does not need it, so each recorder has a switch:
+
+```json
+"excludeDomContext": true
+```
+
+- **`true`**, or no value at all, removes both fields from this recorder's part of the flow when the recording stops. A `capabilities` object left empty is removed too.
+- **`false`** keeps the snapshot in the flow, for example when an AI tool reads your saved flows.
+- It applies to manual recordings and to autonomous runs. The Hub and the recorder never see the setting.
+
+To change what the snapshot holds, or to stop the recorder from taking it, open the Chromium recorder extension's options page and use its **DOM Context** section.
+
+---
+
 ## ✔ Check your work
 
 - [ ] Top-level `enabled` is `true`, and each recorder you want is enabled
@@ -205,6 +223,7 @@ Each recorder can list the actions VS Code removes from its part of the flow whe
 - [ ] `mode` is the one you want (`standard`, `user32` or `coordinate`), and `useOffset` is on only for `user32`
 - [ ] Any pre- or post-script uses a `shell` your machine has, and exits with `0`
 - [ ] The Chromium recorder lists `SubmitForm` in `excludeEvents`, so a submit click records one action
+- [ ] `excludeDomContext` is `true` (or missing) unless you want the markup snapshot in your flows
 
 ---
 

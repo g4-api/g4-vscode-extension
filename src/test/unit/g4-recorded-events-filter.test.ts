@@ -1,7 +1,8 @@
 /*
  * Unit tests for the recorders' excluded events: a manifest `excludeEvents` list is normalized, and the listed
  * actions are removed only from the jobs of the recorder that declares them, as named in the Hub's job map.
- * The new-project manifest template is checked too, so new projects keep excluding SubmitForm on Chromium.
+ * The DOM context the Hub adds to rule capabilities is removed only for recorders that exclude it, and the
+ * new-project manifest template is checked too, so new projects keep excluding SubmitForm and the DOM context.
  */
 import * as assert from 'node:assert/strict';
 
@@ -82,8 +83,8 @@ describe('G4RecordedEventsFilter.removeExcludedRules', () => {
     it('removes an excluded action only from the jobs of the recorder that declares it', () => {
         const automation = newSessionAutomation();
         const recorders: RecorderEventFilter[] = [
-            { baseUrl: CHROMIUM_URL, excludeEvents: [{ name: 'SubmitForm' }] },
-            { baseUrl: DESKTOP_URL, excludeEvents: [] }
+            { baseUrl: CHROMIUM_URL, excludeDomContext: false, excludeEvents: [{ name: 'SubmitForm' }] },
+            { baseUrl: DESKTOP_URL, excludeDomContext: false, excludeEvents: [] }
         ];
 
         const removedCount = G4RecordedEventsFilter.removeExcludedRules({ automation, jobs: JOBS, recorders });
@@ -98,7 +99,7 @@ describe('G4RecordedEventsFilter.removeExcludedRules', () => {
     it('compares names without case and endpoints as origins', () => {
         const automation = newSessionAutomation();
         const recorders: RecorderEventFilter[] = [
-            { baseUrl: 'HTTP://LocalHost:9956/', excludeEvents: [{ name: 'submitform' }] }
+            { baseUrl: 'HTTP://LocalHost:9956/', excludeDomContext: false, excludeEvents: [{ name: 'submitform' }] }
         ];
 
         const removedCount = G4RecordedEventsFilter.removeExcludedRules({ automation, jobs: JOBS, recorders });
@@ -110,8 +111,8 @@ describe('G4RecordedEventsFilter.removeExcludedRules', () => {
     it('keeps every action when no recorder excludes anything', () => {
         const automation = newSessionAutomation();
         const recorders: RecorderEventFilter[] = [
-            { baseUrl: CHROMIUM_URL, excludeEvents: [] },
-            { baseUrl: DESKTOP_URL, excludeEvents: [] }
+            { baseUrl: CHROMIUM_URL, excludeDomContext: false, excludeEvents: [] },
+            { baseUrl: DESKTOP_URL, excludeDomContext: false, excludeEvents: [] }
         ];
 
         const removedCount = G4RecordedEventsFilter.removeExcludedRules({ automation, jobs: JOBS, recorders });
@@ -123,7 +124,7 @@ describe('G4RecordedEventsFilter.removeExcludedRules', () => {
     it('leaves jobs alone that the job map does not assign, or that are not in the flow', () => {
         const automation = newSessionAutomation();
         const recorders: RecorderEventFilter[] = [
-            { baseUrl: CHROMIUM_URL, excludeEvents: [{ name: 'SubmitForm' }] }
+            { baseUrl: CHROMIUM_URL, excludeDomContext: false, excludeEvents: [{ name: 'SubmitForm' }] }
         ];
         const outsideJobs: RecordingJob[] = [{ baseUrl: CHROMIUM_URL, id: 'job-9', index: 9 }];
 
@@ -134,11 +135,68 @@ describe('G4RecordedEventsFilter.removeExcludedRules', () => {
 
     it('tolerates an automation without stages', () => {
         const recorders: RecorderEventFilter[] = [
-            { baseUrl: CHROMIUM_URL, excludeEvents: [{ name: 'SubmitForm' }] }
+            { baseUrl: CHROMIUM_URL, excludeDomContext: false, excludeEvents: [{ name: 'SubmitForm' }] }
         ];
 
         assert.equal(G4RecordedEventsFilter.removeExcludedRules({ automation: {}, jobs: JOBS, recorders }), 0);
         assert.equal(G4RecordedEventsFilter.removeExcludedRules({ automation: undefined, jobs: JOBS, recorders }), 0);
+    });
+});
+
+describe('G4RecordedEventsFilter.removeDomContext', () => {
+    /**
+     * Builds a session whose Chromium job (job 0) and desktop job (job 1) both carry a DOM context.
+     *
+     * @returns The automation.
+     */
+    const newContextAutomation = (): any => ({
+        stages: [{
+            jobs: [
+                {
+                    rules: [
+                        { pluginName: 'OpenUrl', argument: 'https://example.com' },
+                        { pluginName: 'InvokeClick', capabilities: { elementName: 'Login', domContext: 'PGEvPg==', domContextLength: 4 } },
+                        { pluginName: 'SendKeys', capabilities: { domContext: 'PGkvPg==' } }
+                    ]
+                },
+                {
+                    rules: [
+                        { pluginName: 'InvokeUser32Click', capabilities: { elementName: 'OK', domContext: 'PGIvPg==' } }
+                    ]
+                }
+            ]
+        }]
+    });
+
+    it('removes the context from an excluding recorder and drops capabilities left empty', () => {
+        const automation = newContextAutomation();
+        const recorders: RecorderEventFilter[] = [
+            { baseUrl: CHROMIUM_URL, excludeDomContext: true, excludeEvents: [] },
+            { baseUrl: DESKTOP_URL, excludeDomContext: false, excludeEvents: [] }
+        ];
+
+        const clearedCount = G4RecordedEventsFilter.removeDomContext({ automation, jobs: JOBS, recorders });
+        const [chromiumJob, desktopJob] = automation.stages[0].jobs;
+
+        assert.equal(clearedCount, 2);
+        assert.deepEqual(chromiumJob.rules[0], { pluginName: 'OpenUrl', argument: 'https://example.com' });
+        assert.deepEqual(chromiumJob.rules[1].capabilities, { elementName: 'Login' });
+        assert.equal('capabilities' in chromiumJob.rules[2], false);
+        assert.deepEqual(desktopJob.rules[0].capabilities, { elementName: 'OK', domContext: 'PGIvPg==' });
+    });
+
+    it('keeps the context when every recorder keeps it, or when the job map assigns no job', () => {
+        const keepingRecorders: RecorderEventFilter[] = [
+            { baseUrl: CHROMIUM_URL, excludeDomContext: false, excludeEvents: [] }
+        ];
+        const excludingRecorders: RecorderEventFilter[] = [
+            { baseUrl: CHROMIUM_URL, excludeDomContext: true, excludeEvents: [] }
+        ];
+        const automation = newContextAutomation();
+
+        assert.equal(G4RecordedEventsFilter.removeDomContext({ automation, jobs: JOBS, recorders: keepingRecorders }), 0);
+        assert.equal(G4RecordedEventsFilter.removeDomContext({ automation, jobs: [], recorders: excludingRecorders }), 0);
+        assert.deepEqual(automation, newContextAutomation());
     });
 });
 
@@ -153,5 +211,12 @@ describe('New project manifest excluded events', () => {
 
         assert.deepEqual(getExclusions('ChromeDriver'), [{ name: 'SubmitForm' }]);
         assert.deepEqual(getExclusions('UiaDriver'), []);
+    });
+
+    it('leaves the DOM context out of the flow on every recorder', () => {
+        const recorders: any[] = Global.BASE_MANIFEST.settings.recorderSettings.recorders;
+
+        assert.ok(recorders.length > 0);
+        assert.ok(recorders.every((recorder) => recorder.excludeDomContext === true));
     });
 });

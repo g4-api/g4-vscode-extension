@@ -819,6 +819,7 @@ export class Utilities {
                 driverParameters: item.driverParameters,
                 mode: item.mode || 'standard',
                 enabled: item.enabled ?? false,
+                excludeDomContext: item.excludeDomContext !== false,
                 excludeEvents: G4RecordedEventsFilter.convertToEventExclusions(item.excludeEvents),
                 useOffset: item.useOffset ?? false,
                 thinkTimeSettings: {

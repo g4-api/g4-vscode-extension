@@ -61,6 +61,7 @@ export class Global {
                         "enabled": true,
                         "mode": "standard",
                         "useOffset": false,
+                        "excludeDomContext": true,
                         "excludeEvents": [],
                         "schema": "http",
                         "host": "localhost",
@@ -102,6 +103,7 @@ export class Global {
                         "enabled": true,
                         "mode": "standard",
                         "useOffset": false,
+                        "excludeDomContext": true,
                         "excludeEvents": [
                             {
                                 "name": "SubmitForm"

@@ -9,7 +9,7 @@ import { G4RecordingService } from './g4-recording-service';
 import type { RecordingJob } from '../clients/g4-recordings-client';
 
 /**
- * Applies each recorder's excluded events to the flow of a stopped recording session.
+ * Applies each recorder's excluded events and DOM context setting to the flow of a stopped recording session.
  *
  * @remarks
  * The recorders report every event they see and the Hub converts all of them, so deciding which actions a flow
@@ -56,6 +56,57 @@ export class G4RecordedEventsFilter {
     }
 
     /**
+     * Removes the DOM context from every rule of the jobs a DOM-context-excluding recorder produced.
+     *
+     * @remarks
+     * Mutates the automation's rules in place. The Hub copies the Chromium recorder's markup snapshot into
+     * `capabilities.domContext` and `capabilities.domContextLength` for AI clients; a flow the extension saves
+     * leaves both out unless the recorder sets `excludeDomContext` to false. A capabilities object left empty is
+     * removed, so a rule without an element name looks exactly as it did before the context existed. Jobs missing
+     * from the job map are left untouched, like excluded events.
+     *
+     * @param options - The automation, the Hub's job map, and the recorders with their DOM context setting.
+     * @returns The number of rules whose DOM context was removed.
+     */
+    public static removeDomContext(options: ExcludedRulesOptions): number {
+        const { automation, jobs, recorders } = options;
+        const flowJobs: any[] = automation?.stages?.[0]?.jobs ?? [];
+        let clearedCount = 0;
+
+        // Only recorders that leave the context out of the flow need their jobs visited.
+        const excludingRecorders = recorders.filter(recorder => recorder.excludeDomContext);
+
+        for (const recorder of excludingRecorders) {
+            // Visit the recorder's jobs only, as the Hub's job map assigns them.
+            const recorderJobs = G4RecordedEventsFilter.getRecorderJobs({ flowJobs, jobs, baseUrl: recorder.baseUrl });
+            const recorderRules = recorderJobs.flatMap(flowJob => flowJob.rules);
+
+            for (const rule of recorderRules) {
+                // A rule without a capabilities object, or without either context field, keeps its shape.
+                const capabilities = rule?.capabilities;
+                const isCapabilitiesObject = capabilities !== null && typeof capabilities === 'object';
+                const isContextPresent = isCapabilitiesObject
+                    && ('domContext' in capabilities || 'domContextLength' in capabilities);
+
+                if (!isContextPresent) {
+                    continue;
+                }
+
+                // Drop both context fields, and the capabilities object itself once nothing else is left in it.
+                delete capabilities.domContext;
+                delete capabilities.domContextLength;
+                clearedCount++;
+
+                if (Object.keys(capabilities).length === 0) {
+                    delete rule.capabilities;
+                }
+            }
+        }
+
+        return clearedCount;
+    }
+
+    /**
      * Removes the excluded actions from every job the declaring recorder produced.
      *
      * @remarks
@@ -79,20 +130,12 @@ export class G4RecordedEventsFilter {
                 continue;
             }
 
-            // Find the recorder's jobs by origin, the form the Hub reports its endpoints in.
-            const origin = G4RecordingService.convertToOrigin(recorder.baseUrl);
-            const recorderJobs = jobs.filter(job => G4RecordingService.convertToOrigin(job.baseUrl) === origin);
+            // Visit the recorder's jobs only, as the Hub's job map assigns them.
+            const recorderJobs = G4RecordedEventsFilter.getRecorderJobs({ flowJobs, jobs, baseUrl: recorder.baseUrl });
 
-            for (const recorderJob of recorderJobs) {
-                // A map entry that points past the flow describes no job, so there is nothing to filter.
-                const rules = flowJobs[recorderJob.index]?.rules;
-
-                if (!Array.isArray(rules)) {
-                    continue;
-                }
-
+            for (const flowJob of recorderJobs) {
                 // Keep the rules whose plugin is not excluded, and count what was dropped.
-                const keptRules = rules.filter(rule => {
+                const keptRules = flowJob.rules.filter((rule: any) => {
                     const pluginName = rule?.pluginName;
                     const isExcludedRule = typeof pluginName === 'string' && excludedNames.has(pluginName.toLowerCase());
 
@@ -100,12 +143,34 @@ export class G4RecordedEventsFilter {
                 });
 
                 // Replace the job's rules with the kept ones so the flow the caller saves no longer holds them.
-                removedCount += rules.length - keptRules.length;
-                flowJobs[recorderJob.index].rules = keptRules;
+                removedCount += flowJob.rules.length - keptRules.length;
+                flowJob.rules = keptRules;
             }
         }
 
         return removedCount;
+    }
+
+    /**
+     * Returns the flow jobs the Hub's job map assigns to one recorder.
+     *
+     * @remarks
+     * Compute-only. Endpoints are compared as origins, the form the Hub reports them in. A map entry that points
+     * past the flow, or at a job without a rule list, describes nothing to filter and is skipped.
+     *
+     * @param options - The flow's jobs, the Hub's job map, and the recorder endpoint.
+     * @returns The recorder's flow jobs, each with a `rules` array.
+     */
+    private static getRecorderJobs(options: RecorderJobsOptions): any[] {
+        const { flowJobs, jobs, baseUrl } = options;
+
+        // Match the map entries on the recorder's origin, then keep the ones that name a job with rules.
+        const origin = G4RecordingService.convertToOrigin(baseUrl);
+
+        return jobs
+            .filter(job => G4RecordingService.convertToOrigin(job.baseUrl) === origin)
+            .map(job => flowJobs[job.index])
+            .filter(flowJob => Array.isArray(flowJob?.rules));
     }
 }
 
@@ -137,6 +202,9 @@ export interface RecorderEventFilter {
     /** The recorder endpoint, `<schema>://<host>:<port>`, compared with the job map as an origin. */
     baseUrl: string;
 
+    /** Whether the Hub's DOM context (`capabilities.domContext`) is removed from the recorder's rules. */
+    excludeDomContext: boolean;
+
     /** The actions removed from the recorder's jobs; an empty list keeps every action. */
     excludeEvents: RecorderEventExclusion[];
 }
@@ -151,4 +219,18 @@ export interface RecorderEventFilter {
 export interface RecorderEventExclusion {
     /** The action name as it appears in the flow (the rule's `pluginName`), compared without case. */
     name: string;
+}
+
+/**
+ * Inputs for finding the flow jobs one recorder produced.
+ */
+interface RecorderJobsOptions {
+    /** The recorder endpoint, compared with the job map as an origin. */
+    baseUrl: string;
+
+    /** The jobs of the automation's only stage, addressed by the job map's index. */
+    flowJobs: any[];
+
+    /** The Hub's job-to-recorder map. */
+    jobs: RecordingJob[];
 }

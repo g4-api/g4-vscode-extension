@@ -363,6 +363,12 @@ export interface RecorderOptions {
     enabled: boolean;
 
     /**
+     * Whether the Hub's DOM context (`capabilities.domContext`, `capabilities.domContextLength`) is removed from the
+     * recorder's rules after stop; true when the manifest omits it. Applied by the extension only.
+     */
+    excludeDomContext: boolean;
+
+    /**
      * Actions removed from the recorder's jobs after stop, for example `SubmitForm`; empty keeps every action.
      * Applied by the extension only and never sent to the Hub.
      */

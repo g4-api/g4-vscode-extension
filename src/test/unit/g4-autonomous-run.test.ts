@@ -284,14 +284,14 @@ describe('G4AutonomousRunService closing a run', () => {
         }
     });
 
-    it('removes the actions the recording request excludes from a recording it closes', async () => {
+    it('removes the actions and DOM context the recording request excludes from a recording it closes', async () => {
         // A Hub stand-in: the stop answers a Chromium job with a SubmitForm, the status maps that job to its recorder.
         const requestedUrls: string[] = [];
         const hub = http.createServer((request, response) => {
             requestedUrls.push(`${request.method} ${request.url}`);
             const isStop = (request.url ?? '').endsWith('/stop');
             const answer = isStop
-                ? { stages: [{ jobs: [{ rules: [{ pluginName: 'InvokeClick' }, { pluginName: 'SubmitForm' }, { pluginName: 'CloseBrowser' }] }] }] }
+                ? { stages: [{ jobs: [{ rules: [{ pluginName: 'InvokeClick', capabilities: { domContext: 'PGEvPg==' } }, { pluginName: 'SubmitForm' }, { pluginName: 'CloseBrowser' }] }] }] }
                 : { id: 'session-1', jobs: [{ baseUrl: 'http://localhost:9956', id: 'job-1', index: 0 }] };
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -332,6 +332,9 @@ describe('G4AutonomousRunService closing a run', () => {
                 'GET /api/v4/g4/recordings/session-1'
             ]);
             assert.deepEqual(flow.stages[0].jobs[0].rules.map((rule: any) => rule.pluginName), ['InvokeClick', 'CloseBrowser']);
+
+            // A request without excludeDomContext leaves the context out, like a manifest without the setting.
+            assert.equal('capabilities' in flow.stages[0].jobs[0].rules[0], false);
         } finally {
             hub.close();
             fs.rmSync(runFolder, { force: true, recursive: true });

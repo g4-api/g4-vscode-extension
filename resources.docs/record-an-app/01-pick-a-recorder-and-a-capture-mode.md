@@ -58,6 +58,7 @@ Each card shows the driver in its title, for example `machine-a - UiaDriver`. Op
 | **Recorder Port** | `port` | The port of the recorder service |
 | **Mode** | `mode` | How a click is stored. See Step 3 |
 | **Use Offset** | `useOffset` | Keeps where inside the element you clicked. See Step 4 |
+| **Leave the DOM Context Out of the Recorded Flow** | `excludeDomContext` | Removes the markup snapshot the Hub adds to browser actions. On by default. See Step 5 |
 | **Leave Out of the Recorded Flow** | `excludeEvents` | Actions removed from this machine's flow when you stop. See Step 5 |
 
 > **📝 Note:** The Hub accepts only two driver families for recording: `UiaDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
@@ -143,6 +144,8 @@ The same setting in `manifest.json`:
 > **💡 Tip:** Copy the name from a recorded flow, where it appears as the action's plugin name. Names are compared without regard to case, and a list only affects the machine that holds it.
 
 > **📝 Note:** A project created before this setting existed has no list, so it keeps every action. Add `SubmitForm` to its Chromium card to get the same result.
+
+The same heading holds **Leave the DOM Context Out of the Recorded Flow**. The Chromium recorder sends the markup around each element it records, and the Hub adds it to the browser actions for AI tools that improve locators. The switch is on by default, so your flows stay small. Turn it off to keep the markup in the flow.
 
 ---
 

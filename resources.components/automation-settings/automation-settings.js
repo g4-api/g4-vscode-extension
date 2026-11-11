@@ -153,6 +153,7 @@ globalThis.DEFAULTS = {
                     "enabled": true,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeDomContext": true,
                     "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
@@ -194,6 +195,7 @@ globalThis.DEFAULTS = {
                     "enabled": false,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeDomContext": true,
                     "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
@@ -854,8 +856,10 @@ function newManifest() {
     // Start from a deep copy of the working state.
     const manifest = copyValue(globalThis.STATE);
 
-    // Recorder mode only applies to UIA recorders; force all other recorders to the safe baseline.
+    // Recorder mode only applies to UIA recorders; force all other recorders to the safe baseline. A missing DOM
+    // context setting is saved as its effective default, so the file states what the extension does.
     setRecorderModes(manifest.settings?.recorderSettings?.recorders);
+    setRecorderDomContextDefaults(manifest.settings?.recorderSettings?.recorders);
 
     // Treat an empty sandbox textbox as "not configured" and omit the root field.
     const sandbox = String(manifest.sandbox ?? '').trim();
@@ -1681,6 +1685,32 @@ function setPath(root, path, value) {
 
     // Assign the value to the leaf segment on its parent.
     parent[last] = value;
+}
+
+/**
+ * Gives every recorder without a DOM context setting the extension's default, which leaves the context out.
+ *
+ * Behavior:
+ * - A missing or non-boolean excludeDomContext becomes true, the value the extension applies when it is absent.
+ * - An explicit true or false is kept, so a user's choice is never overwritten.
+ *
+ * @param {Array<object>|null|undefined} recorders - Recorder entries to normalize in place.
+ */
+function setRecorderDomContextDefaults(recorders) {
+    // Ignore missing or malformed recorder lists; callers may pass partial manifests.
+    if (!Array.isArray(recorders)) {
+        return;
+    }
+
+    // Fill the default on recorder objects only; a hand-edited non-object entry has no setting to fill.
+    for (const recorder of recorders) {
+        const isRecorderObject = recorder !== null && typeof recorder === 'object';
+        const isSettingMissing = isRecorderObject && typeof recorder.excludeDomContext !== 'boolean';
+
+        if (isSettingMissing) {
+            recorder.excludeDomContext = true;
+        }
+    }
 }
 
 /**
@@ -3112,6 +3142,11 @@ function writeRecorderCard(recorder, index) {
     })}
         </div>
         <div class="settings-subheader">Excluded Events</div>
+        ${writeToggle({
+        path: `${base}.excludeDomContext`,
+        label: 'Leave the DOM Context Out of the Recorded Flow',
+        hint: 'On removes the markup snapshot the Hub adds to browser actions (capabilities.domContext). Turn it off to keep it, for example for AI tools that heal locators.'
+    })}
         ${writeListRows({
         path: `${base}.excludeEvents`,
         label: 'Leave Out of the Recorded Flow',
@@ -3185,8 +3220,10 @@ function writeRecordersSection() {
     // Resolve the configured recorders.
     const recorders = getPath(globalThis.STATE, 'settings.recorderSettings.recorders') || [];
 
-    // Ensure non-UIA recorders cannot retain a non-standard mode from an older manifest edit.
+    // Ensure non-UIA recorders cannot retain a non-standard mode from an older manifest edit, and show a missing
+    // DOM context setting as its effective default.
     setRecorderModes(recorders);
+    setRecorderDomContextDefaults(recorders);
 
     const cards = recorders.map((recorder, index) => writeRecorderCard(recorder, index)).join('');
 

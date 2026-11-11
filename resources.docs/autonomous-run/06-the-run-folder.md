@@ -182,6 +182,7 @@ In the real file, `runFolder` is the full path. `outcome` is one of `completed`,
     "recorderEventFilters": [
         {
             "baseUrl": "http://localhost:9955",
+            "excludeDomContext": true,
             "excludeEvents": []
         }
     ]
@@ -190,7 +191,7 @@ In the real file, `runFolder` is the full path. `outcome` is one of `completed`,
 
 The process ids belong to this VS Code window, so your own clicks in it never enter a flow. The file also carries the `thinkTimeSettings` of each recorder when your settings define them.
 
-`recorderEventFilters` copies each recorder's `excludeEvents` from your settings. It is never sent to the Hub. When a stop removes actions, the helper reports how many, for example `(10 actions, 1 excluded)`.
+`recorderEventFilters` copies each recorder's `excludeEvents` and `excludeDomContext` from your settings. It is never sent to the Hub. A missing `excludeDomContext` removes the Hub's markup snapshot from the saved flow, like a manifest without the setting. When a stop removes actions, the helper reports how many, for example `(10 actions, 1 excluded)`.
 
 ---
 
