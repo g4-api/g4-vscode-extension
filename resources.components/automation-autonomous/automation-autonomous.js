@@ -579,7 +579,7 @@ ${recordersFieldMarkup}
                                test-id="autonomous-reasoning-effort-select"
                                value="${getEscapedText(form.reasoningEffort)}"></g4-select>
                 </g4-field>
-                <g4-field hint="The agent is stopped when the run takes longer. 0 or empty means no limit."
+                <g4-field hint="Stops the agent after this long. 0 or empty: no limit."
                           label="Time Limit (minutes)"
                           test-id="autonomous-time-limit-field">
                     <g4-number-input data-name="timeLimit"
