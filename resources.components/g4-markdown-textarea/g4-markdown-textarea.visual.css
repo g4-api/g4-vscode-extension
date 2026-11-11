@@ -37,6 +37,12 @@ textarea.g4-markdown-textarea__input:focus {
     background-color: var(--g4-markdown-textarea-tool-hover-background);
 }
 
+/* A switched-on button (Wrap) shows that it is on. */
+.g4-markdown-textarea__tool[aria-pressed="true"] {
+    color: var(--g4-markdown-textarea-tool-pressed-foreground);
+    border-color: var(--g4-markdown-textarea-tool-pressed-border-color);
+}
+
 /* In the expanded editor's header the buttons look like the other header buttons. */
 .g4-markdown-textarea__tool--header {
     background-color: var(--g4-markdown-textarea-header-tool-background);

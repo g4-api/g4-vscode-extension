@@ -115,18 +115,18 @@ These messages come back to the run form as a red notice. Nothing is written to 
 
 ## Notices in the run form
 
-### Recording is turned off. Turn on Recorders in the Settings Editor to start a run
+### Recording is turned off. Turn on Recorders in the Settings Editor, or switch off Record Scenarios to run the agent only
 
-- **Cause:** `settings.recorderSettings.enabled` is `false`. The **Recorders** field is disabled, and the note beside **Start** reads `Recording is turned off in the settings.`
+- **Cause:** `settings.recorderSettings.enabled` is `false` while **Record Scenarios** is on. The **Recorders** field is disabled, and the note beside **Start** reads `Recording is turned off in the settings. Switch off Record Scenarios to run the agent only.`
 - **Check:** Open the **Recorders** section of the Settings Editor.
-- **Fix:** Turn recorders on, click **Save**, and refresh the form. The notice has an **Open Settings** button.
+- **Fix:** Turn recorders on, click **Save**, and refresh the form. The notice has an **Open Settings** button. To run the agent without recording, switch off **Record Scenarios**.
 - **Source:** `resources.components/automation-autonomous/automation-autonomous.js:1362` and `:892`
 
-### No recorders are configured. Add one under Recorders in the Settings Editor
+### No recorders are configured. Add one under Recorders in the Settings Editor, or switch off Record Scenarios
 
-- **Cause:** `settings.recorderSettings.recorders` is empty. The note beside **Start** reads `No recorders are configured.`
+- **Cause:** `settings.recorderSettings.recorders` is empty while **Record Scenarios** is on. The note beside **Start** reads `No recorders are configured. Switch off Record Scenarios to run the agent only.`
 - **Check:** Open the **Recorders** section of the Settings Editor.
-- **Fix:** Add a recorder, click **Save**, and refresh the form.
+- **Fix:** Add a recorder, click **Save**, and refresh the form, or switch off **Record Scenarios**.
 - **Source:** `resources.components/automation-autonomous/automation-autonomous.js:1373` and `:896`
 
 ### No harness is configured. Add Claude Code, Codex, or OpenCode under Autonomous Runs in the Settings Editor
@@ -136,11 +136,11 @@ These messages come back to the run form as a red notice. Nothing is written to 
 - **Fix:** Add a harness (Module 2), click **Save**, and refresh the form.
 - **Source:** `resources.components/automation-autonomous/automation-autonomous.js:1382` and `:900`
 
-### Switch on at least one recorder
+### Switch on at least one recorder, or switch off Record Scenarios
 
-- **Cause:** Every recorder in the **Recorders** field is switched off. This is the note beside **Start**, and **Start** is disabled.
+- **Cause:** **Record Scenarios** is on and every recorder in the **Recorders** field is switched off. This is the note beside **Start**, and **Start** is disabled.
 - **Check:** Open the **Recorders** drop-down.
-- **Fix:** Switch on the recorders the agent may use.
+- **Fix:** Switch on the recorders the agent may use, or switch off **Record Scenarios** to run the agent only.
 - **Source:** `resources.components/automation-autonomous/automation-autonomous.js:904`
 
 ### Write a prompt for the agent

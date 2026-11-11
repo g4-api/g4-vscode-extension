@@ -332,6 +332,8 @@ export class ShowAutonomousCommand extends CommandBase {
                 const issue = await this._runService.startRun({
                     effort: ShowAutonomousCommand.convertToText(run.reasoningEffort),
                     harnessName: ShowAutonomousCommand.convertToText(run.harness),
+                    // Only an explicit false runs the harness alone; a page that sends nothing records.
+                    isRecording: run.isRecording !== false,
                     model: ShowAutonomousCommand.convertToText(run.model),
                     prompt,
                     recorders: recorderUrls,

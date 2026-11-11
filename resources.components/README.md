@@ -48,7 +48,7 @@ Every component folder holds six files named after the component:
 | `g4-list-editor` | Text entries with add, trash, and optional move buttons. | |
 | `g4-key-value-editor` | Key/value entries with add and trash buttons. | |
 | `g4-json-textarea` | Numbered JSON box with Format and Expand. | `g4-line-numbers`, `g4-expand-editor` |
-| `g4-markdown-textarea` | Numbered Markdown box with a Markdown reference and Expand. | `g4-line-numbers`, `g4-expand-editor`, `g4-modal` |
+| `g4-markdown-textarea` | Numbered Markdown box with Wrap (on with the `wrap` attribute), a Markdown reference, and Expand. | `g4-line-numbers`, `g4-expand-editor`, `g4-modal` |
 | `g4-code-textarea` | Numbered plain text box (scripts) with Expand. | `g4-line-numbers`, `g4-expand-editor` |
 | `g4-expand-editor` | Large text editor in a modal. | `g4-modal`, `g4-line-numbers` |
 | `g4-line-numbers` | Line-number gutter beside a text box. | |

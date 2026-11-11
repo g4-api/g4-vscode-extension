@@ -256,8 +256,10 @@ export class G4AutonomousRunService {
         const manifest = Utilities.getManifest();
         const settings = G4AutonomousSettings.resolveAutonomousSettings(manifest);
         const harness = settings.harnesses.find((candidate) => candidate.name === request.harnessName);
-        const recorders = Utilities.resolveEventsCaptureOptions()
-            .filter((recorder) => request.recorders.includes(recorder.baseUrl));
+        // A harness-only session records nothing, so it takes no recorders whatever the page sent.
+        const recorders = request.isRecording
+            ? Utilities.resolveEventsCaptureOptions().filter((recorder) => request.recorders.includes(recorder.baseUrl))
+            : [];
         const startIssue = this.getStartIssue({ harness, recorders, request });
 
         if (startIssue.length > 0) {
@@ -284,6 +286,7 @@ export class G4AutonomousRunService {
             effort: request.effort,
             finishedAt: '',
             harnessName: runHarness.name,
+            isRecording: request.isRecording,
             isSandbox: runHarness.isSandbox,
             message: 'Preparing the run folder.',
             model: request.model,
@@ -298,8 +301,9 @@ export class G4AutonomousRunService {
         });
 
         try {
-            // Start sandboxed recorder apps when the manifest asks for it, as a manual recording does.
-            const isSandboxRequested = manifest?.settings?.recorderSettings?.useSandbox === true;
+            // Start sandboxed recorder apps when the manifest asks for it, as a manual recording does; a
+            // harness-only session has no recorders, so nothing starts.
+            const isSandboxRequested = manifest?.settings?.recorderSettings?.useSandbox === true && request.isRecording;
             const sandboxRecorders = isSandboxRequested
                 ? recorders
                 : [];
@@ -557,8 +561,10 @@ export class G4AutonomousRunService {
         const runFolder = this._state.runFolder;
         const hubUrl = Utilities.getG4Endpoint() || DEFAULT_HUB_URL;
 
-        // Close recordings the agent left open, then read the final ledger.
-        if (startFailure.length === 0) {
+        // Close recordings the agent left open, then read the final ledger; a harness-only session has neither.
+        const isRecordingFinished = startFailure.length === 0 && this._state.isRecording;
+
+        if (isRecordingFinished) {
             await this.closeOpenRecordings(runFolder, hubUrl).catch((error: unknown) => {
                 this._logger.error(`Autonomous run: could not close open recordings: ${Utilities.resolveErrorMessage(error)}`);
             });
@@ -667,18 +673,24 @@ export class G4AutonomousRunService {
      * @returns The explanation.
      */
     private getOutcomeMessage(outcome: AutonomousRunOutcome, exitCode: number | null, startFailure: string): string {
+        // A recording run counts its saved flows; a harness-only session saves none, so it says nothing about flows.
         const totals = G4AutonomousRunService.getScenarioTotals(this._scenarios);
-        const totalsText = `${totals.saved} of ${totals.total} scenario flows saved`;
+        const totalsText = this._state.isRecording
+            ? `: ${totals.saved} of ${totals.total} scenario flows saved`
+            : '';
+        const runText = this._state.isRecording
+            ? 'run'
+            : 'session';
 
         switch (outcome) {
             case 'completed':
-                return `The agent finished: ${totalsText}.`;
+                return `The agent finished${totalsText}.`;
 
             case 'stopped':
-                return `The run was stopped: ${totalsText}.`;
+                return `The ${runText} was stopped${totalsText}.`;
 
             case 'timedOut':
-                return `The run reached its time limit and was stopped: ${totalsText}.`;
+                return `The ${runText} reached its time limit and was stopped${totalsText}.`;
 
             default: {
                 if (startFailure.length > 0) {
@@ -690,7 +702,7 @@ export class G4AutonomousRunService {
                     return this._toolServerFailure;
                 }
 
-                return `The run failed (${this.getFailureReason(exitCode)}): ${totalsText}.`;
+                return `The ${runText} failed (${this.getFailureReason(exitCode)})${totalsText}.`;
             }
         }
     }
@@ -747,8 +759,8 @@ export class G4AutonomousRunService {
             return `The effort "${request.effort}" is not offered by the harness "${harness.name}".`;
         }
 
-        // The run needs recorders, a prompt, and a workspace for its run folder.
-        if (recorders.length === 0) {
+        // A recording run needs recorders; every run needs a prompt and a workspace for its run folder.
+        if (request.isRecording && recorders.length === 0) {
             return G4BrandingService.getText('Pick at least one recorder that is configured in the {product} settings.');
         }
 
@@ -780,6 +792,7 @@ export class G4AutonomousRunService {
             effort: '',
             finishedAt: '',
             harnessName: '',
+            isRecording: true,
             isSandbox: false,
             message: '',
             model: '',
@@ -978,10 +991,12 @@ export class G4AutonomousRunService {
             `Autonomous run started with ${harness.name} (${placeText}), model ${modelText}, effort ${effortText}, in ${runFolder}.`);
         this.setState({ ...this._state, message: 'The agent is running.', phase: 'running' });
 
-        // Follow the ledger while the agent runs.
-        this._ledgerTimer = setInterval(() => {
-            void this.readLedger();
-        }, LEDGER_POLL_MILLISECONDS);
+        // Follow the ledger while the agent runs; a harness-only session writes none.
+        if (request.isRecording) {
+            this._ledgerTimer = setInterval(() => {
+                void this.readLedger();
+            }, LEDGER_POLL_MILLISECONDS);
+        }
 
         // Arm the time limit only when the run has one, so a run without a limit goes on until it ends.
         if (timeoutMinutes > 0) {
@@ -1031,7 +1046,7 @@ export class G4AutonomousRunService {
 
     /**
      * Writes the files the agent starts from: the recording request, the helper, an empty ledger, the brief,
-     * and a first run summary.
+     * and a first run summary. A harness-only session gets only the brief and the run summary.
      *
      * @remarks
      * The recording request holds the picked recorders in the shape the Hub reads (scripts left out, as for
@@ -1042,6 +1057,20 @@ export class G4AutonomousRunService {
      */
     private async writeRunFolder(options: WriteRunFolderOptions): Promise<void> {
         const { hubUrl, recorders, request, runFolder } = options;
+
+        // Write the brief for the agent's mode; a harness-only session needs nothing else to start.
+        const brief = G4AutonomousBrief.getBriefText({
+            isRecording: request.isRecording,
+            prompt: request.prompt,
+            recorderNames: recorders.map((recorder) => `${G4AutonomousSettings.getRecorderName(recorder)} at ${recorder.baseUrl}`),
+            runFolder
+        });
+
+        if (!request.isRecording) {
+            await fsPromises.writeFile(path.join(runFolder, 'brief.md'), `${brief}\n`, 'utf8');
+            await G4AutonomousRunService.writeJsonFile(path.join(runFolder, 'run.json'), { ...this._state });
+            return;
+        }
 
         // Exclude this VS Code instance, so clicks on it never enter a flow.
         const selfProcessIds = await G4RecorderSelfIdentityService.getSelfProcessIds();
@@ -1063,11 +1092,6 @@ export class G4AutonomousRunService {
 
         // Write the files the helper and the agent read.
         const helperSource = Utilities.getResourcePath(`resources.autonomous/${RECORDER_HELPER_FILE_NAME}`);
-        const brief = G4AutonomousBrief.getBriefText({
-            prompt: request.prompt,
-            recorderNames: recorders.map((recorder) => `${G4AutonomousSettings.getRecorderName(recorder)} at ${recorder.baseUrl}`),
-            runFolder
-        });
 
         await G4AutonomousRunService.writeJsonFile(path.join(runFolder, 'recording-request.json'), recordingRequest);
         await fsPromises.copyFile(helperSource, path.join(runFolder, RECORDER_HELPER_FILE_NAME));
@@ -1206,6 +1230,9 @@ export interface AutonomousRunState {
     /** The harness name. */
     harnessName: string;
 
+    /** Whether the run records scenarios; false for a harness-only session. */
+    isRecording: boolean;
+
     /** Whether the harness runs inside a sandbox partition. */
     isSandbox: boolean;
 
@@ -1318,13 +1345,16 @@ export interface AutonomousRunRequest {
     /** The harness name from the settings. */
     harnessName: string;
 
+    /** Whether the run records scenarios through the recorders; false runs the harness only. */
+    isRecording: boolean;
+
     /** The model; empty for the harness's default. */
     model: string;
 
     /** What the agent should explore and record. */
     prompt: string;
 
-    /** The endpoints of the picked recorders. */
+    /** The endpoints of the picked recorders; ignored for a harness-only session. */
     recorders: string[];
 
     /** The run's time limit, in minutes; 0 means no limit. NaN or a negative number is refused. */

@@ -37,6 +37,16 @@ g4-field:last-child {
     flex-direction: column;
 }
 
+/* A fill field gives its control every pixel of height the page lets the field grow to. */
+g4-field[fill] .g4-field__control {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+g4-field[fill] .g4-field__control > * {
+    flex: 1 1 auto;
+}
+
 .g4-field__error {
     font-size: 11px;
     min-height: 14px;

@@ -1,5 +1,5 @@
 <!--
-    G4 Markdown text area: a numbered, non-wrapping text box with Markdown reference and Expand corner
+    G4 Markdown text area: a numbered text box with Wrap, Markdown reference, and Expand corner
     buttons. See g4-markdown-textarea.js.
 -->
 <template id="g4-markdown-textarea-template" data-dependencies="g4-line-numbers g4-expand-editor g4-modal">
@@ -10,6 +10,15 @@
                   data-test-id="textarea"
                   wrap="off"></textarea>
         <div class="g4-markdown-textarea__tools">
+            <button type="button"
+                    class="g4-markdown-textarea__tool"
+                    title="Wrap long lines"
+                    data-part="wrap"
+                    data-test-id="wrap-button"
+                    aria-label="Wrap long lines"
+                    aria-pressed="false">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"><path fill="currentColor" d="M124 116L516 116A28 28 0 0 1 516 172L124 172A28 28 0 0 1 124 116zM124 292L428 292A116 116 0 0 1 428 524L392 524L392 568L296 496L392 424L392 468L428 468A60 60 0 0 0 428 348L124 348A28 28 0 0 1 124 292zM124 468L204 468A28 28 0 0 1 204 524L124 524A28 28 0 0 1 124 468z"/></svg>
+            </button>
             <button type="button"
                     class="g4-markdown-textarea__tool"
                     title="Markdown reference"

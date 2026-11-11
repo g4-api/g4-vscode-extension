@@ -1,15 +1,17 @@
 /*
  * G4(TM) Markdown text area component: <g4-markdown-textarea>.
  *
- * A numbered, non-wrapping text box for Markdown, with a Markdown reference button (a static table
- * of what to type and how it looks) and an Expand button (a large editor with line numbers and the
- * same reference button) in its corner. Text is kept exactly as typed: indentation, blank lines.
+ * A numbered text box for Markdown, with a Wrap button (long lines wrap, or scroll sideways), a
+ * Markdown reference button (a static table of what to type and how it looks), and an Expand button
+ * (a large editor with line numbers and the same reference button) in its corner. Text is kept
+ * exactly as typed: indentation, blank lines.
  *
  * Contract:
  * - Initial text: the element's text content (escape it like any HTML text).
- * - Attributes: rows (visible rows; default 2), reference-note (sentence above the reference table),
- *   label (expanded editor title when the box is not in a <g4-field>), test-id (prefix of every
- *   part's data-test-id).
+ * - Attributes: rows (visible rows, and the least height; default 2), wrap (long lines start
+ *   wrapped; without it they start on one row), fill (the box stretches to the height its owner
+ *   gives the element), reference-note (sentence above the reference table), label (expanded editor
+ *   title when the box is not in a <g4-field>), test-id (prefix of every part's data-test-id).
  * - Properties: value (the text).
  * - Methods: focus().
  * - Events (bubble): g4-input { value } on every edit (typing or the expanded editor).
@@ -39,6 +41,14 @@
         #onReferenceClick = (event) => {
             this.#showReference(event.currentTarget);
         };
+
+        // Switches long lines between wrapped and one row each.
+        #onWrapClick = () => {
+            this.#setWrapped(!this.#isWrapped);
+        };
+
+        // Whether long lines wrap.
+        #isWrapped = false;
 
         // Reports the edit.
         #onTextareaInput = () => {
@@ -103,9 +113,13 @@
 
             // Typing and the corner buttons report through this element.
             textarea.addEventListener('input', this.#onTextareaInput);
+            content.querySelector('[data-part="wrap"]').addEventListener('click', this.#onWrapClick);
             content.querySelector('[data-part="reference"]').addEventListener('click', this.#onReferenceClick);
             content.querySelector('[data-part="expand"]').addEventListener('click', this.#onExpandClick);
             this.replaceChildren(content);
+
+            // Start wrapped when the page asks for it; the line numbers follow once the box is shown.
+            this.#setWrapped(this.hasAttribute('wrap'));
         }
 
         /**
@@ -167,6 +181,28 @@
             }
 
             return content;
+        }
+
+        /**
+         * Wraps long lines, or puts each line on one row, and says so on the Wrap button.
+         *
+         * @param {boolean} isWrapped - Whether long lines wrap.
+         */
+        #setWrapped(isWrapped) {
+            const box = this.querySelector(':scope > .g4-markdown-textarea__box');
+            const textarea = this.#getPart('textarea');
+            const wrapButton = this.#getPart('wrap');
+
+            if (!box || !textarea || !wrapButton) {
+                return;
+            }
+
+            // Change the box's wrapping, then renumber, since a wrapped line takes several rows.
+            this.#isWrapped = isWrapped;
+            textarea.wrap = isWrapped ? 'soft' : 'off';
+            box.classList.toggle('g4-markdown-textarea__box--wrapped', isWrapped);
+            wrapButton.setAttribute('aria-pressed', String(isWrapped));
+            this.querySelector('g4-line-numbers')?.refresh();
         }
 
         /**

@@ -21,6 +21,7 @@ describe('G4AutonomousBrief', () => {
     it('puts the prompt first and spells out every helper command with the absolute helper path', () => {
         const runFolder = String.raw`E:\project\autonomous-runs\20261028-101500`;
         const brief = G4AutonomousBrief.getBriefText({
+            isRecording: true,
             prompt: '  Record two scenarios: create and approve a purchase order.  ',
             recorderNames: ['machine-a (UiaDriver) at http://localhost:9955'],
             runFolder
@@ -36,13 +37,28 @@ describe('G4AutonomousBrief', () => {
     });
 
     it('points the agent at the G4 visual skills and screen tools, and to search for them first', () => {
-        const brief = G4AutonomousBrief.getBriefText({ prompt: 'Record one scenario.', recorderNames: [], runFolder: 'E:/run' });
+        const brief = G4AutonomousBrief.getBriefText({ isRecording: true, prompt: 'Record one scenario.', recorderNames: [], runFolder: 'E:/run' });
 
         assert.ok(brief.includes('## Seeing and controlling the screen'));
         assert.ok(brief.includes('g4-visual-observe') && brief.includes('g4-visual-ground'));
         assert.ok(brief.includes('GetScreenshot, ConvertScreenshotPoint, MovePointer, and ResolveGroundedElement'));
         assert.ok(brief.includes('search your tools'));
         assert.ok(brief.indexOf('## Seeing and controlling the screen') < brief.indexOf('## Ground rules'));
+    });
+
+    it('gives a harness-only session the task, the screen tools, and the ground rules, without recording rules', () => {
+        const brief = G4AutonomousBrief.getBriefText({ isRecording: false, prompt: 'Check the order screen.', recorderNames: [], runFolder: 'E:/run' });
+
+        // The session keeps the task, its folder, the screen tools, and the ground rules.
+        assert.ok(brief.includes('Check the order screen.'));
+        assert.ok(brief.includes('Nothing is recorded in this session.'));
+        assert.ok(brief.includes('`E:/run`'));
+        assert.ok(brief.includes('## Seeing and controlling the screen') && brief.includes('## Ground rules'));
+
+        // Nothing about recorders, the helper, or the recording authentication reaches the agent.
+        for (const recordingText of ['## Recording rules', 'g4-recorder.ps1', 'recorders capture', 'G4_AUTONOMOUS_AUTHENTICATION', 'no recording is open']) {
+            assert.ok(!brief.includes(recordingText), `the session brief leaves out "${recordingText}"`);
+        }
     });
 });
 
@@ -175,6 +191,49 @@ describe('G4AutonomousRunService ledger', () => {
     });
 });
 
+describe('G4AutonomousRunService harness-only session', () => {
+    // A service that is idle and not recording, so only the request decides the start check.
+    const newIdleService = (): RunServiceInternals => {
+        const logger = { error: () => undefined, information: () => undefined, warning: () => undefined };
+        const service = new G4AutonomousRunService({ logger, recordingService: { isRecording: false } } as any);
+
+        return service as unknown as RunServiceInternals;
+    };
+    const harness = { efforts: [], models: [], name: 'Claude', requiredToolServers: [], type: 'claude' } as unknown as AutonomousHarness;
+    const request = {
+        effort: '',
+        harnessName: 'Claude',
+        isRecording: false,
+        model: '',
+        prompt: 'Check the order screen.',
+        recorders: [],
+        timeoutMinutes: 0,
+        workspaceFolder: 'E:/project'
+    };
+
+    it('starts a harness-only session without recorders, and still refuses a recording run without them', () => {
+        const service = newIdleService();
+
+        // A harness-only session needs no recorder.
+        assert.equal(service.getStartIssue({ harness, recorders: [], request }), '');
+
+        // A recording run still needs at least one.
+        const recordingIssue = service.getStartIssue({ harness, recorders: [], request: { ...request, isRecording: true } });
+
+        assert.ok(recordingIssue.includes('recorder'), recordingIssue);
+    });
+
+    it('explains the end of a harness-only session without counting flows', () => {
+        const service = newIdleService();
+
+        service._state = { ...service._state, isRecording: false };
+
+        assert.equal(service.getOutcomeMessage('completed', 0, ''), 'The agent finished.');
+        assert.equal(service.getOutcomeMessage('stopped', null, ''), 'The session was stopped.');
+        assert.equal(service.getOutcomeMessage('timedOut', null, ''), 'The session reached its time limit and was stopped.');
+    });
+});
+
 describe('G4AutonomousRunService closing a run', () => {
     it('stops a recording the agent left open, saves what it captured, and marks the scenario aborted', async () => {
         // A Hub stand-in that answers the stop of the open session with a one-rule flow.
@@ -268,4 +327,16 @@ interface RunServiceInternals {
 
     /** Explains the outcome. */
     getOutcomeMessage: (outcome: string, exitCode: number | null, startFailure: string) => string;
+
+    /** Explains why a run cannot start; empty when it can. */
+    getStartIssue: (options: {
+        /** The picked harness. */
+        harness: AutonomousHarness;
+
+        /** The picked recorders that the manifest configures. */
+        recorders: unknown[];
+
+        /** What the user picked. */
+        request: unknown;
+    }) => string;
 }

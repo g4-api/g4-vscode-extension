@@ -74,10 +74,22 @@ body {
 }
 
 .autonomous__form-body {
+    display: flex;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
     padding-right: 4px;
     overflow-y: auto;
+}
+
+/* The fields keep their own height; only the prompt grows, so it reaches down to the buttons instead of
+   leaving an empty gap. A short window scrolls the body, and the prompt keeps at least its rows. */
+.autonomous__form-body > * {
+    flex-shrink: 0;
+}
+
+.autonomous__prompt-field {
+    flex-grow: 1;
 }
 
 .autonomous__intro {
@@ -220,11 +232,20 @@ body {
     text-align: left;
 }
 
+/* A harness-only session has no scenarios pane, so the console takes the whole width. */
+.autonomous__panes--console-only {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 /* A narrow window stacks the two panes, each still scrolling inside its half. */
 @media (max-width: 640px) {
     .autonomous__panes {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .autonomous__panes--console-only {
+        grid-template-rows: minmax(0, 1fr);
     }
 }
 

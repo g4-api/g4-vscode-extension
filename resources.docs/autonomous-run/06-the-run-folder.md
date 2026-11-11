@@ -30,7 +30,9 @@ To open it, click **Open Run Folder** on the result view. The folder opens in yo
 
 ## Step 2: Know the files
 
-Here is a finished run folder:
+A harness-only session (**Record Scenarios** off) writes only `brief.md`, `run.json`, the agent output files (`events.jsonl`, `stderr.log`), and the agent's final message; it has no request file, helper, ledger, or scenario folders.
+
+Here is a finished run folder of a recording run:
 
 ```text
 autonomous-runs/
