@@ -4,7 +4,7 @@ Welcome! 👋
 
 The workflow editor is the canvas where you build a bot out of steps. You drag steps from a toolbox, set their fields, run the whole bot, and read the report. This path shows every way to open a bot, how the canvas and the bot file stay in step, how to shape the toolbox, and where to look when something goes wrong.
 
-Plan for about **35 minutes**.
+Plan for about **37 minutes**.
 
 ---
 
@@ -44,7 +44,7 @@ Work through these in order. Each one builds on the previous.
 | 3 | [The toolbox and its filter](03-the-toolbox-and-its-filter.md) | Hide toolboxes and tools, for you or for the project | ~6 min |
 | 4 | [Run from the designer](04-run-from-the-designer.md) | Start, stop, and reset a run, and import or export a definition | ~6 min |
 | 5 | [Reports](05-reports.md) | Find the saved report and open it in the Report Viewer | ~6 min |
-| 6 | [Logs](06-logs.md) | Read the output channels and set the log level | ~4 min |
+| 6 | [Logs](06-logs.md) | Read the output channels and Hub events, and set the log level | ~6 min |
 
 **Stuck along the way?** See [Troubleshooting](troubleshooting.md).
 

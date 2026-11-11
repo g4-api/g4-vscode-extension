@@ -20,6 +20,16 @@ Find the message or symptom in the table, then read its card. Each card gives th
 | Messages that start with `Recorder sandbox ...` | [Sandbox messages](#recorder-sandbox-messages) |
 | A recorder light that never turns green | [Light stays red](#the-light-stays-red) |
 | A step from VS Code in the recording | [VS Code step](#a-vs-code-step-appears-in-the-recording) |
+| `Recorder driver must be ChromeDriver or UiaDriver.` with an Android card | [Hub without Android](#recorder-driver-must-be-chromedriver-or-uiadriver-with-an-android-card) |
+| `adb was not found on the recorder host...` | [No adb](#adb-was-not-found-on-the-recorder-host) |
+| `No Android device is connected...` | [No device](#no-android-device-is-connected) |
+| `More than one Android device is connected...` or `Device '...' is not connected...` | [Which device](#more-than-one-android-device-is-connected) |
+| `Recorder app not found on the recorder host: ...` | [No recorder app](#recorder-app-not-found-on-the-recorder-host-path) |
+| `Failed to start '...' on device '...'` | [App does not start](#failed-to-start-package-on-device-serial) |
+| The Android row's light stays red | [Android light stays red](#the-android-light-stays-red) |
+| Back is missing from an Android flow | [Back not recorded](#back-is-missing-from-an-android-flow) |
+| A replayed Android flow does not scroll | [Scroll does nothing](#a-replayed-flow-does-not-scroll) |
+| Replay fails with `failed to stat ... No such file or directory` | [Appium path too long](#replay-fails-with-failed-to-stat--no-such-file-or-directory) |
 
 ---
 
@@ -67,7 +77,7 @@ Find the message or symptom in the table, then read its card. Each card gives th
 
 ## Failed to start recording: REASON
 
-- **Cause:** The Hub refused the start. Common reasons are `Recorder driver must be ChromeDriver or UiaDriver.` (see [Module 7](07-record-sap-and-where-flow-generation-stops.md)) and `Recorder mode must be standard, user32, or coordinate.`.
+- **Cause:** The Hub refused the start. Common reasons are `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.` (see [Module 7](07-record-sap-and-where-flow-generation-stops.md)) and `Recorder mode must be standard, user32, or coordinate.`.
 - **Check:** Read the reason after the colon.
 - **Fix:** Correct the recorder card named by the reason, then **Save** and start again.
 - **Source:** `src/commands/start-recorder.ts:372`
@@ -136,3 +146,73 @@ These appear as warnings when **Use Sandbox** is on and a recorder service canno
 ---
 
 For messages from other parts of G4 Studio, see the [product-level troubleshooting page](../troubleshooting.md).
+
+## Recorder driver must be ChromeDriver or UiaDriver, with an Android card
+
+- **Cause:** The Hub is older than the Android recorder and does not know `AndroidDriver`.
+- **Check:** The message lists only two drivers. A Hub that knows Android says `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.`
+- **Fix:** Update the Hub, or turn the Android card off.
+- **Source:** the Hub's `src/G4.Services.Domain.V4/Repositories/RecordingsRepository.cs`
+
+## adb was not found on the recorder host
+
+- **Cause:** The Android recorder service cannot find adb. It looks in `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `android/platform-tools` under the sandbox, and the `PATH`.
+- **Check:** The message lists every path it tried.
+- **Fix:** Install the Android SDK platform-tools, set `ANDROID_HOME` for the recorder service, and start the service again.
+- **Source:** the recorders' `src/G4.Recorders.Android.Domain/Adb/AdbPathResolver.cs`
+
+## No Android device is connected
+
+- **Cause:** adb lists no device in the `device` state.
+- **Check:** Run `adb devices`. A device listed as `unauthorized` waits for you to accept the prompt on its screen; `offline` needs a reconnect.
+- **Fix:** Connect the phone with USB debugging on, or start an emulator, then press **Start** again.
+- **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
+
+## More than one Android device is connected
+
+- **Cause:** Several devices are connected and the card does not say which one to use, or `appium:udid` names a device that is not connected.
+- **Check:** Compare the serials in the message with `adb devices`.
+- **Fix:** Set `appium:udid` in the card's capabilities to the serial you want, then click **Save**.
+- **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
+
+## Recorder app not found on the recorder host: PATH
+
+- **Cause:** The recorder service was unpacked or built without its `G4.Recorders.Android.App.Drop` folder, which holds the app it installs on the device.
+- **Check:** Look for `G4.Recorders.Android.App.Drop\g4-recorder.apk` next to the recorder program.
+- **Fix:** Unpack the whole release asset again. A source build needs the app's Gradle build first, which fills the drop folder.
+- **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
+
+## Failed to start PACKAGE on device SERIAL
+
+- **Cause:** `appium:appPackage` or `appium:appActivity` names an app or activity the device does not have.
+- **Check:** Run `adb shell pm list packages` to find the package. Leave `appium:appActivity` empty to start the app's launcher activity.
+- **Fix:** Correct the capability and click **Save**.
+- **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
+
+## The Android light stays red
+
+- **Cause:** The recorder app on the device cannot reach the recorder service. The service maps port 9958 on the device to your computer with `adb reverse` when you press **Start**; a restart of adb removes that mapping.
+- **Check:** Open **G4 Android Recorder** on the device. It shows the connection state and the last error. Run `adb reverse --list`.
+- **Fix:** Press **Stop**, then **Start** again, so the service maps the port again. Do not run `adb root` or `adb kill-server` during a session.
+- **Source:** the recorders' `src/G4.Recorders.Android.App/app/src/main/kotlin/com/g4/recorders/android/RecorderHubConnection.kt`
+
+## Back is missing from an Android flow
+
+- **Cause:** Only a real key press is recorded as `UndoNavigation`. The back gesture of gesture navigation sends no key event, and neither does `adb shell input keyevent`.
+- **Check:** The flow has a `SwitchActivity` where you went back, but no `UndoNavigation` before it.
+- **Fix:** Add an `UndoNavigation` action by hand, or switch the device to three-button navigation before you record.
+- **Source:** the recorders' `src/G4.Recorders.Android.App/app/src/main/kotlin/com/g4/recorders/android/RecorderAccessibilityService.kt`
+
+## A replayed flow does not scroll
+
+- **Cause:** The G4 `InvokeScroll` action reads only its `Left` and `Top` parameters, while the Hub writes `--direction` and `--times`, so a recorded scroll does nothing at replay. Chromium recordings have the same gap.
+- **Check:** The scroll action's argument starts with `{{$ --direction:`.
+- **Fix:** Replace the recorded scroll with an action that scrolls the way your app needs.
+- **Source:** the plugins' `src/G4.Plugins.Ui/Actions/InvokeScroll.cs`
+
+## Replay fails with failed to stat ... No such file or directory
+
+- **Cause:** On Windows, Appium installs its helper apps under `APPIUM_HOME`. When that path is deep, adb cannot open them, and Appium cannot start a session.
+- **Check:** The Appium log shows `failed to stat` followed by a long path that ends in `.apk`.
+- **Fix:** Set `APPIUM_HOME` to a short folder such as `C:\appium`, run `appium driver install uiautomator2` again, and restart Appium.
+- **Source:** the Appium server log

@@ -4,14 +4,14 @@
 
 ⏱️ **About 6 minutes**
 
-The recorder is how G4 **watches a user click around a desktop application** and turns those actions into a workflow it can replay later. `settings.recorderSettings` configures it. Out of the box it defines **two** recorders — a UIA (desktop) recorder on port `9955` and a Chromium (browser) recorder on port `9956`.
+The recorder is how G4 **watches a user click around a desktop application** and turns those actions into a workflow it can replay later. `settings.recorderSettings` configures it. Out of the box it defines **four** recorders — a UIA (desktop) recorder on port `9955`, a Chromium (browser) recorder on port `9956`, a SAP recorder on port `9957`, and an Android recorder on port `9958`. All four start **switched off**: turn on the ones you record with.
 
 ```json
 "recorderSettings": {
     "enabled": true,
     "disableChromeNetworkSandbox": false,
     "useSandbox": false,
-    "recorders": [ { "...": "UIA on 9955" }, { "...": "Chromium on 9956" } ]
+    "recorders": [ { "...": "UIA on 9955, off" }, { "...": "Chromium on 9956, off" }, { "...": "SAP on 9957, off" }, { "...": "Android on 9958, off" } ]
 }
 ```
 
@@ -29,7 +29,7 @@ In this module, you will:
 - **`enabled`** — the master on/off switch for *all* recorders. If `false`, no recording happens no matter what's inside the list.
 - **`useSandbox`** — when `true`, G4 **auto-starts the bundled recorder services from your sandbox** for you (this is the manifest form of the **Use Sandbox** toggle in the recorder panel). Set it `false` when you run the recorder service yourself, locally or on another machine.
 - **`disableChromeNetworkSandbox`** — when `true`, the Chromium recorder starts Chrome **without its network sandbox** (it adds `--disable-features=NetworkServiceSandbox` to the browser arguments at Start; your manifest is not changed). Leave it `false` unless every page in the recorder's Chrome stays blank; that happens when Chrome cannot read its own folder from its sandbox. This is the manifest form of the **Chrome Network Sandbox Off** toggle in the recorder panel.
-- **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA** recorder and a **Chromium** recorder.
+- **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA**, a **Chromium**, a **SAP** and an **Android** recorder, each with `enabled: false`. Until you set one to `true`, **Start** in the recorder panel says `No recorder is enabled. Enable a recorder in the G4 settings first.`
 
 **When to use multiple recorders:**
 
@@ -105,6 +105,55 @@ The driver each recorder uses to *talk to* the target while watching the user. T
 }
 ```
 
+**Android recorder** (device or emulator, port `9958`) — records an Android app through a recorder app that the recorder service installs over adb. Its driver parameters are the values the flow replays with: `driver` is `AndroidDriver`, `driverBinaries` is the Appium server endpoint, and `capabilities.alwaysMatch` with the `firstMatch` list next to it are the W3C WebDriver new-session capabilities that G4 sends to Appium: `alwaysMatch` for what every session needs, `firstMatch` for alternatives. Every Appium capability carries the `appium:` prefix:
+
+```json
+"driverParameters": {
+    "capabilities": {
+        "alwaysMatch": {
+            "platformName": "android",
+            "appium:automationName": "UiAutomator2",
+            "appium:udid": "",
+            "appium:appPackage": "com.example.app",
+            "appium:appActivity": ".MainActivity",
+            "appium:app": ""
+        }
+    },
+    "driver": "AndroidDriver",
+    "driverBinaries": "http://localhost:4723",
+    "firstMatch": [ {} ]
+}
+```
+
+- **`appium:appPackage`** and **`appium:appActivity`** — the app to start when recording begins. With a package and no activity, the app's launcher activity starts. With neither, every app on the device is recorded.
+- **`appium:udid`** — the adb serial; leave it empty when one device is connected.
+- **`appium:app`** — an APK path on the recorder machine to install first; leave it empty when the app is already installed.
+- **`platformName`** and **`appium:automationName`** — `android` and `UiAutomator2`, required by Appium; the recorder ignores them.
+- **`driverBinaries`** — the Appium server endpoint the recorded flow replays on, `http://localhost:4723` for Appium 2 and later. The recorder itself does not use Appium.
+- Any other Appium capability, such as `appium:noReset`, can go in `alwaysMatch`; the recorder ignores it and Appium applies it at replay.
+
+[Record an App, Module 8](../record-an-app/08-record-an-android-app.md) walks through a whole Android session.
+
+**SAP recorder** (SAP GUI for Windows, port `9957`) — records a SAP GUI session through SAP GUI Scripting. Its driver parameters are the values the flow replays with on the SAP driver server: `driver` is `SapDriver`, `driverBinaries` is the driver server endpoint (it listens on `5556` by default), and `sap:options` picks the SAP GUI session:
+
+```json
+"driverParameters": {
+    "capabilities": {
+        "alwaysMatch": {
+            "sap:options": {}
+        }
+    },
+    "driver": "SapDriver",
+    "driverBinaries": "http://localhost:5556/wd/hub",
+    "firstMatch": [ {} ]
+}
+```
+
+- **`sap:options`** — empty means the driver server picks the session. To pick one, open `http://localhost:5556/sap/sessions` while you are logged on, and copy its `systemName` and `client` (or its `sessionPath`) into `sap:options`, for example `{ "systemName": "DEV", "client": "100" }`.
+- The SAP recorder runs on Windows only. With `useSandbox` on, G4 starts it from `<sandbox>\bot-utilities\sap-recorder-win-x64`; on Linux and macOS it is skipped.
+
+> **📝 Note:** The Hub does not record with a SAP driver yet. If you switch the SAP recorder on and press **Start**, the Hub refuses it with `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.` [Record an App, Module 7](../record-an-app/07-record-sap-and-where-flow-generation-stops.md) explains why.
+
 - **`uia:options.label`** — a friendly name for a UIA target (used in reports); change it to something like `accounting-pc`.
 - **`goog:chromeOptions.binary`** — the Chrome executable to launch; the sandbox fills this in for you.
 - **`driverBinaries`** — the driver service URL or local driver folder. A sandbox-backed UIA recorder uses `<sandbox>\drivers\uia-driver-server`; the UIA driver server often listens on `5555` (`http://localhost:5555/wd/hub`), while a Selenium hub commonly uses `4444`.
@@ -173,14 +222,57 @@ How the scripts behave while recording:
 
 ---
 
+## Step 6: `excludeEvents` — leave actions out of the recorded flow
+
+The recorders report everything they see, and the Hub turns every event into an action. Some of those actions are noise. For example, clicking a form's submit button makes the Chromium recorder report a click **and** a form submission, so the flow gets an `InvokeClick` followed by a `SubmitForm` that no plugin can run.
+
+Each recorder can list the actions VS Code removes from its part of the flow when the recording stops:
+
+```json
+"excludeEvents": [
+    {
+        "name": "SubmitForm"
+    }
+]
+```
+
+- **`name`** — the action as it appears in the flow, which is the rule's `pluginName`. Names are compared without regard to case.
+- An exclusion only applies to the jobs this recorder produced. Another recorder keeps the same action unless it lists it too.
+- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder, and `SwitchActivity` and `InvokeLongClick` for the Android recorder, which no plugin replays yet.
+- The list is applied by VS Code when you stop a recording, and to the flows of an autonomous run. The recorders and the Hub never see it.
+
+> **⚠️ Pitfall:** Desktop recorders name their actions after the capture mode (for example `InvokeUser32Click` in `user32` mode). Copy the name from a recorded flow rather than from the recorder's event name.
+
+---
+
+## Step 7: `excludeDomContext` — keep the markup snapshot out of the flow
+
+The Chromium recorder sends a snapshot of the markup around the element of each click, typed text, and hover. The Hub copies it into each browser rule as `capabilities.domContext` (Base64 of the HTML) and `capabilities.domContextLength`. AI tools that record through the Hub use it to heal or improve locators.
+
+A flow you record in VS Code usually does not need it, so each recorder has a switch:
+
+```json
+"excludeDomContext": true
+```
+
+- **`true`**, or no value at all, removes both fields from this recorder's part of the flow when the recording stops. A `capabilities` object left empty is removed too.
+- **`false`** keeps the snapshot in the flow, for example when an AI tool reads your saved flows.
+- It applies to manual recordings and to autonomous runs. The Hub and the recorder never see the setting.
+
+To change what the snapshot holds, or to stop the recorder from taking it, open the Chromium recorder extension's options page and use its **DOM Context** section.
+
+---
+
 ## ✔ Check your work
 
-- [ ] Top-level `enabled` is `true`, and each recorder you want is enabled
+- [ ] Top-level `enabled` is `true`, and each recorder you record with has `enabled: true` (a new project ships them all off)
 - [ ] `useSandbox` is `true` if you want G4 to start the bundled recorders for you
-- [ ] Each recorder's `host`/`port` matches where its service listens (`9955` UIA, `9956` Chromium)
+- [ ] Each recorder's `host`/`port` matches where its service listens (`9955` UIA, `9956` Chromium, `9957` SAP, `9958` Android)
 - [ ] `thinkTimeSettings` fits the app — a range, a constant (`min == max`), or disabled for speed
 - [ ] `mode` is the one you want (`standard`, `user32` or `coordinate`), and `useOffset` is on only for `user32`
 - [ ] Any pre- or post-script uses a `shell` your machine has, and exits with `0`
+- [ ] The Chromium recorder lists `SubmitForm` in `excludeEvents`, so a submit click records one action
+- [ ] `excludeDomContext` is `true` (or missing) unless you want the markup snapshot in your flows
 
 ---
 

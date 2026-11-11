@@ -39,11 +39,11 @@
     </textarea>
 
     <!--
-        Running view: the flat robot inside a crackling storm ring, shooting lightning from its antenna
-        and arms and flashing the lightning color with a three-bolt burst now and then, the agent's latest step, what the run uses, the elapsed time, the scenarios as the
-        agent records them beside the console that streams the agent's steps, and Stop. The view fills
-        the fixed dialog: the scenarios and the console scroll inside their panes, and Stop stays at the
-        bottom.
+        Running view: the agent and the application joined by a live wire that carries a pulse from one to
+        the other (the application glows as each pulse lands), the agent's latest step, what the run uses,
+        the elapsed time, the scenarios as the agent records them beside the console that streams the
+        agent's steps, and Stop. The view fills the fixed dialog: the scenarios and the console scroll
+        inside their panes, and Stop stays at the bottom.
         automation-autonomous.js fills the parts marked with data-part.
     -->
     <template id="autonomous-running-template">
@@ -52,69 +52,33 @@
                  aria-busy="true"
                  aria-label="Autonomous run in progress">
             <div class="autonomous__stage" data-test-id="autonomous-running-spinner">
-                <svg class="autonomous__robot"
+                <svg class="autonomous__signal"
                      aria-hidden="true"
-                     viewBox="-90 -100 820 800"
+                     viewBox="0 0 400 140"
                      xmlns="http://www.w3.org/2000/svg">
-                    <g class="autonomous__storm">
-                        <path class="autonomous__storm-ring" d="M686.1 300 L680.6 335.5 L686.1 372.8 L665.1 404.7 L662.6 441.9 L643.7 473 L619.6 500.2 L606.1 534.8 L574.4 554.4 L553.8 584.9 L520.3 599.8 L490.2 618.4 L461 640.3 L429.5 660.9 L390.6 654.8 L355.7 662.2 L320 672.8 L282.8 678 L247.5 664.6 L213.3 651.9 L174.4 651.5 L150.3 617.5 L110.1 614.2 L88.2 582.4 L63.9 556.1 L40.5 529.4 L15.9 503.2 L-12.4 477.7 L-15.3 438.9 L-35.8 407.9 L-45.9 372.8 L-45.4 336 L-51.1 300 L-38.6 264.7 L-33.4 229.7 L-27.9 194.5 L-25.5 156.9 L-4.9 126.3 L15.8 96.7 L32.5 64.1 L59.1 39.1 L88.1 17.4 L110.8 -13 L143.5 -30.2 L180.6 -36.6 L212.1 -55.6 L247.7 -63.4 L282.9 -76.4 L320 -75 L355.8 -63.6 L394.2 -73.3 L425 -46 L460.9 -40.2 L497.1 -31.3 L521.3 -1.3 L554.6 14.2 L574.5 45.5 L608.9 62.9 L632.5 91.2 L647.7 124.8 L669.5 155.2 L670.1 193.8 L687.1 227 L690.3 263.5Z"/>
-                        <path class="autonomous__storm-ring autonomous__storm-ring--late" d="M693.9 300 L694.5 336.9 L683.3 372.3 L674.3 407.5 L659.7 440.7 L656 479.6 L623.8 503 L600 529.8 L577.9 557.9 L551.4 581.9 L523.5 604.5 L492 621.8 L458.3 633.9 L426.3 650.4 L391.4 658.8 L356.4 669.7 L320 663.4 L284.7 658.8 L249.1 656.5 L212.3 655 L179.3 639.6 L143.2 630.8 L110.7 613.2 L86.5 584.6 L64.6 555.4 L30.1 537.9 L7.7 508.7 L-4.3 473.3 L-25.1 442.9 L-29.8 406.1 L-51.8 374 L-55.5 337 L-56.4 300 L-58.2 262.8 L-37.1 229 L-35 192.3 L-26.5 156.5 L-12.2 122.5 L14.4 95.8 L40.1 70.3 L56.4 36.4 L90.8 20.7 L111.9 -11.4 L150.7 -16.7 L178.8 -40.9 L212.7 -53.6 L249.4 -54.7 L283.8 -67.8 L320 -70 L356 -65.4 L393.9 -71.4 L429.7 -61.8 L464.9 -49.8 L491.8 -21.4 L519.8 1 L553 16.1 L575.6 44.4 L609.5 62.4 L623.3 97.3 L639.1 129.4 L657.4 160.2 L672 193.2 L688 226.8 L687.4 263.8Z"/>
+                    <g class="autonomous__agent">
+                        <svg x="28"
+                             y="30"
+                             width="80"
+                             height="80"
+                             viewBox="0 0 640 640"
+                             overflow="visible">
+                            <path class="autonomous__agent-shape" d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 128L192 128C139 128 96 171 96 224L96 448C96 501 139 544 192 544L448 544C501 544 544 501 544 448L544 224C544 171 501 128 448 128L352 128L352 64zM160 432C160 418.7 170.7 408 184 408L216 408C229.3 408 240 418.7 240 432C240 445.3 229.3 456 216 456L184 456C170.7 456 160 445.3 160 432zM280 432C280 418.7 290.7 408 304 408L336 408C349.3 408 360 418.7 360 432C360 445.3 349.3 456 336 456L304 456C290.7 456 280 445.3 280 432zM400 432C400 418.7 410.7 408 424 408L456 408C469.3 408 480 418.7 480 432C480 445.3 469.3 456 456 456L424 456C410.7 456 400 445.3 400 432zM224 240C250.5 240 272 261.5 272 288C272 314.5 250.5 336 224 336C197.5 336 176 314.5 176 288C176 261.5 197.5 240 224 240zM368 288C368 261.5 389.5 240 416 240C442.5 240 464 261.5 464 288C464 314.5 442.5 336 416 336C389.5 336 368 314.5 368 288zM64 288C64 270.3 49.7 256 32 256C14.3 256 0 270.3 0 288L0 384C0 401.7 14.3 416 32 416C49.7 416 64 401.7 64 384L64 288zM608 256C590.3 256 576 270.3 576 288L576 384C576 401.7 590.3 416 608 416C625.7 416 640 401.7 640 384L640 288C640 270.3 625.7 256 608 256z"/>
+                        </svg>
                     </g>
-                    <circle class="autonomous__strike-flash"
-                            cx="320"
-                            cy="30"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-55"
-                            cx="324"
-                            cy="32"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-4"
-                            cx="300"
-                            cy="-69"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-24"
-                            cx="17"
-                            cy="88"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-44"
-                            cx="623"
-                            cy="512"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-59"
-                            cx="447"
-                            cy="-48"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-74"
-                            cx="623"
-                            cy="88"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike--at-89"
-                            cx="17"
-                            cy="512"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike-flash--burst"
-                            cx="300"
-                            cy="-69"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike-flash--burst"
-                            cx="17"
-                            cy="88"
-                            r="16"/>
-                    <circle class="autonomous__strike-flash autonomous__strike-flash--burst"
-                            cx="623"
-                            cy="88"
-                            r="16"/>
-                    <g class="autonomous__robot-body">
-                        <path class="autonomous__robot-shape" d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 128L192 128C139 128 96 171 96 224L96 448C96 501 139 544 192 544L448 544C501 544 544 501 544 448L544 224C544 171 501 128 448 128L352 128L352 64zM160 432C160 418.7 170.7 408 184 408L216 408C229.3 408 240 418.7 240 432C240 445.3 229.3 456 216 456L184 456C170.7 456 160 445.3 160 432zM280 432C280 418.7 290.7 408 304 408L336 408C349.3 408 360 418.7 360 432C360 445.3 349.3 456 336 456L304 456C290.7 456 280 445.3 280 432zM400 432C400 418.7 410.7 408 424 408L456 408C469.3 408 480 418.7 480 432C480 445.3 469.3 456 456 456L424 456C410.7 456 400 445.3 400 432zM224 240C250.5 240 272 261.5 272 288C272 314.5 250.5 336 224 336C197.5 336 176 314.5 176 288C176 261.5 197.5 240 224 240zM368 288C368 261.5 389.5 240 416 240C442.5 240 464 261.5 464 288C464 314.5 442.5 336 416 336C389.5 336 368 314.5 368 288zM64 288C64 270.3 49.7 256 32 256C14.3 256 0 270.3 0 288L0 384C0 401.7 14.3 416 32 416C49.7 416 64 401.7 64 384L64 288zM608 256C590.3 256 576 270.3 576 288L576 384C576 401.7 590.3 416 608 416C625.7 416 640 401.7 640 384L640 288C640 270.3 625.7 256 608 256z"/>
-                        <path class="autonomous__bolt" d="M320 30 L302 4 L318 -18 L297 -44 L309 -56 L300 -69" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__strike--at-20" d="M32 256 L14 226 L30 192 L8 160 L22 126 L8 106 L17 88" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__strike--at-40" d="M608 416 L626 442 L606 464 L628 490 L623 512" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__strike--at-55" d="M324 32 L358 12 L372 -8 L400 -2 L416 -26 L434 -28 L447 -48" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__strike--at-70" d="M608 256 L626 226 L610 192 L632 160 L618 126 L632 106 L623 88" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__strike--at-85" d="M32 416 L14 442 L34 464 L12 490 L17 512" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__bolt--burst" d="M320 30 L302 4 L318 -18 L297 -44 L309 -56 L300 -69" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__bolt--burst" d="M32 256 L14 226 L30 192 L8 160 L22 126 L8 106 L17 88" pathLength="100"/>
-                        <path class="autonomous__bolt autonomous__bolt--burst" d="M608 256 L626 226 L610 192 L632 160 L618 126 L632 106 L623 88" pathLength="100"/>
+                    <path class="autonomous__wire" d="M122 70 H278"/>
+                    <path class="autonomous__wire-trail" d="M122 70 H278" pathLength="100"/>
+                    <path class="autonomous__wire-pulse" d="M122 70 H278" pathLength="100"/>
+                    <g class="autonomous__app">
+                        <svg x="292"
+                             y="30"
+                             width="80"
+                             height="80"
+                             viewBox="0 0 640 640"
+                             overflow="visible">
+                            <path class="autonomous__app-shape" d="M80 96H560A40 40 0 0 1 600 136V504A40 40 0 0 1 560 544H80A40 40 0 0 1 40 504V136A40 40 0 0 1 80 96zM62 196V522H578V196zM96 146A16 16 0 1 0 128 146A16 16 0 1 0 96 146zM144 146A16 16 0 1 0 176 146A16 16 0 1 0 144 146zM192 146A16 16 0 1 0 224 146A16 16 0 1 0 192 146zM376 430H520V484H376z"/>
+                            <path class="autonomous__app-field" d="M120 262H520V302H120zM120 334H520V374H120z"/>
+                        </svg>
                     </g>
                 </svg>
             </div>
@@ -142,15 +106,22 @@
                     <dt class="autonomous__fact-name">Recorders</dt>
                     <dd class="autonomous__fact-value" data-part="recorders" data-test-id="autonomous-running-recorders-text"></dd>
                 </div>
-                <div class="autonomous__fact">
-                    <dt class="autonomous__fact-name">Time Limit</dt>
-                    <dd class="autonomous__fact-value" data-part="time-limit" data-test-id="autonomous-running-time-limit-text"></dd>
-                </div>
-                <div class="autonomous__fact">
-                    <dt class="autonomous__fact-name">Elapsed</dt>
+                <div class="autonomous__fact autonomous__fact--time">
+                    <dt class="autonomous__fact-name">Time</dt>
                     <dd class="autonomous__fact-value autonomous__fact-value--time"
-                        data-part="elapsed"
-                        data-test-id="autonomous-running-elapsed-text"></dd>
+                        data-part="time"
+                        data-test-id="autonomous-running-time-text"></dd>
+                    <dd class="autonomous__time-meter"
+                        data-part="time-meter"
+                        data-test-id="autonomous-running-time-meter"
+                        aria-label="Time used of the limit"
+                        aria-valuemax="100"
+                        aria-valuemin="0"
+                        aria-valuenow="0"
+                        hidden
+                        role="progressbar">
+                        <span class="autonomous__time-meter-fill" data-part="time-meter-fill"></span>
+                    </dd>
                 </div>
             </dl>
 

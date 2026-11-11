@@ -4,7 +4,7 @@ Welcome! 👋
 
 Instead of building an automation action by action, you can **record** one. You start a recorder, use your application, and stop. G4 turns what you did into a workflow you can run, edit, and publish.
 
-This path goes deeper than the Quick Start. It covers how to pick a capture mode, how to pause a recording, how to run your own scripts around it, and what to do when you record more than one machine at once. Plan for about **40 minutes**.
+This path goes deeper than the Quick Start. It covers how to pick a capture mode, how to pause a recording, how to run your own scripts around it, what to do when you record more than one machine at once, and how to record an Android app. Plan for about **55 minutes**.
 
 ---
 
@@ -23,6 +23,7 @@ By the end you will be able to:
 - Record two machines or two kinds of application in one session
 - Give the recorded steps readable names
 - Know where the Hub stops building a flow for a SAP recording
+- Record an Android app and replay it through Appium
 
 ## Prerequisites
 
@@ -48,6 +49,7 @@ Work through these in order. Each one builds on the previous.
 | 5 | [Two recorders at once](05-two-recorders-at-once.md) | Record a desktop app and a browser in one session | ~6 min |
 | 6 | [Name your recorded steps](06-name-your-recorded-steps.md) | Replace default step names with readable ones | ~5 min |
 | 7 | [Record SAP and where flow generation stops](07-record-sap-and-where-flow-generation-stops.md) | See what the SAP recorder does and what the Hub refuses | ~4 min |
+| 8 | [Record an Android app](08-record-an-android-app.md) | Prepare a device and Appium, record a session, and replay it | ~15 min |
 
 **Stuck along the way?** See [Troubleshooting](troubleshooting.md).
 

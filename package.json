@@ -33,6 +33,21 @@
         "configuration": {
             "title": "G4 Studio",
             "properties": {
+                "g4.eventLogDetail": {
+                    "type": "string",
+                    "default": "preview",
+                    "enum": [
+                        "summary",
+                        "preview",
+                        "full"
+                    ],
+                    "enumDescriptions": [
+                        "One summary line per event, with no JSON.",
+                        "The summary and a shortened view of the JSON: two levels in full, deeper parts as one-line markers, long strings and arrays cut, at most 40 lines.",
+                        "The summary and the complete JSON, indented."
+                    ],
+                    "markdownDescription": "How much of each Hub event the extension log shows. Run **G4: Show Event JSON** to add any shortened part of one of the last 50 events to the log in full, or to copy it."
+                },
                 "g4.sidePanelIcon": {
                     "type": "string",
                     "default": "",
@@ -51,6 +66,11 @@
                 "command": "Show-Report",
                 "category": "G4",
                 "title": "Open G4 Report"
+            },
+            {
+                "command": "Show-EventJson",
+                "category": "G4",
+                "title": "Show Event JSON"
             },
             {
                 "command": "Show-Workflow",

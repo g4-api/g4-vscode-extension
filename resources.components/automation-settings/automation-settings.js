@@ -153,6 +153,8 @@ globalThis.DEFAULTS = {
                     "enabled": true,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeDomContext": true,
+                    "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -193,6 +195,8 @@ globalThis.DEFAULTS = {
                     "enabled": false,
                     "mode": "standard",
                     "useOffset": false,
+                    "excludeDomContext": true,
+                    "excludeEvents": [],
                     "schema": "http",
                     "host": "localhost",
                     "port": "9955",
@@ -289,7 +293,7 @@ globalThis.INITIAL = copyValue(globalThis.STATE);
 globalThis.DRIVERS = null;
 
 // Shown when the engine can't be reached so the form stays usable.
-globalThis.FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SimulatorDriver'];
+globalThis.FALLBACK_DRIVERS = ['ChromeDriver', 'UiaDriver', 'AndroidDriver', 'IosDriver', 'SapDriver', 'SimulatorDriver'];
 
 // Raw README that hosts the free development-license token. The token
 // lives in a ```none code block right under the "Development License"
@@ -852,8 +856,10 @@ function newManifest() {
     // Start from a deep copy of the working state.
     const manifest = copyValue(globalThis.STATE);
 
-    // Recorder mode only applies to UIA recorders; force all other recorders to the safe baseline.
+    // Recorder mode only applies to UIA recorders; force all other recorders to the safe baseline. A missing DOM
+    // context setting is saved as its effective default, so the file states what the extension does.
     setRecorderModes(manifest.settings?.recorderSettings?.recorders);
+    setRecorderDomContextDefaults(manifest.settings?.recorderSettings?.recorders);
 
     // Treat an empty sandbox textbox as "not configured" and omit the root field.
     const sandbox = String(manifest.sandbox ?? '').trim();
@@ -918,6 +924,24 @@ function newManifest() {
         harness.efforts = getCleanList(harness.efforts);
         harness.requiredToolServers = getCleanList(harness.requiredToolServers);
         harness.arguments = getCleanList(harness.arguments);
+    }
+
+    // A recorder's excluded events are edited one name per box as well: keep { name } objects with a trimmed,
+    // non-empty name, and leave recorders that never had the setting without it.
+    const recorders = manifest.settings?.recorderSettings?.recorders;
+    const recorderList = Array.isArray(recorders) ? recorders : [];
+
+    for (const recorder of recorderList) {
+        const isEventListPresent = Array.isArray(recorder?.excludeEvents);
+
+        if (!isEventListPresent) {
+            continue;
+        }
+
+        recorder.excludeEvents = recorder.excludeEvents
+            .map((entry) => getCleanText(entry?.name))
+            .filter(Boolean)
+            .map((name) => ({ name }));
     }
 
     // Store the repository list as an array, like the bot base manifests do, so every reader gets a list:
@@ -1123,6 +1147,9 @@ function onAppInput(event) {
             break;
         case 'json':
             setJsonValue(path, value);
+            break;
+        case 'event-list':
+            setPath(globalThis.STATE, path, value.map((name) => ({ name })));
             break;
         case 'list':
             setPath(globalThis.STATE, path, value);
@@ -1658,6 +1685,32 @@ function setPath(root, path, value) {
 
     // Assign the value to the leaf segment on its parent.
     parent[last] = value;
+}
+
+/**
+ * Gives every recorder without a DOM context setting the extension's default, which leaves the context out.
+ *
+ * Behavior:
+ * - A missing or non-boolean excludeDomContext becomes true, the value the extension applies when it is absent.
+ * - An explicit true or false is kept, so a user's choice is never overwritten.
+ *
+ * @param {Array<object>|null|undefined} recorders - Recorder entries to normalize in place.
+ */
+function setRecorderDomContextDefaults(recorders) {
+    // Ignore missing or malformed recorder lists; callers may pass partial manifests.
+    if (!Array.isArray(recorders)) {
+        return;
+    }
+
+    // Fill the default on recorder objects only; a hand-edited non-object entry has no setting to fill.
+    for (const recorder of recorders) {
+        const isRecorderObject = recorder !== null && typeof recorder === 'object';
+        const isSettingMissing = isRecorderObject && typeof recorder.excludeDomContext !== 'boolean';
+
+        if (isSettingMissing) {
+            recorder.excludeDomContext = true;
+        }
+    }
 }
 
 /**
@@ -2674,14 +2727,27 @@ function writeLicenseSection() {
  * @param {boolean} [options.isOrdered=false] - Whether rows get move up/down buttons.
  * @param {boolean} [options.isUnique=false] - Whether repeated entries are reported.
  * @param {string} [options.emptyText='None.'] - Text shown when the list is empty.
+ * @param {string} [options.kind='list'] - Input kind: 'list' stores the entries as text, 'event-list' stores
+ *   each entry as a { name } object (a recorder's excludeEvents) while the editor still shows plain names.
  * @param {string} [options.testId] - Test id prefix of the editor.
  * @returns {string} HTML markup for the list field.
  */
 function writeListRows(options) {
-    const { path, label, hint, isOrdered = false, isUnique = false, emptyText = 'None.', testId } = options;
+    const { path, label, hint, isOrdered = false, isUnique = false, emptyText = 'None.', kind = 'list', testId } = options;
     // The editor starts from the stored list; the rules become bare attributes.
     const value = getPath(globalThis.STATE, path);
-    const list = Array.isArray(value) ? value : [];
+    const storedList = Array.isArray(value) ? value : [];
+
+    // An event list is stored as { name } objects, so the editor is given the names; a hand-edited entry
+    // without a text name shows as an empty row instead of '[object Object]'.
+    const getEventName = (entry) => {
+        const name = entry?.name;
+
+        return typeof name === 'string' ? name : '';
+    };
+    const list = kind === 'event-list'
+        ? storedList.map(getEventName)
+        : storedList;
     const editorTestId = `${testId || path.replaceAll(TEST_ID_SEPARATOR_PATTERN, '-')}-list-editor`;
     const orderedAttribute = isOrdered ? ' ordered' : '';
     const uniqueAttribute = isUnique ? ' unique' : '';
@@ -2690,7 +2756,7 @@ function writeListRows(options) {
         label,
         hint,
         control: `
-        <g4-list-editor data-kind="list"
+        <g4-list-editor data-kind="${getEscapedText(kind)}"
                         data-path="${getEscapedText(path)}"
                         empty-text="${getEscapedText(emptyText)}"${orderedAttribute}
                         test-id="${getEscapedText(editorTestId)}"${uniqueAttribute}
@@ -3075,6 +3141,21 @@ function writeRecorderCard(recorder, index) {
         hint: 'A cap. Set equal to "shortest" for a constant pause.'
     })}
         </div>
+        <div class="settings-subheader">Excluded Events</div>
+        ${writeToggle({
+        path: `${base}.excludeDomContext`,
+        label: 'Leave the DOM Context Out of the Recorded Flow',
+        hint: 'On removes the markup snapshot the Hub adds to browser actions (capabilities.domContext). Turn it off to keep it, for example for AI tools that heal locators.'
+    })}
+        ${writeListRows({
+        path: `${base}.excludeEvents`,
+        label: 'Leave Out of the Recorded Flow',
+        hint: 'Action names removed from this machine’s recorded flow when recording stops, for example SubmitForm. Names are compared without case.',
+        kind: 'event-list',
+        isUnique: true,
+        emptyText: 'No excluded events. Every recorded action is kept.',
+        testId: `recorder-${index}-exclude-events`
+    })}
         <div class="settings-subheader">Pre-Recording Script</div>
         ${writeToggle({
         path: `${base}.preScript.enabled`,
@@ -3139,8 +3220,10 @@ function writeRecordersSection() {
     // Resolve the configured recorders.
     const recorders = getPath(globalThis.STATE, 'settings.recorderSettings.recorders') || [];
 
-    // Ensure non-UIA recorders cannot retain a non-standard mode from an older manifest edit.
+    // Ensure non-UIA recorders cannot retain a non-standard mode from an older manifest edit, and show a missing
+    // DOM context setting as its effective default.
     setRecorderModes(recorders);
+    setRecorderDomContextDefaults(recorders);
 
     const cards = recorders.map((recorder, index) => writeRecorderCard(recorder, index)).join('');
 

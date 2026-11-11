@@ -139,7 +139,7 @@ body {
     height: 14px;
 }
 
-/* Running view: the robot, title, status, and facts on top, the scenarios and the console filling the rest,
+/* Running view: the agent and the application, title, status, and facts on top, the scenarios and the console filling the rest,
    and Stop at the bottom. */
 .autonomous__running {
     display: flex;
@@ -152,14 +152,15 @@ body {
     text-align: center;
 }
 
-/* The robot follows the window height, so a short window keeps room for the scenarios, the console, and Stop. */
+/* The stage follows the window height, so a short window keeps room for the scenarios, the console, and Stop. */
 .autonomous__stage {
     flex: 0 0 auto;
-    height: clamp(56px, 18vh, 150px);
-    aspect-ratio: 820 / 800;
+    height: clamp(48px, 15vh, 128px);
+    max-width: 100%;
+    aspect-ratio: 400 / 140;
 }
 
-/* A very short window gives the room of the robot and the title to the scenarios and the console. */
+/* A very short window gives the room of the stage and the title to the scenarios and the console. */
 @media (max-height: 600px) {
     .autonomous__stage,
     .autonomous__running-title {
@@ -167,7 +168,7 @@ body {
     }
 }
 
-.autonomous__robot {
+.autonomous__signal {
     display: block;
     width: 100%;
     height: 100%;
@@ -217,6 +218,30 @@ body {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+}
+
+/* The Time fact's meter sits in the fact's bottom padding, so the fact keeps the height of the others. */
+.autonomous__fact--time {
+    position: relative;
+}
+
+.autonomous__time-meter {
+    position: absolute;
+    right: 10px;
+    bottom: 3px;
+    left: 10px;
+    height: 3px;
+    overflow: hidden;
+}
+
+.autonomous__time-meter[hidden] {
+    display: none;
+}
+
+.autonomous__time-meter-fill {
+    display: block;
+    width: 0;
+    height: 100%;
 }
 
 /* Running and result views: the scenarios beside the console, both taking all the height that is left. */

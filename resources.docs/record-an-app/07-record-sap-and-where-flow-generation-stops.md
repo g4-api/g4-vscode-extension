@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 6](06-name-your-recorded-steps.md)
 
-**Where you are:** Module 7 of 7
+**Where you are:** Module 7 of 8
 
 ⏱️ **About 4 minutes**
 
@@ -18,7 +18,7 @@ In this module, you will:
 
 ## Step 1: Know the SAP recorder
 
-The SAP recorder runs as its own service, by default on port 9957. For each user action it can report two streams in one message:
+The SAP recorder runs as its own service, by default on port 9957. A new project already has a SAP card, switched off: its title ends in `SapDriver`, and its driver parameters point at the SAP driver server on `http://localhost:5556/wd/hub`. With **Use Sandbox** on, Studio starts the SAP recorder from the sandbox on Windows; on Linux and macOS it is skipped. For each user action it can report two streams in one message:
 
 | Stream | What it holds |
 | --- | --- |
@@ -31,13 +31,13 @@ Values typed into password fields are redacted.
 
 When you press **Start**, the Hub checks every recorder:
 
-- It accepts a driver named `UiaDriver`, or any driver whose name contains `chrome`. Any other driver, including a SAP driver, is refused.
+- It accepts a driver named `UiaDriver` or `AndroidDriver`, or any driver whose name contains `chrome`. Any other driver, including a SAP driver, is refused.
 - It accepts the modes `standard`, `user32`, and `coordinate` only.
 
-So when a SAP recorder is enabled in your settings and you press **Start**, Studio shows an error that begins with `Failed to start recording:` followed by the Hub's reason. The Hub's reason for the driver is:
+So when you switch the SAP card on and press **Start**, Studio shows an error that begins with `Failed to start recording:` followed by the Hub's reason. The Hub's reason for the driver is:
 
 ```text
-Recorder driver must be ChromeDriver or UiaDriver.
+Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.
 ```
 
 The Hub builder that turns events into rules has no code for the `user32` and `nativeSap` streams. This is where flow generation stops.
@@ -59,16 +59,9 @@ The Hub builder that turns events into rules has no code for the `user32` and `n
 ## ✔ Check your work
 
 - [ ] You know the SAP recorder reports two streams
-- [ ] You can read the `Recorder driver must be ChromeDriver or UiaDriver.` message
+- [ ] You can read the `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.` message
 - [ ] You know to keep a SAP recorder disabled when you record other applications
 
 ---
 
-## 🎉 You did it
-
-You can now choose a capture mode, pause and resume, run scripts around a session, record two machines at once, and name the steps. From here:
-
-- Replay a recording and publish it with [Publish a Flow](../g4-learning.md)
-- Look up every recorder setting in [Configure `manifest.json`](../g4-learning.md)
-
-Or go **back to** [the overview](README.md).
+**Next up** 👉 [Module 8: Record an Android app](08-record-an-android-app.md)

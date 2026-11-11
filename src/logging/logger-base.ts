@@ -716,10 +716,14 @@ export abstract class LoggerBase implements Logger {
      */
     private writeLog(
         level: LogLevel,
-        message: string,
+        messageValue: string,
         event?: string,
         error?: Error
     ): void {
+        // A caller that passes an object (typed `any` on its side) gets it written as indented JSON instead of
+        // making `trim` throw and losing the entry.
+        const message = LoggerBase.convertToMessageText(messageValue as unknown);
+
         // If the message is empty or consists only of whitespace, skip logging.
         if(!message || message.trim() === '') {
             return;
@@ -842,6 +846,35 @@ export abstract class LoggerBase implements Logger {
         } catch {
             // On any error (e.g., invalid settings), allow logging to continue.
             return false;
+        }
+    }
+
+    /**
+     * Converts a log message to text.
+     *
+     * @remarks
+     * Compute-only. Text is returned as it is; null and undefined become ''; any other value becomes indented
+     * JSON, or '' when JSON cannot write it (a circular object). The logger is typed to take text, but callers that receive `any` from a
+     * connection can still pass an object.
+     *
+     * @param message - The message.
+     * @returns The message text.
+     */
+    private static convertToMessageText(message: unknown): string {
+        if (typeof message === 'string') {
+            return message;
+        }
+
+        // A missing message has nothing to write, as before.
+        if (message === null || message === undefined) {
+            return '';
+        }
+
+        // Anything else is written as indented JSON when it can be.
+        try {
+            return JSON.stringify(message, null, 2) ?? '';
+        } catch {
+            return '';
         }
     }
 

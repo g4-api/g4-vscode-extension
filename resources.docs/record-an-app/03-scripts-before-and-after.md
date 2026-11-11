@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 2](02-start-suspend-resume-and-stop.md)
 
-**Where you are:** Module 3 of 7
+**Where you are:** Module 3 of 8
 
 ⏱️ **About 8 minutes**
 

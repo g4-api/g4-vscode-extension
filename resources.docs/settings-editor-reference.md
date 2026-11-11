@@ -187,6 +187,8 @@ Each recorder card holds these fields, under `settings.recorderSettings.recorder
 | Pause Like a Human Between Actions | `thinkTimeSettings.enabled` | on for the first machine | Off replays as fast as possible. |
 | Shortest Pause | `thinkTimeSettings.minThinkTime` | `2000` | Milliseconds. Shorter pauses are raised to it. |
 | Longest Pause | `thinkTimeSettings.maxThinkTime` | `2000` | Milliseconds. A cap. Equal to the shortest gives a constant pause. |
+| Leave the DOM Context Out of the Recorded Flow | `excludeDomContext` | on | Removes the markup snapshot the Hub adds to browser actions (`capabilities.domContext` and `capabilities.domContextLength`). Off keeps it, for example for AI tools that heal locators. A missing value counts as on. |
+| Leave Out of the Recorded Flow | `excludeEvents` | empty | Action names, such as `SubmitForm`, removed from this machine's part of the flow when recording stops. Compared without case. Stored as `{ "name": "..." }` objects. |
 | Run a Script Before Recording Starts | `preScript.enabled` | off | Runs once before capture begins. |
 | Shell | `preScript.shell` | `powershell` | `powershell`, `pwsh`, `bash` or `cmd`. |
 | Script | `preScript.script` | empty | Inline script. A non-zero exit or a timeout aborts this recorder's start. |

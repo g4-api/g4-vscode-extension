@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 1](01-pick-a-recorder-and-a-capture-mode.md)
 
-**Where you are:** Module 2 of 7
+**Where you are:** Module 2 of 8
 
 ⏱️ **About 8 minutes**
 

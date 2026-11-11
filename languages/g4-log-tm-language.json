@@ -3,6 +3,9 @@
     "name": "G4Logger",
     "patterns": [
         {
+            "include": "#json"
+        },
+        {
             "include": "#keywords"
         }
     ],
@@ -44,6 +47,41 @@
                 {
                     "name": "string.quoted",
                     "match": "(?<=(element)(\\s+\\[))[^;\\s]*(?=\\])|(?<=(argument)(\\s+\\[)).*(?=\\])"
+                }
+            ]
+        },
+        "json": {
+            "comment": "A JSON line under a log entry: indented by two or more spaces and starting the way JSON does. Each line is matched on its own, so a shortened or cut block can never leak its colors into the next entry.",
+            "begin": "^(?=\\s{2,}(?:[\\[\\]{}\"…\\d-]|(?:true|false|null)\\b))",
+            "end": "$",
+            "patterns": [
+                {
+                    "name": "comment.line.g4log.json-marker",
+                    "match": "[{\\[]…[\\d,]+ (?:keys?|items?)[}\\]]"
+                },
+                {
+                    "name": "comment.line.g4log.json-marker",
+                    "match": "\\(\\+[\\d,]+ chars?\\)"
+                },
+                {
+                    "name": "comment.line.g4log.json-marker",
+                    "match": "^\\s*… .*$"
+                },
+                {
+                    "name": "support.type.property-name.json",
+                    "match": "\"(?:[^\"\\\\]|\\\\.)*\"(?=\\s*:)"
+                },
+                {
+                    "name": "string.quoted.double.json",
+                    "match": "\"(?:[^\"\\\\]|\\\\.)*\""
+                },
+                {
+                    "name": "constant.numeric.json",
+                    "match": "-?\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b"
+                },
+                {
+                    "name": "constant.language.json",
+                    "match": "\\b(?:true|false|null)\\b"
                 }
             ]
         }

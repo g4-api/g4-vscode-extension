@@ -5,6 +5,7 @@ import { NotificationService } from './clients/g4-signalr-client';
 
 import { NewProjectCommand } from './commands/new-project';
 import { ShowAutonomousCommand } from './commands/show-autonomous';
+import { ShowEventJsonCommand } from './commands/show-event-json';
 import { ShowReportCommand } from './commands/show-report';
 import { ShowSettingsCommand } from './commands/show-settings';
 import { ShowWorkflowCommand } from './commands/show-workflow';
@@ -239,6 +240,9 @@ const registerCommands = (options: {
         }
     );
     options.context.subscriptions.push(openReportViewer);
+
+    // Command to show the JSON of a recent Hub event in full in the log, or copy it.
+    new ShowEventJsonCommand(options.context).register();
 
     // Command to open or visualize a specific workflow in the UI.
     new ShowWorkflowCommand(options.context, options.baseUri).register();

@@ -10,6 +10,7 @@ import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4EventLogService } from '../services/g4-event-log-service';
 
 /**
  * Service for managing SignalR notifications in VS Code.
@@ -76,12 +77,17 @@ export class NotificationService {
      * display messages in the Output panel and handle reconnect logic.
      */
     private registerHandlers(): void {
-        // Handle incoming log entries from the hub and write them to the log channel
+        // Write each log entry from the Hub through the event log. The entry is an object; passing it to the logger as
+        // the message made the logger throw on `trim`, so these entries were never written.
         this._connection.on(
             'ReceiveLogCreatedEvent',
-            (logEntry: any) => {
-                // Log informational messages to the G4 Extension Logs channel
-                this._options.logger.information(logEntry);
+            (logEntry: unknown) => {
+                G4EventLogService.writeEvent({
+                    label: 'ReceiveLogCreatedEvent',
+                    level: 'information',
+                    logger: this._options.logger,
+                    value: logEntry
+                });
             }
         );
 

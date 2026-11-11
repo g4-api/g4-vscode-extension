@@ -55,14 +55,14 @@ autonomous-runs/
 | File | Written by | When | What it holds |
 | --- | --- | --- | --- |
 | `brief.md` | Extension | Before the agent starts | The full instructions the agent receives. See Module 4 |
-| `recording-request.json` | Extension | Before the agent starts | The Hub address and the recording request: the picked recorders, and this VS Code excluded from recording. It never holds your token |
+| `recording-request.json` | Extension | Before the agent starts | The Hub address and the recording request: the picked recorders, and this VS Code excluded from recording. It also holds each recorder's excluded events. It never holds your token |
 | `g4-recorder.ps1` | Extension | Before the agent starts | A copy of the recorder helper. See Module 8 |
 | `scenarios.json` | Extension first, then the helper | Empty at the start, updated after every helper call | The ledger: one entry per scenario |
 | `run.json` | Extension | At the start, and again when the run ends | The state of the run, and at the end the exit code and the scenario totals |
 | `events.jsonl` | Extension | While the agent runs | The raw output of the agent, one line per line it printed. The console is built from it |
 | `stderr.log` | Extension | While the agent runs | The error output of the agent |
 | `final-message.md` | Extension, or Codex | When the run ends | The agent's final answer. For Claude Code the extension writes it from the final result. Codex writes the file itself. An OpenCode run reports no final text, so this file is not created |
-| `scenarios/NN-name/flow.json` | Helper | When a recording is stopped | The recorded flow of one scenario, saved byte for byte as the Hub returned it |
+| `scenarios/NN-name/flow.json` | Helper | When a recording is stopped | The recorded flow of one scenario, saved byte for byte as the Hub returned it unless a recorder's excluded events removed actions from it |
 
 The scenario folder name is the scenario number, two digits, then the scenario name in lower case: letters and digits only, other characters folded into single hyphens, at most 40 characters. A name with no letters or digits becomes `scenario`.
 
@@ -154,7 +154,7 @@ In the real file, `runFolder` is the full path. `outcome` is one of `completed`,
 
 ## Step 5: Look at the request file
 
-`recording-request.json` shows exactly what the helper sends to the Hub. It is shortened here:
+`recording-request.json` shows exactly what the helper sends to the Hub (`request`), and which actions it removes from the saved flows (`recorderEventFilters`). It is shortened here:
 
 ```json
 {
@@ -178,11 +178,20 @@ In the real file, `runFolder` is the full path. `outcome` is one of `completed`,
                 "useOffset": false
             }
         ]
-    }
+    },
+    "recorderEventFilters": [
+        {
+            "baseUrl": "http://localhost:9955",
+            "excludeDomContext": true,
+            "excludeEvents": []
+        }
+    ]
 }
 ```
 
 The process ids belong to this VS Code window, so your own clicks in it never enter a flow. The file also carries the `thinkTimeSettings` of each recorder when your settings define them.
+
+`recorderEventFilters` copies each recorder's `excludeEvents` and `excludeDomContext` from your settings. It is never sent to the Hub. A missing `excludeDomContext` removes the Hub's markup snapshot from the saved flow, like a manifest without the setting. When a stop removes actions, the helper reports how many, for example `(10 actions, 1 excluded)`.
 
 ---
 

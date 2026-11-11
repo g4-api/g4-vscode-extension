@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md)
 
-**Where you are:** Module 1 of 7
+**Where you are:** Module 1 of 8
 
 ⏱️ **About 8 minutes**
 
@@ -14,6 +14,7 @@ In this module, you will:
 - Tell the recorder families apart
 - Choose Standard, User32, or Coordinate mode
 - Decide whether to turn on **Use Offset**
+- Leave noise such as `SubmitForm` out of the recorded flow
 
 ---
 
@@ -40,12 +41,14 @@ Below the switches you see one card for each recorder. Click **+ Add Machine** t
 
 ## Step 2: Tell the recorders apart
 
-A recorder is chosen by its driver. A new project comes with two:
+A recorder is chosen by its driver. A new project comes with four, and all four start switched off. Turn on **Enabled** on the card you record with:
 
 | Recorder | Driver | Default port | What it watches |
 | --- | --- | --- | --- |
 | Desktop | `UiaDriver` | 9955 | Any Windows application, through UI Automation |
 | Browser | `ChromeDriver` | 9956 | A Chrome window that the recorder launches for you |
+| SAP | `SapDriver` | 9957 | A SAP GUI for Windows session. The Hub does not record with it yet; see Module 7 |
+| Android | `AndroidDriver` | 9958 | An Android device or emulator, through a recorder app the service installs for you |
 
 Each card shows the driver in its title, for example `machine-a - UiaDriver`. Open a card to see its fields:
 
@@ -57,8 +60,20 @@ Each card shows the driver in its title, for example `machine-a - UiaDriver`. Op
 | **Recorder Port** | `port` | The port of the recorder service |
 | **Mode** | `mode` | How a click is stored. See Step 3 |
 | **Use Offset** | `useOffset` | Keeps where inside the element you clicked. See Step 4 |
+| **Leave the DOM Context Out of the Recorded Flow** | `excludeDomContext` | Removes the markup snapshot the Hub adds to browser actions. On by default. See Step 5 |
+| **Leave Out of the Recorded Flow** | `excludeEvents` | Actions removed from this machine's flow when you stop. See Step 5 |
 
-> **📝 Note:** The Hub accepts only two driver families for recording: `UiaDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
+> **📝 Note:** The Hub accepts three driver families for recording: `UiaDriver`, `AndroidDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
+
+### The Android card
+
+The Android card's driver parameters are the values the flow replays with:
+
+- **`driver`** is `AndroidDriver`.
+- **`driverBinaries`** is the Appium server endpoint, `http://localhost:4723` by default.
+- **`capabilities.alwaysMatch`**, with **`firstMatch`** next to it, are the W3C WebDriver new-session capabilities, with every Appium capability under the `appium:` prefix. The recorder service reads `appium:udid`, `appium:appPackage`, `appium:appActivity` and `appium:app` from `alwaysMatch` to choose the device and start your app.
+
+The card leaves `SwitchActivity` and `InvokeLongClick` out of the flow, because no plugin replays them yet. [Module 8](08-record-an-android-app.md) walks through a whole Android session, from the device to the replay.
 
 ---
 
@@ -118,6 +133,34 @@ Click **Save** in the Settings Editor to apply your choices.
 
 ---
 
+## Step 5: Leave noise out of the flow
+
+When you click a form's submit button in the browser, the Chromium recorder sees two things: your click and the form submission. Without a filter, the flow gets an `InvokeClick` followed by a `SubmitForm`. No plugin is called `SubmitForm`, so that second action fails on replay.
+
+The **Leave Out of the Recorded Flow** list on a recorder card removes actions like this one when you stop the recording. A new project already lists `SubmitForm` on the Chromium card, so a submit click records one `InvokeClick`.
+
+1. Open the recorder card and find the **Excluded Events** heading.
+2. Add one action name per row, for example `SubmitForm`.
+3. Click **Save**.
+
+The same setting in `manifest.json`:
+
+```json
+"excludeEvents": [
+    {
+        "name": "SubmitForm"
+    }
+]
+```
+
+> **💡 Tip:** Copy the name from a recorded flow, where it appears as the action's plugin name. Names are compared without regard to case, and a list only affects the machine that holds it.
+
+> **📝 Note:** A project created before this setting existed has no list, so it keeps every action. Add `SubmitForm` to its Chromium card to get the same result.
+
+The same heading holds **Leave the DOM Context Out of the Recorded Flow**. The Chromium recorder sends the markup around each element it records, and the Hub adds it to the browser actions for AI tools that improve locators. The switch is on by default, so your flows stay small. Turn it off to keep the markup in the flow.
+
+---
+
 ## ✔ Check your work
 
 - [ ] You can open **Automation Recorders** from the `manifest.json` context menu
@@ -125,6 +168,7 @@ Click **Save** in the Settings Editor to apply your choices.
 - [ ] You know that the **Mode** list works only on a `UiaDriver` card
 - [ ] You can say which mode stores a click without a locator
 - [ ] You know that **Use Offset** applies to User32 mode only
+- [ ] The Chromium card lists `SubmitForm` under **Excluded Events**
 
 ---
 

@@ -9,6 +9,7 @@ import type {
     RecordingStatus
 } from '../clients/g4-recordings-client';
 
+import type { RecorderEventExclusion } from './g4-recorded-events-filter';
 import type { RecorderScriptShell } from './g4-recorder-script-service';
 import { G4BrandingService } from '../services/g4-branding-service';
 
@@ -360,6 +361,18 @@ export interface RecorderOptions {
 
     /** Whether the recorder takes part in a session. */
     enabled: boolean;
+
+    /**
+     * Whether the Hub's DOM context (`capabilities.domContext`, `capabilities.domContextLength`) is removed from the
+     * recorder's rules after stop; true when the manifest omits it. Applied by the extension only.
+     */
+    excludeDomContext: boolean;
+
+    /**
+     * Actions removed from the recorder's jobs after stop, for example `SubmitForm`; empty keeps every action.
+     * Applied by the extension only and never sent to the Hub.
+     */
+    excludeEvents: RecorderEventExclusion[];
 
     /** UIA capture mode: `standard`, `user32`, or `coordinate`. */
     mode: string;

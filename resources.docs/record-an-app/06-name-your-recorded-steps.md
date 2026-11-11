@@ -2,7 +2,7 @@
 
 [⬅ Back to overview](README.md) · [⬅ Module 5](05-two-recorders-at-once.md)
 
-**Where you are:** Module 6 of 7
+**Where you are:** Module 6 of 8
 
 ⏱️ **About 5 minutes**
 

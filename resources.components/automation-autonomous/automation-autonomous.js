@@ -5,10 +5,11 @@
  * sandbox partition or on this machine) explores the application and records each scenario it is asked
  * for as its own G4 flow, starting and stopping the recorders itself. The page opens a dialog over the
  * tab with the run form (recorders, harness, model, reasoning effort, prompt); Start turns the dialog
- * into the running view (the animated robot, the agent's latest step, the elapsed time, the scenarios
- * as the agent records them beside the console that streams the agent's steps, Stop), and the end of
- * the run turns it into the result view (the outcome, every scenario with its flow, the console, and
- * links to the run folder). The dialog has one fixed size for every view and never changes it on a
+ * into the running view (the agent and the application joined by a pulsing wire, the agent's latest
+ * step, the time used against the time limit, the scenarios as the agent records them beside the console that streams
+ * the agent's steps, Stop), and the end of the run turns it into the result view (the outcome, every
+ * scenario with its flow, the console, and links
+ * to the run folder). The dialog has one fixed size for every view and never changes it on a
  * click: the status is one line, the buttons stay at the bottom, and the form body, the scenarios,
  * and the console scroll inside their own areas. The run belongs to the extension
  * host, so closing the dialog or the tab does not stop it; a reopened page shows it again. The form
@@ -32,6 +33,9 @@
 
 // How often the elapsed time on the running view is refreshed.
 const ELAPSED_INTERVAL_MILLISECONDS = 1000;
+
+// Share of the time limit after which the Time fact's meter turns to the warning color.
+const TIME_LATE_SHARE = .8;
 
 // Agent events the page keeps and the console lists; the host keeps the same number, so a reopened page
 // replays the whole console.
@@ -71,8 +75,8 @@ const MODAL_TITLE = 'Autonomous Exploratory Run';
 // Text of the choice that leaves the model or the effort to the harness.
 const HARNESS_DEFAULT_TEXT = 'Harness default';
 
-// Text of the running view's time limit when the run has none.
-const NO_TIME_LIMIT_TEXT = 'None';
+// Text of the Time fact when the run has no time limit.
+const NO_TIME_LIMIT_TEXT = 'no limit';
 
 // Text of the Recorders fact of a harness-only session, which records nothing.
 const NO_RECORDERS_TEXT = 'None (harness only)';
@@ -404,20 +408,22 @@ function getEffortChoices(harness) {
  * @remarks
  * Compute-only over the run state.
  *
- * @returns {string} The time as mm:ss, or an empty string before the run started.
+ * @returns {number | null} The time in milliseconds, or null before the run started.
  */
-function getElapsedText() {
+function getElapsedMilliseconds() {
     const { finishedAt, startedAt } = globalThis.STATE.run.state;
     const startTime = Date.parse(startedAt ?? '');
 
+    // A run that has not started has no elapsed time yet.
     if (Number.isNaN(startTime)) {
-        return '';
+        return null;
     }
 
+    // A finished run stops its clock at its end; a running one counts to now.
     const finishTime = Date.parse(finishedAt ?? '');
     const endTime = Number.isNaN(finishTime) ? Date.now() : finishTime;
 
-    return convertToElapsedText(endTime - startTime);
+    return endTime - startTime;
 }
 
 /**
@@ -785,7 +791,7 @@ function getResultMarkup() {
                 ${getFactMarkup('Harness', state.harnessName, 'autonomous-result-harness-text')}
                 ${getFactMarkup('Model', state.model || HARNESS_DEFAULT_TEXT, 'autonomous-result-model-text')}
                 ${scenariosFactMarkup}
-                ${getFactMarkup('Elapsed', getElapsedText(), 'autonomous-result-elapsed-text')}
+                ${getTimeFactMarkup()}
             </dl>
         </div>
 
@@ -1004,6 +1010,35 @@ function getStatusText(run) {
 }
 
 /**
+ * Returns the Time fact of the result view: the time used against the limit, with its meter.
+ *
+ * @remarks
+ * Compute-only. The markup matches the running view's Time fact, so updateTime fills both the same way.
+ *
+ * @returns {string} The fact markup.
+ */
+function getTimeFactMarkup() {
+    return `
+            <div class="autonomous__fact autonomous__fact--time">
+                <dt class="autonomous__fact-name">Time</dt>
+                <dd class="autonomous__fact-value autonomous__fact-value--time"
+                    data-part="time"
+                    data-test-id="autonomous-result-time-text"></dd>
+                <dd class="autonomous__time-meter"
+                    data-part="time-meter"
+                    data-test-id="autonomous-result-time-meter"
+                    aria-label="Time used of the limit"
+                    aria-valuemax="100"
+                    aria-valuemin="0"
+                    aria-valuenow="0"
+                    hidden
+                    role="progressbar">
+                    <span class="autonomous__time-meter-fill" data-part="time-meter-fill"></span>
+                </dd>
+            </div>`;
+}
+
+/**
  * Converts a time limit in minutes to the text of the run form's minutes box.
  *
  * @remarks
@@ -1034,6 +1069,41 @@ function getTimeoutMinutes(value) {
     return isLimit
         ? value
         : 0;
+}
+
+/**
+ * Returns what the Time fact shows: the elapsed time against the limit, and the share of the limit used.
+ *
+ * @remarks
+ * Compute-only over the run state. A run with no limit shows its elapsed time and "no limit", and has no
+ * share, so its meter stays hidden.
+ *
+ * @returns {{ share: number | null, text: string }} The fact text, and the share of the limit used (0 to 1).
+ */
+function getTimeState() {
+    const elapsedMilliseconds = getElapsedMilliseconds();
+
+    // Before the run started there is no time to show.
+    if (elapsedMilliseconds === null) {
+        return { share: null, text: '' };
+    }
+
+    const elapsedText = convertToElapsedText(elapsedMilliseconds);
+    const timeoutMinutes = getTimeoutMinutes(globalThis.STATE.run.state.timeoutMinutes);
+
+    // A run without a limit has nothing to measure against.
+    if (timeoutMinutes <= 0) {
+        return { share: null, text: `${elapsedText} · ${NO_TIME_LIMIT_TEXT}` };
+    }
+
+    // The share stops at the full limit, where the host stops the agent.
+    const limitMilliseconds = timeoutMinutes * 60_000;
+    const limitText = convertToElapsedText(limitMilliseconds);
+
+    return {
+        share: Math.min(1, elapsedMilliseconds / limitMilliseconds),
+        text: `${elapsedText} / ${limitText}`
+    };
 }
 
 /**
@@ -1533,6 +1603,7 @@ function showResult() {
     // Render the result, then announce the outcome with the host's explanation.
     stopElapsedTimer();
     view.innerHTML = getResultMarkup();
+    updateTime();
 
     const outcomeNotice = OUTCOME_NOTICES[run.state.outcome] ?? OUTCOME_NOTICES.failed;
 
@@ -1547,8 +1618,8 @@ function showResult() {
 }
 
 /**
- * Shows the running view in the dialog: the animated robot, the agent's latest step, the run's facts,
- * the scenarios, the console, and Stop.
+ * Shows the running view in the dialog: the agent and the application joined by a pulsing wire, the
+ * agent's latest step, the run's facts, the scenarios, the console, and Stop.
  *
  * @remarks
  * The view is cloned from #autonomous-running-template; its parts are filled right away and again
@@ -1594,14 +1665,6 @@ function showRunning() {
         content.querySelector('[data-test-id="autonomous-running-scenarios-region"]').remove();
         content.querySelector('[data-test-id="autonomous-running-panes"]').classList.add('autonomous__panes--console-only');
     }
-
-    // Show the run's time limit, so the user knows whether the agent will be stopped.
-    const timeoutMinutes = getTimeoutMinutes(state.timeoutMinutes);
-    const timeLimitText = timeoutMinutes > 0
-        ? `${timeoutMinutes} min`
-        : NO_TIME_LIMIT_TEXT;
-
-    content.querySelector('[data-part="time-limit"]').textContent = timeLimitText;
 
     // Put the console in its slot; new lines are added to it one by one as they arrive.
     content.querySelector('[data-part="console"]').innerHTML = getConsoleMarkup();
@@ -1656,8 +1719,8 @@ function startAutonomous() {
  */
 function startElapsedTimer() {
     stopElapsedTimer();
-    globalThis.STATE.elapsedTimer = setInterval(updateElapsed, ELAPSED_INTERVAL_MILLISECONDS);
-    updateElapsed();
+    globalThis.STATE.elapsedTimer = setInterval(updateTime, ELAPSED_INTERVAL_MILLISECONDS);
+    updateTime();
 }
 
 /**
@@ -1792,17 +1855,6 @@ function updateConsoleHeader() {
 
     // Latest shows only while the console is paused above the newest line.
     panel.querySelector('[data-part="console-jump"]').hidden = consoleState.isFollowing;
-}
-
-/**
- * Writes the run's elapsed time on the running view.
- */
-function updateElapsed() {
-    const elapsedElement = globalThis.STATE.view?.querySelector('[data-part="elapsed"]');
-
-    if (elapsedElement) {
-        elapsedElement.textContent = getElapsedText();
-    }
 }
 
 /**
@@ -1953,6 +2005,41 @@ function updateStartButton() {
     startButton.disabled = issue !== '';
     startButton.title = startTitle;
     startNote.textContent = issue;
+}
+
+/**
+ * Writes the Time fact of the running or result view: the time used against the limit, and the meter
+ * that fills toward the limit and turns to the warning color near its end.
+ */
+function updateTime() {
+    const view = globalThis.STATE.view;
+    const timeElement = view?.querySelector('[data-part="time"]');
+    const meterElement = view?.querySelector('[data-part="time-meter"]');
+
+    // Only the running and result views have the Time fact.
+    if (!timeElement || !meterElement) {
+        return;
+    }
+
+    // Write the time; the tooltip repeats it in case the box is narrow.
+    const { share, text } = getTimeState();
+
+    timeElement.textContent = text;
+    timeElement.title = text;
+
+    // A run without a limit has no meter.
+    meterElement.hidden = share === null;
+
+    if (share === null) {
+        return;
+    }
+
+    // Fill the meter to the share used, and warn when the limit is close.
+    const percent = Math.round(share * 100);
+
+    meterElement.querySelector('[data-part="time-meter-fill"]').style.width = `${percent}%`;
+    meterElement.setAttribute('aria-valuenow', String(percent));
+    meterElement.classList.toggle('autonomous__time-meter--late', share >= TIME_LATE_SHARE);
 }
 
 // Initial render.

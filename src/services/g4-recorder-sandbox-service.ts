@@ -121,6 +121,27 @@ export class G4RecorderSandboxService {
     }
 
     /**
+     * Returns why a recorder host cannot run on a platform.
+     *
+     * @remarks
+     * Compute-only: the platform is passed in, so the rule can be checked for every platform from any machine.
+     *
+     * @param recorderFileName - Recorder DLL file name selected from the recorder driver.
+     * @param platform - The platform the extension runs on.
+     * @returns The reason, or an empty string when the recorder can run there.
+     */
+    private static getSandboxRecorderPlatformIssue(recorderFileName: string, platform: NodeJS.Platform): string {
+        // SAP GUI for Windows is the only SAP GUI the recorder can attach to, so its host is never shipped elsewhere.
+        const isSapOutsideWindows = recorderFileName === 'G4.Recorders.Sap.dll' && platform !== 'win32';
+
+        if (isSapOutsideWindows) {
+            return 'Recorder sandbox startup skipped because the SAP recorder runs only on Windows.';
+        }
+
+        return '';
+    }
+
+    /**
      * Resolves the sandbox recorder DLL for a recorder driver.
      *
      * @param driver - Recorder driver name from the manifest.
@@ -134,6 +155,20 @@ export class G4RecorderSandboxService {
 
         if (isChromiumRecorder) {
             return 'G4.Recorders.Chromium.dll';
+        }
+
+        // Android recorders use the Android recorder host, which prepares the device over adb.
+        const isAndroidRecorder = normalizedDriver.includes('android');
+
+        if (isAndroidRecorder) {
+            return 'G4.Recorders.Android.dll';
+        }
+
+        // SAP recorders use the SAP GUI Scripting recorder host, which ships for Windows only.
+        const isSapRecorder = normalizedDriver.includes('sap');
+
+        if (isSapRecorder) {
+            return 'G4.Recorders.Sap.dll';
         }
 
         // UIA recorders use the UI Automation recorder process.
@@ -175,6 +210,16 @@ export class G4RecorderSandboxService {
         sandboxPath: string,
         recorderFileName: string
     ): string[] {
+        // The Android recorder ships in its own bundle, next to the Chromium one.
+        if (recorderFileName === 'G4.Recorders.Android.dll') {
+            return [path.join(sandboxPath, 'bot-utilities', 'android-recorder-x64')];
+        }
+
+        // The SAP recorder ships as a Windows-only bundle, because SAP GUI for Windows is what it records.
+        if (recorderFileName === 'G4.Recorders.Sap.dll') {
+            return [path.join(sandboxPath, 'bot-utilities', 'sap-recorder-win-x64')];
+        }
+
         // Chromium recorder assets are expected in the chromium recorder bundle.
         const chromiumRecorderDirectory = path.join(sandboxPath, 'bot-utilities', 'chromium-recorder-x64');
 
@@ -304,6 +349,13 @@ export class G4RecorderSandboxService {
                 driver,
                 message: `Recorder sandbox startup skipped because driver '${driver || 'Unknown'}' is unsupported.`
             });
+        }
+
+        // Skip a recorder whose host is not built for this platform, instead of reporting missing sandbox files.
+        const platformIssue = this.getSandboxRecorderPlatformIssue(recorderFileName, os.platform());
+
+        if (platformIssue) {
+            return this.newSkippedResult({ baseUri, driver, message: platformIssue });
         }
 
         // Spawn the sandboxed recorder and wait briefly for the ping endpoint to come online.

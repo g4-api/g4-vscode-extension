@@ -64,6 +64,8 @@ Jump to a group:
 | Fewer log entries than expected | `logLevel` is `warning` or `error`, or a source filter hides the logger | Set the **Detail Level** to `information` or `debug`. Check **Source Filter Mode** and **Sources** | `src/logging/logger-base.ts:1030-1085` |
 | Log level changed but the output did not | Loggers read the settings when they are created, and most are created at start | Run **Developer: Reload Window** | `src/commands/command-base.ts:43` |
 | The Settings Editor logging fields do not change the output log | The Settings Editor writes `clientLogConfiguration`, but the extension reads `clientLogSettings` | Put the section under `clientLogSettings` in `manifest.json` | `src/extensions/utilities.ts:397-401` |
+| **G4: Show Event JSON** says there are no events, or the event you want is not in the list | Only the last 50 events are kept, in memory, and nothing survives a restart of VS Code | Run the bot again, then run the command while the event is among the last 50 | `src/services/g4-event-log-service.ts:33` |
+| A Hub event in the log shows `{…9 keys}` or `… truncated` instead of its JSON | The log shortens large events, because the Output panel cannot fold | Run **G4: Show Event JSON** to add the part in full, or set **G4: Event Log Detail** to `full` | `src/services/g4-event-log-service.ts:480` |
 
 ---
 
