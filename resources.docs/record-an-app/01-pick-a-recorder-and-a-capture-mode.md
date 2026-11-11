@@ -41,12 +41,13 @@ Below the switches you see one card for each recorder. Click **+ Add Machine** t
 
 ## Step 2: Tell the recorders apart
 
-A recorder is chosen by its driver. A new project comes with two:
+A recorder is chosen by its driver. A new project comes with three, and the Android one starts switched off:
 
 | Recorder | Driver | Default port | What it watches |
 | --- | --- | --- | --- |
 | Desktop | `UiaDriver` | 9955 | Any Windows application, through UI Automation |
 | Browser | `ChromeDriver` | 9956 | A Chrome window that the recorder launches for you |
+| Android | `AndroidDriver` | 9958 | An Android device or emulator, through a recorder app the service installs for you |
 
 Each card shows the driver in its title, for example `machine-a - UiaDriver`. Open a card to see its fields:
 
@@ -61,7 +62,17 @@ Each card shows the driver in its title, for example `machine-a - UiaDriver`. Op
 | **Leave the DOM Context Out of the Recorded Flow** | `excludeDomContext` | Removes the markup snapshot the Hub adds to browser actions. On by default. See Step 5 |
 | **Leave Out of the Recorded Flow** | `excludeEvents` | Actions removed from this machine's flow when you stop. See Step 5 |
 
-> **📝 Note:** The Hub accepts only two driver families for recording: `UiaDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
+> **📝 Note:** The Hub accepts three driver families for recording: `UiaDriver`, `AndroidDriver`, and any driver whose name contains `chrome`. A recorder with another driver is refused when you press **Start**. Module 7 shows the message.
+
+### Record an Android app
+
+The Android recorder needs adb on the machine that runs the recorder service, and one device or emulator that `adb devices` lists. On the Android card:
+
+1. Turn **Enabled** on.
+2. Set `appium:appPackage`, and `appium:appActivity` if the app has no launcher icon, in the card's capabilities. These are the same values the flow replays with.
+3. Set `appium:udid` only when more than one device is connected.
+
+When you press **Start**, the recorder service installs its recorder app, switches on its accessibility service, and starts your app. When you stop, it switches the service off again. The Android card leaves `SwitchActivity` and `InvokeLongClick` out of the flow, because no plugin replays them yet.
 
 ---
 

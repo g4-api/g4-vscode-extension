@@ -9,6 +9,9 @@ import { CommandBase } from './command-base';
 import { Logger } from '../logging/logger';
 import { Utilities } from '../extensions/utilities';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4EventLogService } from '../services/g4-event-log-service';
+
+import type { EventLogLevel } from '../services/g4-event-log-service';
 
 // How long manifest.json must stay quiet before the designer receives its toolboxes filter; one save fires
 // several file events.
@@ -214,6 +217,28 @@ export class ShowWorkflowCommand extends CommandBase {
     }
 
     /**
+     * Gets the event log level of a console level the designer page wrote at.
+     *
+     * @param consoleLevel - The console level: 'log', 'info', 'warn', 'error', or 'debug'.
+     * @returns The level the event log writes at; anything unknown is information.
+     */
+    public static convertToEventLevel(consoleLevel: unknown): EventLogLevel {
+        switch (consoleLevel) {
+            case 'debug':
+                return 'debug';
+
+            case 'error':
+                return 'error';
+
+            case 'warn':
+                return 'warning';
+
+            default:
+                return 'information';
+        }
+    }
+
+    /**
      * Masks credential values in a text that the designer page logs.
      *
      * @remarks
@@ -227,15 +252,8 @@ export class ShowWorkflowCommand extends CommandBase {
      * @returns The text with every credential value masked.
      */
     public static convertToMaskedText(text: unknown): string {
-        // Only text can be logged; anything else carries nothing to show.
-        if (typeof text !== 'string') {
-            return '';
-        }
-
-        // Match a credential key with its opening quote (escaped or not), then the value up to its end.
-        const credentialPattern = /(\\?"(?:token|password)\\?"\s*:\s*\\?")[^"\\]*/gi;
-
-        return text.replaceAll(credentialPattern, '$1***');
+        // The event log owns the masking rules, so console text and events are masked the same way.
+        return G4EventLogService.convertToMaskedText(text);
     }
 
     /**
@@ -439,10 +457,11 @@ export class ShowWorkflowCommand extends CommandBase {
              * The extension side should listen for messages with type 'console'
              * and handle the provided log level and text payload.
              *
-             * @param level - The console level, for example 'log', 'info', 'warn', or 'error'.
-             * @param text  - The console message text to send.
+             * @param level  - The console level, for example 'log', 'info', 'warn', or 'error'.
+             * @param text   - The console message text to send.
+             * @param values - The object arguments as plain data, such as Hub events; optional.
              */
-            const sendConsoleMessage = (level, text) => {
+            const sendConsoleMessage = (level, text, values) => {
                 // Post a message to the VS Code extension host.
                 window.vscodeApi.postMessage({
                     // Message type used by the extension to identify console messages.
@@ -451,9 +470,40 @@ export class ShowWorkflowCommand extends CommandBase {
                     // Console message data.
                     payload: {
                         level,
-                        text
+                        text,
+                        values: values || []
                     }
                 });
+            };
+
+            /**
+             * Converts a console argument that is an object into plain data the extension can read.
+             *
+             * Behavior:
+             * - Returns undefined for strings, errors, and other non-objects, which stay text.
+             * - Copies objects and arrays through JSON, so only plain data crosses to the extension.
+             * - Returns undefined when the object cannot be copied, for example a circular one; it is
+             *   then logged as text.
+             *
+             * @param value - The console argument.
+             * @returns The plain data, or undefined when the argument stays text.
+             */
+            const convertToEventValue = (value) => {
+                // Only objects and arrays are sent as data.
+                if (value === null || typeof value !== 'object' || value instanceof Error) {
+                    return undefined;
+                }
+
+                try {
+                    // A JSON copy drops functions and DOM references, and fails on circular objects.
+                    const copy = JSON.parse(JSON.stringify(value));
+
+                    return copy !== null && typeof copy === 'object'
+                        ? copy
+                        : undefined;
+                } catch {
+                    return undefined;
+                }
             };
 
             /**
@@ -516,9 +566,15 @@ export class ShowWorkflowCommand extends CommandBase {
                     // Write to the original browser/devtools console first.
                     original(...args);
 
-                    // Convert all console arguments to text and join them into one message.
-                    const text = args
-                        .map(convertFromJson)
+                    // Objects, such as the events the Hub sends, go to the extension as data, so its log can
+                    // show them readably; the other arguments are joined into the message text.
+                    const converted = args.map(value => ({ value, data: convertToEventValue(value) }));
+                    const values = converted
+                        .filter(item => item.data !== undefined)
+                        .map(item => item.data);
+                    const text = converted
+                        .filter(item => item.data === undefined)
+                        .map(item => convertFromJson(item.value))
                         .join(' ');
 
                     // If this message contains a document result marker,
@@ -528,7 +584,7 @@ export class ShowWorkflowCommand extends CommandBase {
                     }
 
                     // Forward normal console output to the VS Code extension host.
-                    sendConsoleMessage(level, text);
+                    sendConsoleMessage(level, text, values);
                 };
             });
 
@@ -1093,6 +1149,22 @@ export class ShowWorkflowCommand extends CommandBase {
         // These messages are written to the extension logger using the matching level.
         if (message.type === 'console') {
             const level = message.payload.level;
+
+            // Objects the designer logged, such as the events the Hub sends, go to the event log, which masks them,
+            // numbers them, and writes a readable summary; the text arguments become their label.
+            const values: unknown[] = Array.isArray(message.payload.values)
+                ? message.payload.values
+                : [];
+
+            if (values.length > 0) {
+                const eventLevel = ShowWorkflowCommand.convertToEventLevel(level);
+
+                for (const value of values) {
+                    G4EventLogService.writeEvent({ label: message.payload.text, level: eventLevel, logger: this._logger, value });
+                }
+
+                return;
+            }
 
             // The designer logs every automation request it sends, credentials included; mask them before
             // anything reaches the log, which is written to disk.

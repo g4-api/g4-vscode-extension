@@ -4,14 +4,14 @@
 
 ⏱️ **About 6 minutes**
 
-The recorder is how G4 **watches a user click around a desktop application** and turns those actions into a workflow it can replay later. `settings.recorderSettings` configures it. Out of the box it defines **two** recorders — a UIA (desktop) recorder on port `9955` and a Chromium (browser) recorder on port `9956`.
+The recorder is how G4 **watches a user click around a desktop application** and turns those actions into a workflow it can replay later. `settings.recorderSettings` configures it. Out of the box it defines **three** recorders — a UIA (desktop) recorder on port `9955`, a Chromium (browser) recorder on port `9956`, and an Android recorder on port `9958` that starts disabled.
 
 ```json
 "recorderSettings": {
     "enabled": true,
     "disableChromeNetworkSandbox": false,
     "useSandbox": false,
-    "recorders": [ { "...": "UIA on 9955" }, { "...": "Chromium on 9956" } ]
+    "recorders": [ { "...": "UIA on 9955" }, { "...": "Chromium on 9956" }, { "...": "Android on 9958, disabled" } ]
 }
 ```
 
@@ -29,7 +29,7 @@ In this module, you will:
 - **`enabled`** — the master on/off switch for *all* recorders. If `false`, no recording happens no matter what's inside the list.
 - **`useSandbox`** — when `true`, G4 **auto-starts the bundled recorder services from your sandbox** for you (this is the manifest form of the **Use Sandbox** toggle in the recorder panel). Set it `false` when you run the recorder service yourself, locally or on another machine.
 - **`disableChromeNetworkSandbox`** — when `true`, the Chromium recorder starts Chrome **without its network sandbox** (it adds `--disable-features=NetworkServiceSandbox` to the browser arguments at Start; your manifest is not changed). Leave it `false` unless every page in the recorder's Chrome stays blank; that happens when Chrome cannot read its own folder from its sandbox. This is the manifest form of the **Chrome Network Sandbox Off** toggle in the recorder panel.
-- **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA** recorder and a **Chromium** recorder.
+- **`recorders`** — an array of recorder definitions. Each entry describes one **machine/target** and has its own `enabled` flag, so you can turn each on or off individually. The defaults are a **UIA** recorder, a **Chromium** recorder and a disabled **Android** recorder.
 
 **When to use multiple recorders:**
 
@@ -104,6 +104,31 @@ The driver each recorder uses to *talk to* the target while watching the user. T
     "firstMatch": [ {} ]
 }
 ```
+
+**Android recorder** (device or emulator, port `9958`) — records an Android app through a recorder app that the recorder service installs over adb:
+
+```json
+"driverParameters": {
+    "capabilities": {
+        "alwaysMatch": {
+            "platformName": "android",
+            "appium:automationName": "UiAutomator2",
+            "appium:udid": "",
+            "appium:appPackage": "com.example.app",
+            "appium:appActivity": ".MainActivity",
+            "appium:app": ""
+        }
+    },
+    "driver": "AndroidDriver",
+    "driverBinaries": "http://localhost:4723",
+    "firstMatch": [ {} ]
+}
+```
+
+- **`appium:appPackage`** and **`appium:appActivity`** — the app to start when recording begins. With a package and no activity, the app's launcher activity starts. With neither, every app on the device is recorded.
+- **`appium:udid`** — the adb serial; leave it empty when one device is connected.
+- **`appium:app`** — an APK path on the recorder machine to install first; leave it empty when the app is already installed.
+- **`driverBinaries`** — the Appium server the recorded flow replays on. The recorder itself does not use Appium.
 
 - **`uia:options.label`** — a friendly name for a UIA target (used in reports); change it to something like `accounting-pc`.
 - **`goog:chromeOptions.binary`** — the Chrome executable to launch; the sandbox fills this in for you.
@@ -189,7 +214,7 @@ Each recorder can list the actions VS Code removes from its part of the flow whe
 
 - **`name`** — the action as it appears in the flow, which is the rule's `pluginName`. Names are compared without regard to case.
 - An exclusion only applies to the jobs this recorder produced. Another recorder keeps the same action unless it lists it too.
-- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder.
+- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder, and `SwitchActivity` and `InvokeLongClick` for the Android recorder, which no plugin replays yet.
 - The list is applied by VS Code when you stop a recording, and to the flows of an autonomous run. The recorders and the Hub never see it.
 
 > **⚠️ Pitfall:** Desktop recorders name their actions after the capture mode (for example `InvokeUser32Click` in `user32` mode). Copy the name from a recorded flow rather than from the recorder's event name.
@@ -218,7 +243,7 @@ To change what the snapshot holds, or to stop the recorder from taking it, open 
 
 - [ ] Top-level `enabled` is `true`, and each recorder you want is enabled
 - [ ] `useSandbox` is `true` if you want G4 to start the bundled recorders for you
-- [ ] Each recorder's `host`/`port` matches where its service listens (`9955` UIA, `9956` Chromium)
+- [ ] Each recorder's `host`/`port` matches where its service listens (`9955` UIA, `9956` Chromium, `9958` Android)
 - [ ] `thinkTimeSettings` fits the app — a range, a constant (`min == max`), or disabled for speed
 - [ ] `mode` is the one you want (`standard`, `user32` or `coordinate`), and `useOffset` is on only for `user32`
 - [ ] Any pre- or post-script uses a `shell` your machine has, and exits with `0`

@@ -67,7 +67,7 @@ Find the message or symptom in the table, then read its card. Each card gives th
 
 ## Failed to start recording: REASON
 
-- **Cause:** The Hub refused the start. Common reasons are `Recorder driver must be ChromeDriver or UiaDriver.` (see [Module 7](07-record-sap-and-where-flow-generation-stops.md)) and `Recorder mode must be standard, user32, or coordinate.`.
+- **Cause:** The Hub refused the start. Common reasons are `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.` (see [Module 7](07-record-sap-and-where-flow-generation-stops.md)) and `Recorder mode must be standard, user32, or coordinate.`.
 - **Check:** Read the reason after the colon.
 - **Fix:** Correct the recorder card named by the reason, then **Save** and start again.
 - **Source:** `src/commands/start-recorder.ts:372`

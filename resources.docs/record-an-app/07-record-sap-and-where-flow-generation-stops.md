@@ -31,13 +31,13 @@ Values typed into password fields are redacted.
 
 When you press **Start**, the Hub checks every recorder:
 
-- It accepts a driver named `UiaDriver`, or any driver whose name contains `chrome`. Any other driver, including a SAP driver, is refused.
+- It accepts a driver named `UiaDriver` or `AndroidDriver`, or any driver whose name contains `chrome`. Any other driver, including a SAP driver, is refused.
 - It accepts the modes `standard`, `user32`, and `coordinate` only.
 
 So when a SAP recorder is enabled in your settings and you press **Start**, Studio shows an error that begins with `Failed to start recording:` followed by the Hub's reason. The Hub's reason for the driver is:
 
 ```text
-Recorder driver must be ChromeDriver or UiaDriver.
+Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.
 ```
 
 The Hub builder that turns events into rules has no code for the `user32` and `nativeSap` streams. This is where flow generation stops.
@@ -59,7 +59,7 @@ The Hub builder that turns events into rules has no code for the `user32` and `n
 ## ✔ Check your work
 
 - [ ] You know the SAP recorder reports two streams
-- [ ] You can read the `Recorder driver must be ChromeDriver or UiaDriver.` message
+- [ ] You can read the `Recorder driver must be AndroidDriver, ChromeDriver or UiaDriver.` message
 - [ ] You know to keep a SAP recorder disabled when you record other applications
 
 ---

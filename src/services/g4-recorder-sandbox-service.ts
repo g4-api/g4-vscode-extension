@@ -136,6 +136,13 @@ export class G4RecorderSandboxService {
             return 'G4.Recorders.Chromium.dll';
         }
 
+        // Android recorders use the Android recorder host, which prepares the device over adb.
+        const isAndroidRecorder = normalizedDriver.includes('android');
+
+        if (isAndroidRecorder) {
+            return 'G4.Recorders.Android.dll';
+        }
+
         // UIA recorders use the UI Automation recorder process.
         const isUiaRecorder = normalizedDriver.includes('uia');
 
@@ -175,6 +182,11 @@ export class G4RecorderSandboxService {
         sandboxPath: string,
         recorderFileName: string
     ): string[] {
+        // The Android recorder ships in its own bundle, next to the Chromium one.
+        if (recorderFileName === 'G4.Recorders.Android.dll') {
+            return [path.join(sandboxPath, 'bot-utilities', 'android-recorder-x64')];
+        }
+
         // Chromium recorder assets are expected in the chromium recorder bundle.
         const chromiumRecorderDirectory = path.join(sandboxPath, 'bot-utilities', 'chromium-recorder-x64');
 

@@ -211,6 +211,19 @@ describe('New project manifest excluded events', () => {
 
         assert.deepEqual(getExclusions('ChromeDriver'), [{ name: 'SubmitForm' }]);
         assert.deepEqual(getExclusions('UiaDriver'), []);
+        assert.deepEqual(getExclusions('AndroidDriver'), [{ name: 'SwitchActivity' }, { name: 'InvokeLongClick' }]);
+    });
+
+    it('ships the Android recorder disabled on port 9958 with its Appium capabilities', () => {
+        const recorders: any[] = Global.BASE_MANIFEST.settings.recorderSettings.recorders;
+        const android = recorders.find((item) => item.driverParameters?.driver === 'AndroidDriver');
+        const alwaysMatch = android?.driverParameters?.capabilities?.alwaysMatch;
+
+        assert.equal(android?.enabled, false);
+        assert.equal(android?.port, '9958');
+        assert.equal(alwaysMatch?.platformName, 'android');
+        assert.equal(alwaysMatch?.['appium:automationName'], 'UiAutomator2');
+        assert.ok('appium:appPackage' in alwaysMatch);
     });
 
     it('leaves the DOM context out of the flow on every recorder', () => {
