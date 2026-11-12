@@ -40,7 +40,12 @@ The toolboxes are listed in alphabetical order. A **Containers** toolbox holds *
 
 A switch has three states: on, off, and half-way (some of the tools of that toolbox are shown and some are hidden). The **All** switch works the same way for all toolboxes.
 
-The filter is saved in a browser cookie named `g4-toolboxes-filter`, so it stays between visits to the canvas. The cookie is limited to 4000 characters. If your filter gets too large, the panel says **The filter is too large to save in the browser; turn fewer tools on or off.** `TODO(verify)`: whether the cookie survives closing VS Code was not checked.
+Where the filter is saved depends on where the canvas runs:
+
+- **In VS Code**, the filter is saved with the project (in VS Code's workspace storage), so it stays when you close the tab or VS Code. Each project has its own filter, and there is no size limit.
+- **In a browser**, on the Hub's own canvas page, the filter is saved in a browser cookie named `g4-toolboxes-filter`. The cookie is limited to 4000 characters. If your filter gets too large, the panel says **The filter is too large to save in the browser; turn fewer tools on or off.**
+
+The two are kept apart: a filter you set in the browser does not appear in VS Code, and the other way round.
 
 ---
 
@@ -88,7 +93,7 @@ For each tool, the first rule that matches decides:
 3. The toolbox entry of the tool's toolbox
 4. Nothing matched, so the tool is shown
 
-If one name appears twice, the last entry wins. The manifest entries are placed after your cookie entries, so the project decides where the two disagree, one entry at a time. Your own entries for other names still apply.
+If one name appears twice, the last entry wins. The manifest entries are placed after your own entries, so the project decides where the two disagree, one entry at a time. Your own entries for other names still apply.
 
 In the panel, a switch that the manifest decides is locked. Point at it and the tooltip reads **Set by the project manifest**. The summary also says how many entries come from the manifest, for example `12 of 15 shown · 2 set by the project manifest`.
 
