@@ -31,6 +31,10 @@ const USER_TOOLBOXES_FILTER_KEY = 'g4.designer.toolboxesFilter.user';
  * This command scaffolds a basic project layout with folders, manifests, and sample files.
  */
 export class ShowWorkflowCommand extends CommandBase {
+    // Hub features already reported to the user, keyed by Hub URL and feature. The set is static so
+    // reopening the designer, or opening a second bot, does not repeat a notification for the same Hub.
+    private static readonly _reportedHostFeatures = new Set<string>();
+
     // Logger instance scoped to this command
     // This allows us to log messages specific to the New Project command
     private readonly _logger: Logger;
@@ -690,36 +694,89 @@ export class ShowWorkflowCommand extends CommandBase {
             // The designer plugins' state for the open bot, as the extension keeps it, keyed by plugin name.
             const pluginStates = {};
 
-            // Keep the designer plugins' state in the extension, per bot file: the webview's own storage
-            // does not outlive the tab. The bot file names the state, so the automation title is not used.
-            globalThis.G4DesignerPlugins?.setStateStorage({
-                readState: (pluginName) => pluginStates[pluginName] ?? null,
-                saveState: (pluginName, documentTitle, state) => {
-                    const savedState = state ?? null;
-
-                    pluginStates[pluginName] = savedState;
-                    vscode.postMessage({
-                        payload: { plugin: pluginName, state: savedState },
-                        type: 'workflow:plugins:state:save'
-                    });
-                }
-            });
-
             // The user's own toolboxes filter, as the extension keeps it for the workspace.
             let userToolboxesFilter = { toolboxes: [], tools: [] };
 
-            // Keep the user's toolboxes filter in the extension: a webview has no cookies, so the Hub's
-            // cookie store would drop every change and the filter switches would not respond.
-            globalThis.G4ToolboxesFilter?.setToolboxesFilterStore({
-                read: () => userToolboxesFilter,
-                save: (filter) => {
-                    userToolboxesFilter = filter;
-                    vscode.postMessage({
-                        payload: { filter },
-                        type: 'workflow:toolboxes:user:save'
-                    });
+            /**
+             * Tests whether the Hub page publishes one host method.
+             *
+             * A Hub older than this extension publishes the host object without the method this
+             * extension calls, so optional chaining alone ('host?.method()') still throws: it guards a
+             * missing host, not a missing method. Both are checked here.
+             *
+             * @param host       - The host object the Hub page publishes, or undefined.
+             * @param methodName - The method this extension needs from it.
+             * @returns True when the method can be called.
+             */
+            const testHostMethod = (host, methodName) => typeof host?.[methodName] === 'function';
+
+            /**
+             * Returns a readable message for a value a Hub host object threw.
+             *
+             * A thrown value is never stringified directly: a plain object would reach the log as
+             * '[object Object]' and hide what the Hub refused, so each case is narrowed first.
+             *
+             * @param error - The value the Hub host threw.
+             * @returns The message to report, never an object.
+             */
+            const getErrorText = (error) => {
+                // An Error already carries the message that names what the Hub host refused.
+                if (error instanceof Error) {
+                    return error.message;
                 }
-            });
+
+                // A thrown string is the message itself.
+                if (typeof error === 'string') {
+                    return error;
+                }
+
+                // Anything else is serialized, so the report keeps whatever the value held.
+                try {
+                    return JSON.stringify(error) ?? 'Unknown error';
+                } catch {
+                    return 'Unknown error';
+                }
+            };
+
+            /**
+             * Registers one optional Hub host feature without ever failing the page.
+             *
+             * Every host feature below is optional: the editor itself (drag and drop, the flow the
+             * extension sends, the edit reports) must keep working against a Hub that does not publish
+             * it. An unavailable or failing feature is reported to the extension, which logs it and
+             * tells the user once, and the page carries on.
+             *
+             * @param featureName - The feature, named for the user: what stops working without it.
+             * @param isAvailable - Whether the Hub page publishes what the feature needs.
+             * @param register    - Registers the feature with the Hub page.
+             * @returns True when the feature was registered.
+             */
+            const registerHostFeature = (featureName, isAvailable, register) => {
+                // Report an absent feature, then carry on: the editor does not depend on it.
+                if (!isAvailable) {
+                    vscode.postMessage({
+                        payload: { feature: featureName, reason: 'This G4 Hub does not provide it.' },
+                        type: 'workflow:host:feature:unavailable'
+                    });
+
+                    return false;
+                }
+
+                try {
+                    register();
+
+                    return true;
+                } catch (error) {
+                    // A failing registration is contained the same way an absent one is.
+                    console.warn('G4 Hub feature could not be registered: ' + featureName, error);
+                    vscode.postMessage({
+                        payload: { feature: featureName, reason: getErrorText(error) },
+                        type: 'workflow:host:feature:unavailable'
+                    });
+
+                    return false;
+                }
+            };
 
             // Get the drop area element by its ID in the DOM
             const dropArea = document.getElementById('designer');
@@ -985,7 +1042,12 @@ export class ShowWorkflowCommand extends CommandBase {
                 // Apply the user's saved filter and the project manifest's filter; the toolbox redraws at once.
                 if (type === 'workflow:toolboxes:set') {
                     userToolboxesFilter = event.data?.payload?.userFilter ?? { toolboxes: [], tools: [] };
-                    globalThis.G4ToolboxesFilter?.setToolboxesFilterManifest(event.data?.payload?.toolboxesFilter);
+
+                    // A Hub without the filter shows every toolbox and tool; the editor is unaffected.
+                    registerHostFeature(
+                        'the project toolbox filter',
+                        testHostMethod(globalThis.G4ToolboxesFilter, 'setToolboxesFilterManifest'),
+                        () => globalThis.G4ToolboxesFilter.setToolboxesFilterManifest(event.data?.payload?.toolboxesFilter));
 
                     return;
                 }
@@ -994,9 +1056,13 @@ export class ShowWorkflowCommand extends CommandBase {
                 if (type === 'workflow:plugins:state:set') {
                     const states = event.data?.payload?.states ?? {};
 
+                    // One plugin that cannot take its state never stops the others from taking theirs.
                     for (const [pluginName, state] of Object.entries(states)) {
                         pluginStates[pluginName] = state;
-                        globalThis.G4DesignerPlugins?.receiveState(pluginName, state);
+                        registerHostFeature(
+                            'the saved state of designer plugin ' + pluginName,
+                            testHostMethod(globalThis.G4DesignerPlugins, 'receiveState'),
+                            () => globalThis.G4DesignerPlugins.receiveState(pluginName, state));
                     }
 
                     return;
@@ -1011,7 +1077,92 @@ export class ShowWorkflowCommand extends CommandBase {
                 const definition = JSON.parse(event.data?.payload?.content || '{}');
                 applyDefinition(definition);
             });
+
+            // The optional Hub host features are registered last, after the editor is wired above, so a
+            // Hub that does not publish one can never cost the editor its drag and drop, the flow the
+            // extension sends, or its edit reports.
+
+            // Keep the designer plugins' state in the extension, per bot file: the webview's own storage
+            // does not outlive the tab. The bot file names the state, so the automation title is not used.
+            registerHostFeature(
+                'saving the layout of designer plugins, such as collapsed regions',
+                testHostMethod(globalThis.G4DesignerPlugins, 'setStateStorage'),
+                () => globalThis.G4DesignerPlugins.setStateStorage({
+                    readState: (pluginName) => pluginStates[pluginName] ?? null,
+                    saveState: (pluginName, documentTitle, state) => {
+                        const savedState = state ?? null;
+
+                        pluginStates[pluginName] = savedState;
+                        vscode.postMessage({
+                            payload: { plugin: pluginName, state: savedState },
+                            type: 'workflow:plugins:state:save'
+                        });
+                    }
+                }));
+
+            // Keep the user's toolboxes filter in the extension: a webview has no cookies, so the Hub's
+            // cookie store would drop every change and the filter switches would not respond.
+            registerHostFeature(
+                'saving your own toolbox filter',
+                testHostMethod(globalThis.G4ToolboxesFilter, 'setToolboxesFilterStore'),
+                () => globalThis.G4ToolboxesFilter.setToolboxesFilterStore({
+                    read: () => userToolboxesFilter,
+                    save: (filter) => {
+                        userToolboxesFilter = filter;
+                        vscode.postMessage({
+                            payload: { filter },
+                            type: 'workflow:toolboxes:user:save'
+                        });
+                    }
+                }));
         </script>`;
+    }
+
+    /**
+     * Tells the user, once per Hub, that this Hub does not provide an optional designer feature.
+     *
+     * @remarks
+     * The designer page registers every optional Hub feature defensively, so a Hub older than this
+     * extension costs only that feature. Nothing is broken when this runs, so the notification is a
+     * warning that names the feature and says the editor keeps working; the reason, which names the
+     * method the Hub does not publish, goes to the log only.
+     *
+     * @param payload - The page's message payload: { feature, reason }.
+     */
+    private reportUnavailableHostFeature(payload: unknown): void {
+        // Narrow the page's message, so neither name nor reason can reach the log as an object.
+        const { feature, reason } = (payload ?? {}) as { feature?: unknown; reason?: unknown; };
+        const featureName = typeof feature === 'string' ? feature.trim() : '';
+        const isReasonText = typeof reason === 'string' && reason.trim() !== '';
+        const reasonText = isReasonText
+            ? (reason as string).trim()
+            : 'The G4 Hub does not provide it.';
+
+        // A report without a feature name has nothing to tell the user, so it is only logged.
+        if (featureName === '') {
+            this._logger?.warning(`A G4 Hub designer feature is unavailable at ${this._baseUrl}: ${reasonText}`);
+
+            return;
+        }
+
+        // Log every report, so a second bot or a reopened tab still leaves a trace.
+        this._logger?.warning(
+            `The G4 Hub at ${this._baseUrl} does not provide '${featureName}': ${reasonText}`);
+
+        // Show it once per Hub and feature, so the user is told without being nagged.
+        const reportKey = `${this._baseUrl}|${featureName}`;
+
+        if (ShowWorkflowCommand._reportedHostFeatures.has(reportKey)) {
+            return;
+        }
+
+        ShowWorkflowCommand._reportedHostFeatures.add(reportKey);
+
+        // Say what stops working and that the editor does not, so the notice informs instead of alarms.
+        const unsupportedText = `This {hub} does not support ${featureName}.`;
+        const workingText = 'The Workflow editor works normally; updating the {hub} enables it.';
+
+        void vscode.window.showWarningMessage(G4BrandingService.getText(`${unsupportedText} ${workingText}`));
     }
 
     /**
@@ -1022,6 +1173,7 @@ export class ShowWorkflowCommand extends CommandBase {
      * - workflow:token:get - Answers with the manifest's license token for a run that has none.
      * - workflow:plugins:state:save - Keeps a designer plugin's state for the bot file.
      * - workflow:toolboxes:user:save - Keeps the user's toolboxes filter for the workspace.
+     * - workflow:host:feature:unavailable - Tells the user this Hub lacks an optional designer feature.
      * - webview:ready   - Sends the plugins' state, then an initial workflow to the webview when available.
      * - workflow:result - Opens the generated workflow report.
      * - console         - Writes webview console messages to the extension logger.
@@ -1134,6 +1286,13 @@ export class ShowWorkflowCommand extends CommandBase {
         // The user changed the designer's toolboxes filter; keep it for the workspace, as the Hub keeps a cookie.
         if (message.type === 'workflow:toolboxes:user:save') {
             await ShowWorkflowCommand.saveUserToolboxesFilter(this.context.workspaceState, message.payload);
+
+            return;
+        }
+
+        // The Hub does not provide an optional designer feature; the editor works, so say what is missing.
+        if (message.type === 'workflow:host:feature:unavailable') {
+            this.reportUnavailableHostFeature(message.payload);
 
             return;
         }
