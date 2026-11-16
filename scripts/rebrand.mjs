@@ -2,9 +2,11 @@
  * Packages a white-label VSIX: the extension's static labels and icons rewritten with a Hub branding.
  *
  * VS Code reads the display name, the command categories and titles, the view and editor names, and the icons
- * from package.json once, so they cannot follow the Hub at runtime. This script copies the extension into a
- * staging folder, rewrites those labels there, replaces the side-panel icon when the branding names one, and packages
- * the copy with vsce. The
+ * from the manifest before the extension runs. package.json names those labels as %key% placeholders, filled from
+ * package.nls.json; the installed extension rewrites that file from the Hub branding at runtime and asks for a
+ * reload. This script bakes one branding into a VSIX ahead of time instead, for example for a marketplace build: it
+ * copies the extension into a staging folder, fills resources.branding/package.nls.template.json into the staging
+ * package.nls.json, replaces the side-panel icon when the branding names one, and packages the copy with vsce. The
  * repository files are never changed. It never touches the extension identity (name, publisher, version), the
  * contribution ids, the when clauses, the menus, or the dependencies, so the branded VSIX installs as the same
  * extension. README, CHANGELOG, and the shipped docs keep their G4 text.
@@ -47,11 +49,17 @@ const LINE_SEPARATOR_PATTERN = /\r?\n/;
 // The character code of a byte order mark at the start of a file.
 const BYTE_ORDER_MARK_CODE = 0xFEFF;
 
+// The manifest labels VS Code fills the %key% placeholders of package.json from.
+const LABELS_FILE = 'package.nls.json';
+
+// The manifest labels in token form, such as "Open {product} Report", shipped with the extension.
+const LABELS_TEMPLATE_FILE = path.join('resources.branding', 'package.nls.template.json');
+
+// Matches one placeholder such as {engineTm}. Linear: a bounded run of word characters between braces.
+const TOKEN_PATTERN = /\{(\w{1,64})\}/g;
+
 // The largest icon accepted; an activity bar icon is a few kilobytes, so anything larger is not an icon.
 const MAXIMUM_ICON_BYTES = 256 * 1024;
-
-// Matches a standalone G4 word, not one inside an identifier such as G4Log. Linear: a literal and a lookahead.
-const PRODUCT_WORD_PATTERN = /\bG4(?=[ :.,)'’-]|$)/g;
 
 // Matches each run of characters that cannot appear in the VSIX file name suffix. Linear: one negated class.
 const SLUG_SEPARATOR_PATTERN = /[^a-z0-9]+/g;
@@ -72,29 +80,6 @@ const XML_PROLOG_PATTERN = /^<\?xml[^>]{0,256}\?>/;
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 await invokeRebrand(process.argv.slice(2));
-
-/**
- * Converts text that names the product into its branded text.
- *
- * @param {string} text - The label text, for example "Open G4 Report".
- * @param {Record<string, string>} tokens - The branding placeholder values.
- * @returns {string} The branded text.
- *
- * @remarks
- * Longer names are replaced first, so "G4 Engine Client" is not read as "G4 Engine" followed by "Client". A G4
- * that is part of an identifier, such as G4Log or g4.reportFiles, is left as written.
- */
-function convertToBrandedText(text, tokens) {
-    // Replace the product names, longest first, then the marked and the plain product name.
-    return text
-        .replaceAll('G4 Engine Client', tokens.engineClient)
-        .replaceAll('G4 Engine', tokens.engine)
-        .replaceAll('G4 Hub', tokens.hub)
-        .replaceAll('G4 Studio', tokens.studio)
-        .replaceAll('G4 Test Wright', tokens.testWright)
-        .replaceAll('G4™', tokens.productTm)
-        .replaceAll(PRODUCT_WORD_PATTERN, tokens.product);
-}
 
 /**
  * Reads the command-line options.
@@ -142,10 +127,12 @@ async function invokeRebrand(argumentsList) {
     const stagingFolder = mkdtempSync(path.join(tmpdir(), `rebrand-${slug}-`));
     newStagingCopy(stagingFolder);
 
-    // Rewrite the static labels of package.json and the side-panel icon in the staging copy only.
+    // Fill the manifest labels of the staging copy only; package.json keeps its %key% placeholders.
+    updateManifestLabels(stagingFolder, branding.tokens);
+
+    // Read the staging manifest, which names the VSIX and loses its build step below.
     const packagePath = path.join(stagingFolder, 'package.json');
     const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
-    updateManifestLabels(manifest, branding.tokens);
 
     // The bundle is already built, and the copy holds no build tools, so vsce must not build again.
     delete manifest.scripts?.['vscode:prepublish'];
@@ -373,78 +360,27 @@ async function updateIcons(stagingFolder, branding, source) {
 }
 
 /**
- * Rewrites the static labels of the extension manifest with the branding.
+ * Fills the manifest label template with the branding and writes it as the staging package.nls.json.
  *
- * @param {object} manifest - The parsed package.json of the staging copy; changed in place.
+ * @param {string} stagingFolder - The staging copy of the extension; its package.nls.json is replaced.
  * @param {Record<string, string>} tokens - The branding placeholder values.
  *
  * @remarks
- * Only display text changes: the display name and description, command titles and categories, view container
- * titles, view names, welcome contents, custom editor names, the settings title and descriptions, and the first
- * language alias. Ids, when clauses,
- * menus, and the extension identity stay as written.
+ * The template holds every manifest label that names the product, keyed like the %key% placeholders of
+ * package.json: the display name and description, command titles and categories, view container titles, view
+ * names, welcome contents, custom editor names, and the settings title and descriptions. Ids, when clauses, menus,
+ * and the extension identity stay as written. An unknown placeholder is kept as written.
  */
-function updateManifestLabels(manifest, tokens) {
-    // Brand one label field of an entry when it holds text.
-    const setLabel = (entry, fieldName) => {
-        if (typeof entry?.[fieldName] === 'string') {
-            entry[fieldName] = convertToBrandedText(entry[fieldName], tokens);
-        }
-    };
+function updateManifestLabels(stagingFolder, tokens) {
+    // Read the token template shipped with the extension.
+    const template = JSON.parse(readFileSync(path.join(stagingFolder, LABELS_TEMPLATE_FILE), 'utf8'));
+    const labels = {};
 
-    const contributes = manifest.contributes ?? {};
-
-    // Brand the marketplace and Extensions view text.
-    setLabel(manifest, 'displayName');
-    setLabel(manifest, 'description');
-
-    // Brand the Command Palette entries.
-    for (const command of contributes.commands ?? []) {
-        setLabel(command, 'category');
-        setLabel(command, 'shortTitle');
-        setLabel(command, 'title');
+    // Replace each known placeholder of each label with its branded value.
+    for (const [key, labelText] of Object.entries(template)) {
+        labels[key] = labelText.replaceAll(TOKEN_PATTERN, (placeholder, tokenName) => tokens[tokenName] ?? placeholder);
     }
 
-    // Brand the activity bar and panel containers, and the views inside them.
-    for (const containers of Object.values(contributes.viewsContainers ?? {})) {
-        for (const container of containers) {
-            setLabel(container, 'title');
-        }
-    }
-
-    for (const views of Object.values(contributes.views ?? {})) {
-        for (const view of views) {
-            setLabel(view, 'contextualTitle');
-            setLabel(view, 'name');
-        }
-    }
-
-    // Brand the settings page title and the description of each setting.
-    const configurations = [contributes.configuration ?? []].flat();
-
-    for (const configuration of configurations) {
-        setLabel(configuration, 'title');
-
-        for (const property of Object.values(configuration.properties ?? {})) {
-            setLabel(property, 'description');
-            setLabel(property, 'markdownDescription');
-        }
-    }
-
-    // Brand the welcome text, the editor names in "Reopen Editor With", and the language mode name.
-    for (const welcome of contributes.viewsWelcome ?? []) {
-        setLabel(welcome, 'contents');
-    }
-
-    for (const editor of contributes.customEditors ?? []) {
-        setLabel(editor, 'displayName');
-    }
-
-    for (const language of contributes.languages ?? []) {
-        const isBrandedAlias = language.aliases?.[0]?.startsWith('G4');
-
-        if (isBrandedAlias) {
-            language.aliases[0] = `${tokens.product}${language.aliases[0].slice(2)}`;
-        }
-    }
+    // Write the labels in the shipped layout, so VS Code fills the manifest placeholders with the branded text.
+    writeFileSync(path.join(stagingFolder, LABELS_FILE), `${JSON.stringify(labels, null, 4)}\n`, 'utf8');
 }

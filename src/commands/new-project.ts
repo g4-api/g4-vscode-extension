@@ -401,10 +401,11 @@ export class NewProjectCommand extends CommandBase {
      * @returns Serialized automation-base content.
      */
     private static createChromeBaseContent(sandboxDirectoryPath?: string): string {
-        // Read the packaged base once so every fallback returns the exact resource content.
-        const resourceContent = Utilities.getResource(
+        // Read the packaged base once and brand its default stage and job names, so every fallback below returns the
+        // same branded content.
+        const resourceContent = G4BrandingService.getJsonText(Utilities.getResource(
             'resources.base/chrome-automation-base.json'
-        );
+        ));
 
         // Preserve remote or packaged defaults when the user intentionally skips sandbox setup.
         if (sandboxDirectoryPath === undefined) {
@@ -871,9 +872,9 @@ export class NewProjectCommand extends CommandBase {
      * @returns Serialized automation-base content.
      */
     private static createUiaBaseContent(sandboxDirectoryPath?: string): string {
-        // Read the packaged UIA base once so the original content remains available for every
-        // non-rewrite or recovery path.
-        const resourceContent = Utilities.getResource('resources.base/uia-automation-base.json');
+        // Read the packaged UIA base once and brand its default stage and job names, so the branded content remains
+        // available for every non-rewrite or recovery path.
+        const resourceContent = G4BrandingService.getJsonText(Utilities.getResource('resources.base/uia-automation-base.json'));
 
         // Preserve the configured grid endpoint when the user chooses a project without a sandbox.
         if (sandboxDirectoryPath === undefined) {

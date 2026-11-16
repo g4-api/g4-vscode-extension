@@ -29,20 +29,30 @@ import { G4WebviewViewProvider } from './providers/g4-webview-view-provider';
 import { G4WorkflowCustomEditorProvider } from './providers/g4-workflow-custom-editor-provider';
 
 import { G4AutonomousRunService } from './services/g4-autonomous-run-service';
+import { G4BrandingService } from './services/g4-branding-service';
 import {
     G4HubService,
     G4ProjectManifest
 } from './services/g4-hub-service';
+import { G4ManifestBrandingService } from './services/g4-manifest-branding-service';
 import { G4RecordingService } from './services/g4-recording-service';
-import { ApplySettingsOptions, G4SettingsService } from './services/g4-settings-service';
-import { G4BrandingService } from './services/g4-branding-service';
-import { G4SidePanelIconService, SIDE_PANEL_ICON_SETTING } from './services/g4-side-panel-icon-service';
+import {
+    ApplySettingsOptions,
+    G4SettingsService
+} from './services/g4-settings-service';
+import {
+    G4SidePanelIconService,
+    SIDE_PANEL_ICON_SETTING
+} from './services/g4-side-panel-icon-service';
 
 // Import the function that initializes the connection to the backend hub.
 const hubConnections = new Map<string, NotificationService>();
 
 // Fallback Hub endpoint used when the manifest names no g4Server, matching CommandBase.
 const DEFAULT_HUB_URL = 'http://localhost:9944';
+
+// The button of the offer to reload the window after the manifest labels changed.
+const RELOAD_WINDOW_ACTION = 'Reload Window';
 
 // The recorder command, view, and session owner, captured during registration so the settings service
 // can hot-apply recorder changes (replace recorder settings, re-render the panel) without a reload.
@@ -66,6 +76,10 @@ export async function activate(context: vscode.ExtensionContext) {
     // Read the branding the Hub published last time before anything shows a label, so the output channels and
     // the first messages already carry the white-label names.
     G4BrandingService.initialize(context.globalState);
+
+    // Apply the kept branding to the manifest labels, such as the command prefix and the activity bar tooltip, so an
+    // updated extension, which ships the G4 labels, shows the Hub branding again after one reload.
+    void updateManifestBrandingAsync(context);
 
     // Apply the chosen side-panel icon from the local setting or the kept Hub icon; it shows from the next start.
     void updateSidePanelIconAsync(context);
@@ -426,7 +440,8 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
         const client = new NotificationService({
             baseUrl: baseUri,
             context,
-            logger: Global.logger
+            logger: Global.logger,
+            onBrandingChanged: () => updateBrandingAsync(context, baseUri)
         });
 
         // Make one connection attempt; the loop owns retrying, so only one client exists at a time.
@@ -450,6 +465,11 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             continue;
         }
 
+        // Read the Hub's current branding before the cache sync, which can take long, so the labels follow the Hub
+        // as soon as it answers. A Hub without the branding route, or one that does not answer, keeps the branding in
+        // use.
+        await updateBrandingAsync(context, baseUri);
+
         // Show progress while synchronizing externals and MCP servers into the G4 cache.
         setConnectionStatus(G4BrandingService.getText('$(sync~spin) Loading {engine} Externals and MCPs...'));
 
@@ -462,12 +482,6 @@ const initializeConnection = async (baseUri: string, context: vscode.ExtensionCo
             Global.logger.error(G4BrandingService.getText(`Loading {engine} externals and MCPs failed: ${Utilities.resolveErrorMessage(error)}`));
         }
 
-        // Read the Hub's current branding, so labels created from now on follow it and the next start uses it
-        // before the Hub answers. A Hub without the branding route keeps the current labels.
-        await G4BrandingService.refreshAsync(context.globalState, baseUri);
-
-        // Apply the Hub's side-panel icon now that its branding is current; a local setting still wins.
-        await updateSidePanelIconAsync(context, baseUri);
 
         // Show the connected state; it stays until the next connection status replaces it.
         setConnectionStatus(G4BrandingService.getText('{engine} is Connected and Ready'));
@@ -532,6 +546,68 @@ const startSandboxHubFromManifest = async (): Promise<void> => {
 
     // Incomplete server or sandbox configuration is skipped silently by the hub service.
     await G4HubService.startFromManifestWhenRequired(manifest);
+};
+
+/**
+ * Reads the Hub branding and applies it to every label that is fixed when VS Code starts.
+ *
+ * @remarks
+ * Runs after the Hub connection and again whenever the Hub announces a branding change. Labels created from now on
+ * follow the new branding at once; the manifest labels and the side-panel icon follow it after a reload. Never throws:
+ * an unreachable Hub keeps the branding in use.
+ *
+ * @param context - The extension context, for the install folder and the global state.
+ * @param hubBaseUrl - The Hub base URL.
+ */
+const updateBrandingAsync = async (context: vscode.ExtensionContext, hubBaseUrl: string): Promise<void> => {
+    // Read the Hub branding, so labels created from now on follow it and the next start uses it before the Hub answers.
+    await G4BrandingService.refreshAsync(context.globalState, hubBaseUrl);
+
+    // Apply the branding to the manifest labels and the side-panel icon; a local icon setting still wins.
+    await updateManifestBrandingAsync(context);
+    await updateSidePanelIconAsync(context, hubBaseUrl);
+};
+
+/**
+ * Writes the branded manifest labels and offers a window reload when they changed.
+ *
+ * @remarks
+ * VS Code reads the command prefix, the command titles, the activity bar tooltip, and the view names before the
+ * extension runs, so a change shows after a reload. The offer does not wait for the user, so the connection flow goes
+ * on. A development host is skipped, because its install folder is the source checkout, whose package.nls.json keeps
+ * the G4 defaults.
+ *
+ * @param context - The extension context, for the install folder, the global storage, and the mode.
+ */
+const updateManifestBrandingAsync = async (context: vscode.ExtensionContext): Promise<void> => {
+    // Reload the window when the user accepts the offer, so the new labels show at once.
+    const onReloadChoice = async (choice: string | undefined): Promise<void> => {
+        if (choice === RELOAD_WINDOW_ACTION) {
+            await vscode.commands.executeCommand('workbench.action.reloadWindow');
+        }
+    };
+
+    // Leave a source checkout untouched, so a development run never rewrites the shipped G4 labels.
+    if (context.extensionMode !== vscode.ExtensionMode.Production) {
+        return;
+    }
+
+    // Write the branded labels over the installed ones when they differ.
+    const isUpdated = await G4ManifestBrandingService.updateAsync({
+        extensionPath: context.extensionPath,
+        getText: (text) => G4BrandingService.getText(text),
+        globalStoragePath: context.globalStorageUri.fsPath,
+        logger: Global.logger
+    });
+
+    if (!isUpdated) {
+        return;
+    }
+
+    // Offer the reload without waiting, so the connection flow and the other start steps go on.
+    const message = G4BrandingService.getText('The {product} branding changed. Reload the window to show it in the commands, views, and settings.');
+
+    void vscode.window.showInformationMessage(message, RELOAD_WINDOW_ACTION).then(onReloadChoice);
 };
 
 /**

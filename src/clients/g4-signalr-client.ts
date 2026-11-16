@@ -30,7 +30,12 @@ export class NotificationService {
      * @param baseUrl Base URL for the SignalR hub.
      */
     constructor(
-        private readonly _options: { baseUrl: string, context: vscode.ExtensionContext, logger: Logger }
+        private readonly _options: {
+            baseUrl: string,
+            context: vscode.ExtensionContext,
+            logger: Logger,
+            onBrandingChanged?: () => Promise<void>
+        }
     ) {
         // Build the connection against your hub URL
         this._connection = new HubConnectionBuilder()
@@ -88,6 +93,15 @@ export class NotificationService {
                     logger: this._options.logger,
                     value: logEntry
                 });
+            }
+        );
+
+        // Read the branding again when the Hub announces a change, so labels follow it without a restart. The event
+        // carries only the new version; the handler reads the full settings and reports its own failures.
+        this._connection.on(
+            'ReceiveBrandingChangedEvent',
+            () => {
+                void this._options.onBrandingChanged?.();
             }
         );
 

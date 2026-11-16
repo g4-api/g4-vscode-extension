@@ -118,6 +118,26 @@ export class G4BrandingService {
     }
 
     /**
+     * Replaces the branding placeholders inside the string values of a JSON document.
+     *
+     * @remarks
+     * Used for packaged JSON templates, such as the automation bases a new project starts from, whose default stage
+     * and job names carry placeholders. Each value is escaped as JSON string content, so a brand name with quotes or
+     * backslashes keeps the document valid, and the document layout is kept exactly as packaged.
+     *
+     * @param jsonText - The JSON document text.
+     * @returns The document text with every known placeholder replaced.
+     */
+    public static getJsonText(jsonText: string): string {
+        // Resolve each placeholder like getText, then escape the value for its place inside a JSON string.
+        return jsonText.replaceAll(TOKEN_PATTERN, (placeholder: string, tokenName: string) => {
+            const value = G4BrandingService._settings.tokens[tokenName] ?? DEFAULT_TOKENS[tokenName];
+
+            return value === undefined ? placeholder : JSON.stringify(value).slice(1, -1);
+        });
+    }
+
+    /**
      * Returns a script element that brands a webview page.
      *
      * @remarks
@@ -198,15 +218,24 @@ export class G4BrandingService {
             return false;
         }
 
+        // Name the version in use, so a Hub with the same branding answers 304 without a body.
+        const version = G4BrandingService._settings.version;
+        const isVersionKnown = typeof version === 'string' && version !== '';
+        const headers: Record<string, string> = isVersionKnown
+            ? { 'If-None-Match': `"${version}"` }
+            : {};
+
         // Ask the Hub for its branding, with a timeout so a slow Hub never delays the connection flow.
         let receivedSettings: unknown;
 
         try {
             const brandingUrl = new URL(BRANDING_ROUTE, `${baseUrl.replace(TRAILING_SLASHES_PATTERN, '')}/`);
             const response = await fetch(brandingUrl, {
+                headers,
                 signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS)
             });
 
+            // An unchanged branding, an error, or an older Hub without the route keeps the branding in use.
             if (!response.ok) {
                 return false;
             }
@@ -282,4 +311,7 @@ export interface BrandingSettings {
 
     /** The value of every placeholder, keyed by placeholder name without braces, for example engineTm. */
     tokens: Record<string, string>;
+
+    /** The fingerprint of the Hub branding, sent back as If-None-Match; absent before the Hub answered. */
+    version?: string;
 }

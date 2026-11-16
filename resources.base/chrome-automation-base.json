@@ -54,14 +54,14 @@
             "reference": {
                 "description": "A container that holds jobs, each comprising specific actions, to structure and manage the sequential automation flow.",
                 "id": "22defb46d5d3d4",
-                "name": "G4™ Default Stage"
+                "name": "{productTm} Default Stage"
             },
             "jobs": [
                 {
                     "reference": {
                         "description": "A container that holds actions, organizing and executing them as part of a job within a stage.",
                         "id": "1f698489bb5ead",
-                        "name": "G4™ Default Job"
+                        "name": "{productTm} Default Job"
                     },
                     "rules": [
                         {
