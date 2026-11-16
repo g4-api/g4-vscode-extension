@@ -1,7 +1,7 @@
 {
     "name": "g4-engine-client",
-    "displayName": "G4 Studio",
-    "description": "G4 Engine is a plugin-based automation platform that lets teams orchestrate workflows across web, desktop, API, and enterprise systems with speed, control, and reliability.",
+    "displayName": "%displayName%",
+    "description": "%description%",
     "version": "0.0.2",
     "icon": "resources.assets/icon.png",
     "engines": {
@@ -31,7 +31,7 @@
     "main": "./dist/extension.js",
     "contributes": {
         "configuration": {
-            "title": "G4 Studio",
+            "title": "%configuration.title%",
             "properties": {
                 "g4.eventLogDetail": {
                     "type": "string",
@@ -46,7 +46,7 @@
                         "The summary and a shortened view of the JSON: two levels in full, deeper parts as one-line markers, long strings and arrays cut, at most 40 lines.",
                         "The summary and the complete JSON, indented."
                     ],
-                    "markdownDescription": "How much of each Hub event the extension log shows. Run **G4: Show Event JSON** to add any shortened part of one of the last 50 events to the log in full, or to copy it."
+                    "markdownDescription": "%setting.g4.eventLogDetail.markdownDescription%"
                 },
                 "g4.sidePanelIcon": {
                     "type": "string",
@@ -59,82 +59,82 @@
         "commands": [
             {
                 "command": "New-Project",
-                "category": "G4",
-                "title": "Create a New G4 Project"
+                "category": "%command.New-Project.category%",
+                "title": "%command.New-Project.title%"
             },
             {
                 "command": "Show-Report",
-                "category": "G4",
-                "title": "Open G4 Report"
+                "category": "%command.Show-Report.category%",
+                "title": "%command.Show-Report.title%"
             },
             {
                 "command": "Show-EventJson",
-                "category": "G4",
+                "category": "%command.Show-EventJson.category%",
                 "title": "Show Event JSON"
             },
             {
                 "command": "Show-Workflow",
-                "category": "G4",
-                "title": "Open G4 Engine Embedded Application"
+                "category": "%command.Show-Workflow.category%",
+                "title": "%command.Show-Workflow.title%"
             },
             {
                 "command": "Show-Settings",
-                "category": "G4",
+                "category": "%command.Show-Settings.category%",
                 "title": "Open Settings Editor"
             },
             {
                 "command": "Show-Autonomous",
-                "category": "G4",
+                "category": "%command.Show-Autonomous.category%",
                 "title": "Start Autonomous Exploratory Run"
             },
             {
                 "command": "Apply-Settings",
-                "category": "G4",
+                "category": "%command.Apply-Settings.category%",
                 "title": "Apply Settings"
             },
             {
                 "command": "Open-Bot-As-Json",
-                "category": "G4",
+                "category": "%command.Open-Bot-As-Json.category%",
                 "title": "Open as JSON"
             },
             {
                 "command": "Open-Bot-In-Workflow",
-                "category": "G4",
+                "category": "%command.Open-Bot-In-Workflow.category%",
                 "title": "Open in Workflow Editor"
             },
             {
                 "command": "Sync-Cache",
-                "category": "G4",
-                "title": "Synchronize G4 Cache with Configured Externals and MCP Servers"
+                "category": "%command.Sync-Cache.category%",
+                "title": "%command.Sync-Cache.title%"
             },
             {
                 "command": "Update-Documents",
-                "category": "G4",
+                "category": "%command.Update-Documents.category%",
                 "title": "Fetch latest documents version & refresh documentation"
             },
             {
                 "command": "Update-Environment",
-                "category": "G4",
+                "category": "%command.Update-Environment.category%",
                 "title": "Update or Create Environment Variables"
             },
             {
                 "command": "Update-Template",
-                "category": "G4",
+                "category": "%command.Update-Template.category%",
                 "title": "Update or Create Template Definitions"
             },
             {
                 "command": "Update-Flow",
-                "category": "G4",
+                "category": "%command.Update-Flow.category%",
                 "title": "Open in Flow Publisher"
             },
             {
                 "command": "Open-Template-Publisher",
-                "category": "G4",
+                "category": "%command.Open-Template-Publisher.category%",
                 "title": "Open in Template Publisher"
             },
             {
                 "command": "Open-Report-Viewer",
-                "category": "G4",
+                "category": "%command.Open-Report-Viewer.category%",
                 "title": "Open in Report Viewer"
             }
         ],
@@ -166,19 +166,19 @@
                 {
                     "type": "webview",
                     "id": "g4RecorderView",
-                    "name": "G4 Recorder",
+                    "name": "%view.g4RecorderView.name%",
                     "icon": "resources.assets/g4-icon.svg"
                 },
                 {
                     "type": "tree",
                     "id": "g4Documentations",
-                    "name": "G4 Documentations",
+                    "name": "%view.g4Documentations.name%",
                     "icon": "resources.assets/g4-documents-icon.svg"
                 },
                 {
                     "type": "tree",
                     "id": "g4BotsManager",
-                    "name": "G4 Bots Manager",
+                    "name": "%view.g4BotsManager.name%",
                     "icon": "resources.assets/g4-bots-icon.svg",
                     "when": "false"
                 }
@@ -188,7 +188,7 @@
             "activitybar": [
                 {
                     "id": "g4Container",
-                    "title": "G4",
+                    "title": "%viewsContainer.g4Container.title%",
                     "icon": "resources.assets/g4-icon.svg"
                 }
             ]
@@ -262,7 +262,7 @@
         "customEditors": [
             {
                 "viewType": "g4.workflowEditor",
-                "displayName": "G4 Workflow Editor",
+                "displayName": "%customEditor.g4.workflowEditor.displayName%",
                 "selector": [
                     {
                         "filenamePattern": "**/bots/*.g4"
@@ -281,7 +281,7 @@
             },
             {
                 "viewType": "g4.reportViewer",
-                "displayName": "G4 Report Viewer",
+                "displayName": "%customEditor.g4.reportViewer.displayName%",
                 "selector": [
                     {
                         "filenamePattern": "**/reports/**/*.g4rpt"
@@ -327,8 +327,9 @@
     },
     "files": [
         "resources.assets/**",
-    "resources.autonomous/**",
+        "resources.autonomous/**",
         "resources.base/**",
+        "resources.branding/**",
         "resources.components/**",
         "resources.docs/**",
         "resources.examples/**",
@@ -336,6 +337,7 @@
         "dist/**",
         "node_modules/**",
         "LICENSE",
+        "package.nls.json",
         "README.md"
     ],
     "dependencies": {

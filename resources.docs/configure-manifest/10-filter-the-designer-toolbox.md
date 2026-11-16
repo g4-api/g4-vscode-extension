@@ -80,7 +80,7 @@ Here every tool in `Http` is hidden except `SendHttpRequest`, because a tool ent
 
 Save `manifest.json`. If a designer tab is open, it redraws its toolbox a moment after the save settles. You do not need to reopen the tab.
 
-> **💡 Tip:** The designer also keeps a filter you set in its own filter button, in a browser cookie. When both name the same toolbox or tool, the **manifest entry wins**, and the designer locks that entry so the button cannot change it.
+> **💡 Tip:** The designer also keeps a filter you set in its own filter button: with the project in VS Code, or in a browser cookie on the Hub's canvas page. When both name the same toolbox or tool, the **manifest entry wins**, and the designer locks that entry so the button cannot change it.
 
 ---
 
