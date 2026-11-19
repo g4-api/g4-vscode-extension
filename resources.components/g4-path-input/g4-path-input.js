@@ -10,7 +10,9 @@
  *   should open, reported with g4-browse), placeholder (hint text of the empty box), browse-label
  *   (Browse tooltip and accessible name), detect-label (text of the detect button; no button when
  *   missing), detect-title (its tooltip), label (accessible name and tooltip of the box when it is not
- *   in a <g4-field>), test-id (prefix of every part's data-test-id).
+ *   in a <g4-field>), disabled (the box and both buttons cannot be used; read when the element renders),
+ *   disabled-title (tooltip of the disabled parts, saying why), test-id (prefix of every part's
+ *   data-test-id).
  * - Properties: value (the path).
  * - Methods: focus().
  * - Events (bubble): g4-input { value } on every edit; g4-browse { mode, value } when Browse is
@@ -138,6 +140,20 @@
                 detect.title = detectTitle;
                 detect.setAttribute('aria-label', detectTitle);
                 detect.addEventListener('click', this.#onDetectClick);
+            }
+
+            // A disabled element switches every part off, so the path cannot be typed, picked or detected,
+            // and each part says why in its tooltip.
+            if (this.hasAttribute('disabled')) {
+                const disabledTitle = this.getAttribute('disabled-title') ?? '';
+
+                for (const part of [input, browse, detect]) {
+                    part.disabled = true;
+
+                    if (disabledTitle !== '') {
+                        part.title = disabledTitle;
+                    }
+                }
             }
 
             // Typing reports the path; Browse asks the page to pick a folder or a file.

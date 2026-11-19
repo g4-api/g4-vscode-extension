@@ -12,6 +12,7 @@ import { CommandBase } from './command-base';
 import { Utilities } from '../extensions/utilities';
 import { WebviewComponents } from '../extensions/webview-components';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4DockerSandboxService } from '../services/g4-docker-sandbox-service';
 
 // Confirmation button of the factory reset dialog; a modal dialog adds its own Cancel.
 const FACTORY_RESET_ACTION = 'Restore Factory Settings';
@@ -281,6 +282,23 @@ export class ShowSettingsCommand extends CommandBase {
             if (choice === FACTORY_RESET_ACTION) {
                 await panel.webview.postMessage({ command: 'factoryResetConfirmed' });
             }
+        }
+
+        // Turning the Docker sandbox on in the page changes several manifest values at once. The values live in
+        // the extension, so the page sends its working copy here and gets it back with the Docker values set.
+        const isDockerSandboxRequest = message?.command === 'applyDockerSandbox'
+            && message.manifest !== null
+            && typeof message.manifest === 'object';
+
+        if (isDockerSandboxRequest) {
+            const dockerManifest = structuredClone(message.manifest);
+
+            G4DockerSandboxService.setManifestDefaults(dockerManifest);
+
+            await panel.webview.postMessage({
+                command: 'setDockerSandboxManifest',
+                manifest: dockerManifest
+            });
         }
 
         // Let the settings page fill the root manifest sandbox field from the newest local sandbox.

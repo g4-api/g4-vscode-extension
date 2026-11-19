@@ -9,5 +9,6 @@
     --g4-path-input-button-foreground: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
     --g4-path-input-button-hover-background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
     --g4-path-input-button-radius: 2px;
+    --g4-path-input-disabled-opacity: 0.5;
     --g4-path-input-focus-border-color: var(--vscode-focusBorder);
 }

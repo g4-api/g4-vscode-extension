@@ -11,9 +11,11 @@
  * - Injected #g4-data: the manifest JSON.
  * - Webview → host: { command: 'saveSettings', manifest }, { command: 'openExternal', url },
  *                   { command: 'browseSandbox' }, { command: 'autoDetectSandbox' },
- *                   { command: 'browseHarnessExecutable', path, value }, { command: 'confirmFactoryReset' }
+ *                   { command: 'browseHarnessExecutable', path, value }, { command: 'confirmFactoryReset' },
+ *                   { command: 'applyDockerSandbox', manifest }
  * - Host → webview: { command: 'setSandboxPath', sandboxPath }, { command: 'factoryResetConfirmed' },
- *                   { command: 'setHarnessExecutable', path, executable }
+ *                   { command: 'setHarnessExecutable', path, executable },
+ *                   { command: 'setDockerSandboxManifest', manifest }
  *
  * Every control carries data-path (the dotted state path it edits) and data-kind (how its value is
  * stored); one delegated listener per component event writes the value into state.
@@ -31,6 +33,9 @@ const REPOSITORY_NAME_PATH_PATTERN = /^settings\.pluginsSettings\.externalReposi
 // Path of a harness Executable field ('...autonomousSettings.harnesses.2.executable'); only such a path
 // may receive a file the host picked. Linear: anchored, one digit run.
 const HARNESS_EXECUTABLE_PATH_PATTERN = /^settings\.autonomousSettings\.harnesses\.\d+\.executable$/;
+
+// Value of the manifest sandboxType field that marks a Docker sandbox project (G4DockerSandboxService).
+const DOCKER_SANDBOX_TYPE = 'docker';
 
 // The last segment of a harness Executable path; dropping it gives the harness entry the field belongs to.
 const HARNESS_EXECUTABLE_SUFFIX = '.executable';
@@ -861,6 +866,12 @@ function newManifest() {
     setRecorderModes(manifest.settings?.recorderSettings?.recorders);
     setRecorderDomContextDefaults(manifest.settings?.recorderSettings?.recorders);
 
+    // A Docker sandbox project has no local sandbox folder, and its marker is saved in one spelling.
+    if (testDockerSandbox(manifest)) {
+        manifest.sandboxType = DOCKER_SANDBOX_TYPE;
+        delete manifest.sandbox;
+    }
+
     // Treat an empty sandbox textbox as "not configured" and omit the root field.
     const sandbox = String(manifest.sandbox ?? '').trim();
 
@@ -1145,6 +1156,9 @@ function onAppInput(event) {
         case 'credentials-type':
             setCredentialsType(path, value);
             break;
+        case 'docker-sandbox':
+            setDockerSandbox(value === true);
+            break;
         case 'json':
             setJsonValue(path, value);
             break;
@@ -1237,6 +1251,12 @@ function onHostMessage(event) {
     // A file picked by the host fills the harness Executable field that asked for it.
     if (message?.command === 'setHarnessExecutable') {
         setHarnessExecutable(message.path, message.executable);
+        return;
+    }
+
+    // The host returned the working copy with the Docker sandbox values set.
+    if (message?.command === 'setDockerSandboxManifest') {
+        setDockerSandboxManifest(message.manifest);
         return;
     }
 
@@ -1743,6 +1763,65 @@ function setRecorderModes(recorders) {
 }
 
 /**
+ * Turns the Docker sandbox on or off for the project, when its switch changes.
+ *
+ * @remarks
+ * Mutates the working state and re-renders the Connection section; nothing is saved until Save. Turning it
+ * on marks the project, removes the local sandbox folder, and asks the host for the Docker values of the
+ * Grid and the Chromium recorder (the host owns them, so the page and New-Project cannot drift). Turning it
+ * off only removes the marker: the Docker values stay, because the page cannot know the earlier ones.
+ *
+ * @param {boolean} isEnabled - Whether the switch is now on.
+ */
+function setDockerSandbox(isEnabled) {
+    // Turning it off removes the marker only, and gives the local sandbox field back.
+    if (!isEnabled) {
+        delete globalThis.STATE.sandboxType;
+        updateSection('connection');
+        setSectionStatus('connection', 'Docker sandbox turned off. Click Save to apply it.', 'ok');
+        return;
+    }
+
+    // Mark the project and drop the local sandbox folder right away, so the field shows empty and
+    // disabled before the host answers.
+    globalThis.STATE.sandboxType = DOCKER_SANDBOX_TYPE;
+    delete globalThis.STATE.sandbox;
+    updateSection('connection');
+
+    // Ask the host to set the Docker values on a copy of the working state; it answers with
+    // setDockerSandboxManifest.
+    globalThis.VSCODE.postMessage({ command: 'applyDockerSandbox', manifest: copyValue(globalThis.STATE) });
+}
+
+/**
+ * Applies the working copy the host returned with the Docker sandbox values set, and re-renders.
+ *
+ * @remarks
+ * Replaces the working state, because the Docker values touch the Connection, driver and recorder
+ * sections at once. An answer that arrives after the switch was turned off again is ignored.
+ *
+ * @param {object} manifest - The working copy with the Docker values.
+ */
+function setDockerSandboxManifest(manifest) {
+    const isManifestObject = manifest !== null && typeof manifest === 'object';
+
+    // Ignore a malformed answer, and one that arrives after the user turned the switch off again.
+    if (!isManifestObject || !testDockerSandbox(globalThis.STATE)) {
+        return;
+    }
+
+    // Replace the working copy and re-render every section the Docker values changed.
+    globalThis.STATE = manifest;
+    showSettings();
+
+    // Tell the user what changed and that it still follows normal Save behavior.
+    const statusMessage = 'Docker sandbox on: the Grid and the Chromium recorder now use the Docker addresses. '
+        + 'Click Save to apply it.';
+
+    setSectionStatus('connection', statusMessage, 'ok');
+}
+
+/**
  * Applies a sandbox path returned by the extension host.
  *
  * @param {string} sandboxPath - The selected or detected sandbox path.
@@ -2110,6 +2189,27 @@ async function testConnection(button) {
 }
 
 /**
+ * Tests whether a manifest belongs to a Docker sandbox project.
+ *
+ * @remarks
+ * Compute-only; the same rule as G4DockerSandboxService.testDockerSandbox in the extension.
+ *
+ * @param {object|null|undefined} manifest - The manifest or working state.
+ * @returns {boolean} True when the manifest is marked as a Docker sandbox project.
+ */
+function testDockerSandbox(manifest) {
+    // Narrow the marker to text first; any other value means the project is not a Docker sandbox project.
+    const sandboxType = manifest?.sandboxType;
+
+    if (typeof sandboxType !== 'string') {
+        return false;
+    }
+
+    // Ignore letter case and spaces so a hand-edited manifest still matches.
+    return sandboxType.trim().toLowerCase() === DOCKER_SANDBOX_TYPE;
+}
+
+/**
  * Tests whether a recorder driver is UIA.
  *
  * @param {string|undefined} driver - Recorder driver value from the manifest.
@@ -2354,6 +2454,7 @@ function writeConnectionSection() {
                             test-id="test-g4-connection"></g4-busy-button>
         </div>
     </div>
+    ${writeDockerSandboxToggle()}
     ${writeSandboxField()}
     `;
 
@@ -3458,6 +3559,31 @@ function writeRunBehaviorSection() {
 }
 
 /**
+ * Renders the Docker Sandbox switch of the Connection section.
+ *
+ * @remarks
+ * The switch is not a plain boolean control: the manifest stores the marker sandboxType "docker", or no
+ * marker at all, so it has its own data-kind and is stored by setDockerSandbox.
+ *
+ * @returns {string} HTML markup for the switch.
+ */
+function writeDockerSandboxToggle() {
+    // The switch starts on for a project already marked as a Docker sandbox project.
+    const checkedAttribute = testDockerSandbox(globalThis.STATE)
+        ? ' checked'
+        : '';
+    const hint = G4Branding.getText('The {product} Hub, Selenium Grid and Chromium recorder run as Docker containers. '
+        + 'Turning it on removes the local sandbox folder and sets the Docker addresses.');
+
+    return `
+    <g4-toggle data-kind="docker-sandbox"
+               data-path="sandboxType"${checkedAttribute}
+               hint="${getEscapedText(hint)}"
+               label="Docker Sandbox"
+               test-id="docker-sandbox-toggle"></g4-toggle>`;
+}
+
+/**
  * Renders the root manifest sandbox field with host-backed browse and auto-detect actions.
  *
  * @returns {string} HTML markup for the sandbox field.
@@ -3466,11 +3592,21 @@ function writeSandboxField() {
     // Resolve the root sandbox field from the working manifest state.
     const value = getPath(globalThis.STATE, 'sandbox') ?? '';
 
+    // A Docker sandbox project has no local folder, so the whole field is switched off and says why.
+    const isDockerSandbox = testDockerSandbox(globalThis.STATE);
+    const disabledTitle = getEscapedText('Not used while Docker Sandbox is on.');
+    const disabledAttributes = isDockerSandbox
+        ? ` disabled disabled-title="${disabledTitle}"`
+        : '';
+    const hint = isDockerSandbox
+        ? G4Branding.getText('Not used while Docker Sandbox is on: the {product} services run as containers.')
+        : G4Branding.getText('Local {product} sandbox folder used for bundled browsers and drivers.');
+
     return writeField({
         label: G4Branding.getText('{product} Sandbox'),
-        hint: G4Branding.getText('Local {product} sandbox folder used for bundled browsers and drivers.'),
+        hint,
         control: `
-        <g4-path-input data-path="sandbox"
+        <g4-path-input data-path="sandbox"${disabledAttributes}
                        browse-label="${getEscapedText(G4Branding.getText('Browse for {product} Sandbox'))}"
                        detect-label="Auto-Detect"
                        detect-title="${getEscapedText(G4Branding.getText('Auto-Detect Latest {product} Sandbox'))}"

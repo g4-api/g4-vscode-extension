@@ -13,7 +13,13 @@ import { CommandBase } from './command-base';
 
 import type { Logger } from '../logging/logger';
 import { G4BrandingService } from '../services/g4-branding-service';
+import { G4DockerSandboxService } from '../services/g4-docker-sandbox-service';
 import { G4DocumentLabelService } from '../services/g4-document-label-service';
+
+// Docker logo of the Docker Sandbox choice, shipped with the extension: a white one for dark themes and a dark
+// one for light themes, because the picker does not recolor an image icon.
+const DOCKER_ICON_DARK_RESOURCE_NAME = 'resources.assets/docker-icon-dark.svg';
+const DOCKER_ICON_LIGHT_RESOURCE_NAME = 'resources.assets/docker-icon-light.svg';
 
 const DOCUMENTATION_DIRECTORY_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -106,7 +112,8 @@ export class NewProjectCommand extends CommandBase {
 
         // Resolve optional runtime dependencies independently so skipping the sandbox still
         // produces a portable project from packaged defaults.
-        const sandboxDirectoryPath = await NewProjectCommand.resolveSandboxLocation();
+        const sandboxSelection = await NewProjectCommand.resolveSandboxLocation();
+        const sandboxDirectoryPath = sandboxSelection.directoryPath;
 
         // Establish the complete directory tree before synchronous file generation begins.
         NewProjectCommand.createProjectFolders(projectSelection);
@@ -116,7 +123,7 @@ export class NewProjectCommand extends CommandBase {
         const projectManifest = NewProjectCommand.createProjectManifest(
             projectSelection,
             this._logger,
-            sandboxDirectoryPath
+            sandboxSelection
         );
 
         // Generate tool configuration only after the manifest exists so MCP settings cannot drift
@@ -132,7 +139,7 @@ export class NewProjectCommand extends CommandBase {
         NewProjectCommand.createBaseBots(
             projectSelection,
             this._logger,
-            sandboxDirectoryPath
+            sandboxSelection
         );
         NewProjectCommand.createBaseTemplates(projectSelection, this._logger);
 
@@ -148,7 +155,7 @@ export class NewProjectCommand extends CommandBase {
 
         // Without a sandbox, the Chrome base bot uses the installed Chrome and looks for ChromeDriver next to
         // the engine, so say where to point it at a browser and driver.
-        if (sandboxDirectoryPath === undefined) {
+        if (sandboxSelection.kind === 'none') {
             await addPendingNotice(this.context, G4BrandingService.getText('The new {product} project has no {product} sandbox. To run Chrome automations, set ')
                 + '"binary" and "driverBinaries" in src/base.bots/chrome-automation-base.json to your Chrome and '
                 + 'ChromeDriver folders.');
@@ -334,12 +341,12 @@ export class NewProjectCommand extends CommandBase {
      *
      * @param projectSelection - Folder selected as the project root.
      * @param logger - Logger for file-generation failures.
-     * @param sandboxDirectoryPath - Optional sandbox used to replace packaged driver paths.
+     * @param sandboxSelection - Sandbox choice that decides the driver paths written to the bases.
      */
     private static createBaseBots(
         projectSelection: ProjectSelection,
         logger: Logger,
-        sandboxDirectoryPath?: string
+        sandboxSelection: SandboxSelection
     ): void {
         // Resolve the shared destination once so both automation bases are guaranteed to land in
         // the same generated base-bot directory.
@@ -347,7 +354,7 @@ export class NewProjectCommand extends CommandBase {
 
         // Generate Chrome content through the sandbox-aware transformer before persisting it.
         this.writeFile({
-            content: this.createChromeBaseContent(sandboxDirectoryPath),
+            content: this.createChromeBaseContent(sandboxSelection),
             directoryPath: baseBotsPath,
             fileName: 'chrome-automation-base.json',
             logger: logger
@@ -356,7 +363,7 @@ export class NewProjectCommand extends CommandBase {
         // Generate UIA content separately because its driver server uses a different sandbox
         // subdirectory and service contract.
         this.writeFile({
-            content: this.createUiaBaseContent(sandboxDirectoryPath),
+            content: this.createUiaBaseContent(sandboxSelection.directoryPath),
             directoryPath: baseBotsPath,
             fileName: 'uia-automation-base.json',
             logger: logger
@@ -397,17 +404,26 @@ export class NewProjectCommand extends CommandBase {
      * Compute-only. Invalid packaged JSON is returned unchanged so a resource defect does not
      * block project creation.
      *
-     * @param sandboxDirectoryPath - Optional sandbox that owns Chrome and its driver.
+     * @param sandboxSelection - Sandbox choice: a local folder that owns Chrome and its driver, the Docker
+     * sandbox, or none.
      * @returns Serialized automation-base content.
      */
-    private static createChromeBaseContent(sandboxDirectoryPath?: string): string {
+    private static createChromeBaseContent(sandboxSelection: SandboxSelection): string {
         // Read the packaged base once and brand its default stage and job names, so every fallback below returns the
         // same branded content.
         const resourceContent = G4BrandingService.getJsonText(Utilities.getResource(
             'resources.base/chrome-automation-base.json'
         ));
 
+        // Hand the Docker sandbox rewrite to the service that owns the compose service names, so the base bot
+        // and the manifest get the same Grid endpoint.
+        if (sandboxSelection.kind === 'docker') {
+            return G4DockerSandboxService.getChromeBaseContent(resourceContent);
+        }
+
         // Preserve remote or packaged defaults when the user intentionally skips sandbox setup.
+        const sandboxDirectoryPath = sandboxSelection.directoryPath;
+
         if (sandboxDirectoryPath === undefined) {
             return resourceContent;
         }
@@ -817,17 +833,18 @@ export class NewProjectCommand extends CommandBase {
      *
      * @param projectSelection - Folder selected as the project root.
      * @param logger - Logger for file-generation failures.
-     * @param sandboxDirectoryPath - Optional sandbox used to replace packaged driver paths.
+     * @param sandboxSelection - Sandbox choice that decides the driver paths and recorder defaults.
      * @returns The same manifest object serialized to `manifest.json`.
      */
     private static createProjectManifest(
         projectSelection: ProjectSelection,
-        logger?: Logger,
-        sandboxDirectoryPath?: string
+        logger: Logger | undefined,
+        sandboxSelection: SandboxSelection
     ): ProjectManifest {
         // Clone the packaged manifest so sandbox customization cannot mutate the global template or
         // leak settings into later project-creation commands.
         const projectManifest = structuredClone(Global.BASE_MANIFEST) as ProjectManifest;
+        const sandboxDirectoryPath = sandboxSelection.directoryPath;
 
         // Record the sandbox root only when the user selected one, preserving packaged defaults for
         // portable or remote projects.
@@ -837,9 +854,15 @@ export class NewProjectCommand extends CommandBase {
 
         // Generate Chrome parameters through the same transformer used for the base-bot file so the
         // recorder and automation base share identical driver paths.
-        const chromeBaseContent = this.createChromeBaseContent(sandboxDirectoryPath);
+        const chromeBaseContent = this.createChromeBaseContent(sandboxSelection);
 
         this.setRecorderDriverParameters(projectManifest, chromeBaseContent);
+
+        // Apply the Docker sandbox defaults after the recorder parameters are synchronized, so the recorder
+        // keeps the Grid endpoint from the base bot and gains its compose host and enabled state.
+        if (sandboxSelection.kind === 'docker') {
+            G4DockerSandboxService.setManifestDefaults(projectManifest);
+        }
 
         // Replace UIA recorder parameters only for local sandbox projects; otherwise its configured
         // grid endpoint remains available for remote execution.
@@ -1162,15 +1185,15 @@ export class NewProjectCommand extends CommandBase {
     }
 
     /**
-     * Prompts for a sandbox through auto-detection, browsing, or an explicit skip.
+     * Prompts for a sandbox through auto-detection, browsing, the Docker sandbox, or an explicit skip.
      *
      * @remarks
-     * Auto-detection falls back to browsing when no sandbox exists. Skip and cancellation both
-     * return undefined so project creation continues with packaged defaults.
+     * Auto-detection falls back to browsing when no sandbox exists. Skip, cancellation and a dismissed
+     * folder dialog all resolve to no sandbox, so project creation continues with packaged defaults.
      *
-     * @returns Selected sandbox path, or undefined when the sandbox is skipped or cancelled.
+     * @returns The sandbox choice: a local folder, the Docker sandbox, or none.
      */
-    private static async resolveSandboxLocation(): Promise<string | undefined> {
+    private static async resolveSandboxLocation(): Promise<SandboxSelection> {
         // Define stable Quick Pick identities because later branches compare the selected object rather
         // than user-facing label text.
         const autoDetectItem: vscode.QuickPickItem = {
@@ -1181,6 +1204,14 @@ export class NewProjectCommand extends CommandBase {
             detail: 'Select the sandbox folder manually.',
             label: G4BrandingService.getText('$(folder-opened) Browse for {product} sandbox folder...')
         };
+        const dockerItem: vscode.QuickPickItem = {
+            detail: 'Use the sandbox docker-compose stack; inject its Hub, Grid and Chromium recorder defaults.',
+            iconPath: {
+                dark: vscode.Uri.file(Utilities.getResourcePath(DOCKER_ICON_DARK_RESOURCE_NAME)),
+                light: vscode.Uri.file(Utilities.getResourcePath(DOCKER_ICON_LIGHT_RESOURCE_NAME))
+            },
+            label: 'Docker Sandbox'
+        };
         const skipItem: vscode.QuickPickItem = {
             detail: 'Do not set a sandbox; keep the base files\' default paths.',
             label: '$(circle-slash) Skip'
@@ -1189,7 +1220,7 @@ export class NewProjectCommand extends CommandBase {
         // Present every sandbox strategy in one interaction so users can choose automation, explicit
         // browsing, or packaged defaults without leaving project creation.
         const selectedAction = await vscode.window.showQuickPick(
-            [autoDetectItem, browseItem, skipItem],
+            [autoDetectItem, browseItem, dockerItem, skipItem],
             {
                 placeHolder: G4BrandingService.getText('Choose how to set the {product} sandbox location for this project'),
                 title: G4BrandingService.getText('{product} Sandbox Location')
@@ -1198,7 +1229,12 @@ export class NewProjectCommand extends CommandBase {
 
         // Treat dismissal and explicit skip identically so neither choice blocks the scaffold flow.
         if (selectedAction === undefined || selectedAction === skipItem) {
-            return undefined;
+            return { kind: 'none' };
+        }
+
+        // The Docker sandbox has no local folder, so it needs no detection or browsing.
+        if (selectedAction === dockerItem) {
+            return { kind: 'docker' };
         }
 
         // Attempt discovery only for the automatic action; direct browsing bypasses filesystem scanning.
@@ -1208,7 +1244,7 @@ export class NewProjectCommand extends CommandBase {
             // Confirm a successful detection before returning so users understand which runtime will be used.
             if (detectedSandboxPath !== undefined) {
                 showTemporaryInformationMessage(G4BrandingService.getText(`{product} sandbox detected: ${detectedSandboxPath}`));
-                return detectedSandboxPath;
+                return { directoryPath: detectedSandboxPath, kind: 'local' };
             }
 
             // Keep warnings persistent because a missing sandbox requires explicit user awareness and
@@ -1219,7 +1255,14 @@ export class NewProjectCommand extends CommandBase {
         }
 
         // Browse either by direct request or as the recovery path after unsuccessful auto-detection.
-        return Utilities.selectSandboxLocation();
+        const selectedSandboxPath = await Utilities.selectSandboxLocation();
+
+        // A dismissed folder dialog means no sandbox, the same outcome as an explicit skip.
+        if (selectedSandboxPath === undefined) {
+            return { kind: 'none' };
+        }
+
+        return { directoryPath: selectedSandboxPath, kind: 'local' };
     }
 
     /**
@@ -1728,8 +1771,14 @@ interface ProjectManifest {
     /** G4 server endpoint values used to generate VS Code MCP configuration. */
     g4Server?: G4ServerConfiguration;
 
+    /** Project-level driver settings; the Docker sandbox points their endpoint at the Grid router. */
+    driverParameters?: DriverParameters;
+
     /** Absolute sandbox root recorded when the user selects a local G4 sandbox. */
     sandbox?: string;
+
+    /** Sandbox kind marker; `docker` for a Docker sandbox project, absent for every other project. */
+    sandboxType?: string;
 
     /** Settings subset containing recorder configuration synchronized from generated base bots. */
     settings?: {
@@ -1737,6 +1786,9 @@ interface ProjectManifest {
         recorderSettings?: {
             /** Recorder entries searched by driver identity rather than array position. */
             recorders?: RecorderConfiguration[];
+
+            /** Whether the extension starts recorder processes from a local sandbox folder. */
+            useSandbox?: boolean;
         };
     };
 }
@@ -1770,6 +1822,12 @@ interface G4ServerConfiguration {
 interface RecorderConfiguration {
     /** Driver configuration used for identity matching and replacement. */
     driverParameters?: DriverParameters;
+
+    /** Whether the recorder takes part in a recording session; the Docker sandbox switches Chromium on. */
+    enabled?: boolean;
+
+    /** Recorder host as the Hub sees it; the Docker sandbox sets the compose service name. */
+    host?: string;
 }
 
 /**
@@ -1785,6 +1843,21 @@ interface DriverParameters {
 
     /** Local directory or remote endpoint used to resolve the driver service. */
     driverBinaries?: string;
+}
+
+/**
+ * Sandbox choice made during project creation.
+ *
+ * @remarks
+ * A kind is used instead of an optional path alone because the Docker sandbox is a real sandbox without a
+ * local folder; the kind keeps it apart from a skipped sandbox.
+ */
+interface SandboxSelection {
+    /** Absolute local sandbox root; present only for the `local` kind. */
+    directoryPath?: string;
+
+    /** Which sandbox the project uses: a local folder, the Docker compose stack, or none. */
+    kind: 'docker' | 'local' | 'none';
 }
 
 /**
