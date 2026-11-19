@@ -25,3 +25,13 @@
 .g4-path-input__button:hover {
     background-color: var(--g4-path-input-button-hover-background);
 }
+
+.g4-path-input__input:disabled,
+.g4-path-input__button:disabled {
+    cursor: not-allowed;
+    opacity: var(--g4-path-input-disabled-opacity);
+}
+
+.g4-path-input__button:disabled:hover {
+    background-color: var(--g4-path-input-button-background);
+}

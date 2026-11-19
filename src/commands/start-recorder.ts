@@ -14,6 +14,7 @@ import { Utilities } from '../extensions/utilities';
 
 import { Logger } from '../logging/logger';
 
+import { G4DockerSandboxService } from '../services/g4-docker-sandbox-service';
 import { G4RecorderSandboxService } from '../services/g4-recorder-sandbox-service';
 import { G4RecorderScriptService } from '../services/g4-recorder-script-service';
 import { G4RecorderSelfIdentityService } from '../services/g4-recorder-self-identity-service';
@@ -43,6 +44,9 @@ export class StartRecorderCommand extends CommandBase {
 
     // Window-title fragment of the VS Code Extension Development Host, excluded when its process ids are unknown.
     private static readonly _developmentHostTitle: string = 'Extension Development Host';
+
+    // Button of the notice shown while a Docker sandbox recording runs; opens the recorder's browser viewer.
+    private static readonly _openRecordingBrowserAction: string = 'Open Browser';
 
     // Chrome command-line switch that lists the browser features to turn off.
     private static readonly _disableFeaturesSwitch: string = '--disable-features=';
@@ -285,6 +289,49 @@ export class StartRecorderCommand extends CommandBase {
     }
 
     /**
+     * Offers the recording browser of a Docker sandbox project after a session started.
+     *
+     * @remarks
+     * Owns an information notice that stays for the whole recording. Chrome runs inside the recorder
+     * container, so without the viewer page the user starts recording and sees no browser. VS Code closes a
+     * notice when one of its buttons is chosen, so the notice is shown again after the viewer opens; it goes
+     * away only when the user closes it or the recording has ended. Projects that do not use the Docker
+     * sandbox show nothing.
+     */
+    private async showRecordingBrowserNotice(): Promise<void> {
+        // Resolve the viewer address from the manifest; it is absent for every non-Docker project.
+        const recordingBrowserUrl = G4DockerSandboxService.getRecordingBrowserUrl(Utilities.getManifest());
+
+        if (recordingBrowserUrl === undefined) {
+            return;
+        }
+
+        // Keep the address in the log so it can be opened again after the notice is dismissed.
+        this._logger.information(`The recording browser of the Docker sandbox is at ${recordingBrowserUrl}`);
+
+        // Name the address in the notice so the user knows where the recorded browser is before opening it.
+        const noticeMessage = 'Recording in the Docker sandbox. The recorded browser runs inside the recorder '
+            + `container; open it at ${recordingBrowserUrl} to see and drive it.`;
+
+        // Keep the notice available while the session runs, so the viewer can be opened again at any time.
+        while (this._recordingService.isRecording) {
+            // Ask instead of opening a browser tab unprompted, because the user may already have the viewer open.
+            const selectedAction = await vscode.window.showInformationMessage(
+                noticeMessage,
+                StartRecorderCommand._openRecordingBrowserAction
+            );
+
+            // Closing the notice is the user's way to dismiss it for the rest of the session.
+            if (selectedAction !== StartRecorderCommand._openRecordingBrowserAction) {
+                return;
+            }
+
+            // Open the viewer outside VS Code so the user can drive the recorded browser in a full window.
+            await vscode.env.openExternal(vscode.Uri.parse(recordingBrowserUrl));
+        }
+    }
+
+    /**
      * Starts sandboxed recorder services when the manifest or panel override enables sandbox use.
      *
      * @remarks
@@ -298,8 +345,16 @@ export class StartRecorderCommand extends CommandBase {
         recorders: RecorderOptions[],
         commandOptions?: StartRecorderCommandOptions
     ): Promise<void> {
-        // Resolve the effective sandbox setting, letting the recorder panel override the manifest in memory.
+        // A Docker sandbox project has its recorder running as a compose service, so nothing is started on
+        // this machine even when the manifest or the panel asks for a local sandbox start.
         const manifest = Utilities.getManifest();
+
+        if (G4DockerSandboxService.testDockerSandbox(manifest)) {
+            this._logger.information('The project uses the Docker sandbox; no local recorder is started.');
+            return;
+        }
+
+        // Resolve the effective sandbox setting, letting the recorder panel override the manifest in memory.
         const isManifestSandbox = manifest?.settings?.recorderSettings?.useSandbox === true;
         const sandboxOverride = commandOptions?.useSandbox;
         const isOverrideConfigured = sandboxOverride !== null && sandboxOverride !== undefined;
@@ -363,6 +418,10 @@ export class StartRecorderCommand extends CommandBase {
             // A partial start keeps the session; report the recorders that did not connect.
             this.showRecorderErrors(status);
             this._logger.information(`Recording session ${status.id} started.`);
+
+            // A Docker sandbox records a browser inside a container, so offer the page that shows it. The
+            // notice is not awaited: recording has started and must not wait for the user to answer.
+            void this.showRecordingBrowserNotice();
         } catch (error: unknown) {
             // Explain a reserved recorder specifically, and every other failure with the Hub's message.
             const isConflict = error instanceof G4RecordingsError
