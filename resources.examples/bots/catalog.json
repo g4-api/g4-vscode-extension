@@ -1,0 +1,12 @@
+{
+    "examples": [
+        {
+            "id": "getting-started/find-something-on-bing",
+            "group": "Getting Started",
+            "name": "Find Something on Bing",
+            "description": "Opens Bing, searches for a phrase, opens the first suggestion and asserts that the result page has links.",
+            "driver": "chrome",
+            "platforms": []
+        }
+    ]
+}

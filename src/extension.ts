@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 
 import { NotificationService } from './clients/g4-signalr-client';
 
+import { AddExampleBotsCommand } from './commands/add-example-bots';
 import { NewProjectCommand } from './commands/new-project';
 import { ShowAutonomousCommand } from './commands/show-autonomous';
 import { ShowEventJsonCommand } from './commands/show-event-json';
@@ -188,6 +189,9 @@ const registerCommands = (options: {
 }) => {
     // Command to create a new G4 project structure.
     new NewProjectCommand(options.context).register();
+
+    // Command to add chosen example bots to the project's src/bots/examples folder, only on request.
+    new AddExampleBotsCommand(options.context).register();
 
     // Command to open or visualize a specific report in the UI.
     new ShowReportCommand(options.context).register();

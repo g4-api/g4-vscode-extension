@@ -1,4 +1,6 @@
 {
+    "command.Add-ExampleBots.category": "{product}",
+    "command.Add-ExampleBots.title": "Add Example Bots",
     "command.Apply-Settings.category": "{product}",
     "command.New-Project.category": "{product}",
     "command.New-Project.title": "Create a New {product} Project",
