@@ -21,7 +21,7 @@ In this module, you will:
 
 | # | Way | Works on | Where | Tab you get | Canvas edits written to the file? |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Right-click **Open in Workflow Editor** | `.json` | Under a `bots` or `base.bots` folder | A **G4 Workflow** tab named after the file | No. Use **Export Definition** to keep them |
+| 1 | Right-click **Open in Workflow Editor** | `.json` | Under a `bots`, `bots.examples` or `base.bots` folder | A **G4 Workflow** tab named after the file | No. Use **Export Definition** to keep them |
 | 2 | Double-click the file | `.g4` and `.g4bot` | Under a `bots` folder | A **G4 Workflow Editor** tab named after the file | Yes, into the open file. You save it with `Ctrl+S` |
 | 3 | Right-click **Open as JSON** | `.g4` and `.g4bot` | Under a `bots` folder | A normal text tab with the JSON language | Not applicable. You edit the text |
 

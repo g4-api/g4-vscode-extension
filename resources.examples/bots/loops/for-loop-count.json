@@ -1,0 +1,114 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Repeats a click five times with InvokeForLoop, then checks that five elements were added.",
+        "name": "For Loop: Fixed Count"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The simplest loop: the same steps, a fixed number of times.",
+                "name": "Repeat a click"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Each click adds one Delete button to the page.",
+                        "name": "Add five elements"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the add/remove page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/add_remove_elements/"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeForLoop",
+                            "capabilities": {
+                                "displayName": "Repeat 5 times"
+                            },
+                            "argument": "5",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeClick",
+                                    "capabilities": {
+                                        "displayName": "Click Add Element"
+                                    },
+                                    "onElement": "//button[.='Add Element']"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Five clicks added five buttons.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Five Delete buttons exist"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Equal --Expected:5}}",
+                            "onElement": "//button[@class='added-manually']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

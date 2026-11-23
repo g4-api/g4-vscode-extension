@@ -216,6 +216,11 @@
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
                 },
                 {
+                    "command": "Open-Bot-In-Workflow",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots\\.examples([\\\\/]|$)/i"
+                },
+                {
                     "command": "Update-Flow",
                     "group": "navigation@2",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
@@ -243,7 +248,7 @@
                 {
                     "command": "Add-ExampleBots",
                     "group": "navigation@4",
-                    "when": "resourceScheme == file && explorerResourceIsFolder && resourceFilename =~ /^(bots|examples)$/i"
+                    "when": "resourceScheme == file && explorerResourceIsFolder && resourceFilename =~ /^(bots|bots\\.examples)$/i"
                 }
             ],
             "commandPalette": [

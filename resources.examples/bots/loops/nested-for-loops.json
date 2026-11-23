@@ -1,0 +1,175 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Runs a loop inside a loop to visit every cell of a table. Each loop reads its own index: the outer index comes back when the inner loop ends.",
+        "name": "Nested For Loops"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The outer loop walks the rows and the inner loop walks the columns.",
+                "name": "Visit every cell"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A page with a table of four people.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the tables page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/tables"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "While the inner loop runs, InvokeForLoop:Iteration holds the inner index.",
+                        "name": "Loop over rows and columns"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeForLoop",
+                            "capabilities": {
+                                "displayName": "For each of 2 rows"
+                            },
+                            "argument": "2",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Row number = outer index + 1"
+                                    },
+                                    "argument": "{{$ --Name:RowNumber --Value:{{$Resolve-MathExpression --X:{{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}} --Y:1 --Operation:+}} --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember the outer index"
+                                    },
+                                    "argument": "{{$ --Name:OuterIndex --Value:{{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}} --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeForLoop",
+                                    "capabilities": {
+                                        "displayName": "For each of 3 columns"
+                                    },
+                                    "argument": "3",
+                                    "rules": [
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "RegisterParameter",
+                                            "capabilities": {
+                                                "displayName": "Column number = inner index + 1"
+                                            },
+                                            "argument": "{{$ --Name:ColumnNumber --Value:{{$Resolve-MathExpression --X:{{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}} --Y:1 --Operation:+}} --Scope:Session}}"
+                                        },
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "Assert",
+                                            "capabilities": {
+                                                "displayName": "This cell has text"
+                                            },
+                                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:\\S+}}",
+                                            "onElement": "//table[@id='table1']/tbody/tr[{{$Get-Parameter --Name:RowNumber --Scope:Session}}]/td[{{$Get-Parameter --Name:ColumnNumber --Scope:Session}}]"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "Assert",
+                                    "capabilities": {
+                                        "displayName": "The outer index is back"
+                                    },
+                                    "argument": "{{$ --Condition:Text --Operator:Equal --Expected:{{$Get-Parameter --Name:OuterIndex --Scope:Session}}}}",
+                                    "onElement": "{{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}}"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The last cell visited was row 2, column 3.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Last row number is 2"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:2}}",
+                            "onElement": "{{$Get-Parameter --Name:RowNumber --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Last column number is 3"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:3}}",
+                            "onElement": "{{$Get-Parameter --Name:ColumnNumber --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

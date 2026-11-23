@@ -207,11 +207,12 @@ Keep the values that change from place to place out of your bots: write an envir
 
 ## Quick help
 
-Four pages cover the whole extension, apart from any one path. The **New Project** command copies them into the project's `docs` folder, next to this index.
+Five pages cover the whole extension, apart from any one path. The **New Project** command copies them into the project's `docs` folder, next to this index.
 
 | Page | Best for | What it covers |
 | --- | --- | --- |
 | [🛠 Troubleshooting](troubleshooting.md) | A message you do not understand | Every notification the extension shows, with cause, check and fix |
+| [🤖 Example Bots](example-bots.md) | Bots to learn from | The **Add Example Bots** command: what it adds, where the files go, the picker, and its messages |
 | [🍳 Recipes](recipes.md) | A common job | Eight short recipes: assert, environments, data rows, branches, recording, flows and templates |
 | [⚙️ Settings Editor Reference](settings-editor-reference.md) | Looking up a setting | Every field of the Settings Editor, the manifest key it writes, its default, and the Save, Reset and Apply behavior |
 | [⌨️ Command Reference](command-reference.md) | Looking up a command | Every command and custom editor, where it appears, what it does, and the folder rules |

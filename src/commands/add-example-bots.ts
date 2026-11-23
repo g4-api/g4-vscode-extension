@@ -2,10 +2,13 @@
  * Command that adds example bots to the open project, only when the user asks for them.
  *
  * New Project creates no example bots. This command lists the shipped examples (resources.examples/bots/catalog.json)
- * in a picker grouped by topic, and writes the chosen ones to src/bots/examples/<group>/<name>.json. Examples that
+ * in a picker grouped by topic, and writes the chosen ones to bots.examples/<group>/<name>.json in the project
+ * folder, beside the bots folder; the bots.examples folder is created when it is missing. Examples that
  * drive a browser or a desktop app take the driver settings of the project's base bot, so they run against the same
- * sandbox as the project's other bots. An existing file is never overwritten without asking. A documentation link
- * can run the command with example ids, which skips the picker.
+ * sandbox as the project's other bots. An existing file is never overwritten without asking. An example that needs
+ * more than its bot file, such as the environment it reads, brings that file as a companion; a companion that is
+ * already in the project is left as it is. A documentation link can run the command with example ids, which skips
+ * the picker.
  *
  * RESOURCES:
  * VS Code quick pick API reference: https://code.visualstudio.com/api/references/vscode-api#QuickPick
@@ -24,7 +27,7 @@ import { Logger } from '../logging/logger';
 import { G4BrandingService } from '../services/g4-branding-service';
 import { G4ExampleBotsService } from '../services/g4-example-bots-service';
 
-import type { ExampleBot } from '../services/g4-example-bots-service';
+import type { ExampleBot, ExampleCompanion } from '../services/g4-example-bots-service';
 
 // The packaged catalog of example bots.
 const CATALOG_RESOURCE = 'resources.examples/bots/catalog.json';
@@ -37,11 +40,8 @@ const CONFLICT_ANSWERS = {
     skipAll: 'Skip All'
 };
 
-// The file at the project root that marks a G4 project folder.
-const MANIFEST_FILE = 'manifest.json';
-
 /**
- * The Add-ExampleBots command: writes chosen example bots into the project's src/bots/examples folder.
+ * The Add-ExampleBots command: writes chosen example bots into the project's bots.examples folder.
  *
  * @remarks
  * Which examples exist, where they go and what content they get is decided by G4ExampleBotsService; this command
@@ -79,9 +79,9 @@ export class AddExampleBotsCommand extends CommandBase {
      */
     protected async onInvokeCommand(commandArgument?: unknown): Promise<void> {
         // An example can only be added to an open project folder.
-        const projectRoot = AddExampleBotsCommand.getProjectRoot();
+        const projectFolder = AddExampleBotsCommand.getProjectFolder();
 
-        if (projectRoot === undefined) {
+        if (projectFolder === undefined) {
             const message = G4BrandingService.getText('Open a {product} project folder first, then add example bots.');
 
             void vscode.window.showWarningMessage(message);
@@ -89,8 +89,10 @@ export class AddExampleBotsCommand extends CommandBase {
             return;
         }
 
-        // Read the catalog and keep the examples this machine can run; a dropped entry is logged, not fatal.
-        const catalog = G4ExampleBotsService.getCatalog(Utilities.getResource(CATALOG_RESOURCE));
+        // Read the catalog, branded like the bot files so a description can name the product, and keep the
+        // examples this machine can run; a dropped entry is logged, not fatal.
+        const catalogText = G4BrandingService.getJsonText(Utilities.getResource(CATALOG_RESOURCE));
+        const catalog = G4ExampleBotsService.getCatalog(catalogText);
 
         for (const issue of catalog.issues) {
             this._logger?.warning(issue);
@@ -112,8 +114,12 @@ export class AddExampleBotsCommand extends CommandBase {
         }
 
         // Write the chosen examples, asking before any existing file is replaced.
-        const writtenPaths = await this.writeExamples(selectedExamples, projectRoot);
+        const writtenPaths = await this.writeExamples(selectedExamples, projectFolder);
         const skippedCount = selectedExamples.length - writtenPaths.length;
+
+        // Add the files the chosen examples need beside their bot file, such as an environment.
+        const companions = selectedExamples.flatMap(example => example.companions);
+        const writtenCompanions = this.writeCompanions(companions, projectFolder);
 
         // Open a single added example in the workflow editor, so a documentation link lands on the bot itself.
         if (writtenPaths.length === 1) {
@@ -126,7 +132,11 @@ export class AddExampleBotsCommand extends CommandBase {
         const skippedMessage = skippedCount > 0
             ? ` Skipped ${skippedCount}.`
             : '';
-        const message = `Added ${writtenPaths.length} example bot(s) to src/bots/examples.${skippedMessage}`;
+        const companionMessage = writtenCompanions.length > 0
+            ? ` Also added ${writtenCompanions.join(', ')}.`
+            : '';
+        const message = `Added ${writtenPaths.length} example bot(s) to ${G4ExampleBotsService.examplesFolder}.`
+            + `${skippedMessage}${companionMessage}`;
 
         void vscode.window.showInformationMessage(message);
     }
@@ -152,12 +162,17 @@ export class AddExampleBotsCommand extends CommandBase {
      * Gets the short tag shown beside an example's name.
      *
      * @param example - The example.
-     * @returns "no browser needed", "Windows only", or an empty text.
+     * @returns "no browser needed", "Android device needed", "Windows only", or an empty text.
      */
     private static getExampleTag(example: ExampleBot): string {
         // A driver-free example is the quickest to try, so say that it needs no browser.
         if (example.driver === 'none') {
             return 'no browser needed';
+        }
+
+        // An Android example runs only with a device or an emulator behind an Appium server.
+        if (example.driver === 'android') {
+            return 'Android device needed';
         }
 
         // Name a Windows-only example, so a reader knows why it is missing on other machines.
@@ -169,32 +184,34 @@ export class AddExampleBotsCommand extends CommandBase {
     }
 
     /**
-     * Finds the project folder: the first workspace folder with a manifest.json, else the first workspace folder.
+     * Finds the project folder: the folder that holds manifest.json, with bots and base.bots beside it.
+     *
+     * @remarks
+     * The service decides which of the open folders it is; this method only hands it the open folders and the
+     * file system's own test for a file.
      *
      * @returns The absolute folder path, or undefined when no folder is open.
      */
-    private static getProjectRoot(): string | undefined {
-        // Prefer the folder that holds manifest.json, so a multi-root workspace writes into the G4 project.
-        const folders = vscode.workspace.workspaceFolders ?? [];
-        const projectFolder = folders.find(folder => fs.existsSync(path.join(folder.uri.fsPath, MANIFEST_FILE)));
+    private static getProjectFolder(): string | undefined {
+        const workspaceFolders = (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath);
 
-        return (projectFolder ?? folders[0])?.uri.fsPath;
+        return G4ExampleBotsService.getProjectFolder(workspaceFolders, fs.existsSync);
     }
 
     /**
      * Gets the bot text for an example in this project.
      *
      * @param example - The example.
-     * @param projectRoot - The project folder.
+     * @param projectFolder - The project folder.
      * @returns The branded bot text, with the base bot's driver settings when the example needs a driver.
      */
-    private newContent(example: ExampleBot, projectRoot: string): string {
+    private newContent(example: ExampleBot, projectFolder: string): string {
         // Read the packaged example, branded like the base bots New Project writes.
         const resourceName = G4ExampleBotsService.getResourceName(example);
         const exampleText = G4BrandingService.getJsonText(Utilities.getResource(resourceName));
 
         // Read the project's base bot when the example drives a browser or a desktop app.
-        const baseBotPath = G4ExampleBotsService.getBaseBotPath(example, projectRoot);
+        const baseBotPath = G4ExampleBotsService.getBaseBotPath(example, projectFolder);
         const isBaseBotPresent = baseBotPath !== undefined && fs.existsSync(baseBotPath);
         let baseBotText: string | undefined;
 
@@ -261,7 +278,7 @@ export class AddExampleBotsCommand extends CommandBase {
      */
     private async readConflictAnswer(example: ExampleBot): Promise<string | undefined> {
         // A modal dialog keeps the decision in front of the user, and closing it counts as skip.
-        const message = `The example "${example.name}" already exists in src/bots/examples. Overwrite it?`;
+        const message = `The example "${example.name}" already exists in ${G4ExampleBotsService.examplesFolder}. Overwrite it?`;
 
         return vscode.window.showWarningMessage(
             message,
@@ -302,7 +319,7 @@ export class AddExampleBotsCommand extends CommandBase {
             ignoreFocusOut: true,
             matchOnDescription: true,
             matchOnDetail: true,
-            placeHolder: 'Choose the example bots to add to src/bots/examples'
+            placeHolder: `Choose the example bots to add to ${G4ExampleBotsService.examplesFolder}`
         });
 
         const isNothingPicked = !picked || picked.length === 0;
@@ -318,6 +335,54 @@ export class AddExampleBotsCommand extends CommandBase {
     }
 
     /**
+     * Writes the companion files of the chosen examples into the project.
+     *
+     * @remarks
+     * A companion that is already in the project is the user's own file by now, so it is never replaced and never
+     * asked about. A file that cannot be written is logged, and the examples are still added.
+     *
+     * @param companions - The companion files of the chosen examples.
+     * @param projectFolder - The project folder.
+     * @returns The project paths of the companions that were written, such as "environments/ExampleLogin.json".
+     */
+    private writeCompanions(companions: ExampleCompanion[], projectFolder: string): string[] {
+        // Two examples can share one companion; write each target once.
+        const writtenTargets: string[] = [];
+        const knownTargets = new Set<string>();
+
+        for (const companion of companions) {
+            const targetPath = G4ExampleBotsService.getCompanionTargetPath(companion, projectFolder);
+            const isHandled = knownTargets.has(companion.target);
+
+            knownTargets.add(companion.target);
+
+            if (isHandled) {
+                continue;
+            }
+
+            // Keep a file the project already has: the user may have changed it.
+            if (fs.existsSync(targetPath)) {
+                this._logger?.information(`Kept the existing file ${targetPath}.`);
+                continue;
+            }
+
+            // Create the folder when it is missing and write the packaged file as it ships.
+            try {
+                fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+                fs.writeFileSync(targetPath, Utilities.getResource(companion.resource), 'utf8');
+                writtenTargets.push(companion.target);
+                this._logger?.information(`Added the file ${targetPath}.`);
+            } catch (error) {
+                const reason = error instanceof Error ? error.message : 'Unknown error';
+
+                this._logger?.error(`Could not write the file ${targetPath}: ${reason}`);
+            }
+        }
+
+        return writtenTargets;
+    }
+
+    /**
      * Writes the chosen examples into the project.
      *
      * @remarks
@@ -326,16 +391,16 @@ export class AddExampleBotsCommand extends CommandBase {
      * written. A file that cannot be written is logged and counted as skipped.
      *
      * @param examples - The examples to write.
-     * @param projectRoot - The project folder.
+     * @param projectFolder - The project folder.
      * @returns The paths that were written.
      */
-    private async writeExamples(examples: ExampleBot[], projectRoot: string): Promise<string[]> {
+    private async writeExamples(examples: ExampleBot[], projectFolder: string): Promise<string[]> {
         // Track what was written and any "All" answer, which decides every later conflict of this run.
         const writtenPaths: string[] = [];
         let blanketAnswer: string | undefined;
 
         for (const example of examples) {
-            const targetPath = G4ExampleBotsService.getTargetPath(example, projectRoot);
+            const targetPath = G4ExampleBotsService.getTargetPath(example, projectFolder);
 
             // Ask before replacing an existing file, unless an earlier "All" answer already decided.
             if (fs.existsSync(targetPath)) {
@@ -354,9 +419,10 @@ export class AddExampleBotsCommand extends CommandBase {
             }
 
             // Give the example the driver settings of the project's base bot, and brand its default names.
-            const content = this.newContent(example, projectRoot);
+            const content = this.newContent(example, projectFolder);
 
-            // Create the group folder and write the file; a failure is logged and the next example still runs.
+            // Create the examples folder and the group folder when they are missing, then write the file; a
+            // failure is logged and the next example still runs.
             try {
                 fs.mkdirSync(path.dirname(targetPath), { recursive: true });
                 fs.writeFileSync(targetPath, content, 'utf8');

@@ -5,29 +5,49 @@
  * group, its name, what it teaches, the driver it needs and the platforms it runs on. The Add Example Bots command
  * asks this service which examples fit the machine, where each one goes in the project, and what content to write.
  * An example that drives a browser or a desktop app takes its driver settings from the project's own base bot, so it
- * runs against the same sandbox as every other bot in that project. Nothing here touches the disk or VS Code: the
- * command reads and writes, this service only decides.
+ * runs against the same sandbox as every other bot in that project. An example can also name companion files, such
+ * as the environment it reads, which are added to the project with it. Nothing here touches the disk or VS Code:
+ * the command reads and writes, this service only decides.
+ *
+ * The project folder, in every path here, is the folder that holds manifest.json. New Project creates it as
+ * <project>/src and opens it in VS Code, so the bots, base.bots and bots.examples folders sit directly inside it.
  */
 import * as path from 'node:path';
 
-// The folder under the project's src folder that holds the base bots written by New Project.
+// The folder inside the project folder that holds the base bots written by New Project.
 const BASE_BOTS_FOLDER = 'base.bots';
 
-// The base bot whose driver settings each driver kind copies; a driver-free example needs none.
+// The base bot whose driver settings each driver kind copies. A driver-free example needs none, and an Android
+// example keeps the settings it ships with, because New Project writes no Android base bot.
 const BASE_BOT_FILES: Record<ExampleDriverKind, string | undefined> = {
+    android: undefined,
     chrome: 'chrome-automation-base.json',
     none: undefined,
     uia: 'uia-automation-base.json'
 };
 
-// The folder under the project's src/bots folder the examples are written to, one subfolder per group.
-const EXAMPLES_FOLDER = 'examples';
+// The folder inside the project folder the examples are written to, one subfolder per group. It sits beside the
+// bots folder, so the examples stay apart from the user's own bots, and is created with the first example.
+const EXAMPLES_FOLDER = 'bots.examples';
+
+// The packaged folder every companion file of an example must come from.
+const COMPANION_RESOURCE_ROOT = 'resources.examples/';
+
+// The characters one path segment of a companion file may hold: letters, digits, dots, hyphens and underscores.
+// A single character class with one quantifier runs in linear time; "." and ".." are refused separately.
+const COMPANION_SEGMENT_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 // The driver kinds a catalog entry may name.
-const EXAMPLE_DRIVER_KINDS = new Set<string>(['chrome', 'none', 'uia']);
+const EXAMPLE_DRIVER_KINDS = new Set<string>(['android', 'chrome', 'none', 'uia']);
 
 // The number of spaces the written bot JSON is indented with, matching the shipped base bots.
 const JSON_INDENT_SPACES = 4;
+
+// The file that marks the project folder.
+const MANIFEST_FILE = 'manifest.json';
+
+// The folder New Project creates inside the folder the user chose; it becomes the project folder.
+const SOURCE_FOLDER = 'src';
 
 // The fewest segments an example id has: its group folder and its file name, as in "loops/for-loop-index".
 const MINIMUM_EXAMPLE_ID_SEGMENTS = 2;
@@ -44,6 +64,9 @@ const EXAMPLE_ID_SEGMENT_PATTERN = /^[a-z0-9-]+$/;
  * user-interface work and the rules here are unit-tested without VS Code.
  */
 export class G4ExampleBotsService {
+    /** The name of the folder, inside the project folder, the examples are written to; named in messages. */
+    public static readonly examplesFolder = EXAMPLES_FOLDER;
+
     /**
      * Gets the examples of the catalog that run on a platform, in catalog order.
      *
@@ -64,10 +87,10 @@ export class G4ExampleBotsService {
      * Gets the base bot file whose driver settings an example copies.
      *
      * @param example - The example to add.
-     * @param projectRoot - The project folder that holds manifest.json and src.
+     * @param projectFolder - The project folder: the folder that holds manifest.json and base.bots.
      * @returns The absolute base bot path, or undefined for a driver-free example that keeps its own settings.
      */
-    public static getBaseBotPath(example: ExampleBot, projectRoot: string): string | undefined {
+    public static getBaseBotPath(example: ExampleBot, projectFolder: string): string | undefined {
         // A driver-free example (no browser, no desktop app) runs on its own settings.
         const baseBotFile = BASE_BOT_FILES[example.driver];
 
@@ -75,7 +98,18 @@ export class G4ExampleBotsService {
             return undefined;
         }
 
-        return path.join(projectRoot, 'src', BASE_BOTS_FOLDER, baseBotFile);
+        return path.join(projectFolder, BASE_BOTS_FOLDER, baseBotFile);
+    }
+
+    /**
+     * Gets the project path a companion file of an example is written to.
+     *
+     * @param companion - The companion file.
+     * @param projectFolder - The project folder: the folder that holds manifest.json and bots.
+     * @returns The absolute path, such as "<project folder>/environments/ExampleLogin.json".
+     */
+    public static getCompanionTargetPath(companion: ExampleCompanion, projectFolder: string): string {
+        return path.join(projectFolder, ...companion.target.split('/'));
     }
 
     /**
@@ -113,7 +147,7 @@ export class G4ExampleBotsService {
             const example = convertToExampleBot(entry);
 
             if (example === undefined) {
-                issues.push(`Example entry ${index + 1} is missing a valid id, group, name, description or driver.`);
+                issues.push(`Example entry ${index + 1} is missing a valid id, group, name, description, driver or companion.`);
                 continue;
             }
 
@@ -127,6 +161,44 @@ export class G4ExampleBotsService {
         }
 
         return { examples, issues };
+    }
+
+    /**
+     * Finds the project folder among the folders open in VS Code.
+     *
+     * @remarks
+     * The project folder is the folder that holds manifest.json. VS Code normally has that folder itself open,
+     * because New Project opens <project>/src; a user can also open the folder above it, where the manifest is
+     * one level down in src. Each open folder is tried both ways, in order, so a multi-root workspace writes
+     * into its G4 project. Without any manifest, the first open folder is used the way the rest of the extension
+     * reads it: the folder itself when it is named src, otherwise its src folder.
+     *
+     * @param workspaceFolders - The absolute paths of the folders open in VS Code, in workspace order.
+     * @param testFile - Tells whether a file exists; the command passes the file system's own test.
+     * @returns The absolute project folder, or undefined when no folder is open.
+     */
+    public static getProjectFolder(workspaceFolders: string[], testFile: (filePath: string) => boolean): string | undefined {
+        // Try each open folder as the project folder itself, then as the folder above it.
+        const candidates = workspaceFolders.flatMap(folder => [folder, path.join(folder, SOURCE_FOLDER)]);
+        const projectFolder = candidates.find(candidate => testFile(path.join(candidate, MANIFEST_FILE)));
+
+        if (projectFolder !== undefined) {
+            return projectFolder;
+        }
+
+        // No manifest anywhere: without an open folder there is no project.
+        const firstFolder = workspaceFolders[0];
+
+        if (firstFolder === undefined) {
+            return undefined;
+        }
+
+        // Fall back to where the extension expects the project inside the first open folder.
+        const isSourceFolder = path.basename(firstFolder).toLowerCase() === SOURCE_FOLDER;
+
+        return isSourceFolder
+            ? firstFolder
+            : path.join(firstFolder, SOURCE_FOLDER);
     }
 
     /**
@@ -173,11 +245,11 @@ export class G4ExampleBotsService {
      * Gets the project path an example is written to.
      *
      * @param example - The example.
-     * @param projectRoot - The project folder that holds manifest.json and src.
-     * @returns The absolute path, such as "<project>/src/bots/examples/loops/for-loop-index.json".
+     * @param projectFolder - The project folder: the folder that holds manifest.json and bots.
+     * @returns The absolute path, such as "<project folder>/bots.examples/loops/for-loop-index.json".
      */
-    public static getTargetPath(example: ExampleBot, projectRoot: string): string {
-        return path.join(projectRoot, 'src', 'bots', EXAMPLES_FOLDER, ...example.id.split('/')) + '.json';
+    public static getTargetPath(example: ExampleBot, projectFolder: string): string {
+        return path.join(projectFolder, EXAMPLES_FOLDER, ...example.id.split('/')) + '.json';
     }
 
     /**
@@ -265,12 +337,20 @@ function convertToExampleBot(entry: unknown): ExampleBot | undefined {
         return undefined;
     }
 
+    // A companion that is not well formed drops the whole entry, so an example is never added half complete.
+    const companions = convertToExampleCompanions(record.companions);
+
+    if (companions === undefined) {
+        return undefined;
+    }
+
     // Keep only text platform names; a missing list means every platform.
     const platforms = Array.isArray(record.platforms)
         ? record.platforms.filter((platform): platform is string => typeof platform === 'string')
         : [];
 
     return {
+        companions,
         description: description as string,
         driver: driver as ExampleDriverKind,
         group: group as string,
@@ -278,6 +358,42 @@ function convertToExampleBot(entry: unknown): ExampleBot | undefined {
         name: name as string,
         platforms
     };
+}
+
+/**
+ * Converts the companions of a catalog entry into companion files.
+ *
+ * @param companions - The raw `companions` value of the entry.
+ * @returns The companion files, none for a missing list, or undefined when any companion is not well formed.
+ */
+function convertToExampleCompanions(companions: unknown): ExampleCompanion[] | undefined {
+    // Most examples are a bot file alone.
+    if (companions === undefined) {
+        return [];
+    }
+
+    if (!Array.isArray(companions)) {
+        return undefined;
+    }
+
+    // Every companion needs a packaged resource and a safe place in the project.
+    const exampleCompanions: ExampleCompanion[] = [];
+
+    for (const companion of companions) {
+        const { resource, target } = (companion ?? {}) as { resource?: unknown; target?: unknown; };
+        const isResourceValid = typeof resource === 'string'
+            && resource.startsWith(COMPANION_RESOURCE_ROOT)
+            && testCompanionPath(resource);
+        const isTargetValid = typeof target === 'string' && testCompanionPath(target);
+
+        if (!isResourceValid || !isTargetValid) {
+            return undefined;
+        }
+
+        exampleCompanions.push({ resource: resource as string, target: target as string });
+    }
+
+    return exampleCompanions;
 }
 
 /**
@@ -332,6 +448,26 @@ function resolveErrorMessage(error: unknown): string {
 }
 
 /**
+ * Tests whether a text is a safe relative file path: plain segments joined by "/".
+ *
+ * @remarks
+ * A segment that is empty, "." or "..", or that holds a character outside letters, digits, dots, hyphens and
+ * underscores, is refused. The path can therefore never be absolute and never climb out of the folder it is
+ * joined to.
+ *
+ * @param relativePath - The candidate path, such as "environments/ExampleLogin.json".
+ * @returns True when every segment is plain.
+ */
+function testCompanionPath(relativePath: string): boolean {
+    return relativePath.split('/').every(segment => {
+        const isPlainText = COMPANION_SEGMENT_PATTERN.exec(segment) !== null;
+        const isClimbing = segment === '.' || segment === '..';
+
+        return isPlainText && !isClimbing;
+    });
+}
+
+/**
  * Tests whether a text is a safe example id: two or more slug segments joined by "/".
  *
  * @remarks
@@ -365,6 +501,9 @@ function testExampleId(id: string): boolean {
  * One example bot of the catalog.
  */
 export interface ExampleBot {
+    /** The files added to the project with the example, such as the environment it reads; usually none. */
+    companions: ExampleCompanion[];
+
     /** What the example does and teaches, shown under its name in the picker. */
     description: string;
 
@@ -382,6 +521,21 @@ export interface ExampleBot {
 
     /** The Node platform names the example runs on; empty means every platform. */
     platforms: string[];
+}
+
+/**
+ * One file that is added to the project together with an example.
+ *
+ * @remarks
+ * An example that reads an environment ships that environment as a companion, so the example is complete after one
+ * command. A companion is user data once it is in the project, so an existing file is never replaced.
+ */
+export interface ExampleCompanion {
+    /** The packaged resource name of the file, such as "resources.examples/environments/ExampleLogin.json". */
+    resource: string;
+
+    /** The path of the file inside the project folder, such as "environments/ExampleLogin.json". */
+    target: string;
 }
 
 /**
@@ -421,6 +575,7 @@ export interface ExampleRequest {
 }
 
 /**
- * The driver an example needs: Chrome, the UIA desktop driver, or none (driver-free bots such as HTTP calls).
+ * The driver an example needs: Android through Appium, Chrome, the UIA desktop driver, or none (driver-free bots
+ * such as HTTP calls).
  */
-export type ExampleDriverKind = 'chrome' | 'none' | 'uia';
+export type ExampleDriverKind = 'android' | 'chrome' | 'none' | 'uia';

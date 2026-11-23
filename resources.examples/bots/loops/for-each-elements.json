@@ -1,0 +1,149 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Runs the same steps once for every element a locator finds, however many there are. Inside the loop, \".\" is the current element.",
+        "name": "For Each Element"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 5000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "InvokeForEachLoop needs no count: the page decides how many passes run.",
+                "name": "Act on every element found"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Adds three Delete buttons to loop over.",
+                        "name": "Prepare three elements"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the add/remove page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/add_remove_elements/"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeForLoop",
+                            "capabilities": {
+                                "displayName": "Repeat 3 times"
+                            },
+                            "argument": "3",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeClick",
+                                    "capabilities": {
+                                        "displayName": "Click Add Element"
+                                    },
+                                    "onElement": "//button[.='Add Element']"
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Three Delete buttons exist"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Equal --Expected:3}}",
+                            "onElement": "//button[@class='added-manually']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Each pass clicks the current button, which removes it.",
+                        "name": "Click every Delete button"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeForEachLoop",
+                            "capabilities": {
+                                "displayName": "For each Delete button"
+                            },
+                            "onElement": "//button[@class='added-manually']",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeClick",
+                                    "capabilities": {
+                                        "displayName": "Click the current button"
+                                    },
+                                    "onElement": "."
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Every button was clicked once, so none is left.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "No Delete button is left"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//button[@class='added-manually']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

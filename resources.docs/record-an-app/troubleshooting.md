@@ -168,6 +168,13 @@ For messages from other parts of G4 Studio, see the [product-level troubleshooti
 - **Fix:** Connect the phone with USB debugging on, or start an emulator, then press **Start** again.
 - **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
 
+## The UIA driver server stops answering after an Android emulator starts
+
+- **Cause:** The emulator took ports `5554` and `5555`, its defaults. The sandbox uses `5554` for the UIA node and `5555` for the UIA driver server.
+- **Check:** Run `adb devices`. An emulator listed as `emulator-5554` uses the two UIA ports.
+- **Fix:** Close the emulator and start it on another port: `emulator -avd <name of your virtual device> -port 5580`. adb then lists it as `emulator-5580`.
+- **Source:** the sandbox's `add-uia-node.cmd` and `start-uia-driver-server.cmd`
+
 ## More than one Android device is connected
 
 - **Cause:** Several devices are connected and the card does not say which one to use, or `appium:udid` names a device that is not connected.

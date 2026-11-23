@@ -558,8 +558,8 @@ export class Utilities {
      * Shared by every bot command (Open as JSON, Open in Workflow Editor, Publish as Flow) so the
      * Explorer menu rules and the command-side checks stay the same. A folder matches by path
      * segment relative to a workspace folder, so `bots` accepts `bots/x.json` and
-     * `bots/examples/x.json` but not `base.bots/x.json`; callers that also accept recorded/base
-     * definitions pass additional folder names (for example 'base.bots').
+     * `bots/shop/x.json` but not `base.bots/x.json` or `bots.examples/x.json`; callers that also accept
+     * base or example bots pass additional folder names (for example 'base.bots' and 'bots.examples').
      *
      * @param uri - Resource to test.
      * @param extensions - Accepted lower-case file extensions, including the dot (for example '.json').

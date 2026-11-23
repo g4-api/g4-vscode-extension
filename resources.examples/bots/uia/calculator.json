@@ -1,0 +1,159 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {
+                "browserName": "Uia",
+                "uia:options": {
+                    "label": "machine-a"
+                }
+            }
+        },
+        "driver": "UiaDriver",
+        "driverBinaries": "http://localhost:5555/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Drives a Windows desktop app through UI Automation: starts Calculator, clicks 9 x 9 = and asserts the display shows 81. Needs the UIA driver server, and a Windows display language of English because the window is found by its name.",
+        "name": "Windows Calculator"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The same steps as on a web page; only the driver and the locators differ.",
+                "name": "Calculate on the desktop"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "With the UIA driver, InvokeScript runs a PowerShell command on the machine.",
+                        "name": "Start Calculator"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeScript",
+                            "capabilities": {
+                                "displayName": "Start Calculator"
+                            },
+                            "argument": "Start-Process calc.exe"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WaitFlow",
+                            "capabilities": {
+                                "displayName": "Wait for the Calculator window"
+                            },
+                            "argument": "{{$ --Condition:ElementExists --Timeout:20000}}",
+                            "onElement": "/Desktop/Window[@Name='Calculator']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Desktop locators start at /Desktop and use the control type and its AutomationId.",
+                        "name": "Calculate 9 x 9"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click 9"
+                            },
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Button[@AutomationId='num9Button']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click multiply"
+                            },
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Button[@AutomationId='multiplyButton']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click 9"
+                            },
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Button[@AutomationId='num9Button']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click equals"
+                            },
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Button[@AutomationId='equalButton']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The display names its value, for example \"Display is 81\".",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The display shows 81"
+                            },
+                            "argument": "{{$ --Condition:ElementAttribute --Operator:Match --Expected:81}}",
+                            "onAttribute": "Name",
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Text[@AutomationId='CalculatorResults']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Close Calculator"
+                            },
+                            "onElement": "/Desktop/Window[@Name='Calculator']//Button[@AutomationId='Close']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "End the session"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

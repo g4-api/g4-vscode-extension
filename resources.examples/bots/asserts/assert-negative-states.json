@@ -1,0 +1,156 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Checks what is not there: a disabled field, a missing element, a hidden element and no open alert. A check for a missing element waits for the whole search timeout, so this bot lowers it to 5 seconds.",
+        "name": "Assert Negative States"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 5000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Proves that elements are disabled, missing or hidden, and that no alert is open.",
+                "name": "Assert negative states"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A page whose text box starts disabled and whose message does not exist yet.",
+                        "name": "Disabled and missing"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the dynamic controls page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/dynamic_controls"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Text box is disabled"
+                            },
+                            "argument": "{{$ --Condition:ElementDisabled}}",
+                            "onElement": "//form[@id='input-example']/input"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "No message is shown yet"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//p[@id='message']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "No alert is open"
+                            },
+                            "argument": "{{$ --Condition:AlertNotExists}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click Remove"
+                            },
+                            "onElement": "//form[@id='checkbox-example']/button"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WaitFlow",
+                            "capabilities": {
+                                "displayName": "Wait until the checkbox is gone"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists --Timeout:15000}}",
+                            "onElement": "//div[@id='checkbox']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Checkbox no longer exists"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//input[@type='checkbox']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "A page whose result exists in the page but is not shown until Start is clicked.",
+                        "name": "Hidden"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the hidden element page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/dynamic_loading/1"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Result exists but is not visible"
+                            },
+                            "argument": "{{$ --Condition:ElementNotVisible}}",
+                            "onElement": "//div[@id='finish']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
