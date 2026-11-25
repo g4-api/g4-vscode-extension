@@ -1,0 +1,236 @@
+{
+    "examples": [
+        {
+            "id": "getting-started/find-something-on-bing",
+            "group": "Getting Started",
+            "name": "Find Something on Bing",
+            "description": "Opens Bing, searches for a phrase, opens the first suggestion and asserts that the result page has links.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "asserts/assert-page-and-elements",
+            "group": "Asserts",
+            "name": "Assert Page and Elements",
+            "description": "Checks a page title, its address, and the text, count and attributes of its elements, using the Equal, Match, Greater and NotEqual operators.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "asserts/assert-negative-states",
+            "group": "Asserts",
+            "name": "Assert Negative States",
+            "description": "Checks what is not there: a disabled field, a missing element, a hidden element and no open alert. A check for a missing element waits for the whole search timeout, so this bot lowers it to 5 seconds.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "conditions/if-else",
+            "group": "Conditions",
+            "name": "If / Else",
+            "description": "Ticks a checkbox only when it is not ticked yet: SetCondition runs the True branch or the False branch.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "conditions/switch-case",
+            "group": "Conditions",
+            "name": "Switch / Case",
+            "description": "Reads a value from the page and runs the branch with that name. A regular expression can cut the value first, and the Default branch runs when no name fits.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/for-loop-count",
+            "group": "Loops",
+            "name": "For Loop: Fixed Count",
+            "description": "Repeats a click five times with InvokeForLoop, then checks that five elements were added.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/for-loop-index",
+            "group": "Loops",
+            "name": "For Loop: Use the Index",
+            "description": "Reads the loop index inside a locator to visit a different table row on every pass. The index starts at 0, so Resolve-MathExpression adds 1 to get the row number.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/nested-for-loops",
+            "group": "Loops",
+            "name": "Nested For Loops",
+            "description": "Runs a loop inside a loop to visit every cell of a table. Each loop reads its own index: the outer index comes back when the inner loop ends.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/for-each-elements",
+            "group": "Loops",
+            "name": "For Each Element",
+            "description": "Runs the same steps once for every element a locator finds, however many there are. Inside the loop, \".\" is the current element.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/data-for-each",
+            "group": "Loops",
+            "name": "For Each Data Row",
+            "description": "Runs the same login steps once per record of a JSON list, inside one run. Each step reads the current record with --Field.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "loops/while-pagination",
+            "group": "Loops",
+            "name": "While Loop: Pagination",
+            "description": "Clicks \"next\" for as long as a next link exists, so the bot reaches the last page of a list without knowing how many pages there are. A timeout guarantees the loop ends.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "flow/stop-flow-guard",
+            "group": "Flow",
+            "name": "Stop Flow: Guard",
+            "description": "Checks a precondition and ends the whole run early when it is not met: StopFlow closes the browser, and no later step, job or stage runs. Keep StopFlow the last step of its job.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "flow/wait-for-dynamic-content",
+            "group": "Flow",
+            "name": "Wait for Dynamic Content",
+            "description": "Waits for a condition instead of a fixed time: WaitFlow continues the moment the element is visible, and gives up after its timeout.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "parallel/parallel-jobs",
+            "group": "Parallel",
+            "name": "Parallel Jobs",
+            "description": "Runs the jobs of one stage side by side in a Parallel container: at most two at a time, plus a background job the container does not wait for. No browser is needed.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "parallel/parallel-stages",
+            "group": "Parallel",
+            "name": "Parallel Stages",
+            "description": "Runs whole stages side by side in a Parallel container at the top of the bot. Each stage keeps its own jobs in order, and what the stages remember is merged when they all finish. No browser is needed.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "extraction/extract-single-entity",
+            "group": "Extraction",
+            "name": "Extract One Item",
+            "description": "The smallest scraper: reads a few fields of one book page into one record. The record comes back in the run report and is saved to a JSON file in the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "extraction/extract-list-to-sqlite",
+            "group": "Extraction",
+            "name": "Extract a List to SQLite",
+            "description": "Reads every book of a two-page list into a SQLite table. The bot runs once per page, taking the page name from its data source. The database file is written to the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "extraction/extract-with-transformers-and-branch",
+            "group": "Extraction",
+            "name": "Extract with Transformers and Detail Pages",
+            "description": "Reads a list of books and, for each one, opens its detail page in a new window to read more fields. A transformer cleans a value after it is read. The records are saved to a CSV file in the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "data/data-driven-rows",
+            "group": "Data",
+            "name": "Data-Driven Rows",
+            "description": "Runs the whole bot once per row of its data source: three logins, each with its own username, password and expected message. Steps read the current row with {{$ columns.name }}.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "data/parameters-and-macros",
+            "group": "Data",
+            "name": "Parameters and Macros",
+            "description": "Stores values in parameters and reads them back, and builds values with macros: a new ID, today's date and a calculation. No browser is needed, so it is a quick first check that the {hub} works.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "data/environment-login",
+            "group": "Data",
+            "name": "Environment Login",
+            "description": "Logs in with an address, a username and a password read from an environment, so the bot holds no login values. It uses the ExampleLogin environment: the file environments/ExampleLogin.json is added with this example, and the Update or Create Environment Variables command sends it to the {hub}.",
+            "driver": "chrome",
+            "platforms": [],
+            "companions": [
+                {
+                    "resource": "resources.examples/environments/ExampleLogin.json",
+                    "target": "environments/ExampleLogin.json"
+                }
+            ]
+        },
+        {
+            "id": "api/get-request",
+            "group": "API",
+            "name": "GET Request",
+            "description": "Reads an item from a web API with a GET request, picks fields out of the JSON answer with ReadJson, and asserts them. No browser is needed.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "api/post-request",
+            "group": "API",
+            "name": "POST Request",
+            "description": "Creates an item on a web API with a POST request that carries a JSON body, then asserts the status and the item the API sends back. No browser is needed. The practice API answers as if it saved the item.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "api/put-request",
+            "group": "API",
+            "name": "PUT Request",
+            "description": "Replaces an item on a web API with a PUT request, then asserts the status and the changed field. No browser is needed. The practice API answers as if it saved the change.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "api/delete-request",
+            "group": "API",
+            "name": "DELETE Request",
+            "description": "Removes an item from a web API with a DELETE request and asserts the status code. No browser is needed. The practice API answers as if it removed the item.",
+            "driver": "none",
+            "platforms": []
+        },
+        {
+            "id": "web-ui/frames-windows-alerts",
+            "group": "Web UI",
+            "name": "Frames, Windows and Alerts",
+            "description": "Reaches elements a plain locator cannot find: inside a frame, in another browser window, and in an alert. Each needs a switch step first.",
+            "driver": "chrome",
+            "platforms": []
+        },
+        {
+            "id": "uia/calculator",
+            "group": "UIA",
+            "name": "Windows Calculator",
+            "description": "Drives a Windows desktop app through UI Automation: starts Calculator, clicks 9 x 9 = and asserts the display shows 81. Needs the UIA driver server, and a Windows display language of English because the window is found by its name.",
+            "driver": "uia",
+            "platforms": [
+                "win32"
+            ]
+        },
+        {
+            "id": "android/settings-app",
+            "group": "Android",
+            "name": "Android Settings App",
+            "description": "Drives an Android app through Appium: opens Settings, taps Connected devices, asserts the screen that opens and goes back. Needs an Appium server and a device or emulator set to English. The driver settings in the bot name the Appium address and the app to open; change them to fit your device.",
+            "driver": "android",
+            "platforms": []
+        }
+    ]
+}

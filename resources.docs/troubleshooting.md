@@ -155,15 +155,15 @@ The full message reads: `G4 Hub URL is not set. Please configure the "g4Server" 
 
 **Source:** `src/extension.ts:175`
 
-### Select a JSON bot file under the bots or base.bots folder
+### Select a JSON bot file under the bots, bots.examples or base.bots folder
 
-**Cause:** **Open in Workflow Editor** ran on something other than a `.json` bot under `bots` or `base.bots`.
+**Cause:** **Open in Workflow Editor** ran on something other than a `.json` bot under `bots`, `bots.examples` or `base.bots`.
 
 **Check:** Is the file a `.json` bot in one of those folders?
 
 **Fix:** Right-click a `.json` bot. For a `.g4` bot, double-click it.
 
-**Source:** `src/extension.ts:198`
+**Source:** `src/extension.ts:235`
 
 ### Select a .g4rpt file under the reports folder
 

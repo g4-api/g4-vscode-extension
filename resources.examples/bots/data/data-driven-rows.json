@@ -1,0 +1,126 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Runs the whole bot once per row of its data source: three logins, each with its own username, password and expected message. Steps read the current row with {{$ columns.name }}.",
+        "name": "Data-Driven Rows"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Every row of the data source is its own run, with its own browser.",
+                "name": "Log in with the current row"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "The values come from the current row.",
+                        "name": "Log in"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the login page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/login"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendKeys",
+                            "capabilities": {
+                                "displayName": "Type the username"
+                            },
+                            "argument": "{{$ columns.username }}",
+                            "onElement": "//input[@id='username']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendKeys",
+                            "capabilities": {
+                                "displayName": "Type the password"
+                            },
+                            "argument": "{{$ columns.password }}",
+                            "onElement": "//input[@id='password']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click Login"
+                            },
+                            "onElement": "//button[@type='submit']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Each row names the message it expects.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The expected message is shown"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:{{$ columns.message }}}}",
+                            "onElement": "//div[@id='flash']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "dataSource": {
+        "type": "JSON",
+        "source": "[{\"username\":\"tomsmith\",\"password\":\"SuperSecretPassword!\",\"message\":\"You logged into a secure area\"},{\"username\":\"tomsmith\",\"password\":\"wrong\",\"message\":\"Your password is invalid\"},{\"username\":\"nobody\",\"password\":\"SuperSecretPassword!\",\"message\":\"Your username is invalid\"}]"
+    }
+}

@@ -1,0 +1,168 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "The smallest scraper: reads a few fields of one book page into one record. The record comes back in the run report and is saved to a JSON file in the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+        "name": "Extract One Item"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "One page, one record.",
+                "name": "Read one book"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A page that shows a single book.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the book page"
+                            },
+                            "argument": "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The book is on the page"
+                            },
+                            "argument": "{{$ --Condition:ElementExists}}",
+                            "onElement": "//article[@class='product_page']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "ExportData makes one record per element it finds; each rule inside it is one field.",
+                        "name": "Extract the record"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Extraction",
+                            "pluginName": "ExportData",
+                            "capabilities": {
+                                "displayName": "Extract the book"
+                            },
+                            "argument": "{{$ --Scope:Elements --Key:Book}}",
+                            "onElement": "//article[@class='product_page']",
+                            "key": "Book",
+                            "dataCollector": {
+                                "type": "JsonDataCollector",
+                                "source": "a-light-in-the-attic.json",
+                                "forEntity": true
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Title"
+                                    },
+                                    "onElement": ".//h1",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Title"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Price"
+                                    },
+                                    "onElement": ".//p[@class='price_color']",
+                                    "regularExpression": "[0-9]+(\\.[0-9]+)?",
+                                    "dataType": "Number",
+                                    "key": "Price"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read InStock"
+                                    },
+                                    "onElement": ".//p[contains(@class,'availability')]",
+                                    "regularExpression": "[0-9]+",
+                                    "dataType": "Number",
+                                    "key": "InStock"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Upc"
+                                    },
+                                    "onElement": "//th[normalize-space()='UPC']/following-sibling::td",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Upc"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "ValueContent",
+                                    "capabilities": {
+                                        "displayName": "Read Address"
+                                    },
+                                    "argument": "{{$Get-PageUrl}}",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Address"
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

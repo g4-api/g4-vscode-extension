@@ -1,0 +1,122 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Waits for a condition instead of a fixed time: WaitFlow continues the moment the element is visible, and gives up after its timeout.",
+        "name": "Wait for Dynamic Content"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 5000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The page shows its result a few seconds after Start is clicked.",
+                "name": "Wait for a slow result"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "The result does not exist until the page finishes loading it.",
+                        "name": "Start the slow action"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the dynamic loading page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/dynamic_loading/2"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "No result yet"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//div[@id='finish']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click Start"
+                            },
+                            "onElement": "//div[@id='start']/button"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The wait ends as soon as the result is visible, up to 20 seconds.",
+                        "name": "Wait, then assert"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "WaitFlow",
+                            "capabilities": {
+                                "displayName": "Wait until the result is visible"
+                            },
+                            "argument": "{{$ --Condition:ElementVisible --Timeout:20000}}",
+                            "onElement": "//div[@id='finish']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Result says \"Hello World!\""
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:Hello World!}}",
+                            "onElement": "//div[@id='finish']/h4"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

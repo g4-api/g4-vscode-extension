@@ -1,0 +1,164 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Reads every book of a two-page list into a SQLite table. The bot runs once per page, taking the page name from its data source. The database file is written to the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+        "name": "Extract a List to SQLite"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "One record per book, saved as the bot reads it.",
+                "name": "Read a list of books"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "The page name comes from the current data row.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open one page of the Mystery list"
+                            },
+                            "argument": "https://books.toscrape.com/catalogue/category/books/mystery_3/{{$ columns.page }}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The page lists books"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Greater --Expected:0}}",
+                            "onElement": "//article[@class='product_pod']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The locator finds every book on the page; a path that starts with \".\" reads inside the current book.",
+                        "name": "Extract the records"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Extraction",
+                            "pluginName": "ExportData",
+                            "capabilities": {
+                                "displayName": "Extract the books"
+                            },
+                            "argument": "{{$ --Scope:Elements --Key:Books}}",
+                            "onElement": "//article[@class='product_pod']",
+                            "key": "Books",
+                            "dataCollector": {
+                                "type": "SqLiteDataCollector",
+                                "source": "mystery-books.db",
+                                "repository": "Books",
+                                "forEntity": true
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "ValueContent",
+                                    "capabilities": {
+                                        "displayName": "Read Page"
+                                    },
+                                    "argument": "{{$ columns.page }}",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Page"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Title"
+                                    },
+                                    "onAttribute": "title",
+                                    "onElement": ".//h3/a",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Title"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Price"
+                                    },
+                                    "onElement": ".//p[@class='price_color']",
+                                    "regularExpression": "[0-9]+(\\.[0-9]+)?",
+                                    "dataType": "Number",
+                                    "key": "Price"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Rating"
+                                    },
+                                    "onAttribute": "class",
+                                    "onElement": ".//p[contains(@class,'star-rating')]",
+                                    "regularExpression": "(?<=star-rating ).*",
+                                    "dataType": "String",
+                                    "key": "Rating"
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "dataSource": {
+        "type": "JSON",
+        "source": "[{\"page\":\"index.html\"},{\"page\":\"page-2.html\"}]"
+    }
+}

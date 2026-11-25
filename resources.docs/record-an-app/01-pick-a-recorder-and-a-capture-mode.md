@@ -73,7 +73,7 @@ The Android card's driver parameters are the values the flow replays with:
 - **`driverBinaries`** is the Appium server endpoint, `http://localhost:4723` by default.
 - **`capabilities.alwaysMatch`**, with **`firstMatch`** next to it, are the W3C WebDriver new-session capabilities, with every Appium capability under the `appium:` prefix. The recorder service reads `appium:udid`, `appium:appPackage`, `appium:appActivity` and `appium:app` from `alwaysMatch` to choose the device and start your app.
 
-The card leaves `SwitchActivity` and `InvokeLongClick` out of the flow, because no plugin replays them yet. [Module 8](08-record-an-android-app.md) walks through a whole Android session, from the device to the replay.
+The card keeps every action in the flow. A long-press replays with `InvokeLongClick` and a move to another screen with `SwitchActivity`. [Module 8](08-record-an-android-app.md) walks through a whole Android session, from the device to the replay.
 
 ---
 
@@ -158,6 +158,18 @@ The same setting in `manifest.json`:
 > **📝 Note:** A project created before this setting existed has no list, so it keeps every action. Add `SubmitForm` to its Chromium card to get the same result.
 
 The same heading holds **Leave the DOM Context Out of the Recorded Flow**. The Chromium recorder sends the markup around each element it records, and the Hub adds it to the browser actions for AI tools that improve locators. The switch is on by default, so your flows stay small. Turn it off to keep the markup in the flow.
+
+The switch removes only the markup. A saved flow always keeps the locator data the Hub adds to a browser action, because the AI tools and the self-healing locator use it at replay:
+
+| Field in `capabilities` | What it holds |
+| --- | --- |
+| `locators` | The recorder's other locators for the element, strongest first |
+| `locatorStrength` | How reliable the recorder rated the chosen locator |
+| `shadowPath` | The path into a shadow root, when the element is inside one |
+| `originalLocator` | The locator before a shadow path or a correction replaced it |
+| `target` | The locators of the drop target, on a recorded drag and drop |
+
+A drag and drop is recorded as one action. The Chromium recorder writes `InvokeDragAndDrop`, which drops on the target element or by the recorded distance. The desktop recorder writes `InvokeUser32DragAndDrop`, which uses element points where a locator exists and screen points otherwise.
 
 ---
 

@@ -1,4 +1,6 @@
 {
+    "command.Add-ExampleBots.category": "G4",
+    "command.Add-ExampleBots.title": "Add Example Bots",
     "command.Apply-Settings.category": "G4",
     "command.New-Project.category": "G4",
     "command.New-Project.title": "Create a New G4 Project",

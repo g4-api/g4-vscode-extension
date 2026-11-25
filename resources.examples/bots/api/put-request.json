@@ -1,0 +1,121 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "driver": "NoDriver",
+        "driverBinaries": "."
+    },
+    "reference": {
+        "description": "Replaces an item on a web API with a PUT request, then asserts the status and the changed field. No browser is needed. The practice API answers as if it saved the change.",
+        "name": "PUT Request"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "PUT sends the whole item again, with its new values.",
+                "name": "Replace an item"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "The address names the item to replace.",
+                        "name": "Send the request"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendHttpRequest",
+                            "capabilities": {
+                                "displayName": "PUT post 1"
+                            },
+                            "argument": "{{$ --Url:https://jsonplaceholder.typicode.com/posts/1 --Method:Put --ContentType:application/json --Body:{\"id\":1,\"title\":\"Updated title\",\"body\":\"Replaced by a bot\",\"userId\":1}}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The status is 200 (OK)"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:200}}",
+                            "onElement": "{{$Get-Parameter --Name:SendHttpRequest:HttpStatusCode --Scope:Session}}"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The API sends back the item as it now is.",
+                        "name": "Assert the changed item"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "ReadJson",
+                            "capabilities": {
+                                "displayName": "Read the title"
+                            },
+                            "argument": "{{$Get-Parameter --Name:SendHttpRequest:HttpResponse --Scope:Session}}",
+                            "onElement": "$.title",
+                            "regularExpression": "(?s).*"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The title is the new one"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:Updated title}}",
+                            "onElement": "{{$Get-Parameter --Name:ReadJson:Result --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "ReadJson",
+                            "capabilities": {
+                                "displayName": "Read the id"
+                            },
+                            "argument": "{{$Get-Parameter --Name:SendHttpRequest:HttpResponse --Scope:Session}}",
+                            "onElement": "$.id",
+                            "regularExpression": "(?s).*"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The id did not change"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:1}}",
+                            "onElement": "{{$Get-Parameter --Name:ReadJson:Result --Scope:Session}}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

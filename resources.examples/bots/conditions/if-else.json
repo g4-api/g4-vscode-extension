@@ -1,0 +1,191 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Ticks a checkbox only when it is not ticked yet: SetCondition runs the True branch or the False branch.",
+        "name": "If / Else"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Each checkbox is ticked only when it needs to be.",
+                "name": "Tick both checkboxes"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "The first checkbox starts empty, the second starts ticked.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the checkboxes page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/checkboxes"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The same condition takes a different branch for each checkbox.",
+                        "name": "Decide per checkbox"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetCondition",
+                            "capabilities": {
+                                "displayName": "Is the first checkbox empty?"
+                            },
+                            "argument": "{{$ --Condition:ElementNotSelected}}",
+                            "onElement": "(//input[@type='checkbox'])[1]",
+                            "branches": {
+                                "True": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "InvokeClick",
+                                        "capabilities": {
+                                            "displayName": "Tick the first checkbox"
+                                        },
+                                        "onElement": "(//input[@type='checkbox'])[1]"
+                                    },
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log the True branch"
+                                        },
+                                        "argument": "First checkbox was empty: ticked it."
+                                    }
+                                ],
+                                "False": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log the False branch"
+                                        },
+                                        "argument": "First checkbox was already ticked: nothing to do."
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetCondition",
+                            "capabilities": {
+                                "displayName": "Is the second checkbox empty?"
+                            },
+                            "argument": "{{$ --Condition:ElementNotSelected}}",
+                            "onElement": "(//input[@type='checkbox'])[2]",
+                            "branches": {
+                                "True": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "InvokeClick",
+                                        "capabilities": {
+                                            "displayName": "Tick the second checkbox"
+                                        },
+                                        "onElement": "(//input[@type='checkbox'])[2]"
+                                    },
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log the True branch"
+                                        },
+                                        "argument": "Second checkbox was empty: ticked it."
+                                    }
+                                ],
+                                "False": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log the False branch"
+                                        },
+                                        "argument": "Second checkbox was already ticked: nothing to do."
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Both checkboxes are ticked, whichever branch ran.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "First checkbox is ticked"
+                            },
+                            "argument": "{{$ --Condition:ElementSelected}}",
+                            "onElement": "(//input[@type='checkbox'])[1]"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Second checkbox is ticked"
+                            },
+                            "argument": "{{$ --Condition:ElementSelected}}",
+                            "onElement": "(//input[@type='checkbox'])[2]"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

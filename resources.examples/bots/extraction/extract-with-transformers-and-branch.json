@@ -1,0 +1,247 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Reads a list of books and, for each one, opens its detail page in a new window to read more fields. A transformer cleans a value after it is read. The records are saved to a CSV file in the folder the {hub} runs in; set a full path in the data collector to choose another place.",
+        "name": "Extract with Transformers and Detail Pages"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Fields from the list and from each detail page end up in the same record.",
+                "name": "Read books and their details"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A short list of five books.",
+                        "name": "Open the list"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the Self Help list"
+                            },
+                            "argument": "https://books.toscrape.com/catalogue/category/books/self-help_41/index.html"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The page lists books"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Greater --Expected:0}}",
+                            "onElement": "//article[@class='product_pod']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "A field can carry steps: they run after the field is read, here to open and close the detail page.",
+                        "name": "Extract the records"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Extraction",
+                            "pluginName": "ExportData",
+                            "capabilities": {
+                                "displayName": "Extract the books"
+                            },
+                            "argument": "{{$ --Scope:Elements --Key:Books}}",
+                            "onElement": "//article[@class='product_pod']",
+                            "key": "Books",
+                            "dataCollector": {
+                                "type": "CsvDataCollector",
+                                "source": "self-help-books.csv",
+                                "forEntity": true
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Title"
+                                    },
+                                    "onAttribute": "title",
+                                    "onElement": ".//h3/a",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Title"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Price"
+                                    },
+                                    "onElement": ".//p[@class='price_color']",
+                                    "regularExpression": "[0-9]+(\\.[0-9]+)?",
+                                    "dataType": "Number",
+                                    "key": "Price"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read DetailAddress"
+                                    },
+                                    "onAttribute": "href",
+                                    "onElement": ".//h3/a",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "DetailAddress",
+                                    "rules": [
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "NewBrowserWindow",
+                                            "capabilities": {
+                                                "displayName": "Open the detail page in a new window"
+                                            },
+                                            "argument": "{{$ --Amount:1 --Target:_blank}}",
+                                            "onAttribute": "href",
+                                            "onElement": ".//h3/a",
+                                            "regularExpression": "(?s).*"
+                                        },
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "SwitchWindow",
+                                            "capabilities": {
+                                                "displayName": "Switch to the new window"
+                                            },
+                                            "argument": "1"
+                                        },
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "WaitFlow",
+                                            "capabilities": {
+                                                "displayName": "Wait for the details table"
+                                            },
+                                            "argument": "{{$ --Condition:ElementExists --Timeout:15000}}",
+                                            "onElement": "//table[contains(@class,'table-striped')]"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Upc"
+                                    },
+                                    "onElement": "//th[normalize-space()='UPC']/following-sibling::td",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Upc"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read InStock"
+                                    },
+                                    "onElement": "//th[normalize-space()='Availability']/following-sibling::td",
+                                    "regularExpression": "[0-9]+",
+                                    "dataType": "Number",
+                                    "key": "InStock"
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "WebElementContent",
+                                    "capabilities": {
+                                        "displayName": "Read Description"
+                                    },
+                                    "onElement": "//div[@id='product_description']/following-sibling::p",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "String",
+                                    "key": "Description",
+                                    "transformers": [
+                                        {
+                                            "$type": "Transformer",
+                                            "pluginName": "Trim",
+                                            "onElement": "Description"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "$type": "Content",
+                                    "pluginName": "ValueContent",
+                                    "capabilities": {
+                                        "displayName": "Read DetailRead"
+                                    },
+                                    "argument": "true",
+                                    "regularExpression": "(?s).*",
+                                    "dataType": "Boolean",
+                                    "key": "DetailRead",
+                                    "rules": [
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "CloseWindow",
+                                            "capabilities": {
+                                                "displayName": "Close the detail window"
+                                            },
+                                            "argument": "1"
+                                        },
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "SwitchWindow",
+                                            "capabilities": {
+                                                "displayName": "Switch back to the list"
+                                            },
+                                            "argument": "0"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

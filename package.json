@@ -63,6 +63,11 @@
                 "title": "%command.New-Project.title%"
             },
             {
+                "command": "Add-ExampleBots",
+                "category": "%command.Add-ExampleBots.category%",
+                "title": "%command.Add-ExampleBots.title%"
+            },
+            {
                 "command": "Show-Report",
                 "category": "%command.Show-Report.category%",
                 "title": "%command.Show-Report.title%"
@@ -211,6 +216,11 @@
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])base\\.bots([\\\\/]|$)/i"
                 },
                 {
+                    "command": "Open-Bot-In-Workflow",
+                    "group": "navigation@1",
+                    "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots\\.examples([\\\\/]|$)/i"
+                },
+                {
                     "command": "Update-Flow",
                     "group": "navigation@2",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .json && resourceDirname =~ /(^|[\\\\/])bots([\\\\/]|$)/i"
@@ -234,6 +244,11 @@
                     "command": "Open-Report-Viewer",
                     "group": "navigation@1",
                     "when": "resourceScheme == file && !explorerResourceIsFolder && resourceExtname == .g4rpt && resourcePath in g4.reportFiles"
+                },
+                {
+                    "command": "Add-ExampleBots",
+                    "group": "navigation@4",
+                    "when": "resourceScheme == file && explorerResourceIsFolder && resourceFilename =~ /^(bots|bots\\.examples)$/i"
                 }
             ],
             "commandPalette": [

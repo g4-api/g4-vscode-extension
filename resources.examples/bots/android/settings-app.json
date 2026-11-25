@@ -1,0 +1,156 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {
+                "platformName": "Android",
+                "appium:automationName": "UiAutomator2",
+                "appium:appPackage": "com.android.settings",
+                "appium:appActivity": ".Settings",
+                "appium:noReset": true,
+                "appium:forceAppLaunch": true
+            }
+        },
+        "driver": "AndroidDriver",
+        "driverBinaries": "http://localhost:4723",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Drives an Android app through Appium: opens Settings, taps Connected devices, asserts the screen that opens and goes back. Needs an Appium server and a device or emulator set to English. The driver settings in the bot name the Appium address and the app to open; change them to fit your device.",
+        "name": "Android Settings App"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The driver settings start the app; the steps then tap and assert like on any other platform.",
+                "name": "Open a Settings screen"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Android locators use the class of a view and its text, id or description.",
+                        "name": "Check the start screen"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The Settings home is shown"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:Settings}}",
+                            "onElement": "//*[@resource-id='com.android.settings:id/homepage_title']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "A tap is a click.",
+                        "name": "Open Connected devices"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Tap Connected devices"
+                            },
+                            "onElement": "//android.widget.TextView[@text='Connected devices']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WaitFlow",
+                            "capabilities": {
+                                "displayName": "Wait for the screen"
+                            },
+                            "argument": "{{$ --Condition:ElementExists --Timeout:15000}}",
+                            "onElement": "//android.widget.TextView[@text='Pair new device']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The screen is titled Connected devices"
+                            },
+                            "argument": "{{$ --Condition:ElementAttribute --Operator:Equal --Expected:Connected devices}}",
+                            "onAttribute": "content-desc",
+                            "onElement": "//*[@resource-id='com.android.settings:id/collapsing_toolbar']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Pair new device is offered"
+                            },
+                            "argument": "{{$ --Condition:ElementExists}}",
+                            "onElement": "//android.widget.TextView[@text='Pair new device']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The arrow at the top returns to the Settings home.",
+                        "name": "Go back"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Tap Navigate up"
+                            },
+                            "onElement": "//android.widget.ImageButton[@content-desc='Navigate up']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The Settings home is back"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:Settings}}",
+                            "onElement": "//*[@resource-id='com.android.settings:id/homepage_title']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "End the session"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,167 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Checks a page title, its address, and the text, count and attributes of its elements, using the Equal, Match, Greater and NotEqual operators.",
+        "name": "Assert Page and Elements"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Opens a login page and checks the page and its elements.",
+                "name": "Assert a login page"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Opens the page under test.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the login page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/login"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Checks values that belong to the page itself, so no element is needed.",
+                        "name": "Assert the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Title equals \"The Internet\""
+                            },
+                            "argument": "{{$ --Condition:PageTitle --Operator:Equal --Expected:The Internet}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Address ends with /login"
+                            },
+                            "argument": "{{$ --Condition:PageUrl --Operator:Match --Expected:/login$}}"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Checks text, count and attributes of elements on the page.",
+                        "name": "Assert the elements"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Heading says \"Login Page\""
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:Login Page}}",
+                            "onElement": "//h2"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Hint mentions the secure area"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:(?i)secure area}}",
+                            "onElement": "//h4[@class='subheader']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Form has exactly 2 inputs"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Equal --Expected:2}}",
+                            "onElement": "//form[@id='login']//input"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Page has at least one link"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Greater --Expected:0}}",
+                            "onElement": "//a"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Password field type is \"password\""
+                            },
+                            "argument": "{{$ --Condition:ElementAttribute --Operator:Equal --Expected:password}}",
+                            "onAttribute": "type",
+                            "onElement": "//input[@id='password']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Username field type is not \"password\""
+                            },
+                            "argument": "{{$ --Condition:ElementAttribute --Operator:NotEqual --Expected:password}}",
+                            "onAttribute": "type",
+                            "onElement": "//input[@id='username']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
