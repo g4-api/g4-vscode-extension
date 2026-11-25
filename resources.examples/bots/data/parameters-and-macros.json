@@ -1,0 +1,149 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "driver": "NoDriver",
+        "driverBinaries": "."
+    },
+    "reference": {
+        "description": "Stores values in parameters and reads them back, and builds values with macros: a new ID, today's date and a calculation. No browser is needed, so it is a quick first check that the {hub} works.",
+        "name": "Parameters and Macros"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "A parameter keeps a value for later steps; a macro makes a value when the step runs.",
+                "name": "Work with values"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Each macro is replaced by its result before the step runs.",
+                        "name": "Make values with macros"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Remember a new ID"
+                            },
+                            "argument": "{{$ --Name:RunId --Value:{{$New-Guid --Format:N}} --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Remember today's date"
+                            },
+                            "argument": "{{$ --Name:Today --Value:{{$New-Date --Format:yyyy-MM-dd}} --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Remember a price"
+                            },
+                            "argument": "{{$ --Name:Price --Value:20 --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Remember a quantity"
+                            },
+                            "argument": "{{$ --Name:Quantity --Value:3 --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Total = price x quantity"
+                            },
+                            "argument": "{{$ --Name:Total --Value:{{$Resolve-MathExpression --X:{{$Get-Parameter --Name:Price --Scope:Session}} --Y:{{$Get-Parameter --Name:Quantity --Scope:Session}} --Operation:*}} --Scope:Session}}"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Get-Parameter reads a parameter anywhere a step takes text.",
+                        "name": "Read the values back"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the values"
+                            },
+                            "argument": "Run {{$Get-Parameter --Name:RunId --Scope:Session}} on {{$Get-Parameter --Name:Today --Scope:Session}}: {{$Get-Parameter --Name:Quantity --Scope:Session}} x {{$Get-Parameter --Name:Price --Scope:Session}} = {{$Get-Parameter --Name:Total --Scope:Session}}"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The Text condition compares any text, so it works without a page.",
+                        "name": "Assert the values"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The ID is 32 characters long"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Match --Expected:^[0-9a-f]{32}$}}",
+                            "onElement": "{{$Get-Parameter --Name:RunId --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The date looks like 2026-01-31"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Match --Expected:^\\d{4}-\\d{2}-\\d{2}$}}",
+                            "onElement": "{{$Get-Parameter --Name:Today --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The total is 60"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:60}}",
+                            "onElement": "{{$Get-Parameter --Name:Total --Scope:Session}}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

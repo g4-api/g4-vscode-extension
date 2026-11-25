@@ -1,0 +1,268 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Reaches elements a plain locator cannot find: inside a frame, in another browser window, and in an alert. Each needs a switch step first.",
+        "name": "Frames, Windows and Alerts"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "A step only sees the frame and window it is switched to.",
+                "name": "Switch to where the element is"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A page made of frames inside frames.",
+                        "name": "Frames"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the nested frames page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/nested_frames"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchFrame",
+                            "capabilities": {
+                                "displayName": "Switch into the top frame"
+                            },
+                            "onElement": "//frame[@name='frame-top']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchFrame",
+                            "capabilities": {
+                                "displayName": "Switch into the middle frame"
+                            },
+                            "onElement": "//frame[@name='frame-middle']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The middle frame says MIDDLE"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:MIDDLE}}",
+                            "onElement": "//div[@id='content']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchParentFrame",
+                            "capabilities": {
+                                "displayName": "Go back up to the top frame"
+                            }
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchFrame",
+                            "capabilities": {
+                                "displayName": "Switch into the left frame"
+                            },
+                            "onElement": "//frame[@name='frame-left']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The left frame says LEFT"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:LEFT}}",
+                            "onElement": "//body"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "A link that opens a second browser window. Windows are numbered from 0.",
+                        "name": "Windows"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the windows page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/windows"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click the link that opens a window"
+                            },
+                            "onElement": "//a[.='Click Here']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchWindow",
+                            "capabilities": {
+                                "displayName": "Switch to the new window"
+                            },
+                            "argument": "1"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The new window says \"New Window\""
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:New Window}}",
+                            "onElement": "//h3"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseWindow",
+                            "capabilities": {
+                                "displayName": "Close the new window"
+                            },
+                            "argument": "1"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchWindow",
+                            "capabilities": {
+                                "displayName": "Switch back to the first window"
+                            },
+                            "argument": "0"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The first window is back"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:Opening a new window}}",
+                            "onElement": "//h3"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "An alert blocks the page until it is answered.",
+                        "name": "Alerts"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the alerts page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/javascript_alerts"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click the button that asks to confirm"
+                            },
+                            "onElement": "//button[.='Click for JS Confirm']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "An alert is open"
+                            },
+                            "argument": "{{$ --Condition:AlertExists}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchAlert",
+                            "capabilities": {
+                                "displayName": "Accept the alert"
+                            },
+                            "argument": "Accept"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The page saw the OK answer"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:You clicked: Ok}}",
+                            "onElement": "//p[@id='result']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click the button that asks for text"
+                            },
+                            "onElement": "//button[.='Click for JS Prompt']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SwitchAlert",
+                            "capabilities": {
+                                "displayName": "Type into the alert and accept it"
+                            },
+                            "argument": "{{$ --Keys:Hello --AlertAction:Accept}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The page saw the typed text"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Equal --Expected:You entered: Hello}}",
+                            "onElement": "//p[@id='result']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

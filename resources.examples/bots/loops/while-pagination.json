@@ -1,0 +1,149 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Clicks \"next\" for as long as a next link exists, so the bot reaches the last page of a list without knowing how many pages there are. A timeout guarantees the loop ends.",
+        "name": "While Loop: Pagination"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 5000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "InvokeWhileLoop repeats its steps while its condition is true.",
+                "name": "Walk to the last page"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A book category that spans more than one page.",
+                        "name": "Open the list"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the Mystery category"
+                            },
+                            "argument": "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "A next link exists"
+                            },
+                            "argument": "{{$ --Condition:ElementExists}}",
+                            "onElement": "//li[@class='next']/a"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The condition is checked before every pass. Counting the links never fails, even when none is left.",
+                        "name": "Page until the end"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeWhileLoop",
+                            "capabilities": {
+                                "displayName": "While a next link exists"
+                            },
+                            "argument": "{{$ --Condition:ElementCount --Operator:Greater --Expected:0 --Timeout:60000}}",
+                            "onElement": "//li[@class='next']/a",
+                            "regularExpression": "(?s).*",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeClick",
+                                    "capabilities": {
+                                        "displayName": "Click next"
+                                    },
+                                    "onElement": "//li[@class='next']/a"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the page reached"
+                                    },
+                                    "argument": "Now on {{$Get-PageUrl}}"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The last page has no next link.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "No next link is left"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//li[@class='next']/a"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The address is a later page"
+                            },
+                            "argument": "{{$ --Condition:PageUrl --Operator:Match --Expected:page-\\d+\\.html$}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

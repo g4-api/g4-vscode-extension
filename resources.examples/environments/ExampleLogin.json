@@ -1,0 +1,6 @@
+{
+    "LoginUrl": "https://the-internet.herokuapp.com/login",
+    "Username": "tomsmith",
+    "Password": "SuperSecretPassword!",
+    "WelcomeMessage": "You logged into a secure area"
+}

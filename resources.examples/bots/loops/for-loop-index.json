@@ -1,0 +1,139 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Reads the loop index inside a locator to visit a different table row on every pass. The index starts at 0, so Resolve-MathExpression adds 1 to get the row number.",
+        "name": "For Loop: Use the Index"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The loop index picks the row; the index counts from 0 and rows count from 1.",
+                "name": "Visit every table row"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A page with a table of four people.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the tables page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/tables"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "InvokeForLoop publishes its index as the session parameter InvokeForLoop:Iteration.",
+                        "name": "Loop over the rows"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeForLoop",
+                            "capabilities": {
+                                "displayName": "Repeat 4 times"
+                            },
+                            "argument": "4",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Row number = index + 1"
+                                    },
+                                    "argument": "{{$ --Name:RowNumber --Value:{{$Resolve-MathExpression --X:{{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}} --Y:1 --Operation:+}} --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the index and the row"
+                                    },
+                                    "argument": "Index {{$Get-Parameter --Name:InvokeForLoop:Iteration --Scope:Session}} is row {{$Get-Parameter --Name:RowNumber --Scope:Session}}."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "Assert",
+                                    "capabilities": {
+                                        "displayName": "This row has an email address"
+                                    },
+                                    "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:.+@.+}}",
+                                    "onElement": "//table[@id='table1']/tbody/tr[{{$Get-Parameter --Name:RowNumber --Scope:Session}}]/td[3]"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The last pass had index 3, so the last row number is 4.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Last row number is 4"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:4}}",
+                            "onElement": "{{$Get-Parameter --Name:RowNumber --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

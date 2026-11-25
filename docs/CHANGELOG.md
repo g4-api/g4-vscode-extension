@@ -2,7 +2,30 @@
 
 All notable user-visible changes to G4 Studio are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## 2026.11.40
+
+### Added
+
+- The Add Example Bots command adds ready-made example bots, with their companion files, to a `bots.examples`
+  folder (f06de7a, 24ff6c0), including a bot that searches with Bing (177e69a).
+- A unit test checks that a saved flow keeps the recorder's locator data (`locators`, `locatorStrength`,
+  `shadowPath`, `originalLocator` and the drop `target`) when the DOM context is removed.
+- The recording docs describe the locator data a saved flow keeps, and how drag and drop is recorded.
+
+### Changed
+
+- New projects no longer leave `InvokeLongClick` and `SwitchActivity` out of Android recordings, because the
+  `InvokeLongClick` and `SwitchActivity` plugins replay them. Long-presses and screen changes replay with the G4 Hub
+  that maps their arguments.
+- The Android and troubleshooting docs describe how a recorded scroll replays: `InvokeScroll` scrolls web pages by
+  `--Left`, `--Top` and `--Relative`, but not a native app screen.
+- The release pipeline runs the unit tests (`npm run test:unit`) before it packages the extension, and stops when one
+  fails.
+- The README describes the build and test commands instead of linking to a guide outside the repository.
+
+## Earlier releases
+
+These changes shipped in the releases from 2026.9.24 to 2026.11.39. The commit in parentheses identifies each one.
 
 ### Added
 

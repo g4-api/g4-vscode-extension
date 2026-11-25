@@ -1,0 +1,124 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Runs the same login steps once per record of a JSON list, inside one run. Each step reads the current record with --Field.",
+        "name": "For Each Data Row"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "InvokeDataForEachLoop takes its records from its own argument.",
+                "name": "Try three logins"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Each record holds a username, a password and the message to expect: two wrong logins, then the right one.",
+                        "name": "Log in once per record"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeDataForEachLoop",
+                            "capabilities": {
+                                "displayName": "For each login record"
+                            },
+                            "argument": "[{\"username\":\"tomsmith\",\"password\":\"wrong\",\"message\":\"Your password is invalid\"},{\"username\":\"nobody\",\"password\":\"SuperSecretPassword!\",\"message\":\"Your username is invalid\"},{\"username\":\"tomsmith\",\"password\":\"SuperSecretPassword!\",\"message\":\"You logged into a secure area\"}]",
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "OpenUrl",
+                                    "capabilities": {
+                                        "displayName": "Open the login page"
+                                    },
+                                    "argument": "https://the-internet.herokuapp.com/login"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "SendKeys",
+                                    "capabilities": {
+                                        "displayName": "Type the username"
+                                    },
+                                    "argument": "{{$ --Field:username}}",
+                                    "onElement": "//input[@id='username']"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "SendKeys",
+                                    "capabilities": {
+                                        "displayName": "Type the password"
+                                    },
+                                    "argument": "{{$ --Field:password}}",
+                                    "onElement": "//input[@id='password']"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeClick",
+                                    "capabilities": {
+                                        "displayName": "Click Login"
+                                    },
+                                    "onElement": "//button[@type='submit']"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "Assert",
+                                    "capabilities": {
+                                        "displayName": "The expected message is shown"
+                                    },
+                                    "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:{{$ --Field:message}}}}",
+                                    "onElement": "//div[@id='flash']"
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

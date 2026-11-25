@@ -238,7 +238,7 @@ Each recorder can list the actions VS Code removes from its part of the flow whe
 
 - **`name`** — the action as it appears in the flow, which is the rule's `pluginName`. Names are compared without regard to case.
 - An exclusion only applies to the jobs this recorder produced. Another recorder keeps the same action unless it lists it too.
-- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder, and `SwitchActivity` and `InvokeLongClick` for the Android recorder, which no plugin replays yet.
+- A missing or empty list keeps every action. New projects list `SubmitForm` for the Chromium recorder and nothing for the other recorders. An older project that lists `SwitchActivity` and `InvokeLongClick` for the Android recorder can remove them, because the plugins of the same names now replay them.
 - The list is applied by VS Code when you stop a recording, and to the flows of an autonomous run. The recorders and the Hub never see it.
 
 > **⚠️ Pitfall:** Desktop recorders name their actions after the capture mode (for example `InvokeUser32Click` in `user32` mode). Copy the name from a recorded flow rather than from the recorder's event name.

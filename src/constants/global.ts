@@ -192,14 +192,7 @@ export class Global {
                         "mode": "standard",
                         "useOffset": false,
                         "excludeDomContext": true,
-                        "excludeEvents": [
-                            {
-                                "name": "SwitchActivity"
-                            },
-                            {
-                                "name": "InvokeLongClick"
-                            }
-                        ],
+                        "excludeEvents": [],
                         "schema": "http",
                         "host": "localhost",
                         "port": "9958",

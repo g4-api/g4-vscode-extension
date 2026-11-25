@@ -22,6 +22,7 @@ These commands appear in the Command Palette (**Ctrl+Shift+P**).
 | Command id | Title | Where it appears | What it does | Notes |
 | --- | --- | --- | --- | --- |
 | `New-Project` | Create a New G4 Project | Command Palette | Scaffolds a G4 project in a folder you pick: the manifest, base bots and templates, `.vscode/mcp.json`, and the documentation. Opens the folder when it is done. | If the folder already holds `src/manifest.json`, a dialog offers **Open Existing Project** or **Overwrite Project**. See [Quick Start, Module 4](quick-start/04-create-your-first-project.md). |
+| `Add-ExampleBots` | Add Example Bots | Command Palette; the Explorer menu of a `bots` or `bots.examples` folder | Lists the example bots that ship with the extension and adds the ones you pick to the `bots.examples` folder of the project. | Asks before it replaces an example that already exists. Accepts example ids as its argument, which skips the picker. See [Example Bots](example-bots.md). |
 | `Show-Workflow` | Open G4 Engine Embedded Application | Command Palette; the **Engine Client** view | Opens the G4 designer in an editor tab. | Run from the palette, it opens an empty designer. It also accepts `{ fileUri }`, which opens that bot. The designer files are downloaded from the Hub on every open, so the Hub must be running. |
 | `Show-Settings` | Open Settings Editor | Command Palette; the **Engine Client** view; the Explorer menu for `manifest.json` | Opens the Settings Editor, a form over the project `manifest.json`. | See the [Settings Editor Reference](settings-editor-reference.md). |
 | `Show-Autonomous` | Start Autonomous Exploratory Run | Command Palette; the **Engine Client** view | Opens the autonomous run tab, where an agent explores an application and records scenarios. | See [Autonomous Exploratory Run](autonomous-run/README.md). |
@@ -41,7 +42,7 @@ These commands are hidden from the Command Palette. Right-click a file in the Ex
 | Command id | Title | Where it appears | What it does | Notes |
 | --- | --- | --- | --- | --- |
 | `Open-Bot-As-Json` | Open as JSON | Explorer menu, on a `.g4` or `.g4bot` file below a `bots` folder | Opens the bot as a plain JSON text document, instead of in the designer. | The warning is "Select a .g4 or .g4bot file under the bots folder." |
-| `Open-Bot-In-Workflow` | Open in Workflow Editor | Explorer menu, on a `.json` file below a `bots` or `base.bots` folder | Opens the bot in the designer through `Show-Workflow`. | The warning is "Select a JSON bot file under the bots or base.bots folder." See [Work in the Workflow Editor](work-in-the-workflow-editor/README.md). |
+| `Open-Bot-In-Workflow` | Open in Workflow Editor | Explorer menu, on a `.json` file below a `bots`, `bots.examples` or `base.bots` folder | Opens the bot in the designer through `Show-Workflow`. | The warning is "Select a JSON bot file under the bots, bots.examples or base.bots folder." See [Work in the Workflow Editor](work-in-the-workflow-editor/README.md). |
 | `Update-Flow` | Open in Flow Publisher | Explorer menu, on a `.json` file below a `bots` folder (not `base.bots`) | Opens the Flow Publisher tab for the bot, where you name the flow, add parameters and publish it to the Hub. | Picking a bot whose tab is already open reveals that tab. See [Publish a Flow](publish-a-flow/README.md). |
 | `Open-Template-Publisher` | Open in Template Publisher | Explorer menu, on a `.json` file below a `bots` folder or a `templates` folder | Opens the Template Publisher tab, where you turn a job or an existing template into a template and publish it. | The warning is "Select a JSON file under the templates or bots folder." See [Publish a Template](publish-a-template/README.md). |
 | `Open-Report-Viewer` | Open in Report Viewer | Explorer menu, on a `.g4rpt` file directly below the workspace `reports` folder | Opens the report in the Report Viewer. | The menu entry shows only for files that G4 Studio found in the reports folder. The warning is "Select a .g4rpt file under the reports folder." |
@@ -78,7 +79,8 @@ The commands in the Explorer menu decide by folder. The rules differ in one impo
 
 | Rule | Applies to | Example that works | Example that does not |
 | --- | --- | --- | --- |
-| A path segment named `bots` below the workspace folder | `Open-Bot-As-Json`, `Open-Bot-In-Workflow`, `Update-Flow`, `Open-Template-Publisher` | `bots/login.json`, `bots/examples/login.json` | `src/login.json` |
+| A path segment named `bots` below the workspace folder | `Open-Bot-As-Json`, `Open-Bot-In-Workflow`, `Update-Flow`, `Open-Template-Publisher` | `bots/login.json`, `bots/shop/login.json` | `src/login.json` |
+| A path segment named `bots.examples` | `Open-Bot-In-Workflow` only | `bots.examples/getting-started/find-something-on-bing.json` | The same file with `Update-Flow` |
 | A path segment named `base.bots` | `Open-Bot-In-Workflow` only | `base.bots/chrome-automation-base.json` | `base.bots/chrome-automation-base.json` with `Update-Flow` |
 | A path segment named `templates` | `Open-Template-Publisher` | `templates/my-template.json` | `src/other/my-template.json` |
 | `reports` as the first folder below the workspace folder | `Open-Report-Viewer` and the `g4.reportViewer` editor | `reports/run.g4rpt`, `reports/sub/run.g4rpt` | `src/reports/run.g4rpt` |

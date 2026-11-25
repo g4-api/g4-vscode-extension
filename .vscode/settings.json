@@ -1,5 +1,9 @@
 // Place your settings in this file to overwrite default and user settings.
 {
+	// Keep the JavaScript debugger's Network view off in this workspace. With the view on (the default), the
+	// debugger turns on network inspection in the Extension Development Host right after F5, and the host
+	// aborts with exit code 134 about a second later, which ends the debug session. Seen on VS Code 1.146.
+	"debug.javascript.enableNetworkView": false,
 	"debug.onTaskErrors": "debugAnyway",
 	"files.exclude": {
 		"out": false, // set this to true to hide the "out" folder with the compiled JS files

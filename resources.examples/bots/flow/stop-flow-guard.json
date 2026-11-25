@@ -1,0 +1,158 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Checks a precondition and ends the whole run early when it is not met: StopFlow closes the browser, and no later step, job or stage runs. Keep StopFlow the last step of its job.",
+        "name": "Stop Flow: Guard"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 5000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Decides whether the rest of the bot may run.",
+                "name": "Check the precondition"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A login page, which has no checkout form.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the login page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/login"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "This job holds only the condition, so StopFlow is its last step.",
+                        "name": "Guard"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetCondition",
+                            "capabilities": {
+                                "displayName": "Is the checkout form missing?"
+                            },
+                            "argument": "{{$ --Condition:ElementNotExists}}",
+                            "onElement": "//form[@id='checkout']",
+                            "branches": {
+                                "True": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log why the run stops"
+                                        },
+                                        "argument": "This page has no checkout form: stopping the run."
+                                    },
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "StopFlow",
+                                        "capabilities": {
+                                            "displayName": "Stop the run"
+                                        }
+                                    }
+                                ],
+                                "False": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log that the run continues"
+                                        },
+                                        "argument": "The checkout form is here: continuing."
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "reference": {
+                "description": "Never runs in this example, because the guard stopped the run.",
+                "name": "Work that needs the form"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "These steps would fail on a page without a checkout form.",
+                        "name": "Check out"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click Pay"
+                            },
+                            "onElement": "//form[@id='checkout']//button"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Order is confirmed"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:Thank you}}",
+                            "onElement": "//div[@id='confirmation']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

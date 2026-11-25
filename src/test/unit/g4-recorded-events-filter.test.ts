@@ -198,10 +198,41 @@ describe('G4RecordedEventsFilter.removeDomContext', () => {
         assert.equal(G4RecordedEventsFilter.removeDomContext({ automation, jobs: [], recorders: excludingRecorders }), 0);
         assert.deepEqual(automation, newContextAutomation());
     });
+
+    it('keeps the locator data of a saved flow when it removes the DOM context', () => {
+        // The Hub adds ranked locator candidates and the drop target next to the DOM context; a saved flow keeps them.
+        const locatorData = {
+            locators: [{ value: '//button[@id="login"]', strength: 'Strong' }],
+            locatorStrength: 'Strong',
+            shadowPath: 'app-root >>> #login',
+            originalLocator: '//button[1]',
+            target: { locators: [{ value: '//div[@id="drop"]', strength: 'Medium' }] }
+        };
+        const automation: any = {
+            stages: [{
+                jobs: [{
+                    rules: [
+                        {
+                            pluginName: 'InvokeClick',
+                            capabilities: { ...structuredClone(locatorData), domContext: 'PGEvPg==', domContextLength: 4 }
+                        }
+                    ]
+                }]
+            }]
+        };
+        const recorders: RecorderEventFilter[] = [
+            { baseUrl: CHROMIUM_URL, excludeDomContext: true, excludeEvents: [] }
+        ];
+
+        const clearedCount = G4RecordedEventsFilter.removeDomContext({ automation, jobs: JOBS, recorders });
+
+        assert.equal(clearedCount, 1);
+        assert.deepEqual(automation.stages[0].jobs[0].rules[0].capabilities, locatorData);
+    });
 });
 
 describe('New project manifest excluded events', () => {
-    it('excludes SubmitForm on the Chromium recorder and nothing on the desktop recorder', () => {
+    it('excludes SubmitForm on the Chromium recorder and nothing on the desktop and Android recorders', () => {
         const recorders: any[] = Global.BASE_MANIFEST.settings.recorderSettings.recorders;
         const getExclusions = (driver: string): unknown => {
             const recorder = recorders.find((item) => item.driverParameters?.driver === driver);
@@ -211,7 +242,7 @@ describe('New project manifest excluded events', () => {
 
         assert.deepEqual(getExclusions('ChromeDriver'), [{ name: 'SubmitForm' }]);
         assert.deepEqual(getExclusions('UiaDriver'), []);
-        assert.deepEqual(getExclusions('AndroidDriver'), [{ name: 'SwitchActivity' }, { name: 'InvokeLongClick' }]);
+        assert.deepEqual(getExclusions('AndroidDriver'), []);
         assert.deepEqual(getExclusions('SapDriver'), []);
     });
 

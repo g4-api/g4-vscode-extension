@@ -1,0 +1,176 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Logs in with an address, a username and a password read from an environment, so the bot holds no login values. It uses the ExampleLogin environment: the file environments/ExampleLogin.json is added with this example, and the Update or Create Environment Variables command sends it to the {hub}.",
+        "name": "Environment Login"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Ends the run with a clear message when the environment is not on the {hub} yet.",
+                "name": "Check the environment"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A value that is missing reads as empty text.",
+                        "name": "Guard"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetCondition",
+                            "capabilities": {
+                                "displayName": "Is the environment missing?"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Match --Expected:^$}}",
+                            "onElement": "{{$Get-Parameter --Name:Username --Scope:Application --Environment:ExampleLogin}}",
+                            "branches": {
+                                "True": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log what to do"
+                                        },
+                                        "argument": "The ExampleLogin environment is not on the {hub}. Run the Update or Create Environment Variables command, pick ExampleLogin, then run this bot again."
+                                    },
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "StopFlow",
+                                        "capabilities": {
+                                            "displayName": "Stop the run"
+                                        }
+                                    }
+                                ],
+                                "False": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "WriteLog",
+                                        "capabilities": {
+                                            "displayName": "Log that the environment is ready"
+                                        },
+                                        "argument": "The ExampleLogin environment is on the {hub}."
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "reference": {
+                "description": "Every value comes from the environment; change the file and push it to log in elsewhere.",
+                "name": "Log in with environment values"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Get-Parameter with --Scope:Application reads a value of an environment.",
+                        "name": "Log in"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the login page"
+                            },
+                            "argument": "{{$Get-Parameter --Name:LoginUrl --Scope:Application --Environment:ExampleLogin}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendKeys",
+                            "capabilities": {
+                                "displayName": "Type the username"
+                            },
+                            "argument": "{{$Get-Parameter --Name:Username --Scope:Application --Environment:ExampleLogin}}",
+                            "onElement": "//input[@id='username']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendKeys",
+                            "capabilities": {
+                                "displayName": "Type the password"
+                            },
+                            "argument": "{{$Get-Parameter --Name:Password --Scope:Application --Environment:ExampleLogin}}",
+                            "onElement": "//input[@id='password']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "InvokeClick",
+                            "capabilities": {
+                                "displayName": "Click Login"
+                            },
+                            "onElement": "//button[@type='submit']"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The expected message also comes from the environment.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The welcome message is shown"
+                            },
+                            "argument": "{{$ --Condition:ElementText --Operator:Match --Expected:{{$Get-Parameter --Name:WelcomeMessage --Scope:Application --Environment:ExampleLogin}}}}",
+                            "onElement": "//div[@id='flash']"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

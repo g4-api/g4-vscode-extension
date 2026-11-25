@@ -1,0 +1,274 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "driver": "NoDriver",
+        "driverBinaries": "."
+    },
+    "reference": {
+        "description": "Runs the jobs of one stage side by side in a Parallel container: at most two at a time, plus a background job the container does not wait for. No browser is needed.",
+        "name": "Parallel Jobs"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "The jobs inside the Parallel container are its lanes; the jobs around it run one after the other.",
+                "name": "Run jobs side by side"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Runs alone, before any lane starts.",
+                        "name": "Before the container"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the start"
+                            },
+                            "argument": "Starting three lanes, two at a time, and a background heartbeat."
+                        }
+                    ]
+                },
+                {
+                    "$type": "Parallel",
+                    "reference": {
+                        "description": "Three lanes, at most two at once, and one background lane.",
+                        "name": "Work in parallel"
+                    },
+                    "maxParallel": 2,
+                    "jobs": [
+                        {
+                            "reference": {
+                                "description": "Takes 3 seconds.",
+                                "name": "Lane 1: slow work"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the start of lane 1"
+                                    },
+                                    "argument": "Lane 1 started."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WaitFlow",
+                                    "capabilities": {
+                                        "displayName": "Work for 3 seconds"
+                                    },
+                                    "argument": "00:00:03"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember that lane 1 finished"
+                                    },
+                                    "argument": "{{$ --Name:LaneOne --Value:done --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the end of lane 1"
+                                    },
+                                    "argument": "Lane 1 finished."
+                                }
+                            ]
+                        },
+                        {
+                            "reference": {
+                                "description": "Takes 1 second, at the same time as lane 1.",
+                                "name": "Lane 2: quick work"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the start of lane 2"
+                                    },
+                                    "argument": "Lane 2 started."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WaitFlow",
+                                    "capabilities": {
+                                        "displayName": "Work for 1 second"
+                                    },
+                                    "argument": "00:00:01"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember that lane 2 finished"
+                                    },
+                                    "argument": "{{$ --Name:LaneTwo --Value:done --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the end of lane 2"
+                                    },
+                                    "argument": "Lane 2 finished."
+                                }
+                            ]
+                        },
+                        {
+                            "reference": {
+                                "description": "Starts when lane 1 or lane 2 ends, because only two lanes run at once.",
+                                "name": "Lane 3: waits for a free place"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the start of lane 3"
+                                    },
+                                    "argument": "Lane 3 started."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WaitFlow",
+                                    "capabilities": {
+                                        "displayName": "Work for 1 second"
+                                    },
+                                    "argument": "00:00:01"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember that lane 3 finished"
+                                    },
+                                    "argument": "{{$ --Name:LaneThree --Value:done --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the end of lane 3"
+                                    },
+                                    "argument": "Lane 3 finished."
+                                }
+                            ]
+                        },
+                        {
+                            "reference": {
+                                "description": "A background lane: the container does not wait for it, and stops it when the other lanes are done.",
+                                "name": "Heartbeat (background)"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "InvokeForLoop",
+                                    "capabilities": {
+                                        "displayName": "Repeat up to 60 times"
+                                    },
+                                    "argument": "60",
+                                    "rules": [
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "WriteLog",
+                                            "capabilities": {
+                                                "displayName": "Log a heartbeat"
+                                            },
+                                            "argument": "Heartbeat: the other lanes are still working."
+                                        },
+                                        {
+                                            "$type": "Action",
+                                            "pluginName": "WaitFlow",
+                                            "capabilities": {
+                                                "displayName": "Wait 1 second"
+                                            },
+                                            "argument": "00:00:01"
+                                        }
+                                    ]
+                                }
+                            ],
+                            "background": true
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Runs alone, after every lane that is not a background lane has finished.",
+                        "name": "After the container"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Lane 1 finished"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:done}}",
+                            "onElement": "{{$Get-Parameter --Name:LaneOne --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Lane 2 finished"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:done}}",
+                            "onElement": "{{$Get-Parameter --Name:LaneTwo --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Lane 3 finished"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:done}}",
+                            "onElement": "{{$Get-Parameter --Name:LaneThree --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the end"
+                            },
+                            "argument": "All three lanes finished; the heartbeat was stopped."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

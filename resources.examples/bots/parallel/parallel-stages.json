@@ -1,0 +1,238 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "driver": "NoDriver",
+        "driverBinaries": "."
+    },
+    "reference": {
+        "description": "Runs whole stages side by side in a Parallel container at the top of the bot. Each stage keeps its own jobs in order, and what the stages remember is merged when they all finish. No browser is needed.",
+        "name": "Parallel Stages"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "Runs alone, before the parallel stages.",
+                "name": "Prepare"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Sets a value the parallel stages can read.",
+                        "name": "Start"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "RegisterParameter",
+                            "capabilities": {
+                                "displayName": "Remember the order number"
+                            },
+                            "argument": "{{$ --Name:OrderNumber --Value:{{$New-Guid --Format:N}} --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the start"
+                            },
+                            "argument": "Order {{$Get-Parameter --Name:OrderNumber --Scope:Session}}: starting billing and shipping together."
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "$type": "Parallel",
+            "reference": {
+                "description": "Two stages run at the same time; 0 means no limit on how many run at once.",
+                "name": "Billing and shipping together"
+            },
+            "maxParallel": 0,
+            "stages": [
+                {
+                    "reference": {
+                        "description": "A lane: its two jobs still run one after the other.",
+                        "name": "Billing"
+                    },
+                    "jobs": [
+                        {
+                            "reference": {
+                                "description": "Takes 2 seconds.",
+                                "name": "Charge"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the charge"
+                                    },
+                                    "argument": "Billing: charging order {{$Get-Parameter --Name:OrderNumber --Scope:Session}}."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WaitFlow",
+                                    "capabilities": {
+                                        "displayName": "Work for 2 seconds"
+                                    },
+                                    "argument": "00:00:02"
+                                }
+                            ]
+                        },
+                        {
+                            "reference": {
+                                "description": "Runs after the charge, inside the same lane.",
+                                "name": "Receipt"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember the billing result"
+                                    },
+                                    "argument": "{{$ --Name:BillingResult --Value:charged --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the receipt"
+                                    },
+                                    "argument": "Billing: receipt ready."
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The other lane, running at the same time as Billing.",
+                        "name": "Shipping"
+                    },
+                    "jobs": [
+                        {
+                            "reference": {
+                                "description": "Takes 2 seconds.",
+                                "name": "Pack"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the packing"
+                                    },
+                                    "argument": "Shipping: packing order {{$Get-Parameter --Name:OrderNumber --Scope:Session}}."
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WaitFlow",
+                                    "capabilities": {
+                                        "displayName": "Work for 2 seconds"
+                                    },
+                                    "argument": "00:00:02"
+                                }
+                            ]
+                        },
+                        {
+                            "reference": {
+                                "description": "Runs after the packing, inside the same lane.",
+                                "name": "Label"
+                            },
+                            "rules": [
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "RegisterParameter",
+                                    "capabilities": {
+                                        "displayName": "Remember the shipping result"
+                                    },
+                                    "argument": "{{$ --Name:ShippingResult --Value:packed --Scope:Session}}"
+                                },
+                                {
+                                    "$type": "Action",
+                                    "pluginName": "WriteLog",
+                                    "capabilities": {
+                                        "displayName": "Log the label"
+                                    },
+                                    "argument": "Shipping: label printed."
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "reference": {
+                "description": "Runs alone, after both parallel stages have finished.",
+                "name": "Verify"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "Reads what each lane remembered.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Billing finished"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:charged}}",
+                            "onElement": "{{$Get-Parameter --Name:BillingResult --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "Shipping finished"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:packed}}",
+                            "onElement": "{{$Get-Parameter --Name:ShippingResult --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the end"
+                            },
+                            "argument": "Order {{$Get-Parameter --Name:OrderNumber --Scope:Session}} is charged and packed."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

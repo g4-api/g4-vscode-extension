@@ -1,0 +1,261 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "capabilities": {
+            "alwaysMatch": {}
+        },
+        "driver": "ChromeDriver",
+        "driverBinaries": "http://localhost:4444/wd/hub",
+        "firstMatch": [
+            {}
+        ]
+    },
+    "reference": {
+        "description": "Reads a value from the page and runs the branch with that name. A regular expression can cut the value first, and the Default branch runs when no name fits.",
+        "name": "Switch / Case"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "One step chooses among several branches by the text of an element.",
+                "name": "Branch by a value on the page"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A table of four people: Smith, Bach, Doe and Conway.",
+                        "name": "Open the page"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "OpenUrl",
+                            "capabilities": {
+                                "displayName": "Open the tables page"
+                            },
+                            "argument": "https://the-internet.herokuapp.com/tables"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The branch names are the values to match.",
+                        "name": "Branch by the text"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetSwitchCase",
+                            "capabilities": {
+                                "displayName": "Who is in the first row?"
+                            },
+                            "onElement": "//table[@id='table1']/tbody/tr[1]/td[1]",
+                            "regularExpression": "(?s).*",
+                            "branches": {
+                                "Smith": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember Smith"
+                                        },
+                                        "argument": "{{$ --Name:FirstPerson --Value:found Smith --Scope:Session}}"
+                                    }
+                                ],
+                                "Bach": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember Bach"
+                                        },
+                                        "argument": "{{$ --Name:FirstPerson --Value:found Bach --Scope:Session}}"
+                                    }
+                                ],
+                                "Default": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember nobody"
+                                        },
+                                        "argument": "{{$ --Name:FirstPerson --Value:found somebody else --Scope:Session}}"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The cell says \"$50.00\"; the regular expression keeps only \"50\".",
+                        "name": "Branch by a part of the text"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetSwitchCase",
+                            "capabilities": {
+                                "displayName": "How much is due?"
+                            },
+                            "onElement": "//table[@id='table1']/tbody/tr[1]/td[4]",
+                            "regularExpression": "\\d+",
+                            "branches": {
+                                "50": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember fifty"
+                                        },
+                                        "argument": "{{$ --Name:DueBand --Value:fifty --Scope:Session}}"
+                                    }
+                                ],
+                                "100": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember a hundred"
+                                        },
+                                        "argument": "{{$ --Name:DueBand --Value:hundred --Scope:Session}}"
+                                    }
+                                ],
+                                "Default": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember another amount"
+                                        },
+                                        "argument": "{{$ --Name:DueBand --Value:other --Scope:Session}}"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The last row holds Conway, which no branch names.",
+                        "name": "Fall back to Default"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Switch",
+                            "pluginName": "SetSwitchCase",
+                            "capabilities": {
+                                "displayName": "Who is in the last row?"
+                            },
+                            "onElement": "//table[@id='table1']/tbody/tr[4]/td[1]",
+                            "regularExpression": "(?s).*",
+                            "branches": {
+                                "Smith": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember Smith"
+                                        },
+                                        "argument": "{{$ --Name:LastPerson --Value:found Smith --Scope:Session}}"
+                                    }
+                                ],
+                                "Bach": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember Bach"
+                                        },
+                                        "argument": "{{$ --Name:LastPerson --Value:found Bach --Scope:Session}}"
+                                    }
+                                ],
+                                "Default": [
+                                    {
+                                        "$type": "Action",
+                                        "pluginName": "RegisterParameter",
+                                        "capabilities": {
+                                            "displayName": "Remember nobody"
+                                        },
+                                        "argument": "{{$ --Name:LastPerson --Value:found somebody else --Scope:Session}}"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "Each step ran exactly one branch.",
+                        "name": "Assert the result"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The Smith branch ran"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:found Smith}}",
+                            "onElement": "{{$Get-Parameter --Name:FirstPerson --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The 50 branch ran"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:fifty}}",
+                            "onElement": "{{$Get-Parameter --Name:DueBand --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The Default branch ran"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:found somebody else}}",
+                            "onElement": "{{$Get-Parameter --Name:LastPerson --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "CloseBrowser",
+                            "capabilities": {
+                                "displayName": "Close the browser"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

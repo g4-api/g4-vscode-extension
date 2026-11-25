@@ -1,0 +1,91 @@
+{
+    "authentication": {
+        "token": "",
+        "password": "",
+        "username": ""
+    },
+    "driverParameters": {
+        "driver": "NoDriver",
+        "driverBinaries": "."
+    },
+    "reference": {
+        "description": "Removes an item from a web API with a DELETE request and asserts the status code. No browser is needed. The practice API answers as if it removed the item.",
+        "name": "DELETE Request"
+    },
+    "settings": {
+        "automationSettings": {
+            "loadTimeout": 60000,
+            "maxParallel": 1,
+            "returnStructuredResponse": true,
+            "searchTimeout": 15000
+        },
+        "environmentSettings": {
+            "defaultEnvironment": "SystemParameters",
+            "returnEnvironment": true
+        },
+        "screenshotsSettings": {
+            "outputFolder": ".",
+            "convertToBase64": true,
+            "returnScreenshots": true,
+            "onExceptionOnly": false
+        },
+        "pluginsSettings": {
+            "externalRepositories": [],
+            "servers": {}
+        },
+        "exceptionsSettings": {
+            "returnExceptions": true
+        }
+    },
+    "stages": [
+        {
+            "reference": {
+                "description": "DELETE asks the API to remove the item the address names.",
+                "name": "Remove an item"
+            },
+            "jobs": [
+                {
+                    "reference": {
+                        "description": "A DELETE request needs no body.",
+                        "name": "Send the request"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "SendHttpRequest",
+                            "capabilities": {
+                                "displayName": "DELETE post 1"
+                            },
+                            "argument": "{{$ --Url:https://jsonplaceholder.typicode.com/posts/1 --Method:Delete}}"
+                        }
+                    ]
+                },
+                {
+                    "reference": {
+                        "description": "The status code is the answer: 200 means the API accepted the removal.",
+                        "name": "Assert the status"
+                    },
+                    "rules": [
+                        {
+                            "$type": "Action",
+                            "pluginName": "Assert",
+                            "capabilities": {
+                                "displayName": "The status is 200 (OK)"
+                            },
+                            "argument": "{{$ --Condition:Text --Operator:Equal --Expected:200}}",
+                            "onElement": "{{$Get-Parameter --Name:SendHttpRequest:HttpStatusCode --Scope:Session}}"
+                        },
+                        {
+                            "$type": "Action",
+                            "pluginName": "WriteLog",
+                            "capabilities": {
+                                "displayName": "Log the status"
+                            },
+                            "argument": "DELETE answered with status {{$Get-Parameter --Name:SendHttpRequest:HttpStatusCode --Scope:Session}}."
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -168,6 +168,13 @@ For messages from other parts of G4 Studio, see the [product-level troubleshooti
 - **Fix:** Connect the phone with USB debugging on, or start an emulator, then press **Start** again.
 - **Source:** the recorders' `src/G4.Recorders.Android.Domain/AndroidRecorderLauncher.cs`
 
+## The UIA driver server stops answering after an Android emulator starts
+
+- **Cause:** The emulator took ports `5554` and `5555`, its defaults. The sandbox uses `5554` for the UIA node and `5555` for the UIA driver server.
+- **Check:** Run `adb devices`. An emulator listed as `emulator-5554` uses the two UIA ports.
+- **Fix:** Close the emulator and start it on another port: `emulator -avd <name of your virtual device> -port 5580`. adb then lists it as `emulator-5580`.
+- **Source:** the sandbox's `add-uia-node.cmd` and `start-uia-driver-server.cmd`
+
 ## More than one Android device is connected
 
 - **Cause:** Several devices are connected and the card does not say which one to use, or `appium:udid` names a device that is not connected.
@@ -205,9 +212,9 @@ For messages from other parts of G4 Studio, see the [product-level troubleshooti
 
 ## A replayed flow does not scroll
 
-- **Cause:** The G4 `InvokeScroll` action reads only its `Left` and `Top` parameters, while the Hub writes `--direction` and `--times`, so a recorded scroll does nothing at replay. Chromium recordings have the same gap.
-- **Check:** The scroll action's argument starts with `{{$ --direction:`.
-- **Fix:** Replace the recorded scroll with an action that scrolls the way your app needs.
+- **Cause:** The Hub writes a recorded scroll as `InvokeScroll` with `--Left`, `--Top` and `--Relative`, and that action scrolls through JavaScript. It scrolls web pages, but not a native Android or desktop screen. A flow recorded with an older Hub has `--direction` and `--times`, which the action does not read.
+- **Check:** The flow targets an Android or desktop app, or the scroll action's argument starts with `{{$ --direction:`.
+- **Fix:** Record the flow again with the current Hub, or replace the scroll with an action that scrolls the way your app needs.
 - **Source:** the plugins' `src/G4.Plugins.Ui/Actions/InvokeScroll.cs`
 
 ## Replay fails with failed to stat ... No such file or directory
