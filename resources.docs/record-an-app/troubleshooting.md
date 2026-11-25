@@ -212,9 +212,9 @@ For messages from other parts of G4 Studio, see the [product-level troubleshooti
 
 ## A replayed flow does not scroll
 
-- **Cause:** The G4 `InvokeScroll` action reads only its `Left` and `Top` parameters, while the Hub writes `--direction` and `--times`, so a recorded scroll does nothing at replay. Chromium recordings have the same gap.
-- **Check:** The scroll action's argument starts with `{{$ --direction:`.
-- **Fix:** Replace the recorded scroll with an action that scrolls the way your app needs.
+- **Cause:** The Hub writes a recorded scroll as `InvokeScroll` with `--Left`, `--Top` and `--Relative`, and that action scrolls through JavaScript. It scrolls web pages, but not a native Android or desktop screen. A flow recorded with an older Hub has `--direction` and `--times`, which the action does not read.
+- **Check:** The flow targets an Android or desktop app, or the scroll action's argument starts with `{{$ --direction:`.
+- **Fix:** Record the flow again with the current Hub, or replace the scroll with an action that scrolls the way your app needs.
 - **Source:** the plugins' `src/G4.Plugins.Ui/Actions/InvokeScroll.cs`
 
 ## Replay fails with failed to stat ... No such file or directory

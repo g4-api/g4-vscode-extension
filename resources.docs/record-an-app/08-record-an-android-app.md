@@ -117,14 +117,7 @@ The same card in `manifest.json`, set up to record the Android Settings app:
     "mode": "standard",
     "useOffset": false,
     "excludeDomContext": true,
-    "excludeEvents": [
-        {
-            "name": "SwitchActivity"
-        },
-        {
-            "name": "InvokeLongClick"
-        }
-    ],
+    "excludeEvents": [],
     "schema": "http",
     "host": "localhost",
     "port": "9958",
@@ -189,11 +182,11 @@ Each thing you do becomes one action:
 | --- | --- | --- |
 | Tap a button, row, or field | `InvokeClick` with the element's XPath | Yes |
 | Type into a field | One `SendKeys` with the final text, written when you leave the field | Yes |
-| Scroll a list | `InvokeScroll` | No, see the note below |
+| Scroll a list | `InvokeScroll` | No, see the warning below |
 | Close the on-screen keyboard | `HideSoftKeyboard` | Yes |
 | Press the Back key | `UndoNavigation` | Yes |
-| Long-press | `InvokeLongClick` | Left out of the flow by the card's `excludeEvents` |
-| Open another screen | `SwitchActivity` | Left out of the flow by the card's `excludeEvents` |
+| Long-press | `InvokeLongClick` with the element's XPath and the hold time as `--Duration` | Yes |
+| Open another screen | `SwitchActivity` with `--Package` and `--Activity` | Yes |
 
 The flow ends with `CloseBrowser`, which closes the Appium session on replay.
 
@@ -206,7 +199,7 @@ Element locators use the XPath vocabulary of the Appium page source, so they wor
 
 > **📝 Note:** Only a real key press is recorded as Back. The back gesture of gesture navigation sends no key event, and neither does `adb shell input keyevent`.
 
-> **⚠️ Warning:** A recorded scroll does not move anything at replay. The G4 `InvokeScroll` action reads only its `Left` and `Top` parameters, while the Hub writes `--direction` and `--times`. Chromium recordings have the same gap. Replace the action by hand when your flow depends on a scroll.
+> **⚠️ Warning:** A recorded scroll does not move a native Android screen at replay. The Hub writes it as `InvokeScroll` with `--Left`, `--Top` and `--Relative`, and that action scrolls through JavaScript, which works on web pages only. Replace the action by hand when your flow depends on a scroll.
 
 ---
 

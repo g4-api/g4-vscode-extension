@@ -65,6 +65,11 @@ jobs:
       shell: pwsh
       run: npm install
 
+    # The unit tests run the extension services in plain Node with a vscode stand-in; a failure stops the release.
+    - name: Invoke Unit Tests
+      shell: pwsh
+      run: npm run test:unit
+
     - name: Install VSCE
       shell: pwsh
       run: npm install -g @vscode/vsce@latest --force
